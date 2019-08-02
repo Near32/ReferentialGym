@@ -50,7 +50,7 @@ class Speaker(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, stimuli, sentences=None, graphtype='categorical', tau=1.0, multi_round=False):
+    def forward(self, stimuli, sentences=None, graphtype='straight_through_gumbel_softmax', tau=1.0, multi_round=False):
         '''
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
                         `stimuli[:,0]` is assumed as the target stimulus, while the others are distractors, if any. 
@@ -63,8 +63,12 @@ class Speaker(nn.Module):
 
         # Add the target-boolean-channel:
         st_size = stimuli.size()
-        target_channels = torch.zeros( batch_size, *(st_size[:2]), 1, *(st_size[3:]))
-        target_channels[:,0,:,0,...] = 1
+        batch_size = st_size[0]
+        nbr_distractors_po = st_size[1]
+        nbr_stimulus = st_size[2]
+
+        target_channels = torch.zeros( batch_size, nbr_distractors_po, nbr_stimulus, 1, *(st_size[4:]))
+        target_channels[:,0,...] = 1
         stimuli_target = torch.cat([stimuli, target_channels], dim=3)
 
         features = self._sense(stimuli=stimuli_target, sentences=sentences)

@@ -1,5 +1,5 @@
-from .networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody
 from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction
+from .networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody
 
 import torch.nn.functional as F 
 

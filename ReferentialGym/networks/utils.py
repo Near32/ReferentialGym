@@ -2,6 +2,7 @@ import torch
 import torchvision.transforms as T
 import numpy as np
 
+
 def PreprocessFunction(x, use_cuda=False):
     if use_cuda:
         return torch.from_numpy(x).type(torch.cuda.FloatTensor)

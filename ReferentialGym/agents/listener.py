@@ -61,7 +61,7 @@ class Listener(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, sentences, stimuli, multi_round=False, graphtype='categorical', tau=1.0):
+    def forward(self, sentences, stimuli, multi_round=False, graphtype='straight_through_gumbel_softmax', tau=1.0):
         '''
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 

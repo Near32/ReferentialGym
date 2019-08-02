@@ -2,7 +2,25 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .utils import layer_init, layer_init_lstm, layer_init_gru
+
+
+def layer_init(layer, w_scale=1.0):
+    if hasattr(layer,"weight"):    
+        nn.init.orthogonal_(layer.weight.data)
+        layer.weight.data.mul_(w_scale)
+        nn.init.constant_(layer.bias.data, 0)
+
+    if hasattr(layer,"weight_ih"):
+        nn.init.orthogonal_(layer.weight_ih.data)
+        layer.weight_ih.data.mul_(w_scale)
+        nn.init.constant_(layer.bias_ih.data, 0)
+    
+    if hasattr(layer,"weight_hh"):    
+        nn.init.orthogonal_(layer.weight_hh.data)
+        layer.weight_hh.data.mul_(w_scale)
+        nn.init.constant_(layer.bias_hh.data, 0)
+    
+    return layer
 
 
 class FCBody(nn.Module):
@@ -183,7 +201,7 @@ class LSTMBody(nn.Module):
         super(LSTMBody, self).__init__()
         dims = (state_dim, ) + hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
-        self.layers = nn.ModuleList([layer_init_lstm(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.layers = nn.ModuleList([layer_init(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
         self.gate = gate
 
@@ -233,7 +251,7 @@ class GRUBody(nn.Module):
         super(GRUBody, self).__init__()
         dims = (state_dim, ) + hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
-        self.layers = nn.ModuleList([layer_init_gru(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.layers = nn.ModuleList([layer_init(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
         self.gate = gate
 
@@ -276,4 +294,3 @@ class GRUBody(nn.Module):
 
     def get_feature_shape(self):
         return self.feature_dim
-        
