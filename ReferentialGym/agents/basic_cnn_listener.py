@@ -110,6 +110,7 @@ class BasicCNNListener(Listener):
         # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
         # Since we consume the sentence, rather than generating it, we prepend the encoded_sentences with ones:
         inputs = torch.ones((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
+        if encoded_sentences.is_cuda: inputs = inputs.cuda()
         encoded_sentences = torch.cat( [inputs, encoded_sentences], dim=1)
         # Then, as usual, we concatenate this sequence's vectors with repeated temporal feature embedding vectors:
         inputs = torch.cat( [embedding_tf_final_outputs.repeat(1,self.max_sentence_length+1,1), encoded_sentences], dim=-1)
@@ -177,6 +178,7 @@ class BasicCNNListener(Listener):
         states = self.rnn_states
         # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
         inputs = torch.zeros((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
+        if embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
         inputs = torch.cat( [embedding_tf_final_outputs, inputs], dim=-1)
         # (batch_size, 1, kwargs['nbr_stimuli']*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
         

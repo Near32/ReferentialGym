@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from ..networks import layer_init
+
 
 class Listener(nn.Module):
     def __init__(self,obs_shape, feature_dim=512, vocab_size=100, max_sentence_length=10):
@@ -20,6 +22,9 @@ class Listener(nn.Module):
         # Multi-round:
         self._reset_rnn_states()
 
+    def reset(self):
+        self.apply(layer_init)
+        
     def _reset_rnn_states(self):
         self.rnn_states = None 
 

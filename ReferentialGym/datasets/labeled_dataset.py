@@ -66,8 +66,8 @@ class LabeledDataset(Dataset):
             stimuli.append(st.unsqueeze(0))
             
         stimuli = torch.cat(stimuli,dim=0)
-        stimuli = stimuli.unsqueeze(1).unsqueeze(0)
-        # account for the temporal length and batch dimension...
+        stimuli = stimuli.unsqueeze(1)
+        # account for the temporal dimension...
         
         return stimuli, indices
     
@@ -77,6 +77,6 @@ class LabeledDataset(Dataset):
         
         :params idx: int, index of the stimulus to use as a target.
         :returns: 
-            - stimuli: Tensor of shape (1, nbr_distractors+1, nbr_stimulus, stimulus_shape)
+            - stimuli: Tensor of shape (nbr_distractors+1, nbr_stimulus, stimulus_shape)
         '''
         return self.sample(idx)[0]

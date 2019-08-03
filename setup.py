@@ -30,10 +30,9 @@ setup(
 
     install_requires=['pip',
                       'numpy',
-                      'gym',
-                      'torch',
+                      'torch>=1.1',
                       'torchvision',
-                      'seaborn',
+                      'tensorboardX',
                       'matplotlib',
                       'docopt'
                       ] + test_requirements,

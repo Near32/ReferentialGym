@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from ..networks import layer_init
 
 class Speaker(nn.Module):
     def __init__(self,obs_shape, feature_dim=512, vocab_size=100, max_sentence_length=10):
@@ -19,6 +20,9 @@ class Speaker(nn.Module):
 
         # Multi-round:
         self._reset_rnn_states()
+
+    def reset(self):
+        self.apply(layer_init)
 
     def _reset_rnn_states(self):
         self.rnn_states = None
@@ -69,6 +73,7 @@ class Speaker(nn.Module):
 
         target_channels = torch.zeros( batch_size, nbr_distractors_po, nbr_stimulus, 1, *(st_size[4:]))
         target_channels[:,0,...] = 1
+        if stimuli.is_cuda: target_channels = target_channels.cuda()
         stimuli_target = torch.cat([stimuli, target_channels], dim=3)
 
         features = self._sense(stimuli=stimuli_target, sentences=sentences)
