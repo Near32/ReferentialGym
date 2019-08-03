@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import ipdb
 
 from .speaker import Speaker
-from ..networks import choose_architecture
+from ..networks import choose_architecture, layer_init, hasnan
 
 
 class BasicCNNSpeaker(Speaker):
@@ -30,28 +31,28 @@ class BasicCNNSpeaker(Speaker):
                                               paddings=self.kwargs['cnn_encoder_paddings'])
         
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
-        self.temporal_feature_encoder = nn.LSTM(input_size=temporal_encoder_input_dim,
+        self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
                                           hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
                                           num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
                                           batch_first=True,
                                           dropout=0.0,
-                                          bidirectional=False)
+                                          bidirectional=False))
 
         symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
-        self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
+        self.symbol_processing = layer_init(nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
                                       dropout=0.0,
-                                      bidirectional=False)
+                                      bidirectional=False))
 
-        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
-        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'])
+        self.symbol_decoder = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size, bias=False))
+        self.symbol_encoder = layer_init(nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False))
 
-        self.tau_fc = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False)
+        self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
     
     def _compute_tau(self, tau0):
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0])))
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
         return 1.0/invtau
 
     def _sense(self, stimuli, sentences=None):
@@ -112,7 +113,8 @@ class BasicCNNSpeaker(Speaker):
             # Consume the sentences:
             sentences = sentences.view((-1, self.vocab_size))
             encoded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units'])) 
-
+            if hasnan(encoded_sentences): ipdb.set_trace()
+        
             states = self.rnn_states
             # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
             # Since we consume the sentence, rather than generating it, we prepend the encoded_sentences with ones:
@@ -144,8 +146,10 @@ class BasicCNNSpeaker(Speaker):
             inputs = torch.cat([embedding_tf_final_outputs,hiddens], dim=-1)
             # (batch_size, 1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
         
+            if hasnan(hiddens): ipdb.set_trace()
             outputs = self.symbol_decoder(hiddens.squeeze(1))            
             # (batch_size, vocab_size)
+            if hasnan(outputs): ipdb.set_trace()
             _, prediction = outputs.max(1)                        
             # (batch_size)
             next_sentences_logits.append(outputs.unsqueeze(1))

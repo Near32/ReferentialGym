@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .listener import Listener
-from ..networks import choose_architecture
+from ..networks import choose_architecture, layer_init
 
 
 class BasicCNNListener(Listener):
@@ -29,31 +29,33 @@ class BasicCNNListener(Listener):
                                               paddings=self.kwargs['cnn_encoder_paddings'])
         
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
-        self.temporal_feature_encoder = nn.LSTM(input_size=temporal_encoder_input_dim,
+        self.temporal_feature_encoder = layer_init(
+                                        nn.LSTM(input_size=temporal_encoder_input_dim,
                                           hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
                                           num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
                                           batch_first=True,
                                           dropout=0.0,
-                                          bidirectional=False)
+                                          bidirectional=False))
 
         symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
-        self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
+        self.symbol_processing = layer_init(
+                                    nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
                                       dropout=0.0,
-                                      bidirectional=False)
+                                      bidirectional=False))
 
-        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
-        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'])
+        self.symbol_decoder = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size, bias=False))
+        self.symbol_encoder = layer_init(nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False))
 
         # Decision making: which input stimuli is the target? 
-        self.decision_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs['nbr_distractors']+1)
+        self.decision_decoder = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs['nbr_distractors']+1))
         
-        self.tau_fc = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False)
+        self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
     
     def _compute_tau(self, tau0):
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0])))
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
         return 1.0/invtau
         
     def _sense(self, stimuli, sentences=None):
@@ -129,7 +131,8 @@ class BasicCNNListener(Listener):
         # Compute the decision:
         decision_inputs = rnn_outputs[:,-1,...]
         # last output of the rnn...
-        decision_logits = F.softmax( self.decision_decoder(decision_inputs), dim=-1)
+        #decision_logits = F.softmax( self.decision_decoder(decision_inputs), dim=-1)
+        decision_logits = self.decision_decoder(decision_inputs)
 
         return decision_logits
 

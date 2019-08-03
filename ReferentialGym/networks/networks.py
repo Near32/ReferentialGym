@@ -3,23 +3,36 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def hasnan(tensor):
+    if torch.isnan(tensor).max().item() == 1:
+        return True
+    return False
 
 def layer_init(layer, w_scale=1.0):
     if hasattr(layer,"weight"):    
-        nn.init.orthogonal_(layer.weight.data)
+        #nn.init.orthogonal_(layer.weight.data)
+        layer.weight.data.uniform_(-0.08,0.08)
         layer.weight.data.mul_(w_scale)
-        nn.init.constant_(layer.bias.data, 0)
-
+        if hasattr(layer,"bias") and layer.bias is not None:    
+            #nn.init.constant_(layer.bias.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+        
     if hasattr(layer,"weight_ih"):
-        nn.init.orthogonal_(layer.weight_ih.data)
+        #nn.init.orthogonal_(layer.weight_ih.data)
+        layer.weight.data.uniform_(-0.08,0.08)
         layer.weight_ih.data.mul_(w_scale)
-        nn.init.constant_(layer.bias_ih.data, 0)
-    
+        if hasattr(layer,"bias_ih"):    
+            #nn.init.constant_(layer.bias_ih.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+        
     if hasattr(layer,"weight_hh"):    
-        nn.init.orthogonal_(layer.weight_hh.data)
+        #nn.init.orthogonal_(layer.weight_hh.data)
+        layer.weight.data.uniform_(-0.08,0.08)
         layer.weight_hh.data.mul_(w_scale)
-        nn.init.constant_(layer.bias_hh.data, 0)
-    
+        if hasattr(layer,"bias_hh"):    
+            #nn.init.constant_(layer.bias_hh.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+        
     return layer
 
 

@@ -1,9 +1,11 @@
 from typing import Dict, List, Tuple
 import copy
 import random
+import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 from tensorboardX import SummaryWriter
@@ -46,11 +48,16 @@ class ReferentialGame(object):
         if 'dataloader_num_worker' not in self.config:
             self.config['dataloader_num_worker'] = 8
 
+        print("Create dataloader: ...")
+        
         data_loader = torch.utils.data.DataLoader(self.dataset,
                                                   batch_size=self.config['batch_size'],
                                                   shuffle=True,
                                                   num_workers=self.config['dataloader_num_worker'])
 
+        print("Create dataloader: OK.")
+        print("Create Agents: ...")
+        
         # Agents:
         nbr_agents = self.config['cultural_substrate_size']
         speakers = [prototype_speaker]+[ copy.deepcopy(prototype_speaker) for i in range(nbr_agents-1)]
@@ -59,6 +66,9 @@ class ReferentialGame(object):
         listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
 
         criterion = nn.CrossEntropyLoss(reduction='mean')
+
+        print("Create Agents: OK.")
+        print("Launching training: ...")
 
         for epoch in range(nbr_epoch):
             idx_speaker = random.randint(0,len(speakers)-1)
@@ -78,7 +88,7 @@ class ReferentialGame(object):
                 if self.config['use_cuda']:
                     stimuli = stimuli.cuda()
 
-                shuffled_stimuli, target_decision_onehot = shuffle(stimuli)
+                shuffled_stimuli, target_decision_idx = shuffle(stimuli)
                 speaker_stimuli = stimuli 
                 if self.config['observability'] == "partial":
                     speaker_stimuli = speaker_stimuli[:,0].unsqueeze(1)
@@ -91,21 +101,22 @@ class ReferentialGame(object):
                     if idx_round == self.config['nbr_communication_round']-1:
                         multi_round = False
 
-                    speaker_sentences_logits, speaker_sentences = speaker(stimuli=stimuli, 
+                    speaker_sentences_logits, speaker_sentences = speaker(stimuli=speaker_stimuli, 
                                                                           sentences=listener_sentences, 
                                                                           graphtype=self.config['graphtype'], 
-                                                                          tau=self.config['tau'], 
+                                                                          tau0=self.config['tau0'], 
                                                                           multi_round=multi_round)
                     
                     decision_logits, listener_sentences_logits, listener_sentences = listener(sentences=speaker_sentences, 
                                                                                               stimuli=shuffled_stimuli, 
                                                                                               graphtype=self.config['graphtype'], 
-                                                                                              tau=self.config['tau'],
+                                                                                              tau0=self.config['tau0'],
                                                                                               multi_round=multi_round)
-
+                    
                 final_decision_logits = decision_logits
-                if final_decision_logits.is_cuda: target_decision_onehot = target_decision_onehot.cuda()
-                loss = criterion( final_decision_logits, target_decision_onehot)
+                if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
+                decision_probs = F.softmax( final_decision_logits, dim=-1)
+                loss = criterion( decision_probs, target_decision_idx)+F.mse_loss(final_decision_logits,torch.zeros_like(final_decision_logits))
 
                 loss.backward()
                 
@@ -116,12 +127,16 @@ class ReferentialGame(object):
                 listener_optimizer.step()
 
                 if logger is not None:
-                    logger.add_scalar('Training/Loss', loss.item(), idx_stimuli*len(data_loader)+epoch)
+                    logger.add_scalar('Training/Loss', loss.item(), idx_stimuli+len(data_loader)*epoch)
+                    decision_idx = decision_probs.max(dim=-1)[1]
+                    acc = (decision_idx==target_decision_idx).float().mean()
+                    logger.add_scalar('Training/Accuracy', acc.item(), idx_stimuli+len(data_loader)*epoch)
+                    
                 
                 if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                    print('Epoch {} :: Iteration {}/{} :: Training/Loss = {}'.format(epoch, idx_stimuli, len(data_loader), loss.item()))
+                    print('Epoch {} :: Iteration {}/{} :: Training/Loss {} = {}'.format(epoch, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
 
-                if self.config["cultural_pressure_period"] is not None and idx_stimuli*len(data_loader)+epoch % self.config['cultural_pressure_it_period'] == 0:
+                if self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
                     idx_speaker2reset = random.randint(0,len(speakers)-1)
                     idx_listener2reset = random.randint(0,len(listeners)-1)
                     

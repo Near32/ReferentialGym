@@ -81,9 +81,10 @@ class Speaker(nn.Module):
 
         features = self._sense(stimuli=stimuli_target, sentences=sentences)
         next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
-
+        
         tau = self._compute_tau(tau0=tau0)
-
+        tau = tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
+        
         if 'gumbel_softmax' in graphtype:    
             straight_through = (graphtype == 'straight_through_gumbel_softmax')
             next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
