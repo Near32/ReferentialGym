@@ -24,10 +24,13 @@ class Listener(nn.Module):
 
     def reset(self):
         self.apply(layer_init)
-        
+
     def _reset_rnn_states(self):
         self.rnn_states = None 
 
+    def _compute_tau(self, tau0):
+        raise NotImplementedError
+        
     def _sense(self, stimuli, sentences=None):
         '''
         Infers features from the stimuli that have been provided.
@@ -66,7 +69,7 @@ class Listener(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, sentences, stimuli, multi_round=False, graphtype='straight_through_gumbel_softmax', tau=1.0):
+    def forward(self, sentences, stimuli, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
         '''
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -76,7 +79,7 @@ class Listener(nn.Module):
                     - `'categorical'`: one-hot-encoded symbols.
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
-        :param tau: 
+        :param tau0: 
         '''
         features = self._sense(stimuli=stimuli, sentences=sentences)
         decision_logits = self._reason(sentences=sentences, features=features)
@@ -85,6 +88,8 @@ class Listener(nn.Module):
         next_sentences = None
         if multi_round:
             next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
+
+            tau = self._compute_tau(tau0=tau0)
 
             if 'gumbel_softmax' in graphtype:
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')

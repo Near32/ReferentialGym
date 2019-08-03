@@ -17,7 +17,7 @@ import torchvision.transforms as T
 
 
 rg_config = {
-    "observability":            "full",
+    "observability":            "partial",
     "max_sentence_length":      10,
     "nbr_communication_round":  1,
     "nbr_distractors":          127,
@@ -27,10 +27,10 @@ rg_config = {
     "nbr_stimulus":             1,
 
     "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
-    "tau":                      0.2,
-    "vocab_size":               20,
+    "tau0":                      0.2,
+    "vocab_size":               100,
 
-    "cultural_pressure_period": 2,
+    "cultural_pressure_it_period": 20,
     "cultural_substrate_size":  5,
     
     "batch_size":               128,
@@ -55,8 +55,8 @@ speaker_config['nbr_stimulus'] = rg_config['nbr_stimulus']
 
 # Recurrent Convolutional Architecture:
 speaker_config['cnn_encoder_channels'] = [32, 32, 64]
-speaker_config['cnn_encoder_kernels'] = [6, 4, 3]
-speaker_config['cnn_encoder_strides'] = [6, 2, 1]
+speaker_config['cnn_encoder_kernels'] = [4, 3, 3]
+speaker_config['cnn_encoder_strides'] = [4, 2, 1]
 speaker_config['cnn_encoder_paddings'] = [0, 1, 1]
 speaker_config['cnn_encoder_feature_dim'] = 512
 speaker_config['cnn_encoder_mini_batch_size'] = 128
@@ -98,6 +98,8 @@ bspeaker = BasicCNNSpeaker(kwargs=speaker_config,
                               vocab_size=vocab_size, 
                               max_sentence_length=max_sentence_length)
 
+print("Speaker:",bspeaker)
+
 # ## Basic Listener:
 
 # In[7]:
@@ -122,6 +124,8 @@ blistener = BasicCNNListener(kwargs=listener_config,
                               feature_dim=feature_dim, 
                               vocab_size=vocab_size, 
                               max_sentence_length=max_sentence_length)
+
+print("Listener:",blistener)
 
 # # MNIST Dataset:
 
@@ -154,11 +158,4 @@ refgame.train(prototype_speaker=bspeaker,
               prototype_listener=blistener, 
               nbr_epoch=nbr_epoch,
               logger=logger,
-              verbose=True)
-
-
-# In[ ]:
-
-
-
-
+              verbose_period=100)

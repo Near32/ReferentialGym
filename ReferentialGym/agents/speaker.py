@@ -27,6 +27,9 @@ class Speaker(nn.Module):
     def _reset_rnn_states(self):
         self.rnn_states = None
 
+    def _compute_tau(self, tau0):
+        raise NotImplementedError
+
     def _sense(self, stimuli, sentences=None):
         '''
         Infers features from the stimuli that have been provided.
@@ -54,7 +57,7 @@ class Speaker(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, stimuli, sentences=None, graphtype='straight_through_gumbel_softmax', tau=1.0, multi_round=False):
+    def forward(self, stimuli, sentences=None, graphtype='straight_through_gumbel_softmax', tau0=0.2, multi_round=False):
         '''
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
                         `stimuli[:,0]` is assumed as the target stimulus, while the others are distractors, if any. 
@@ -62,7 +65,7 @@ class Speaker(nn.Module):
                     - `'categorical'`: one-hot-encoded symbols.
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
-        :param tau: 
+        :param tau0: 
         '''
 
         # Add the target-boolean-channel:
@@ -78,6 +81,8 @@ class Speaker(nn.Module):
 
         features = self._sense(stimuli=stimuli_target, sentences=sentences)
         next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
+
+        tau = self._compute_tau(tau0=tau0)
 
         if 'gumbel_softmax' in graphtype:    
             straight_through = (graphtype == 'straight_through_gumbel_softmax')

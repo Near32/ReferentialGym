@@ -47,7 +47,13 @@ class BasicCNNSpeaker(Speaker):
 
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'])
-        
+
+        self.tau_fc = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False)
+    
+    def _compute_tau(self, tau0):
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0])))
+        return 1.0/invtau
+
     def _sense(self, stimuli, sentences=None):
         '''
         Infers features from the stimuli that have been provided.

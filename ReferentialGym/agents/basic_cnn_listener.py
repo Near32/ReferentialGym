@@ -49,7 +49,13 @@ class BasicCNNListener(Listener):
 
         # Decision making: which input stimuli is the target? 
         self.decision_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs['nbr_distractors']+1)
+        
+        self.tau_fc = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False)
     
+    def _compute_tau(self, tau0):
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0])))
+        return 1.0/invtau
+        
     def _sense(self, stimuli, sentences=None):
         '''
         Infers features from the stimuli that have been provided.

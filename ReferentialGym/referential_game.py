@@ -36,7 +36,7 @@ class ReferentialGame(object):
         self.dataset = dataset
         self.config = config
 
-    def train(self, prototype_speaker: Speaker, prototype_listener: Listener, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose=True):
+    def train(self, prototype_speaker: Speaker, prototype_listener: Listener, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose_period=None):
         '''
 
         '''
@@ -79,6 +79,9 @@ class ReferentialGame(object):
                     stimuli = stimuli.cuda()
 
                 shuffled_stimuli, target_decision_onehot = shuffle(stimuli)
+                speaker_stimuli = stimuli 
+                if self.config['observability'] == "partial":
+                    speaker_stimuli = speaker_stimuli[:,0].unsqueeze(1)
 
                 listener_sentences_logits = None
                 listener_sentences = None 
@@ -114,17 +117,25 @@ class ReferentialGame(object):
 
                 if logger is not None:
                     logger.add_scalar('Training/Loss', loss.item(), idx_stimuli*len(data_loader)+epoch)
-                if verbose:
+                
+                if verbose_period is not None and idx_stimuli % verbose_period == 0:
                     print('Epoch {} :: Iteration {}/{} :: Training/Loss = {}'.format(epoch, idx_stimuli, len(data_loader), loss.item()))
 
-            if self.config["cultural_pressure_period"] is not None and epoch % self.config['cultural_pressure_period'] == 0:
-                idx_speaker2reset = random.randint(0,len(speakers)-1)
-                idx_listener2reset = random.randint(0,len(listeners)-1)
-                
-                speakers[idx_speaker2reset].reset()
-                speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
-                listeners[idx_listener2reset].reset()
-                listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                if self.config["cultural_pressure_period"] is not None and idx_stimuli*len(data_loader)+epoch % self.config['cultural_pressure_it_period'] == 0:
+                    idx_speaker2reset = random.randint(0,len(speakers)-1)
+                    idx_listener2reset = random.randint(0,len(listeners)-1)
+                    
+                    speakers[idx_speaker2reset].reset()
+                    speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                    listeners[idx_listener2reset].reset()
+                    listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+
+                    print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
+
+            # Save agent:
+            torch.save(prototype_speaker, './basic_speaker.pt')
+            torch.save(prototype_listener, './basic_listener.pt')
+
 
 
 
