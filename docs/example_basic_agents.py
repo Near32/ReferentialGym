@@ -20,7 +20,7 @@ def test_example_basic_agents():
       "observability":            "partial",
       "max_sentence_length":      10,
       "nbr_communication_round":  1,
-      "nbr_distractors":          127,
+      "nbr_distractors":          31,
       "distractor_sampling":      "uniform",
       "descriptive":              False,
       "object_centric":           False,
@@ -30,15 +30,17 @@ def test_example_basic_agents():
       "tau0":                      0.2,
       "vocab_size":               100,
 
-      "cultural_pressure_it_period": 100,
+      "cultural_pressure_it_period": 1000,
       "cultural_substrate_size":  5,
       
-      "batch_size":               128,
+      "batch_size":               64,
       "dataloader_num_worker":    8,
+      "stimulus_resize_dim":      64,#28,
       
       "learning_rate":            3e-4,
       "adam_eps":                 1e-5,
       "gradient_clip":            5,
+      "with_weight_maxl1_loss":   False,
 
       "use_cuda":                 True,
   }
@@ -54,6 +56,8 @@ def test_example_basic_agents():
   speaker_config['nbr_stimulus'] = rg_config['nbr_stimulus']
 
   # Recurrent Convolutional Architecture:
+  #speaker_config['architecture'] = 'CNN'
+  speaker_config['architecture'] = 'ResNet18-2'
   speaker_config['cnn_encoder_channels'] = [32, 32, 64]
   speaker_config['cnn_encoder_kernels'] = [4, 3, 3]
   speaker_config['cnn_encoder_strides'] = [4, 2, 1]
@@ -87,14 +91,12 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = speaker_config['nbr_distractors']
   nbr_stimulus = speaker_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus,1,28,28]
-  feature_dim = 512
+  obs_shape = [nbr_distractors+1,nbr_stimulus,1,rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
   bspeaker = BasicCNNSpeaker(kwargs=speaker_config, 
                                 obs_shape=obs_shape, 
-                                feature_dim=feature_dim, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length)
 
@@ -114,14 +116,12 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = listener_config['nbr_distractors']
   nbr_stimulus = listener_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus,1,28,28]
-  feature_dim = 512
+  obs_shape = [nbr_distractors+1,nbr_stimulus,1,rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
   blistener = BasicCNNListener(kwargs=listener_config, 
                                 obs_shape=obs_shape, 
-                                feature_dim=feature_dim, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length)
 
@@ -131,9 +131,12 @@ def test_example_basic_agents():
 
   # In[10]:
 
+  from ReferentialGym.networks.utils import ResizeNormalize
+  transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
+  #transform = T.ToTensor()
 
   #dataset = torchvision.datasets.MNIST(root='./datasets/', train=True, transform=None, target_transform=None, download=True)
-  dataset = torchvision.datasets.MNIST(root='./datasets/', train=True, transform=T.ToTensor(), target_transform=None, download=False)
+  dataset = torchvision.datasets.MNIST(root='./datasets/', train=True, transform=transform, target_transform=None, download=False)
   dataset_args = {
       "dataset_class":            "LabeledDataset",
       "dataset":                  dataset,
@@ -148,7 +151,7 @@ def test_example_basic_agents():
 
 
   from tensorboardX import SummaryWriter
-  logger = SummaryWriter('./example_log')
+  logger = SummaryWriter('./{}_example_log'.format(speaker_config['architecture']))
 
 
   # In[22]:

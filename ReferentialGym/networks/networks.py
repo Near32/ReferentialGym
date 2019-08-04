@@ -2,13 +2,46 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.model_zoo as model_zoo
+
+import torchvision
+from torchvision import models
+from torchvision.models.resnet import model_urls, BasicBlock
+
+
 
 def hasnan(tensor):
     if torch.isnan(tensor).max().item() == 1:
         return True
     return False
 
+def handle_nan(layer):
+    for name, param in layer._parameters.items():
+        if param is None or param.data is None: continue
+        layer._parameters[name].data[torch.isnan(layer._parameters[name].data)]=0
+        if param.grad is None: continue
+        layer._parameters[name].grad.data[torch.isnan(layer._parameters[name].grad.data)]=0
+        
 def layer_init(layer, w_scale=1.0):
+    for name, param in layer._parameters.items():
+        if param is None or param.data is None: continue
+        if 'bias' in name:
+            #layer._parameters[name].data.fill_(0.0)
+            layer._parameters[name].data.uniform_(-0.08,0.08)
+        else:
+            #nn.init.orthogonal_(layer._parameters[name].data)
+            '''
+            fanIn = param.size(0)
+            fanOut = param.size(1)
+
+            factor = math.sqrt(2.0/(fanIn + fanOut))
+            weight = torch.randn(fanIn, fanOut) * factor
+            layer._parameters[name].data.copy_(weight)
+            '''
+            layer._parameters[name].data.uniform_(-0.08,0.08)
+            layer._parameters[name].data.mul_(w_scale)
+        
+    '''
     if hasattr(layer,"weight"):    
         #nn.init.orthogonal_(layer.weight.data)
         layer.weight.data.uniform_(-0.08,0.08)
@@ -32,7 +65,8 @@ def layer_init(layer, w_scale=1.0):
         if hasattr(layer,"bias_hh"):    
             #nn.init.constant_(layer.bias_hh.data, 0)
             layer.bias.data.uniform_(-0.08,0.08)
-        
+    '''
+
     return layer
 
 
@@ -304,6 +338,130 @@ class GRUBody(nn.Module):
             hidden_states.append(h)
             cell_states.append(h)
         return {'hidden': hidden_states, 'cell': cell_states}
+
+    def get_feature_shape(self):
+        return self.feature_dim
+
+class ModelResNet18(models.ResNet) :
+    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, **kwargs):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param nbr_layer: int, number of convolutional residual layer to use.
+        '''
+        super(ModelResNet18, self).__init__(BasicBlock, [2, 2, 2, 2], **kwargs)
+        self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        
+        self.input_shape = input_shape
+        self.nbr_layer = nbr_layer
+        
+        # Re-organize the input conv layer:
+        saved_kernel = self.conv1.weight.data
+        
+        if input_shape[0] >3:
+            in3depth = input_shape[0] // 3
+            concat_kernel = []
+            for i in range(in3depth) :
+                concat_kernel.append( saved_kernel)
+            concat_kernel = torch.cat(concat_kernel, dim=1)
+
+            self.conv1 = nn.Conv2d(in3depth*3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1.weight.data = concat_kernel
+        elif input_shape[0] <3:
+            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1.weight.data = saved_kernel[:,0:input_shape[0],...]
+
+        # 64:
+        self.avgpool_ksize = 2
+        # 224:
+        #self.avgpool_ksize = 7
+        self.avgpool = nn.AvgPool2d(self.avgpool_ksize, stride=1)
+        
+        # Add the fully-connected layers at the top:
+        self.feature_dim = feature_dim
+        if isinstance(feature_dim, tuple):
+            self.feature_dim = feature_dim[-1]
+
+        # Compute the number of features:
+        num_ftrs = self._compute_feature_dim(input_shape[-1], self.nbr_layer)
+
+        self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
+    
+    def _compute_feature_dim(self, input_dim, nbr_layer):
+        if nbr_layer is None: return self.fc.in_features
+
+        layers_depths = [64,128,256,512]
+        layers_divisions = [1,2,2,2]
+
+        # Conv1:
+        dim = input_dim // 2
+        # MaxPool1:
+        dim = dim // 2
+
+        depth = 64
+        for idx_layer in range(nbr_layer):
+            dim = dim // layers_divisions[idx_layer]
+            depth = layers_depths[idx_layer]
+
+        # Avg Pool:
+        dim -= 1
+
+        return depth * dim * dim  
+
+    def forward(self, x):
+        #xsize = x.size()
+        #print('input:',xsize)
+        x = self.conv1(x)
+        #xsize = x.size()
+        #print('cv0:',xsize)
+        x = self.bn1(x)
+        x = self.relu(x)
+        
+        self.x0 = self.maxpool(x)
+        
+        #xsize = self.x0.size()
+        #print('mxp0:',xsize)
+
+        if self.nbr_layer >= 1 :
+            self.x1 = self.layer1(self.x0)
+            #xsize = self.x1.size()
+            #print('1:',xsize)
+            if self.nbr_layer >= 2 :
+                self.x2 = self.layer2(self.x1)
+                #xsize = self.x2.size()
+                #print('2:',xsize)
+                if self.nbr_layer >= 3 :
+                    self.x3 = self.layer3(self.x2)
+                    #xsize = self.x3.size()
+                    #print('3:',xsize)
+                    if self.nbr_layer >= 4 :
+                        self.x4 = self.layer4(self.x3)
+                        #xsize = self.x4.size()
+                        #print('4:',xsize)
+                        
+                        self.features_map = self.x4
+                    else :
+                        self.features_map = self.x3
+                else :
+                    self.features_map = self.x2
+            else :
+                self.features_map = self.x1
+        else :
+            self.features_map = self.x0
+        
+        avgx = self.avgpool(self.features_map)
+        #xsize = avgx.size()
+        #print('avg : x :',xsize)
+        fcx = avgx.view(avgx.size(0), -1)
+        #xsize = fcx.size()
+        #print('reg avg : x :',xsize)
+        fcx = self.fc(fcx)
+        #xsize = fcx.size()
+        #print('fc output : x :',xsize)
+        
+        return fcx
 
     def get_feature_shape(self):
         return self.feature_dim

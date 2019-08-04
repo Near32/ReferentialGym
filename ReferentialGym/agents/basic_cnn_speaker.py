@@ -7,29 +7,34 @@ from ..networks import choose_architecture, layer_init, hasnan
 
 
 class BasicCNNSpeaker(Speaker):
-    def __init__(self,kwargs, obs_shape, feature_dim=512, vocab_size=100, max_sentence_length=10):
+    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10):
         '''
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
                           where, by default, `nbr_distractors=0` (partial observability), and `nbr_stimulus=1` (static stimuli). 
-        :param feature_dim: int defining the flatten number of dimension of the features for each stimulus. 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         '''
-        super(BasicCNNSpeaker, self).__init__(obs_shape,feature_dim,vocab_size,max_sentence_length)
+        super(BasicCNNSpeaker, self).__init__(obs_shape,vocab_size,max_sentence_length)
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
         # add the target-boolean-channel:
         cnn_input_shape[0] += 1
-        self.cnn_encoder = choose_architecture(architecture='CNN',
-                                              input_shape=cnn_input_shape,
-                                              hidden_units_list=None,
-                                              feature_dim=self.kwargs['cnn_encoder_feature_dim'],
-                                              nbr_channels_list=self.kwargs['cnn_encoder_channels'],
-                                              kernels=self.kwargs['cnn_encoder_kernels'],
-                                              strides=self.kwargs['cnn_encoder_strides'],
-                                              paddings=self.kwargs['cnn_encoder_paddings'])
-        
+
+        if self.kwargs['architecture'] == 'CNN':
+            self.cnn_encoder = choose_architecture(architecture='CNN',
+                                                  input_shape=cnn_input_shape,
+                                                  hidden_units_list=None,
+                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                  nbr_channels_list=self.kwargs['cnn_encoder_channels'],
+                                                  kernels=self.kwargs['cnn_encoder_kernels'],
+                                                  strides=self.kwargs['cnn_encoder_strides'],
+                                                  paddings=self.kwargs['cnn_encoder_paddings'])
+        elif 'ResNet18' in self.kwargs['architecture']:
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                  input_shape=cnn_input_shape,
+                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
+            
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
                                           hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
@@ -51,6 +56,12 @@ class BasicCNNSpeaker(Speaker):
 
         self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
     
+    def reset(self):
+        self.temporal_feature_encoder.apply(layer_init)
+        self.symbol_processing.apply(layer_init)
+        self.symbol_decoder.apply(layer_init)
+        self.symbol_encoder.apply(layer_init)
+        
     def _compute_tau(self, tau0):
         invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
         return 1.0/invtau

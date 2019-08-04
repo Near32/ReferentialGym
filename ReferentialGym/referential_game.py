@@ -11,6 +11,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 from .agents import Speaker, Listener
+from .networks import handle_nan
 
 
 def shuffle(stimuli):
@@ -116,22 +117,45 @@ class ReferentialGame(object):
                 final_decision_logits = decision_logits
                 if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
                 decision_probs = F.softmax( final_decision_logits, dim=-1)
-                loss = criterion( decision_probs, target_decision_idx)+F.mse_loss(final_decision_logits,torch.zeros_like(final_decision_logits))
+                loss = criterion( decision_probs, target_decision_idx)
+
+                # Weight MaxL1 Loss:
+                weight_maxl1_loss = 0.0
+                for p in speaker.parameters() :
+                    weight_maxl1_loss += torch.max( torch.abs(p) )
+                for p in listener.parameters() :
+                    weight_maxl1_loss += torch.max( torch.abs(p) )
+                
+                if self.config['with_weight_maxl1_loss']:
+                    loss += 0.5*weight_maxl1_loss
 
                 loss.backward()
                 
-                nn.utils.clip_grad_norm_(speaker.parameters(), self.config['gradient_clip'])
-                nn.utils.clip_grad_norm_(listener.parameters(), self.config['gradient_clip'])
+                nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
+                nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
+                speaker.apply(handle_nan)
+                listener.apply(handle_nan)
 
                 speaker_optimizer.step()
                 listener_optimizer.step()
 
                 if logger is not None:
                     logger.add_scalar('Training/Loss', loss.item(), idx_stimuli+len(data_loader)*epoch)
+                    logger.add_scalar('Training/WeightMaxL1Loss', weight_maxl1_loss.item(), idx_stimuli+len(data_loader)*epoch)
                     decision_idx = decision_probs.max(dim=-1)[1]
                     acc = (decision_idx==target_decision_idx).float().mean()
                     logger.add_scalar('Training/Accuracy', acc.item(), idx_stimuli+len(data_loader)*epoch)
                     
+                    '''
+                    for idx, sp in enumerate(speakers):
+                        for name, p in sp.named_parameters() :
+                            logger.add_histogram( "Speaker{}/{}".format(idx, name), p, idx_stimuli+len(data_loader)*epoch)
+                            logger.add_histogram( "Speaker{}/{}/Grad".format(idx, name), p.grad, idx_stimuli+len(data_loader)*epoch)
+                    for idx, ls in enumerate(listeners):
+                        for name, p in ls.named_parameters() :
+                            logger.add_histogram( "Listener{}/{}".format(idx, name), p, idx_stimuli+len(data_loader)*epoch)
+                            logger.add_histogram( "Listener{}/{}/Grad".format(idx, name), p.grad, idx_stimuli+len(data_loader)*epoch)
+                    '''
                 
                 if verbose_period is not None and idx_stimuli % verbose_period == 0:
                     print('Epoch {} :: Iteration {}/{} :: Training/Loss {} = {}'.format(epoch, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
@@ -148,8 +172,8 @@ class ReferentialGame(object):
                     print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
 
             # Save agent:
-            torch.save(prototype_speaker, './basic_speaker.pt')
-            torch.save(prototype_listener, './basic_listener.pt')
+            torch.save(prototype_speaker, './basic_{}_speaker.pt'.format(prototype_speaker.kwargs['architecture']))
+            torch.save(prototype_listener, './basic_{}_listener.pt'.format(prototype_listener.kwargs['architecture']))
 
 
 

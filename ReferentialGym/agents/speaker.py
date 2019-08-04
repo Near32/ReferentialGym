@@ -4,17 +4,15 @@ import torch.nn as nn
 from ..networks import layer_init
 
 class Speaker(nn.Module):
-    def __init__(self,obs_shape, feature_dim=512, vocab_size=100, max_sentence_length=10):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10):
         '''
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
                           where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
-        :param feature_dim: int defining the flatten number of dimension of the features for each stimulus. 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         '''
         super(Speaker, self).__init__()
         self.obs_shape = obs_shape
-        self.feature_dim = feature_dim
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
 
