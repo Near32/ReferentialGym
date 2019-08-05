@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from ..networks import layer_init
+from ..utils import gumbel_softmax
 
 class Speaker(nn.Module):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10):
@@ -80,12 +81,12 @@ class Speaker(nn.Module):
         features = self._sense(stimuli=stimuli_target, sentences=sentences)
         next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
         
-        tau = self._compute_tau(tau0=tau0)
-        tau = tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
+        self.tau = self._compute_tau(tau0=tau0)
+        tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
         
         if 'gumbel_softmax' in graphtype:    
             straight_through = (graphtype == 'straight_through_gumbel_softmax')
-            next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
+            next_sentences = gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
 
         if not multi_round:
             self._reset_rnn_states()

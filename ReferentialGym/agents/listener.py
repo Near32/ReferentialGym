@@ -87,8 +87,8 @@ class Listener(nn.Module):
         if multi_round:
             next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
             
-            tau = self._compute_tau(tau0=tau0)
-            tau = tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
+            self.tau = self._compute_tau(tau0=tau0)
+            tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
 
             if 'gumbel_softmax' in graphtype:
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')

@@ -18,7 +18,7 @@ def test_example_basic_agents():
 
   rg_config = {
       "observability":            "partial",
-      "max_sentence_length":      10,
+      "max_sentence_length":      14,
       "nbr_communication_round":  1,
       "nbr_distractors":          31,
       "distractor_sampling":      "uniform",
@@ -28,16 +28,16 @@ def test_example_basic_agents():
 
       "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                      0.2,
-      "vocab_size":               100,
+      "vocab_size":               10000,
 
-      "cultural_pressure_it_period": 1000,
-      "cultural_substrate_size":  5,
+      "cultural_pressure_it_period": None,
+      "cultural_substrate_size":  1,
       
-      "batch_size":               64,
+      "batch_size":               32,
       "dataloader_num_worker":    8,
       "stimulus_resize_dim":      64,#28,
       
-      "learning_rate":            3e-4,
+      "learning_rate":            1e-3,
       "adam_eps":                 1e-5,
       "gradient_clip":            5,
       "with_weight_maxl1_loss":   False,
@@ -67,7 +67,7 @@ def test_example_basic_agents():
   speaker_config['temporal_encoder_nbr_hidden_units'] = 512
   speaker_config['temporal_encoder_nbr_rnn_layers'] = 1
   speaker_config['temporal_encoder_mini_batch_size'] = 128
-  speaker_config['symbol_processing_nbr_hidden_units'] = 512
+  speaker_config['symbol_processing_nbr_hidden_units'] = speaker_config['temporal_encoder_nbr_hidden_units']
   speaker_config['symbol_processing_nbr_rnn_layers'] = 1
 
   import copy
@@ -151,7 +151,8 @@ def test_example_basic_agents():
 
 
   from tensorboardX import SummaryWriter
-  logger = SummaryWriter('./{}_example_log'.format(speaker_config['architecture']))
+  #logger = SummaryWriter('./{}_example_log'.format(speaker_config['architecture']))
+  logger = SummaryWriter('./HavrylovLoss_{}_example_log'.format(speaker_config['architecture']))
 
 
   # In[22]:

@@ -11,7 +11,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 from .agents import Speaker, Listener
-from .networks import handle_nan
+from .networks import handle_nan, hasnan
 
 
 def shuffle(stimuli):
@@ -97,6 +97,7 @@ class ReferentialGame(object):
                 listener_sentences_logits = None
                 listener_sentences = None 
 
+                
                 for idx_round in range(self.config['nbr_communication_round']):
                     multi_round = True
                     if idx_round == self.config['nbr_communication_round']-1:
@@ -108,6 +109,9 @@ class ReferentialGame(object):
                                                                           tau0=self.config['tau0'], 
                                                                           multi_round=multi_round)
                     
+                    if hasnan(speaker_sentences_logits): import ipdb;ipdb.set_trace()
+                    if hasnan(speaker_sentences): import ipdb;ipdb.set_trace()
+
                     decision_logits, listener_sentences_logits, listener_sentences = listener(sentences=speaker_sentences, 
                                                                                               stimuli=shuffled_stimuli, 
                                                                                               graphtype=self.config['graphtype'], 
@@ -117,7 +121,19 @@ class ReferentialGame(object):
                 final_decision_logits = decision_logits
                 if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
                 decision_probs = F.softmax( final_decision_logits, dim=-1)
-                loss = criterion( decision_probs, target_decision_idx)
+                #loss = criterion( decision_probs, target_decision_idx)
+                
+                losses = []
+                for b in range(final_decision_logits.size(0)):
+                    '''
+                    fd_target_l = final_decision_logits[b,target_decision_idx[b]]
+                    el = 1-2*fd_target_l+final_decision_logits[b].sum()
+                    '''
+                    fd_target_l = decision_probs[b,target_decision_idx[b]]
+                    el = 1-2*fd_target_l+decision_probs[b].sum()
+                    losses.append( el.unsqueeze(0))
+                losses = torch.cat(losses,dim=0)
+                loss = torch.max(torch.zeros_like(losses),losses).sum()
 
                 # Weight MaxL1 Loss:
                 weight_maxl1_loss = 0.0
@@ -143,9 +159,17 @@ class ReferentialGame(object):
                     logger.add_scalar('Training/Loss', loss.item(), idx_stimuli+len(data_loader)*epoch)
                     logger.add_scalar('Training/WeightMaxL1Loss', weight_maxl1_loss.item(), idx_stimuli+len(data_loader)*epoch)
                     decision_idx = decision_probs.max(dim=-1)[1]
-                    acc = (decision_idx==target_decision_idx).float().mean()
+                    acc = (decision_idx==target_decision_idx).float().mean()*100
                     logger.add_scalar('Training/Accuracy', acc.item(), idx_stimuli+len(data_loader)*epoch)
                     
+                    logger.add_histogram( "Training/LossesPerStimulus", losses, idx_stimuli+len(data_loader)*epoch)
+                    
+                    if hasattr(speaker,'tau'): 
+                        logger.add_histogram( "Speaker/Tau", speaker.tau, idx_stimuli+len(data_loader)*epoch)
+                        logger.add_scalar( "Training/Tau/Speaker", speaker.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
+                    if hasattr(listener,'tau'): 
+                        logger.add_histogram( "Listener/Tau", listener.tau, idx_stimuli+len(data_loader)*epoch)
+                        logger.add_scalar( "Training/Tau/Listener", listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
                     '''
                     for idx, sp in enumerate(speakers):
                         for name, p in sp.named_parameters() :

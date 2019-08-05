@@ -133,18 +133,29 @@ class BasicCNNListener(Listener):
         encoded_sentences = torch.cat( [inputs, encoded_sentences], dim=1)
         # Then, as usual, we concatenate this sequence's vectors with repeated temporal feature embedding vectors:
         inputs = torch.cat( [embedding_tf_final_outputs.repeat(1,self.max_sentence_length+1,1), encoded_sentences], dim=-1)
-        # (batch_size, max_sentence_length+1, kwargs['nbr_stimuli']*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size, max_sentence_length+1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
     
         rnn_outputs, self.rnn_states = self.symbol_processing(inputs, states)          
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
-        # Compute the decision:
+        # Compute the decision: following the last hidden/output vector from the rnn:
         decision_inputs = rnn_outputs[:,-1,...]
+        # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         # last output of the rnn...
         #decision_logits = F.softmax( self.decision_decoder(decision_inputs), dim=-1)
-        decision_logits = self.decision_decoder(decision_inputs)
-
+        #decision_logits = self.decision_decoder(decision_inputs)
+        decision_logits = []
+        for b in range(batch_size):
+            bemb = embedding_tf_final_outputs[b].view((self.obs_shape[0], -1))
+            # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+            bdin = decision_inputs[b].unsqueeze(1)
+            # (kwargs['symbol_processing_nbr_hidden_units'], 1)
+            dl = torch.matmul( bemb, bdin).squeeze()
+            # ( (nbr_distractors+1), )
+            decision_logits.append(dl.unsqueeze(0))
+        decision_logits = torch.cat(decision_logits, dim=0)
+        # (batch_size, (nbr_distractors+1) )
         return decision_logits
 
 
