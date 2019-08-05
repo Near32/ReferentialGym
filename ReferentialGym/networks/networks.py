@@ -361,6 +361,7 @@ class ModelResNet18(models.ResNet) :
         saved_kernel = self.conv1.weight.data
         
         if input_shape[0] >3:
+            '''
             in3depth = input_shape[0] // 3
             concat_kernel = []
             for i in range(in3depth) :
@@ -369,6 +370,10 @@ class ModelResNet18(models.ResNet) :
 
             self.conv1 = nn.Conv2d(in3depth*3, 64, kernel_size=7, stride=2, padding=3, bias=False)
             self.conv1.weight.data = concat_kernel
+            '''
+            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1.weight.data[:,0:3,...] = saved_kernel
+            
         elif input_shape[0] <3:
             self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
             self.conv1.weight.data = saved_kernel[:,0:input_shape[0],...]

@@ -27,7 +27,7 @@ def test_example_basic_agents():
       "nbr_stimulus":             1,
 
       "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
-      "tau0":                      0.2,
+      "tau0":                     0.2,
       "vocab_size":               10000,
 
       "cultural_pressure_it_period": None,
@@ -35,11 +35,12 @@ def test_example_basic_agents():
       
       "batch_size":               32,
       "dataloader_num_worker":    8,
+      "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
       "learning_rate":            1e-3,
       "adam_eps":                 1e-5,
-      "gradient_clip":            5,
+      "gradient_clip":            50,
       "with_weight_maxl1_loss":   False,
 
       "use_cuda":                 True,
@@ -91,7 +92,7 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = speaker_config['nbr_distractors']
   nbr_stimulus = speaker_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus,1,rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -116,7 +117,7 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = listener_config['nbr_distractors']
   nbr_stimulus = listener_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus,1,rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -135,11 +136,13 @@ def test_example_basic_agents():
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   #transform = T.ToTensor()
 
-  #dataset = torchvision.datasets.MNIST(root='./datasets/', train=True, transform=None, target_transform=None, download=True)
-  dataset = torchvision.datasets.MNIST(root='./datasets/', train=True, transform=transform, target_transform=None, download=False)
+  #dataset = torchvision.datasets.MNIST(root='./datasets/MNIST/', train=True, transform=transform, target_transform=None, download=True)
+  train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=transform, target_transform=None, download=True)
+  test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=transform, target_transform=None, download=True)
   dataset_args = {
       "dataset_class":            "LabeledDataset",
-      "dataset":                  dataset,
+      "train_dataset":            train_dataset,
+      "test_dataset":             test_dataset,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
       "nbr_distractors":          rg_config['nbr_distractors'],
   }
@@ -151,8 +154,12 @@ def test_example_basic_agents():
 
 
   from tensorboardX import SummaryWriter
-  #logger = SummaryWriter('./{}_example_log'.format(speaker_config['architecture']))
-  logger = SummaryWriter('./HavrylovLoss_{}_example_log'.format(speaker_config['architecture']))
+  #logger = SummaryWriter('./MSE_{}_example_log'.format(speaker_config['architecture']))
+  #logger = SummaryWriter('./MSE_CIFAR10_{}_example_log'.format(speaker_config['architecture']))
+  
+  #logger = SummaryWriter('./HavrylovLoss_withReLU_{}_example_log'.format(speaker_config['architecture']))
+  #logger = SummaryWriter('./HavrylovLoss_{}_obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(rg_config['observability'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],speaker_config['architecture']))
+  logger = SummaryWriter('./HavrylovLoss+SiSentEnc_{}_obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(rg_config['observability'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],speaker_config['architecture']))
 
 
   # In[22]:

@@ -32,12 +32,25 @@ def shuffle(stimuli):
 
 
 class ReferentialGame(object):
-    def __init__(self, dataset, config):
+    def __init__(self, datasets, config):
         '''
 
         '''
-        self.dataset = dataset
+        self.datasets = datasets
         self.config = config
+
+    def _select_agents(self, speakers, listeners, speakers_optimizers, listeners_optimizers):
+        idx_speaker = random.randint(0,len(speakers)-1)
+        idx_listener = random.randint(0,len(listeners)-1)
+            
+        speaker, speaker_optimizer = speakers[idx_speaker], speakers_optimizers[idx_speaker]
+        listener, listener_optimizer = listeners[idx_listener], listeners_optimizers[idx_listener]
+        
+        if self.config['use_cuda']:
+            speaker = speaker.cuda()
+            listener = listener.cuda()
+            
+        return speaker, listener, speaker_optimizer, listener_optimizer
 
     def train(self, prototype_speaker: Speaker, prototype_listener: Listener, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose_period=None):
         '''
@@ -51,10 +64,15 @@ class ReferentialGame(object):
 
         print("Create dataloader: ...")
         
-        data_loader = torch.utils.data.DataLoader(self.dataset,
-                                                  batch_size=self.config['batch_size'],
-                                                  shuffle=True,
-                                                  num_workers=self.config['dataloader_num_worker'])
+        data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
+                                                            batch_size=self.config['batch_size'],
+                                                            shuffle=True,
+                                                            num_workers=self.config['dataloader_num_worker']),
+                        'test':torch.utils.data.DataLoader(self.datasets['test'],
+                                                           batch_size=self.config['batch_size'],
+                                                           shuffle=True,
+                                                           num_workers=self.config['dataloader_num_worker'])
+                        }
 
         print("Create dataloader: OK.")
         print("Create Agents: ...")
@@ -66,134 +84,133 @@ class ReferentialGame(object):
         speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for speaker in speakers ]
         listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
 
-        criterion = nn.CrossEntropyLoss(reduction='mean')
-
         print("Create Agents: OK.")
         print("Launching training: ...")
 
         for epoch in range(nbr_epoch):
-            idx_speaker = random.randint(0,len(speakers)-1)
-            idx_listener = random.randint(0,len(listeners)-1)
-                
-            speaker, speaker_optimizer = speakers[idx_speaker], speakers_optimizers[idx_speaker]
-            listener, listener_optimizer = listeners[idx_listener], listeners_optimizers[idx_listener]
-            
-            if self.config['use_cuda']:
-                speaker = speaker.cuda()
-                listener = listener.cuda()
-                
-            for idx_stimuli, stimuli in enumerate(data_loader):
-                speaker_optimizer.zero_grad()
-                listener_optimizer.zero_grad()
+            for mode in ['train','test']:
+                data_loader = data_loaders[mode]
+                for idx_stimuli, stimuli in enumerate(data_loader):
+                    speaker, listener, speaker_optimizer, listener_optimizer = self._select_agents(speakers,
+                                                                                                  listeners,
+                                                                                                  speakers_optimizers,
+                                                                                                  listeners_optimizers)
+                    if mode == 'train': 
+                        speaker.train()
+                        listener.train()
+                    else:
+                        speaker.eval()
+                        listener.eval()
 
-                if self.config['use_cuda']:
-                    stimuli = stimuli.cuda()
+                    if self.config['use_cuda']:
+                        stimuli = stimuli.cuda()
 
-                shuffled_stimuli, target_decision_idx = shuffle(stimuli)
-                speaker_stimuli = stimuli 
-                if self.config['observability'] == "partial":
-                    speaker_stimuli = speaker_stimuli[:,0].unsqueeze(1)
+                    shuffled_stimuli, target_decision_idx = shuffle(stimuli)
+                    speaker_stimuli = stimuli 
+                    if self.config['observability'] == "partial":
+                        speaker_stimuli = speaker_stimuli[:,0].unsqueeze(1)
 
-                listener_sentences_logits = None
-                listener_sentences = None 
-
-                
-                for idx_round in range(self.config['nbr_communication_round']):
-                    multi_round = True
-                    if idx_round == self.config['nbr_communication_round']-1:
-                        multi_round = False
-
-                    speaker_sentences_logits, speaker_sentences = speaker(stimuli=speaker_stimuli, 
-                                                                          sentences=listener_sentences, 
-                                                                          graphtype=self.config['graphtype'], 
-                                                                          tau0=self.config['tau0'], 
-                                                                          multi_round=multi_round)
+                    listener_sentences_logits = None
+                    listener_sentences = None 
                     
-                    if hasnan(speaker_sentences_logits): import ipdb;ipdb.set_trace()
-                    if hasnan(speaker_sentences): import ipdb;ipdb.set_trace()
+                    for idx_round in range(self.config['nbr_communication_round']):
+                        multi_round = True
+                        if idx_round == self.config['nbr_communication_round']-1:
+                            multi_round = False
 
-                    decision_logits, listener_sentences_logits, listener_sentences = listener(sentences=speaker_sentences, 
-                                                                                              stimuli=shuffled_stimuli, 
-                                                                                              graphtype=self.config['graphtype'], 
-                                                                                              tau0=self.config['tau0'],
-                                                                                              multi_round=multi_round)
+                        speaker_sentences_logits, speaker_sentences = speaker(stimuli=speaker_stimuli, 
+                                                                              sentences=listener_sentences, 
+                                                                              graphtype=self.config['graphtype'], 
+                                                                              tau0=self.config['tau0'], 
+                                                                              multi_round=multi_round)
+                        
+                        decision_logits, listener_sentences_logits, listener_sentences = listener(sentences=speaker_sentences, 
+                                                                                                  stimuli=shuffled_stimuli, 
+                                                                                                  graphtype=self.config['graphtype'], 
+                                                                                                  tau0=self.config['tau0'],
+                                                                                                  multi_round=multi_round)
+                        
+                    final_decision_logits = decision_logits
+                    if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
+                    decision_probs = F.softmax( final_decision_logits, dim=-1)
                     
-                final_decision_logits = decision_logits
-                if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
-                decision_probs = F.softmax( final_decision_logits, dim=-1)
-                #loss = criterion( decision_probs, target_decision_idx)
-                
-                losses = []
-                for b in range(final_decision_logits.size(0)):
                     '''
-                    fd_target_l = final_decision_logits[b,target_decision_idx[b]]
-                    el = 1-2*fd_target_l+final_decision_logits[b].sum()
-                    '''
-                    fd_target_l = decision_probs[b,target_decision_idx[b]]
-                    el = 1-2*fd_target_l+decision_probs[b].sum()
-                    losses.append( el.unsqueeze(0))
-                losses = torch.cat(losses,dim=0)
-                loss = torch.max(torch.zeros_like(losses),losses).sum()
-
-                # Weight MaxL1 Loss:
-                weight_maxl1_loss = 0.0
-                for p in speaker.parameters() :
-                    weight_maxl1_loss += torch.max( torch.abs(p) )
-                for p in listener.parameters() :
-                    weight_maxl1_loss += torch.max( torch.abs(p) )
-                
-                if self.config['with_weight_maxl1_loss']:
-                    loss += 0.5*weight_maxl1_loss
-
-                loss.backward()
-                
-                nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
-                nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
-                speaker.apply(handle_nan)
-                listener.apply(handle_nan)
-
-                speaker_optimizer.step()
-                listener_optimizer.step()
-
-                if logger is not None:
-                    logger.add_scalar('Training/Loss', loss.item(), idx_stimuli+len(data_loader)*epoch)
-                    logger.add_scalar('Training/WeightMaxL1Loss', weight_maxl1_loss.item(), idx_stimuli+len(data_loader)*epoch)
-                    decision_idx = decision_probs.max(dim=-1)[1]
-                    acc = (decision_idx==target_decision_idx).float().mean()*100
-                    logger.add_scalar('Training/Accuracy', acc.item(), idx_stimuli+len(data_loader)*epoch)
+                    criterion = nn.CrossEntropyLoss(reduction='mean')
+                    loss = criterion( decision_probs, target_decision_idx)
                     
-                    logger.add_histogram( "Training/LossesPerStimulus", losses, idx_stimuli+len(data_loader)*epoch)
-                    
-                    if hasattr(speaker,'tau'): 
-                        logger.add_histogram( "Speaker/Tau", speaker.tau, idx_stimuli+len(data_loader)*epoch)
-                        logger.add_scalar( "Training/Tau/Speaker", speaker.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
-                    if hasattr(listener,'tau'): 
-                        logger.add_histogram( "Listener/Tau", listener.tau, idx_stimuli+len(data_loader)*epoch)
-                        logger.add_scalar( "Training/Tau/Listener", listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
+                    criterion = nn.MSELoss(reduction='mean')
+                    loss = criterion( decision_probs, nn.functional.one_hot(target_decision_idx, num_classes=decision_probs.size(1)).float())
                     '''
-                    for idx, sp in enumerate(speakers):
-                        for name, p in sp.named_parameters() :
-                            logger.add_histogram( "Speaker{}/{}".format(idx, name), p, idx_stimuli+len(data_loader)*epoch)
-                            logger.add_histogram( "Speaker{}/{}/Grad".format(idx, name), p.grad, idx_stimuli+len(data_loader)*epoch)
-                    for idx, ls in enumerate(listeners):
-                        for name, p in ls.named_parameters() :
-                            logger.add_histogram( "Listener{}/{}".format(idx, name), p, idx_stimuli+len(data_loader)*epoch)
-                            logger.add_histogram( "Listener{}/{}/Grad".format(idx, name), p.grad, idx_stimuli+len(data_loader)*epoch)
-                    '''
-                
-                if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                    print('Epoch {} :: Iteration {}/{} :: Training/Loss {} = {}'.format(epoch, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
-
-                if self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
-                    idx_speaker2reset = random.randint(0,len(speakers)-1)
-                    idx_listener2reset = random.randint(0,len(listeners)-1)
                     
-                    speakers[idx_speaker2reset].reset()
-                    speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
-                    listeners[idx_listener2reset].reset()
-                    listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                    losses = []
+                    for b in range(final_decision_logits.size(0)):
+                        fd_target_l = final_decision_logits[b,target_decision_idx[b]]
+                        bl = 0.0
+                        for d in range(final_decision_logits.size(1)):
+                            if d == target_decision_idx[b]: continue
+                            el = 1-fd_target_l+final_decision_logits[b][d]
+                            el = torch.max(torch.zeros_like(el),el)
+                            bl = bl + el 
+                        losses.append( bl.unsqueeze(0))
+                    losses = torch.cat(losses,dim=0)
+                    loss = losses.mean()
 
-                    print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
+                    # Weight MaxL1 Loss:
+                    weight_maxl1_loss = 0.0
+                    for p in speaker.parameters() :
+                        weight_maxl1_loss += torch.max( torch.abs(p) )
+                    for p in listener.parameters() :
+                        weight_maxl1_loss += torch.max( torch.abs(p) )
+                    
+                    if self.config['with_weight_maxl1_loss']:
+                        loss += 0.5*weight_maxl1_loss
+
+                    if mode == 'train':
+                        speaker_optimizer.zero_grad()
+                        listener_optimizer.zero_grad()
+                        loss.backward()
+                        
+                        nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
+                        nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
+                        speaker.apply(handle_nan)
+                        listener.apply(handle_nan)
+
+                        speaker_optimizer.step()
+                        listener_optimizer.step()
+                    
+                    if logger is not None:
+                        logger.add_scalar('{}/Loss'.format(mode), loss.item(), idx_stimuli+len(data_loader)*epoch)
+                        logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), weight_maxl1_loss.item(), idx_stimuli+len(data_loader)*epoch)
+                        decision_idx = decision_probs.max(dim=-1)[1]
+                        acc = (decision_idx==target_decision_idx).float().mean()*100
+                        logger.add_scalar('{}/Accuracy'.format(mode), acc.item(), idx_stimuli+len(data_loader)*epoch)
+                        
+                        logger.add_histogram( "{}/LossesPerStimulus".format(mode), losses, idx_stimuli+len(data_loader)*epoch)
+                        logger.add_scalar( "{}/Stimulus/Mean".format(mode), stimuli.mean(), idx_stimuli+len(data_loader)*epoch)
+                        
+                        if mode == 'train':
+                            if hasattr(speaker,'tau'): 
+                                logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, idx_stimuli+len(data_loader)*epoch)
+                                logger.add_scalar( "{}/Tau/Speaker".format(mode), speaker.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
+                            if hasattr(listener,'tau'): 
+                                logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, idx_stimuli+len(data_loader)*epoch)
+                                logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
+                        
+                    if verbose_period is not None and idx_stimuli % verbose_period == 0:
+                        print('Epoch {} :: {} Iteration {}/{} :: Training/Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
+
+                    if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
+                        idx_speaker2reset = random.randint(0,len(speakers)-1)
+                        idx_listener2reset = random.randint(0,len(listeners)-1)
+                        
+                        speakers[idx_speaker2reset].reset()
+                        speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                        listeners[idx_listener2reset].reset()
+                        listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+
+                        print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
+
+
 
             # Save agent:
             torch.save(prototype_speaker, './basic_{}_speaker.pt'.format(prototype_speaker.kwargs['architecture']))

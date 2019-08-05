@@ -126,7 +126,9 @@ class BasicCNNListener(Listener):
         sentences = sentences.view((-1, self.vocab_size))
         encoded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units'])) 
         states = self.rnn_states
-        # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
+        
+        '''
         # Since we consume the sentence, rather than generating it, we prepend the encoded_sentences with ones:
         inputs = torch.ones((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
         if encoded_sentences.is_cuda: inputs = inputs.cuda()
@@ -141,6 +143,8 @@ class BasicCNNListener(Listener):
         
         # Compute the decision: following the last hidden/output vector from the rnn:
         decision_inputs = rnn_outputs[:,-1,...]
+        '''
+        decision_inputs = encoded_sentences[:,-1,...]
         # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         # last output of the rnn...
         #decision_logits = F.softmax( self.decision_decoder(decision_inputs), dim=-1)
@@ -148,8 +152,10 @@ class BasicCNNListener(Listener):
         decision_logits = []
         for b in range(batch_size):
             bemb = embedding_tf_final_outputs[b].view((self.obs_shape[0], -1))
+            #bemb = F.relu(bemb)
             # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             bdin = decision_inputs[b].unsqueeze(1)
+            #bdin = F.relu(bdin)
             # (kwargs['symbol_processing_nbr_hidden_units'], 1)
             dl = torch.matmul( bemb, bdin).squeeze()
             # ( (nbr_distractors+1), )

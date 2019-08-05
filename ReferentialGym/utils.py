@@ -18,9 +18,6 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
       be probability distributions that sum to 1 across `dim`.
 
     .. note::
-      This function is here for legacy reasons, may be removed from nn.Functional in the future.
-
-    .. note::
       The main trick for `hard` is to do  `y_hard - y_soft.detach() + y_soft`
 
       It achieves two things:
@@ -29,16 +26,11 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
       - makes the gradient equal to y_soft gradient
       (since we strip all other gradients)
 
-    Examples::
-        >>> logits = torch.randn(20, 32)
-        >>> # Sample soft categorical using reparametrization trick:
-        >>> F.gumbel_softmax(logits, tau=1, hard=False)
-        >>> # Sample hard categorical using "Straight-through" trick:
-        >>> F.gumbel_softmax(logits, tau=1, hard=True)
-
     .. _Gumbel-Softmax distribution:
         https://arxiv.org/abs/1611.00712
         https://arxiv.org/abs/1611.01144
+    .. _Gumbel-Softmax Straight Through trick:
+        https://arxiv.org/abs/1705.11192
     """
     if eps < 1e-10:
         warnings.warn("`eps` parameter is used to exclude inf to occur from the computation of -log(-log(u)) where u ~ U[0,1)+eps. Safer values are greater than 1e-10.")

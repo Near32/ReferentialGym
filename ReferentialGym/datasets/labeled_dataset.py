@@ -15,8 +15,8 @@ class LabeledDataset(Dataset):
         self.classes = {}
         for idx in range(len(self.dataset)):
             img, cl = self.dataset[idx]
-            if cl.item() not in self.classes: self.classes[cl.item()] = []
-            self.classes[cl.item()].append(idx)
+            if cl not in self.classes: self.classes[cl] = []
+            self.classes[cl].append(idx)
     
     def __len__(self) -> int:
         return len(self.dataset)
