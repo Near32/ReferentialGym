@@ -231,7 +231,7 @@ class BasicCNNListener(Listener):
             _, prediction = outputs.max(1)                        
             # (batch_size)
             next_sentences_logits.append(outputs.unsqueeze(1))
-            next_sentences_one_hot = nn.functional.one_hot(prediction, num_classes=self.vocab_size).unsqueeze(1)
+            next_sentences_one_hot = nn.functional.one_hot(prediction, num_classes=self.vocab_size).unsqueeze(1).float()
             # (batch_size, 1, vocab_size)
             next_sentences_one_hots.append(next_sentences_one_hot)
         
