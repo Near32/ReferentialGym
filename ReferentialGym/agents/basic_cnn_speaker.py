@@ -43,26 +43,29 @@ class BasicCNNSpeaker(Speaker):
                                           bidirectional=False))
 
         symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
-        self.symbol_processing = layer_init(nn.LSTM(input_size=symbol_decoder_input_dim,
+        self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
                                       dropout=0.0,
-                                      bidirectional=False))
+                                      bidirectional=False)
 
-        self.symbol_decoder = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size, bias=False))
-        self.symbol_encoder = layer_init(nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False))
+        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size, bias=False)
+        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
 
         self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
+
+        self.reset()
     
     def reset(self):
-        self.temporal_feature_encoder.apply(layer_init)
         self.symbol_processing.apply(layer_init)
         self.symbol_decoder.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
+        self._reset_rnn_states()
 
     def _compute_tau(self, tau0):
         invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
+        # Fixed Tau: invtau = tau0*torch.ones_like(invtau)
         return 1.0/invtau
 
     def _sense(self, stimuli, sentences=None):
@@ -81,9 +84,8 @@ class BasicCNNSpeaker(Speaker):
         features = []
         total_size = stimuli.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
-        indices = range(0, total_size+1, mini_batch_size)
-        for bidx, eidx in zip(indices,indices[1:]):
-            features.append( self.cnn_encoder(stimuli[bidx:eidx]))
+        for stin in torch.split(stimuli, split_size_or_sections=mini_batch_size, dim=0):
+            features.append( self.cnn_encoder(stin))
         features = torch.cat(features, dim=0)
         features = features.view(batch_size, *(self.obs_shape[:2]), -1)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
@@ -105,12 +107,11 @@ class BasicCNNSpeaker(Speaker):
         # Forward pass:
         features = features.view(-1, *(features.size()[2:]))
         # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+        rnn_outputs = []
         total_size = features.size(0)
         mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
-        indices = range(0, total_size+1, mini_batch_size)
-        rnn_outputs = []
-        for bidx, eidx in zip(indices,indices[1:]):
-            outputs, _ = self.temporal_feature_encoder(features[bidx:eidx])
+        for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
+            outputs, _ = self.temporal_feature_encoder(featin)
             rnn_outputs.append( outputs)
         outputs = torch.cat(rnn_outputs, dim=0)
         # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])

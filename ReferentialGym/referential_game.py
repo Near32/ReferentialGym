@@ -91,16 +91,23 @@ class ReferentialGame(object):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
                 for idx_stimuli, stimuli in enumerate(data_loader):
+
                     speaker, listener, speaker_optimizer, listener_optimizer = self._select_agents(speakers,
                                                                                                   listeners,
                                                                                                   speakers_optimizers,
                                                                                                   listeners_optimizers)
+                    if 'obverter' in self.config['graphtype'] and idx_stimuli%2==0:
+                        # Let us exchange the speaker and listener:
+                        speaker, listener, speaker_optimizer, listener_optimizer = listener, speaker, listener_optimizer, speaker_optimizer
+
+                    '''
                     if mode == 'train': 
                         speaker.train()
                         listener.train()
                     else:
                         speaker.eval()
                         listener.eval()
+                    '''
 
                     if self.config['use_cuda']:
                         stimuli = stimuli.cuda()
@@ -110,7 +117,6 @@ class ReferentialGame(object):
                     if self.config['observability'] == "partial":
                         speaker_stimuli = speaker_stimuli[:,0].unsqueeze(1)
 
-                    listener_sentences_logits = None
                     listener_sentences = None 
                     
                     for idx_round in range(self.config['nbr_communication_round']):
@@ -118,26 +124,36 @@ class ReferentialGame(object):
                         if idx_round == self.config['nbr_communication_round']-1:
                             multi_round = False
 
-                        speaker_sentences_logits, speaker_sentences = speaker(stimuli=speaker_stimuli, 
-                                                                              sentences=listener_sentences, 
-                                                                              graphtype=self.config['graphtype'], 
-                                                                              tau0=self.config['tau0'], 
-                                                                              multi_round=multi_round)
+                        speaker_outputs = speaker(stimuli=speaker_stimuli, 
+                                                  sentences=listener_sentences, 
+                                                  graphtype=self.config['graphtype'], 
+                                                  tau0=self.config['tau0'], 
+                                                  multi_round=multi_round)
                         
-                        decision_logits, listener_sentences_logits, listener_sentences = listener(sentences=speaker_sentences, 
-                                                                                                  stimuli=shuffled_stimuli, 
-                                                                                                  graphtype=self.config['graphtype'], 
-                                                                                                  tau0=self.config['tau0'],
-                                                                                                  multi_round=multi_round)
-                        
+                        if 'obverter' in self.config['graphtype']:
+                            speaker_outputs['sentences'] = speaker_outputs['sentences'].detach()
+
+                        listener_outputs = listener(sentences=speaker_outputs['sentences'], 
+                                                    stimuli=shuffled_stimuli, 
+                                                    graphtype=self.config['graphtype'], 
+                                                    tau0=self.config['tau0'],
+                                                    multi_round=multi_round)
+
+                        if 'obverter' in self.config['graphtype']:
+                            if isinstance(listener_outputs['sentences'], torch.Tensor):
+                                listener_outputs['sentences'] = listener_outputs['sentences'].detach()
+
+                        decision_logits = listener_outputs['decision']
+                        listener_sentences = listener_outputs['sentences']
+
                     final_decision_logits = decision_logits
                     if final_decision_logits.is_cuda: target_decision_idx = target_decision_idx.cuda()
                     decision_probs = F.softmax( final_decision_logits, dim=-1)
                     
-                    '''
                     criterion = nn.CrossEntropyLoss(reduction='mean')
-                    loss = criterion( decision_probs, target_decision_idx)
+                    loss = criterion( final_decision_logits, target_decision_idx)
                     
+                    '''
                     criterion = nn.MSELoss(reduction='mean')
                     loss = criterion( decision_probs, nn.functional.one_hot(target_decision_idx, num_classes=decision_probs.size(1)).float())
                     '''
@@ -153,8 +169,10 @@ class ReferentialGame(object):
                             bl = bl + el 
                         losses.append( bl.unsqueeze(0))
                     losses = torch.cat(losses,dim=0)
+                    '''
                     loss = losses.mean()
-
+                    '''
+                    
                     # Weight MaxL1 Loss:
                     weight_maxl1_loss = 0.0
                     for p in speaker.parameters() :

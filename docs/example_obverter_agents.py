@@ -19,16 +19,16 @@ def test_example_basic_agents():
 
 
   rg_config = {
-      "observability":            "partial",
+      "observability":            "full", # requirement of obverter training scheme...
       "max_sentence_length":      14,
       "nbr_communication_round":  1,
-      "nbr_distractors":          3,
+      "nbr_distractors":          3,  # Default: 0 --> descriptive approach required NOT IMPLEMENTED YET.
       "distractor_sampling":      "uniform",
       "descriptive":              False,
       "object_centric":           False,
       "nbr_stimulus":             1,
 
-      "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
+      "graphtype":                'obverter', #'obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
       "vocab_size":               100,
 
@@ -36,7 +36,7 @@ def test_example_basic_agents():
       "cultural_substrate_size":  1,
       
       "batch_size":               128,
-      "dataloader_num_worker":    16,
+      "dataloader_num_worker":    8,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
@@ -54,83 +54,72 @@ def test_example_basic_agents():
   # In[3]:
 
 
-  speaker_config = dict()
-  speaker_config['nbr_distractors'] = 0 if rg_config['observability'] == "partial" else rg_config['nbr_distractors']
-  speaker_config['nbr_stimulus'] = rg_config['nbr_stimulus']
+  agent_config = dict()
+  assert( rg_config['observability'] == 'full')
+  agent_config['nbr_distractors'] = rg_config['nbr_distractors']
+  agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
 
   # Recurrent Convolutional Architecture:
-  #speaker_config['architecture'] = 'CNN'
-  speaker_config['architecture'] = 'ResNet18-2'
-  speaker_config['cnn_encoder_channels'] = [32, 32, 64]
-  speaker_config['cnn_encoder_kernels'] = [4, 3, 3]
-  speaker_config['cnn_encoder_strides'] = [4, 2, 1]
-  speaker_config['cnn_encoder_paddings'] = [0, 1, 1]
-  speaker_config['cnn_encoder_feature_dim'] = 512
-  speaker_config['cnn_encoder_mini_batch_size'] = 128
-  speaker_config['temporal_encoder_nbr_hidden_units'] = 512
-  speaker_config['temporal_encoder_nbr_rnn_layers'] = 1
-  speaker_config['temporal_encoder_mini_batch_size'] = 128
-  speaker_config['symbol_processing_nbr_hidden_units'] = speaker_config['temporal_encoder_nbr_hidden_units']
-  speaker_config['symbol_processing_nbr_rnn_layers'] = 1
-
-  import copy
-  listener_config = copy.deepcopy(speaker_config)
-  listener_config['nbr_distractors'] = rg_config['nbr_distractors']
-
+  #agent_config['architecture'] = 'CNN'
+  agent_config['architecture'] = 'ResNet18-2'
+  agent_config['cnn_encoder_channels'] = [32, 32, 64]
+  agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+  agent_config['cnn_encoder_strides'] = [4, 2, 1]
+  agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+  agent_config['cnn_encoder_feature_dim'] = 512
+  agent_config['cnn_encoder_mini_batch_size'] = 128
+  agent_config['temporal_encoder_nbr_hidden_units'] = 512
+  agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+  agent_config['temporal_encoder_mini_batch_size'] = 128
+  agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+  agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
   # # Basic Agents
 
-  # ## Basic Speaker:
+  # ## Obverter Speaker:
 
   # In[4]:
 
 
-  from ReferentialGym.agents import BasicCNNSpeaker
+  from ReferentialGym.agents import ObverterAgent
 
 
   # In[5]:
 
 
   batch_size = 4
-  nbr_distractors = speaker_config['nbr_distractors']
-  nbr_stimulus = speaker_config['nbr_stimulus']
+  nbr_distractors = agent_config['nbr_distractors']
+  nbr_stimulus = agent_config['nbr_stimulus']
   obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  bspeaker = BasicCNNSpeaker(kwargs=speaker_config, 
+  bspeaker = ObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length)
 
   print("Speaker:",bspeaker)
 
-  # ## Basic Listener:
+  # ## Obverter Listener:
 
   # In[7]:
 
-
-  from ReferentialGym.agents import BasicCNNListener
-
-
-  # In[8]:
-
-
   batch_size = 4
-  nbr_distractors = listener_config['nbr_distractors']
-  nbr_stimulus = listener_config['nbr_stimulus']
+  nbr_distractors = agent_config['nbr_distractors']
+  nbr_stimulus = agent_config['nbr_stimulus']
   obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  blistener = BasicCNNListener(kwargs=listener_config, 
+  blistener = ObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length)
 
   print("Listener:",blistener)
 
-  # # MNIST Dataset:
+  # # Dataset:
 
   # In[10]:
 
@@ -156,13 +145,7 @@ def test_example_basic_agents():
 
 
   from tensorboardX import SummaryWriter
-  #logger = SummaryWriter('./MSE_{}_example_log'.format(speaker_config['architecture']))
-  #logger = SummaryWriter('./MSE_CIFAR10_{}_example_log'.format(speaker_config['architecture']))
-  
-  #logger = SummaryWriter('./HavrylovLoss_withReLU_{}_example_log'.format(speaker_config['architecture']))
-  #logger = SummaryWriter('./HavrylovLoss_{}_obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(rg_config['observability'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],speaker_config['architecture']))
-  #logger = SummaryWriter('./fixedTAU-S{}-HavrylovLoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],speaker_config['architecture']))
-  logger = SummaryWriter('./S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],speaker_config['architecture']))
+  logger = SummaryWriter('./Obverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],agent_config['architecture']))
 
 
   # In[22]:

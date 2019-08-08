@@ -64,6 +64,7 @@ class Speaker(nn.Module):
                     - `'categorical'`: one-hot-encoded symbols.
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
+                    - `'obverter'`: obverter training scheme...
         :param tau0: 
         '''
 
@@ -82,14 +83,14 @@ class Speaker(nn.Module):
         next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
         
         if self.training:
-            self.tau = self._compute_tau(tau0=tau0)
-            tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
-            
             if 'gumbel_softmax' in graphtype:    
+                self.tau = self._compute_tau(tau0=tau0)
+                tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
+                
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')
                 next_sentences = gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
 
         if not multi_round:
             self._reset_rnn_states()
 
-        return next_sentences_logits, next_sentences 
+        return {'sentences_logits':next_sentences_logits, 'sentences':next_sentences}

@@ -5,17 +5,19 @@ from ..networks import layer_init
 
 
 class Listener(nn.Module):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, obverter_training=False):
         '''
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
                           where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
+        :param obverter_training: Bool defining whether we are training within the context of the obverter approach or not.
         '''
         super(Listener, self).__init__()
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
+        self.obverter_training = obverter_training
 
         # Multi-round:
         self._reset_rnn_states()
@@ -77,24 +79,27 @@ class Listener(nn.Module):
                     - `'categorical'`: one-hot-encoded symbols.
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
+                    - `'obverter'`: obverter training scheme...
         :param tau0: 
         '''
         features = self._sense(stimuli=stimuli, sentences=sentences)
-        decision_logits = self._reason(sentences=sentences, features=features)
+        decision_logits = self._reason(sentences=sentences, features=features) if sentences is not None else None 
         
         next_sentences_logits = None
         next_sentences = None
-        if multi_round:
+
+        if multi_round or ('obverter' in graphtype and sentences is None):
             next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
             
             if self.training:
-                self.tau = self._compute_tau(tau0=tau0)
-                tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
-
                 if 'gumbel_softmax' in graphtype:
+                    self.tau = self._compute_tau(tau0=tau0)
+                    tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
+                
                     straight_through = (graphtype == 'straight_through_gumbel_softmax')
                     next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
-        else:
+        
+        if not(multi_round):
             self._reset_rnn_states()
 
-        return decision_logits, next_sentences_logits, next_sentences 
+        return {'decision': decision_logits, 'sentences_logits':next_sentences_logits, 'sentences':next_sentences} 
