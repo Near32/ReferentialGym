@@ -65,6 +65,9 @@ class ObverterAgent(Listener):
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
 
+    def _tidyup(self):
+        self.embedding_tf_final_outputs = None
+
     def _sense(self, stimuli, sentences=None):
         '''
         Infers features from the stimuli that have been provided.
@@ -93,7 +96,7 @@ class ObverterAgent(Listener):
         Reasons about the features and sentences to yield the target-prediction logits.
         
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param features: None (default) or Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
+        :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
@@ -117,15 +120,14 @@ class ObverterAgent(Listener):
         # (batch_size, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
-        if sentences is not None:
-            sentences = sentences.view((-1, self.vocab_size))
-            embedded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units']))
-            states = self.rnn_states
-            # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
-            rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
-            # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
-            # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-            
+        sentences = sentences.view((-1, self.vocab_size))
+        embedded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units']))
+        states = self.rnn_states
+        # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
+        rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
+        # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
+        # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+        
         # Compute the decision: following the last hidden/output vector from the rnn:
         decision_inputs = rnn_outputs[:,-1,...]
         # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
@@ -214,7 +216,7 @@ class ObverterAgent(Listener):
                                                          max_sentence_length=self.max_sentence_length,
                                                          nbr_distractors_po=self.kwargs['nbr_distractors']+1,
                                                          operation=operation)
-        
+
         return next_sentences_logits, next_sentences_one_hots
 
     def _compute_sentence(features_embedding, 
@@ -226,7 +228,8 @@ class ObverterAgent(Listener):
                           vocab_size=10, 
                           max_sentence_length=14,
                           nbr_distractors_po=1,
-                          operation=torch.max):
+                          operation=torch.max,
+                          vocab_stop_idx=0):
         '''
         Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
@@ -247,6 +250,7 @@ class ObverterAgent(Listener):
         :param max_sentence_length: int, maximal length for each generated sentences.
         :param nbr_distractors_po: int, number of distractors and target, i.e. `nbr_distractors+1.
         :param operation: Function, expect `torch.max` or `torch.min`.
+        :param vocab_stop_idx: int, index of the STOP symbol in the vocabulary.
 
         :returns:
             - sentences_idx: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], 1)` where `b` is the batch index.
@@ -257,7 +261,7 @@ class ObverterAgent(Listener):
                                 It represents the sentences as one-hot-encoded word vectors.
         '''
         batch_size = features_embedding.size(0)
-        states = [init_rnn_states]
+        states = init_rnn_states
         vocab_idx = torch.zeros((vocab_size,vocab_size))
         for i in range(vocab_size): vocab_idx[i,i] = 1
         if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
@@ -272,14 +276,16 @@ class ObverterAgent(Listener):
             # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             btarget_idx = target_idx[b]
             # (1,)
-            while len(sentences_idx[b]) < max_sentence_length:
-                if states[-1] is not None:
-                    hs, cs = states[-1][0], states[-1][1]
+            continuer = True
+            while continuer:
+                if states is not None:
+                    hs, cs = states[0], states[1]
                     hs = hs.repeat( 1, vocab_size, 1)
                     cs = cs.repeat( 1, vocab_size, 1)
                     rnn_states = (hs, cs)
                 else :
-                    rnn_states = states[-1]
+                    rnn_states = states
+
                 rnn_outputs, next_rnn_states = symbol_processing(vocab_idx, rnn_states )
                 # (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
                 # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
@@ -299,27 +305,35 @@ class ObverterAgent(Listener):
                 
                 decision_probs = F.softmax(decision_logits, dim=1)
                 # (batch_size=vocab_size, (nbr_distractors+1) )
-                target_decision_probs_per_vocab = decision_probs[:,btarget_idx]
+                target_decision_probs_per_vocab = decision_probs[:,btarget_idx].cpu()
                 # (batch_size=vocab_size, )
                 _, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
                 # (batch_size=vocab_size, )
                 
                 sentences_idx[b].append( vocab_idx_argop)
                 sentences_logits[b].append( target_decision_probs_per_vocab.view((1,1,-1)))
-                sentences_one_hots[b].append( nn.functional.one_hot(vocab_idx_argop, num_classes=vocab_size).view((1,1,-1)))
+                sentences_one_hots[b].append( nn.functional.one_hot(vocab_idx_argop, num_classes=vocab_size).view((1,-1)))
                 
                 # next rnn_states:
-                states.append( [st[-1, vocab_idx_argop].view((1,1,-1)) for st in next_rnn_states] )
+                states = [st[-1, vocab_idx_argop].view((1,1,-1)) for st in next_rnn_states]
+
+                if len(sentences_idx[b]) >= max_sentence_length or vocab_idx_argop == vocab_stop_idx:
+                    continuer = False 
 
             # Embed the sentence:
             sentences_idx[b] = torch.cat([ torch.FloatTensor([word_idx]).view((1,1,-1)) for word_idx in sentences_idx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
             sentences_logits[b] = torch.cat(sentences_logits[b], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, vocab_size)
-            sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=1) 
+            sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
             # (batch_size=1, sentence_length<=max_sentence_length, vocab_size)
+
+            # Reset the state for the next sentence generation in the batch:
+            states = init_rnn_states
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         # (batch_size=1, max_sentence_length<=max_sentence_length, vocab_size)
+
+        if features_embedding.is_cuda: sentences_one_hots = sentences_one_hots.cuda()
 
         return sentences_idx, sentences_logits, sentences_one_hots

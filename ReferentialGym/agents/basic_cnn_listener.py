@@ -98,7 +98,7 @@ class BasicCNNListener(Listener):
         Reasons about the features and sentences to yield the target-prediction logits.
         
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param features: None (default) or Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
+        :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.

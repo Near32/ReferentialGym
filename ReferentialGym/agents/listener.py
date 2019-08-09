@@ -28,6 +28,9 @@ class Listener(nn.Module):
     def _reset_rnn_states(self):
         self.rnn_states = None 
 
+    def _tidyup(self):
+        pass 
+
     def _compute_tau(self, tau0):
         raise NotImplementedError
         
@@ -101,5 +104,7 @@ class Listener(nn.Module):
         
         if not(multi_round):
             self._reset_rnn_states()
+
+        self._tidyup()
 
         return {'decision': decision_logits, 'sentences_logits':next_sentences_logits, 'sentences':next_sentences} 

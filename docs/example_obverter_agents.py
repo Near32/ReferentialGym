@@ -35,7 +35,7 @@ def test_example_basic_agents():
       "cultural_pressure_it_period": None,
       "cultural_substrate_size":  1,
       
-      "batch_size":               128,
+      "batch_size":               32,
       "dataloader_num_worker":    8,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -55,6 +55,7 @@ def test_example_basic_agents():
 
 
   agent_config = dict()
+  agent_config['use_cuda'] = rg_config['use_cuda']
   assert( rg_config['observability'] == 'full')
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
@@ -67,10 +68,10 @@ def test_example_basic_agents():
   agent_config['cnn_encoder_strides'] = [4, 2, 1]
   agent_config['cnn_encoder_paddings'] = [0, 1, 1]
   agent_config['cnn_encoder_feature_dim'] = 512
-  agent_config['cnn_encoder_mini_batch_size'] = 128
+  agent_config['cnn_encoder_mini_batch_size'] = 32
   agent_config['temporal_encoder_nbr_hidden_units'] = 512
   agent_config['temporal_encoder_nbr_rnn_layers'] = 1
-  agent_config['temporal_encoder_mini_batch_size'] = 128
+  agent_config['temporal_encoder_mini_batch_size'] = 32
   agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
   agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
