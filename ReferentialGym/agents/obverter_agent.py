@@ -8,12 +8,12 @@ from ..networks import choose_architecture, layer_init
 
 class ObverterAgent(Listener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10):
-        '''
+        """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
-        '''
+        """
         super(ObverterAgent, self).__init__(obs_shape,vocab_size,max_sentence_length)
         self.kwargs = kwargs 
 
@@ -69,7 +69,7 @@ class ObverterAgent(Listener):
         self.embedding_tf_final_outputs = None
 
     def _sense(self, stimuli, sentences=None):
-        '''
+        """
         Infers features from the stimuli that have been provided.
 
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -78,7 +78,7 @@ class ObverterAgent(Listener):
         
         :returns:
             features: Tensor of shape `(batch_size, *(self.obs_shape[:2]), feature_dim).
-        '''
+        """
         batch_size = stimuli.size(0)
         stimuli = stimuli.view(-1, *(stimuli.size()[3:]))
         features = []
@@ -92,7 +92,7 @@ class ObverterAgent(Listener):
         return features 
 
     def _reason(self, sentences, features):
-        '''
+        """
         Reasons about the features and sentences to yield the target-prediction logits.
         
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
@@ -100,7 +100,7 @@ class ObverterAgent(Listener):
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
-        '''
+        """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         # Forward pass:
@@ -146,7 +146,7 @@ class ObverterAgent(Listener):
 
 
     def _utter(self, features, sentences):
-        '''
+        """
         Reasons about the features and the listened sentences to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
@@ -155,9 +155,9 @@ class ObverterAgent(Listener):
         :returns:
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-        '''
+        """
 
-        '''
+        """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
@@ -166,7 +166,7 @@ class ObverterAgent(Listener):
         :returns:
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-        '''
+        """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         
@@ -230,8 +230,7 @@ class ObverterAgent(Listener):
                           nbr_distractors_po=1,
                           operation=torch.max,
                           vocab_stop_idx=0):
-        '''
-        Compute sentences using the obverter approach, adapted to referential game variants following the
+        """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
 
         In descriptive move, `nbr_distractors_po=1` and `target_idx=torch.zeros((batch_size,1))`, 
@@ -259,7 +258,8 @@ class ObverterAgent(Listener):
                                 It represents the logits of words over the decision module's potential to choose the target stimulus as output.
             - sentences_one_hots: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], vocab_size)` where `b` is the batch index.
                                 It represents the sentences as one-hot-encoded word vectors.
-        '''
+        
+        """
         batch_size = features_embedding.size(0)
         states = init_rnn_states
         vocab_idx = torch.zeros((vocab_size,vocab_size))

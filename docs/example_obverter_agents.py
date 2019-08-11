@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as T 
 
 def test_example_basic_agents():
-  seed = 30
+  seed = 20
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -47,7 +47,6 @@ def test_example_basic_agents():
 
       "use_cuda":                 True,
   }
-
 
   # # Agent Configuration:
 
@@ -139,6 +138,11 @@ def test_example_basic_agents():
       "nbr_distractors":          rg_config['nbr_distractors'],
   }
 
+  #save_path = './Obverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],agent_config['architecture'])
+  save_path = './Obverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],agent_config['architecture'])
+  rg_config['save_path'] = save_path
+  
+
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
 
 
@@ -146,7 +150,7 @@ def test_example_basic_agents():
 
 
   from tensorboardX import SummaryWriter
-  logger = SummaryWriter('./Obverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_withReLU_times255_CIFAR10_{}_example_log'.format(seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],agent_config['architecture']))
+  logger = SummaryWriter(save_path)
 
 
   # In[22]:

@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple
+import os
 import copy
 import random
 import time
@@ -231,8 +232,8 @@ class ReferentialGame(object):
 
 
             # Save agent:
-            torch.save(prototype_speaker, './basic_{}_speaker.pt'.format(prototype_speaker.kwargs['architecture']))
-            torch.save(prototype_listener, './basic_{}_listener.pt'.format(prototype_listener.kwargs['architecture']))
+            torch.save(prototype_speaker, os.path.join(self.config['save_path'],'{}_speaker.pt'.format(prototype_speaker.kwargs['architecture'])))
+            torch.save(prototype_listener, os.path.join(self.config['save_path'],'{}_listener.pt'.format(prototype_listener.kwargs['architecture'])))
 
 
 

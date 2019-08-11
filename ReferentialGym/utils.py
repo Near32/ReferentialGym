@@ -2,9 +2,9 @@ import torch
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
-    r"""
+    """
     Samples from the `Gumbel-Softmax distribution`_ and optionally discretizes.
-
+    
     Args:
       logits: `[..., num_features]` unnormalized log probabilities
       tau: non-negative scalar temperature
@@ -31,7 +31,9 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
         https://arxiv.org/abs/1611.01144
     .. _Gumbel-Softmax Straight Through trick:
         https://arxiv.org/abs/1705.11192
+    
     """
+    
     if eps < 1e-10:
         warnings.warn("`eps` parameter is used to exclude inf to occur from the computation of -log(-log(u)) where u ~ U[0,1)+eps. Safer values are greater than 1e-10.")
 

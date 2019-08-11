@@ -4,6 +4,11 @@ from . import networks
 from .referential_game import ReferentialGame
 
 def make(config, dataset_args):
+    """Test Sphinx Documentation.
+
+
+    """
+
     Dataset = getattr(datasets, dataset_args.pop('dataset_class'))
     
     train_dataset = dataset_args.pop('train_dataset')

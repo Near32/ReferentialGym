@@ -8,12 +8,12 @@ from ..networks import choose_architecture, layer_init
 
 class BasicCNNListener(Listener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10):
-        '''
+        """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
-        '''
+        """
         super(BasicCNNListener, self).__init__(obs_shape,vocab_size,max_sentence_length)
         self.kwargs = kwargs 
 
@@ -71,7 +71,7 @@ class BasicCNNListener(Listener):
         return 1.0/invtau
         
     def _sense(self, stimuli, sentences=None):
-        '''
+        r"""
         Infers features from the stimuli that have been provided.
 
         :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -80,7 +80,8 @@ class BasicCNNListener(Listener):
         
         :returns:
             features: Tensor of shape `(batch_size, *(self.obs_shape[:2]), feature_dim).
-        '''
+        
+        """
         batch_size = stimuli.size(0)
         stimuli = stimuli.view(-1, *(stimuli.size()[3:]))
         features = []
@@ -94,7 +95,7 @@ class BasicCNNListener(Listener):
         return features 
 
     def _reason(self, sentences, features):
-        '''
+        """
         Reasons about the features and sentences to yield the target-prediction logits.
         
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
@@ -102,7 +103,7 @@ class BasicCNNListener(Listener):
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
-        '''
+        """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         # Forward pass:
@@ -127,7 +128,7 @@ class BasicCNNListener(Listener):
         states = self.rnn_states
         # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
         
-        '''
+        """
         # Since we consume the sentence, rather than generating it, we prepend the encoded_sentences with ones:
         inputs = torch.ones((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
         if encoded_sentences.is_cuda: inputs = inputs.cuda()
@@ -142,7 +143,7 @@ class BasicCNNListener(Listener):
         
         # Compute the decision: following the last hidden/output vector from the rnn:
         decision_inputs = rnn_outputs[:,-1,...]
-        '''
+        """
         decision_inputs = encoded_sentences[:,-1,...]
         # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         # last output of the rnn...
@@ -165,7 +166,7 @@ class BasicCNNListener(Listener):
 
 
     def _utter(self, features, sentences):
-        '''
+        """
         Reasons about the features and the listened sentences to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
@@ -174,9 +175,9 @@ class BasicCNNListener(Listener):
         :returns:
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-        '''
+        """
 
-        '''
+        """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
@@ -185,7 +186,7 @@ class BasicCNNListener(Listener):
         :returns:
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-        '''
+        """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         # Forward pass:

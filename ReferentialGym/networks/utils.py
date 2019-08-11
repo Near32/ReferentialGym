@@ -29,7 +29,7 @@ class ResizeNormalize(object):
         # WATCHOUT: it is necessary to cast the tensor into float before doing
         # the division, otherwise the result is yielded as a uint8 (full of zeros...)
         x = x.type(torch.FloatTensor)
-        x = x / 255. if self.normalize_rgb_values else x*255.
+        x = x / 255. if self.normalize_rgb_values else x
         if self.use_cuda:
             return x.cuda()
         return x
