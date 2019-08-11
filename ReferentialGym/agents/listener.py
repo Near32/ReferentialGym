@@ -1,23 +1,27 @@
 import torch
 import torch.nn as nn
 
+import copy 
+
 from ..networks import layer_init
 
 
 class Listener(nn.Module):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, obverter_training=False):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
                           where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
-        :param obverter_training: Bool defining whether we are training within the context of the obverter approach or not.
+        :param agent_id: str defining the ID of the agent over the population.
+        :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
         super(Listener, self).__init__()
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
-        self.obverter_training = obverter_training
+        self.agent_id = agent_id
+        self.logger = logger 
 
         # Multi-round:
         self._reset_rnn_states()
@@ -27,6 +31,19 @@ class Listener(nn.Module):
 
     def _reset_rnn_states(self):
         self.rnn_states = None 
+
+    def clone(self, clone_id='l0'):
+        clone = copy.deepcopy(self)
+        clone.agent_id = clone_id 
+        return clone 
+
+    def _log(self, log_dict):
+        if self.logger is None: 
+            return 
+
+        for key, data in log_dict.items():
+            logkey = f"{self.agent_id}/{key}"
+            self.logger.add_tensor(logkey, data) 
 
     def _tidyup(self):
         pass 
@@ -102,9 +119,12 @@ class Listener(nn.Module):
                     straight_through = (graphtype == 'straight_through_gumbel_softmax')
                     next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
         
+        output_dict = {'decision': decision_logits, 'sentences_logits':next_sentences_logits, 'sentences':next_sentences}
+        
         if not(multi_round):
             self._reset_rnn_states()
 
         self._tidyup()
+        self._log(output_dict)
 
-        return {'decision': decision_logits, 'sentences_logits':next_sentences_logits, 'sentences':next_sentences} 
+        return output_dict 

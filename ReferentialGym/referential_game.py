@@ -80,8 +80,8 @@ class ReferentialGame(object):
         
         # Agents:
         nbr_agents = self.config['cultural_substrate_size']
-        speakers = [prototype_speaker]+[ copy.deepcopy(prototype_speaker) for i in range(nbr_agents-1)]
-        listeners = [prototype_listener]+[ copy.deepcopy(prototype_listener) for i in range(nbr_agents-1)]
+        speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_agents-1)]
+        listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_agents-1)]
         speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for speaker in speakers ]
         listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
 

@@ -16,7 +16,7 @@ See [Adding a new dataset](docs/adding-a-new-dataset.md).
 
 ## Documentation
 
-All relevant documentation can be found [here](https://near32.github.io/ReferentialGym/). Refer to source code for more specific documentation.
+All relevant documentation can be found [here](https://near32.github.io/ReferentialGym/html/index.html). Refer to source code for more specific documentation.
 
 ## Installation
 
