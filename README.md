@@ -8,12 +8,15 @@ This framework has been in constant development since July 2019.
 <!--
 + PyTorch implementation of: [A2C](https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752),[REINFORCE](https://danielhp95.github.io/policy-gradient-algorithms-a-review),[PPO](https://arxiv.org/abs/1707.06347)...
 -->
-+ Provides an interface for dataset to be used in the context of referential games. See [Adding a new dataset](docs/adding-a-new-dataset.md).
++ Provides an interface for dataset to be used in the context of referential games. 
+<!--
+See [Adding a new dataset](docs/adding-a-new-dataset.md).
+-->
 + Provides state-of-the-art language emergence algorithms based on referential game variants that can be configured at will by the users.
 
 ## Documentation
 
-All relevant documentation can be found in the [docs](docs/readme.md). Refer to source code for more specific documentation.
+All relevant documentation can be found [here](https://near32.github.io/ReferentialGym/). Refer to source code for more specific documentation.
 
 ## Installation
 
