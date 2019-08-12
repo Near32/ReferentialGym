@@ -5,19 +5,21 @@ from ..networks import layer_init
 from ..utils import gumbel_softmax
 
 class Speaker(nn.Module):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0'):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None):
         '''
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
                           where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param agent_id: str defining the ID of the agent over the population.
+        :param logger: None or somee kind of logger able to accumulate statistics per agent.
         '''
         super(Speaker, self).__init__()
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
         self.agent_id = agent_id
+        self.logger = logger
 
         # Multi-round:
         self._reset_rnn_states()
@@ -29,9 +31,27 @@ class Speaker(nn.Module):
         self.rnn_states = None
 
     def clone(self, clone_id='s0'):
+        logger = self.logger
+        self.logger = None 
         clone = copy.deepcopy(self)
-        clone.agent_id = clone_id 
+        clone.agent_id = clone_id
+        clone.logger = logger 
+        self.logger = logger  
         return clone 
+
+    def save(self, path):
+        logger = self.logger
+        self.logger = None
+        torch.save(self, path)
+        self.logger = logger 
+        
+    def _log(self, log_dict):
+        if self.logger is None: 
+            return 
+
+        for key, data in log_dict.items():
+            logdict = { f"{self.agent_id}": {f"{key}":data}}
+            self.logger.add_dict(logdict, batch=True)
 
     def _compute_tau(self, tau0):
         raise NotImplementedError
@@ -58,8 +78,10 @@ class Speaker(nn.Module):
         :param sentences: None, or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
+            - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         '''
         raise NotImplementedError
 
@@ -87,7 +109,7 @@ class Speaker(nn.Module):
         stimuli_target = torch.cat([stimuli, target_channels], dim=3)
 
         features = self._sense(stimuli=stimuli_target, sentences=sentences)
-        next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
+        next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
         
         if self.training:
             if 'gumbel_softmax' in graphtype:    
@@ -97,7 +119,15 @@ class Speaker(nn.Module):
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')
                 next_sentences = gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
 
+        output_dict = {'sentences_widx':next_sentences_widx, 
+                       'sentences_logits':next_sentences_logits, 
+                       'sentences':next_sentences,
+                       'features':features,
+                       'temporal_features':temporal_features}
+        
         if not multi_round:
             self._reset_rnn_states()
 
-        return {'sentences_logits':next_sentences_logits, 'sentences':next_sentences}
+        self._log(output_dict)
+
+        return output_dict

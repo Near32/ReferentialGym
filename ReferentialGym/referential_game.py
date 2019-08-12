@@ -232,8 +232,13 @@ class ReferentialGame(object):
 
 
             # Save agent:
-            torch.save(prototype_speaker, os.path.join(self.config['save_path'],'{}_speaker.pt'.format(prototype_speaker.kwargs['architecture'])))
-            torch.save(prototype_listener, os.path.join(self.config['save_path'],'{}_listener.pt'.format(prototype_listener.kwargs['architecture'])))
+            prototype_speaker.save(path=os.path.join(self.config['save_path'],'{}_speaker.pt'.format(prototype_speaker.kwargs['architecture'])))
+            prototype_listener.save(path=os.path.join(self.config['save_path'],'{}_listener.pt'.format(prototype_listener.kwargs['architecture'])))
+            #torch.save(prototype_speaker, os.path.join(self.config['save_path'],'{}_speaker.pt'.format(prototype_speaker.kwargs['architecture'])))
+            #torch.save(prototype_listener, os.path.join(self.config['save_path'],'{}_listener.pt'.format(prototype_listener.kwargs['architecture'])))
+
+            if logger is not None:
+                logger.switch_epoch()
 
 
 

@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as T 
 
 def test_example_cultural_obverter_agents():
-  seed = 20
+  seed = 30
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -30,7 +30,9 @@ def test_example_cultural_obverter_agents():
 
       "graphtype":                'obverter', #'obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
-      "vocab_size":               100,
+      "vocab_size":               5,
+
+      "agent_architecture":       'ResNet18-2', #'CNN'/'ResNet18-2'
 
       "cultural_pressure_it_period": 500,
       "cultural_substrate_size":  2,
@@ -48,6 +50,12 @@ def test_example_cultural_obverter_agents():
       "use_cuda":                 True,
   }
 
+  save_path = './{}Speaker-{}-CulturalObverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], rg_config['cultural_pressure_it_period'],seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],rg_config['agent_architecture'])
+  rg_config['save_path'] = save_path
+
+  from ReferentialGym.utils import statsLogger
+  logger = statsLogger(path=save_path,dumpPeriod=100)
+  
   # # Agent Configuration:
 
   # In[3]:
@@ -60,8 +68,7 @@ def test_example_cultural_obverter_agents():
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
 
   # Recurrent Convolutional Architecture:
-  #agent_config['architecture'] = 'CNN'
-  agent_config['architecture'] = 'ResNet18-2'
+  agent_config['architecture'] = rg_config['agent_architecture']
   agent_config['cnn_encoder_channels'] = [32, 32, 64]
   agent_config['cnn_encoder_kernels'] = [4, 3, 3]
   agent_config['cnn_encoder_strides'] = [4, 2, 1]
@@ -97,7 +104,9 @@ def test_example_cultural_obverter_agents():
   bspeaker = ObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
-                                max_sentence_length=max_sentence_length)
+                                max_sentence_length=max_sentence_length,
+                                agent_id='os0',
+                                logger=logger)
 
   print("Speaker:",bspeaker)
 
@@ -115,7 +124,9 @@ def test_example_cultural_obverter_agents():
   blistener = ObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
-                                max_sentence_length=max_sentence_length)
+                                max_sentence_length=max_sentence_length,
+                                agent_id='ol0',
+                                logger=logger)
 
   print("Listener:",blistener)
 
@@ -138,19 +149,7 @@ def test_example_cultural_obverter_agents():
       "nbr_distractors":          rg_config['nbr_distractors'],
   }
 
-  save_path = './{}Speaker-{}-CulturalObverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], rg_config['cultural_pressure_it_period'],seed,rg_config['observability'], rg_config['batch_size'], rg_config['graphtype'], rg_config['tau0'], rg_config['nbr_distractors'], rg_config['nbr_stimulus'], rg_config['vocab_size'],agent_config['architecture'])
-  rg_config['save_path'] = save_path
-  
-
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
-
-
-  # In[20]:
-
-
-  from tensorboardX import SummaryWriter
-  logger = SummaryWriter(save_path)
-
 
   # In[22]:
 

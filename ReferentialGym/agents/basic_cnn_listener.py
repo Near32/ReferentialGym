@@ -7,14 +7,16 @@ from ..networks import choose_architecture, layer_init
 
 
 class BasicCNNListener(Listener):
-    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10):
+    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
+        :param agent_id: str defining the ID of the agent over the population.
+        :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(BasicCNNListener, self).__init__(obs_shape,vocab_size,max_sentence_length)
+        super(BasicCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
@@ -103,6 +105,7 @@ class BasicCNNListener(Listener):
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
@@ -119,8 +122,8 @@ class BasicCNNListener(Listener):
         outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
         
         embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-        embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size,1, -1)
-        # (batch_size, 1, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
+        embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
+        # (batch_size, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
         sentences = sentences.view((-1, self.vocab_size))
@@ -162,7 +165,7 @@ class BasicCNNListener(Listener):
             decision_logits.append(dl.unsqueeze(0))
         decision_logits = torch.cat(decision_logits, dim=0)
         # (batch_size, (nbr_distractors+1) )
-        return decision_logits
+        return decision_logits, embedding_tf_final_outputs
 
 
     def _utter(self, features, sentences):
@@ -175,6 +178,7 @@ class BasicCNNListener(Listener):
         :returns:
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
 
         """
@@ -184,6 +188,7 @@ class BasicCNNListener(Listener):
         :param sentences: None, or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
+            - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
         """
@@ -211,7 +216,7 @@ class BasicCNNListener(Listener):
         # Utter the next sentences:
         next_sentences_one_hots = []
         next_sentences_logits = []
-        states = self.rnn_states
+        next_sentences_widx = []
         # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
         inputs = torch.zeros((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
         if embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
@@ -220,7 +225,7 @@ class BasicCNNListener(Listener):
         
         # Utter the next sentences:
         for i in range(self.max_sentence_length):
-            hiddens, states = self.symbol_processing(inputs, states)          
+            hiddens, self.rnn_states = self.symbol_processing(inputs, self.rnn_states)          
             # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
             inputs = torch.cat([embedding_tf_final_outputs,hiddens], dim=-1)
             # (batch_size, 1, kwargs['nbr_stimuli']*kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
@@ -233,11 +238,13 @@ class BasicCNNListener(Listener):
             next_sentences_one_hot = nn.functional.one_hot(prediction, num_classes=self.vocab_size).unsqueeze(1).float()
             # (batch_size, 1, vocab_size)
             next_sentences_one_hots.append(next_sentences_one_hot)
+            next_sentences_widx.append( prediction.unsqueeze(1).float() )
+            # (batch_size, 1, 1)
         
-        self.rnn_states = states 
-
+        next_sentences_widx = torch.cat(next_sentences_widx, dim=1)
+        # (batch_size, max_sentence_length, 1)
         next_sentences_one_hots = torch.cat(next_sentences_one_hots, dim=1)
         # (batch_size, max_sentence_length, vocab_size)
         next_sentences_logits = torch.cat(next_sentences_logits, dim=1)
         # (batch_size, max_sentence_length, vocab_size)
-        return next_sentences_logits, next_sentences_one_hots
+        return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, embedding_tf_final_outputs

@@ -33,17 +33,27 @@ class Listener(nn.Module):
         self.rnn_states = None 
 
     def clone(self, clone_id='l0'):
+        logger = self.logger
+        self.logger = None 
         clone = copy.deepcopy(self)
-        clone.agent_id = clone_id 
+        clone.agent_id = clone_id
+        clone.logger = logger 
+        self.logger = logger  
         return clone 
+
+    def save(self, path):
+        logger = self.logger
+        self.logger = None
+        torch.save(self, path)
+        self.logger = logger 
 
     def _log(self, log_dict):
         if self.logger is None: 
             return 
 
         for key, data in log_dict.items():
-            logkey = f"{self.agent_id}/{key}"
-            self.logger.add_tensor(logkey, data) 
+            logdict = { f"{self.agent_id}": {f"{key}":data}}
+            self.logger.add_dict(logdict, batch=True) 
 
     def _tidyup(self):
         pass 
@@ -73,6 +83,7 @@ class Listener(nn.Module):
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         raise NotImplementedError
     
@@ -84,8 +95,10 @@ class Listener(nn.Module):
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
+            - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         raise NotImplementedError
 
@@ -103,13 +116,18 @@ class Listener(nn.Module):
         :param tau0: 
         """
         features = self._sense(stimuli=stimuli, sentences=sentences)
-        decision_logits = self._reason(sentences=sentences, features=features) if sentences is not None else None 
+        if sentences is not None:
+            decision_logits, temporal_features = self._reason(sentences=sentences, features=features)
+        else:
+            decision_logits = None
+            temporal_features = None 
         
+        next_sentences_widx = None 
         next_sentences_logits = None
         next_sentences = None
 
         if multi_round or ('obverter' in graphtype and sentences is None):
-            next_sentences_logits, next_sentences = self._utter(features=features, sentences=sentences)
+            next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
             
             if self.training:
                 if 'gumbel_softmax' in graphtype:
@@ -119,7 +137,12 @@ class Listener(nn.Module):
                     straight_through = (graphtype == 'straight_through_gumbel_softmax')
                     next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
         
-        output_dict = {'decision': decision_logits, 'sentences_logits':next_sentences_logits, 'sentences':next_sentences}
+        output_dict = {'decision': decision_logits, 
+                       'sentences_widx':next_sentences_widx, 
+                       'sentences_logits':next_sentences_logits, 
+                       'sentences':next_sentences,
+                       'features':features,
+                       'temporal_features': temporal_features}
         
         if not(multi_round):
             self._reset_rnn_states()

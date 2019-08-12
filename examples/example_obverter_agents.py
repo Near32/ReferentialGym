@@ -10,7 +10,7 @@ import torch
 import torchvision
 import torchvision.transforms as T 
 
-def test_example_basic_agents():
+def test_example_obverter_agents():
   seed = 20
   torch.manual_seed(seed)
   # # Hyperparameters:
@@ -163,4 +163,4 @@ def test_example_basic_agents():
                 verbose_period=1)
 
 if __name__ == '__main__':
-    test_example_basic_agents()
+    test_example_obverter_agents()

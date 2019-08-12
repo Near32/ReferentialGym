@@ -7,14 +7,16 @@ from ..networks import choose_architecture, layer_init
 
 
 class ObverterAgent(Listener):
-    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10):
+    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
+        :param agent_id: str defining the ID of the agent over the population.
+        :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(ObverterAgent, self).__init__(obs_shape,vocab_size,max_sentence_length)
+        super(ObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
@@ -100,6 +102,7 @@ class ObverterAgent(Listener):
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
@@ -121,11 +124,11 @@ class ObverterAgent(Listener):
         
         # Consume the sentences:
         sentences = sentences.view((-1, self.vocab_size))
-        embedded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units']))
+        embedded_sentences = self.symbol_encoder(sentences).view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
         states = self.rnn_states
-        # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size, -1, kwargs['symbol_processing_nbr_hidden_units'])
         rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
-        # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size, -1, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
         # Compute the decision: following the last hidden/output vector from the rnn:
@@ -142,21 +145,10 @@ class ObverterAgent(Listener):
             decision_logits.append(dl.unsqueeze(0))
         decision_logits = torch.cat(decision_logits, dim=0)
         # (batch_size, (nbr_distractors+1) )
-        return decision_logits
+        return decision_logits, self.embedding_tf_final_outputs
 
 
     def _utter(self, features, sentences):
-        """
-        Reasons about the features and the listened sentences to yield the sentences to utter back.
-        
-        :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
-        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        
-        :returns:
-            - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
-            - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-        """
-
         """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
@@ -164,8 +156,10 @@ class ObverterAgent(Listener):
         :param sentences: None, or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
+            - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
@@ -204,7 +198,7 @@ class ObverterAgent(Listener):
         if self.embedding_tf_final_outputs.is_cuda: predicted_target_idx = predicted_target_idx.cuda()
 
         # Utter the next sentences:
-        next_sentences_idx, \
+        next_sentences_widx, \
         next_sentences_logits, \
         next_sentences_one_hots = ObverterAgent._compute_sentence(features_embedding=self.embedding_tf_final_outputs,
                                                          target_idx=predicted_target_idx,
@@ -217,7 +211,7 @@ class ObverterAgent(Listener):
                                                          nbr_distractors_po=self.kwargs['nbr_distractors']+1,
                                                          operation=operation)
 
-        return next_sentences_logits, next_sentences_one_hots
+        return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
     def _compute_sentence(features_embedding, 
                           target_idx, 
@@ -252,7 +246,7 @@ class ObverterAgent(Listener):
         :param vocab_stop_idx: int, index of the STOP symbol in the vocabulary.
 
         :returns:
-            - sentences_idx: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], 1)` where `b` is the batch index.
+            - sentences_widx: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], 1)` where `b` is the batch index.
                              It represents the indices of the chosen words.
             - sentences_logits: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], vocab_size)` where `b` is the batch index.
                                 It represents the logits of words over the decision module's potential to choose the target stimulus as output.
@@ -268,7 +262,7 @@ class ObverterAgent(Listener):
         vocab_idx = symbol_encoder(vocab_idx).unsqueeze(1)
         # (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
 
-        sentences_idx = [list() for _ in range(batch_size)]
+        sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
         sentences_one_hots = [list() for _ in range(batch_size)]
         for b in range(batch_size):
@@ -307,21 +301,22 @@ class ObverterAgent(Listener):
                 # (batch_size=vocab_size, (nbr_distractors+1) )
                 target_decision_probs_per_vocab = decision_probs[:,btarget_idx].cpu()
                 # (batch_size=vocab_size, )
-                _, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
+                vocab_idx_op, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
                 # (batch_size=vocab_size, )
                 
-                sentences_idx[b].append( vocab_idx_argop)
+                sentences_widx[b].append( vocab_idx_argop)
                 sentences_logits[b].append( target_decision_probs_per_vocab.view((1,1,-1)))
                 sentences_one_hots[b].append( nn.functional.one_hot(vocab_idx_argop, num_classes=vocab_size).view((1,-1)))
                 
                 # next rnn_states:
                 states = [st[-1, vocab_idx_argop].view((1,1,-1)) for st in next_rnn_states]
 
-                if len(sentences_idx[b]) >= max_sentence_length or vocab_idx_argop == vocab_stop_idx:
+                operation_condition = (vocab_idx_op >= 0.5) if operation == torch.max else (vocab_idx_op < 0.5) 
+                if len(sentences_widx[b]) >= max_sentence_length or vocab_idx_argop == vocab_stop_idx or operation_condition:
                     continuer = False 
 
             # Embed the sentence:
-            sentences_idx[b] = torch.cat([ torch.FloatTensor([word_idx]).view((1,1,-1)) for word_idx in sentences_idx[b]], dim=1)
+            sentences_widx[b] = torch.cat([ torch.FloatTensor([word_idx]).view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
             sentences_logits[b] = torch.cat(sentences_logits[b], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, vocab_size)
@@ -336,4 +331,4 @@ class ObverterAgent(Listener):
 
         if features_embedding.is_cuda: sentences_one_hots = sentences_one_hots.cuda()
 
-        return sentences_idx, sentences_logits, sentences_one_hots
+        return sentences_widx, sentences_logits, sentences_one_hots
