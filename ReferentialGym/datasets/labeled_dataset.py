@@ -3,6 +3,7 @@ from .dataset import Dataset
 import torch
 import random
 
+
 class LabeledDataset(Dataset):
     def __init__(self, kwargs):
         super(LabeledDataset, self).__init__(kwargs)
@@ -26,14 +27,14 @@ class LabeledDataset(Dataset):
 
     def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None) -> Tuple[torch.Tensor, List[int]]:
         '''
-        Sample a stimulus from the dataset.
-        If :param from_class: is not None, the sampled stimulus will belong to the specified class(es).
-        If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions indices.
+        Sample an experience from the dataset. Along with relevant distractor experiences.
+        If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
+        If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
         :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
         :returns:
-            -stimuli: Tensor of the sampled stimuli.
-            -indices: List[int] of the indices of the sampled stimuli.
+            - experiences: Tensor of the sampled experiences.
+            - indices: List[int] of the indices of the sampled experiences.
         '''
         if from_class is None:
             from_class = range(10)
@@ -49,34 +50,26 @@ class LabeledDataset(Dataset):
         nbr_samples = self.nbr_distractors
         if idx is None: 
             nbr_samples += 1
+        else: 
             try:
-                set_indices = set_indices.remove(idx)
+                set_indices.remove(idx)
             except Exception as e:
                 print("Exception caught during removal of the target index:")
                 print(e)
-        else: indices.append(idx)
-        for _ in range(nbr_samples):
+            indices.append(idx)
+
+        for choice_idx in range(nbr_samples):
             chosen = random.choice( list(set_indices))
             set_indices.remove(chosen)
             indices.append( chosen)
         
-        stimuli = []
+        experiences = []
         for idx in indices:
-            st, tc = self.dataset[idx]
-            stimuli.append(st.unsqueeze(0))
+            exp, tc = self.dataset[idx]
+            experiences.append(exp.unsqueeze(0))
             
-        stimuli = torch.cat(stimuli,dim=0)
-        stimuli = stimuli.unsqueeze(1)
+        experiences = torch.cat(experiences,dim=0)
+        experiences = experiences.unsqueeze(1)
         # account for the temporal dimension...
         
-        return stimuli, indices
-    
-    def __getitem__(self, idx):
-        '''
-        Samples target and distractors (uniformly).
-        
-        :params idx: int, index of the stimulus to use as a target.
-        :returns: 
-            - stimuli: Tensor of shape (nbr_distractors+1, nbr_stimulus, stimulus_shape)
-        '''
-        return self.sample(idx)[0]
+        return experiences, indices

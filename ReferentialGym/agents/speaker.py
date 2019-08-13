@@ -7,8 +7,8 @@ from ..utils import gumbel_softmax
 class Speaker(nn.Module):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None):
         '''
-        :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
-                          where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
+        :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
+                          where, by default, `nbr_experiences=1` (partial observability), and `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param agent_id: str defining the ID of the agent over the population.
@@ -56,12 +56,12 @@ class Speaker(nn.Module):
     def _compute_tau(self, tau0):
         raise NotImplementedError
 
-    def _sense(self, stimuli, sentences=None):
+    def _sense(self, experiences, sentences=None):
         '''
-        Infers features from the stimuli that have been provided.
+        Infers features from the experiences that have been provided.
 
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        `stimuli[:, 0]` is assumed as the target stimulus, while the others are distractors, if any. 
+        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        `experiences[:, 0]` is assumed as the target experience, while the others are distractors, if any. 
         :param sentences: None or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
@@ -85,10 +85,10 @@ class Speaker(nn.Module):
         '''
         raise NotImplementedError
 
-    def forward(self, stimuli, sentences=None, graphtype='straight_through_gumbel_softmax', tau0=0.2, multi_round=False):
+    def forward(self, experiences, sentences=None, graphtype='straight_through_gumbel_softmax', tau0=0.2, multi_round=False):
         '''
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        `stimuli[:,0]` is assumed as the target stimulus, while the others are distractors, if any. 
+        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
         :param graphtype: String defining the type of symbols used in the output sentence:
                     - `'categorical'`: one-hot-encoded symbols.
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
@@ -98,17 +98,17 @@ class Speaker(nn.Module):
         '''
 
         # Add the target-boolean-channel:
-        st_size = stimuli.size()
+        st_size = experiences.size()
         batch_size = st_size[0]
         nbr_distractors_po = st_size[1]
         nbr_stimulus = st_size[2]
 
         target_channels = torch.zeros( batch_size, nbr_distractors_po, nbr_stimulus, 1, *(st_size[4:]))
         target_channels[:,0,...] = 1
-        if stimuli.is_cuda: target_channels = target_channels.cuda()
-        stimuli_target = torch.cat([stimuli, target_channels], dim=3)
+        if experiences.is_cuda: target_channels = target_channels.cuda()
+        experiences_target = torch.cat([experiences, target_channels], dim=3)
 
-        features = self._sense(stimuli=stimuli_target, sentences=sentences)
+        features = self._sense(experiences=experiences_target, sentences=sentences)
         next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
         
         if self.training:
