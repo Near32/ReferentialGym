@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as T 
 
 def test_example_cultural_obverter_agents():
-  seed = 30
+  seed = 50
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -19,18 +19,22 @@ def test_example_cultural_obverter_agents():
 
 
   rg_config = {
-      "observability":            "full", # requirement of obverter training scheme...
+      "observability":            "full",
       "max_sentence_length":      14,
       "nbr_communication_round":  1,
-      "nbr_distractors":          3,  # Default: 0 --> descriptive approach required NOT IMPLEMENTED YET.
+      "nbr_distractors":          3,
       "distractor_sampling":      "uniform",
+      
       "descriptive":              False,
+      "descriptive_target_ratio": 0.0,
+      
       "object_centric":           False,
+      
       "nbr_stimulus":             1,
 
       "graphtype":                'obverter', #'obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
-      "vocab_size":               5,
+      "vocab_size":               25,
 
       "agent_architecture":       'ResNet18-2', #'CNN'/'ResNet18-2'
 
@@ -63,9 +67,9 @@ def test_example_cultural_obverter_agents():
 
   agent_config = dict()
   agent_config['use_cuda'] = rg_config['use_cuda']
-  assert( rg_config['observability'] == 'full')
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
+  agent_config['use_obverter_threshold_to_stop_message_generation'] = False
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
@@ -147,6 +151,9 @@ def test_example_cultural_obverter_agents():
       "test_dataset":             test_dataset,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
       "nbr_distractors":          rg_config['nbr_distractors'],
+      "observability":            rg_config['observability'],
+      "descriptive":              rg_config['descriptive'],
+      "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
 
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)

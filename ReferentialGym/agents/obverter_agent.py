@@ -9,7 +9,7 @@ from ..networks import choose_architecture, layer_init
 class ObverterAgent(Listener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None):
         """
-        :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
+        :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
@@ -54,43 +54,38 @@ class ObverterAgent(Listener):
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         
-        # Decision making: which input stimuli is the target? 
-        decision_module_input = self.kwargs['symbol_processing_nbr_hidden_units'] + self.kwargs['temporal_encoder_nbr_hidden_units']
-        self.decision_module = nn.Linear(decision_module_input, self.kwargs['nbr_distractors']+1)
-        
         self.reset()
 
     def reset(self):
         self.symbol_processing.apply(layer_init)
         self.symbol_decoder.apply(layer_init)
-        self.decision_module.apply(layer_init)
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
-    def _sense(self, stimuli, sentences=None):
+    def _sense(self, experiences, sentences=None):
         """
-        Infers features from the stimuli that have been provided.
+        Infers features from the experiences that have been provided.
 
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        Make sure to shuffle the stimuli so that the order does not give away the target. 
+        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        Make sure to shuffle the experiences so that the order does not give away the target. 
         :param sentences: None or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
-            features: Tensor of shape `(batch_size, *(self.obs_shape[:2]), feature_dim).
+            features: Tensor of shape `(batch_size, -1, nbr_stimulus, feature_dim).
         """
-        batch_size = stimuli.size(0)
-        stimuli = stimuli.view(-1, *(stimuli.size()[3:]))
+        batch_size = experiences.size(0)
+        experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
-        total_size = stimuli.size(0)
+        total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
-        for stin in torch.split(stimuli, split_size_or_sections=mini_batch_size, dim=0):
+        for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             features.append( self.cnn_encoder(stin))
         features = torch.cat(features, dim=0)
-        features = features.view(batch_size, *(self.obs_shape[:2]), -1)
-        # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
+        features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
+        # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 
 
     def _reason(self, sentences, features):
@@ -105,22 +100,23 @@ class ObverterAgent(Listener):
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.size(0)
-        # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
+        # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         # Forward pass:
         features = features.view(-1, *(features.size()[2:]))
-        # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+        # (batch_size*(nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
         rnn_outputs = []
         total_size = features.size(0)
         mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
         for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
             outputs, _ = self.temporal_feature_encoder(featin)
+            # (mini_batch_size, -1, kwargs['temporal_encoder_nbr_hidden_units'])
             rnn_outputs.append( outputs)
         outputs = torch.cat(rnn_outputs, dim=0)
-        outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
+        outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
         
         embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
         self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
-        # (batch_size, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
+        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
         sentences = sentences.view((-1, self.vocab_size))
@@ -136,15 +132,15 @@ class ObverterAgent(Listener):
         # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         decision_logits = []
         for b in range(batch_size):
-            bemb = self.embedding_tf_final_outputs[b].view((self.obs_shape[0], -1))
-            # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+            bemb = self.embedding_tf_final_outputs[b].view((-1, self.kwargs['temporal_encoder_nbr_hidden_units']))
+            # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), kwargs['temporal_encoder_nbr_hidden_units'])
             bdin = decision_inputs[b].unsqueeze(1)
             # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-            dl = torch.matmul( bemb, bdin).squeeze()
-            # ( (nbr_distractors+1), )
-            decision_logits.append(dl.unsqueeze(0))
+            dl = torch.matmul( bemb, bdin).view((1,-1))
+            # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+            decision_logits.append(dl)
         decision_logits = torch.cat(decision_logits, dim=0)
-        # (batch_size, (nbr_distractors+1) )
+        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
         return decision_logits, self.embedding_tf_final_outputs
 
 
@@ -159,27 +155,29 @@ class ObverterAgent(Listener):
             - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
-            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)`.
         """
         batch_size = features.size(0)
-        # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
+        nbr_distractors_po = features.size(1)
+        # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
         if self.embedding_tf_final_outputs is None: 
             features = features.view(-1, *(features.size()[2:]))
-            # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+            # (batch_size*(nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
             rnn_outputs = []
             total_size = features.size(0)
             mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
             for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
                 outputs, _ = self.temporal_feature_encoder(featin)
+                # (mini_batch_size, -1, kwargs['temporal_encoder_nbr_hidden_units'])
                 rnn_outputs.append( outputs)
             outputs = torch.cat(rnn_outputs, dim=0)
-            outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
-            
+            outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
+        
             embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
             self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
-            # (batch_size, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
-            
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) * kwargs['temporal_encoder_nbr_hidden_units'])
+        
         # No need to consume the sentences:
         # it has been consumed already in the _reason function.
         # self.rnn_states contains all the information about it.
@@ -208,8 +206,9 @@ class ObverterAgent(Listener):
                                                          init_rnn_states=self.rnn_states,
                                                          vocab_size=self.vocab_size,
                                                          max_sentence_length=self.max_sentence_length,
-                                                         nbr_distractors_po=self.kwargs['nbr_distractors']+1,
-                                                         operation=operation)
+                                                         nbr_distractors_po=nbr_distractors_po,
+                                                         operation=operation,
+                                                         use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'])
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
@@ -223,18 +222,19 @@ class ObverterAgent(Listener):
                           max_sentence_length=14,
                           nbr_distractors_po=1,
                           operation=torch.max,
-                          vocab_stop_idx=0):
+                          vocab_stop_idx=0,
+                          use_obverter_threshold_to_stop_message_generation=False):
         """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
 
-        In descriptive move, `nbr_distractors_po=1` and `target_idx=torch.zeros((batch_size,1))`, 
+        In descriptive mode, `nbr_distractors_po=1` and `target_idx=torch.zeros((batch_size,1))`, 
         thus the algorithm behaves exactly like in Choi et al. (2018).
-        Otherwise, the the likelyhoods for the target stimulus of being chosen by the decision module 
+        Otherwise, the the likelyhoods for the target experience of being chosen by the decision module 
         is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
         this likelyhood over the sentence's next word.
         
         :param features_embedding: Tensor of (temporal) features embedding of shape `(batch_size, *self.obs_shape)`.
-        :param target_idx: Tensor of indices of the target stimuli of shape `(batch_size, 1)`.
+        :param target_idx: Tensor of indices of the target experiences of shape `(batch_size, 1)`.
         :param symbol_encoder: torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.
         :param symbol_processing: torch.nn.Module used to generate the sentences.
         :param symbol_decoder: torch.nn.Module used to decode the embeddings generated by the `:param symbol_processing:` module. 
@@ -244,12 +244,15 @@ class ObverterAgent(Listener):
         :param nbr_distractors_po: int, number of distractors and target, i.e. `nbr_distractors+1.
         :param operation: Function, expect `torch.max` or `torch.min`.
         :param vocab_stop_idx: int, index of the STOP symbol in the vocabulary.
-
+        :param use_obverter_threshold_to_stop_message_generation:  boolean that specifies whether to stop the 
+                                                                    message generation when the decision module's 
+                                                                    output probability is abobe 0.5 (or below if
+                                                                    the operation is `torch.min`).
         :returns:
             - sentences_widx: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], 1)` where `b` is the batch index.
                              It represents the indices of the chosen words.
             - sentences_logits: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], vocab_size)` where `b` is the batch index.
-                                It represents the logits of words over the decision module's potential to choose the target stimulus as output.
+                                It represents the logits of words over the decision module's potential to choose the target experience as output.
             - sentences_one_hots: List[Tensor] of length `batch_size` with shapes `(1, sentences_lenght[b], vocab_size)` where `b` is the batch index.
                                 It represents the sentences as one-hot-encoded word vectors.
         
@@ -297,8 +300,15 @@ class ObverterAgent(Listener):
                 decision_logits = torch.cat(decision_logits, dim=0)
                 # (batch_size=vocab_size, (nbr_distractors+1) )
                 
-                decision_probs = F.softmax(decision_logits, dim=1)
+                
+                if nbr_distractors_po==1:
+                    # Partial observability:
+                    decision_probs = torch.sigmoid(decision_logits)
+                else:
+                    # Full observability:
+                    decision_probs = F.softmax(decision_logits, dim=1)
                 # (batch_size=vocab_size, (nbr_distractors+1) )
+                                    
                 target_decision_probs_per_vocab = decision_probs[:,btarget_idx].cpu()
                 # (batch_size=vocab_size, )
                 vocab_idx_op, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
@@ -311,7 +321,11 @@ class ObverterAgent(Listener):
                 # next rnn_states:
                 states = [st[-1, vocab_idx_argop].view((1,1,-1)) for st in next_rnn_states]
 
-                operation_condition = (vocab_idx_op >= 0.5) if operation == torch.max else (vocab_idx_op < 0.5) 
+                if use_obverter_threshold_to_stop_message_generation:
+                    operation_condition = (vocab_idx_op >= 0.5) if operation == torch.max else (vocab_idx_op < 0.5) 
+                else:
+                    operation_condition = False
+
                 if len(sentences_widx[b]) >= max_sentence_length or vocab_idx_argop == vocab_stop_idx or operation_condition:
                     continuer = False 
 

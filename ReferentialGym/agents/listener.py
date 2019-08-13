@@ -9,8 +9,8 @@ from ..networks import layer_init
 class Listener(nn.Module):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
-        :param obs_shape: tuple defining the shape of the stimulus following `(nbr_stimuli, sequence_length, *stimulus_shape)`
-                          where, by default, `nbr_stimuli=1` (partial observability), and `sequence_length=1` (static stimuli). 
+        :param obs_shape: tuple defining the shape of the experience following `(nbr_stimuli, sequence_length, *experience_shape)`
+                          where, by default, `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param agent_id: str defining the ID of the agent over the population.
@@ -61,12 +61,12 @@ class Listener(nn.Module):
     def _compute_tau(self, tau0):
         raise NotImplementedError
         
-    def _sense(self, stimuli, sentences=None):
+    def _sense(self, experiences, sentences=None):
         """
-        Infers features from the stimuli that have been provided.
+        Infers features from the experiences that have been provided.
 
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        Make sure to shuffle the stimuli so that the order does not give away the target. 
+        :param exp: Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        Make sure to shuffle the experiences so that the order does not give away the target. 
         :param sentences: None or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
@@ -102,11 +102,11 @@ class Listener(nn.Module):
         """
         raise NotImplementedError
 
-    def forward(self, sentences, stimuli, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+    def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        Make sure to shuffle the stimuli so that the order does not give away the target. 
+        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        Make sure to shuffle the experiences so that the order does not give away the target. 
         :param multi_round: Boolean defining whether to utter a sentence back or not.
         :param graphtype: String defining the type of symbols used in the output sentence:
                     - `'categorical'`: one-hot-encoded symbols.
@@ -115,7 +115,7 @@ class Listener(nn.Module):
                     - `'obverter'`: obverter training scheme...
         :param tau0: 
         """
-        features = self._sense(stimuli=stimuli, sentences=sentences)
+        features = self._sense(experiences=experiences, sentences=sentences)
         if sentences is not None:
             decision_logits, temporal_features = self._reason(sentences=sentences, features=features)
         else:
