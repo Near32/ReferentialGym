@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as T 
 
 def test_example_cultural_obverter_agents():
-  seed = 50
+  seed = 30
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -19,14 +19,14 @@ def test_example_cultural_obverter_agents():
 
 
   rg_config = {
-      "observability":            "partial",
-      "max_sentence_length":      5,
-      "nbr_communication_round":  1,
-      "nbr_distractors":          3,
+      "observability":            "partial", 
+      "max_sentence_length":      14,
+      "nbr_communication_round":  1,  
+      "nbr_distractors":          0,
       "distractor_sampling":      "uniform",
       
-      "descriptive":              False,
-      "descriptive_target_ratio": 0.0,
+      "descriptive":              True,
+      "descriptive_target_ratio": 0.5,
       
       "object_centric":           False,
       
@@ -54,7 +54,10 @@ def test_example_cultural_obverter_agents():
       "use_cuda":                 True,
   }
 
-  save_path = './{}Speaker-{}-CulturalObverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], 
+  assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
+  assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
+
+  save_path = './{}Speaker-{}-DescriptiveCulturalObverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     seed,rg_config['observability'], 
     rg_config['batch_size'], 
@@ -64,9 +67,7 @@ def test_example_cultural_obverter_agents():
     rg_config['nbr_stimulus'], 
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
-    rg_config['agent_architecture'])
-
-  rg_config['save_path'] = save_path
+    rg_config['agent_architecture'])rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
   logger = statsLogger(path=save_path,dumpPeriod=100)
@@ -81,7 +82,7 @@ def test_example_cultural_obverter_agents():
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
   agent_config['use_obverter_threshold_to_stop_message_generation'] = False
-
+  
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
   agent_config['cnn_encoder_channels'] = [32, 32, 64]
