@@ -4,6 +4,7 @@ import torch.nn as nn
 import copy 
 
 from ..networks import layer_init
+from ..utils import gumbel_softmax 
 
 
 class Listener(nn.Module):
@@ -22,6 +23,7 @@ class Listener(nn.Module):
         self.max_sentence_length = max_sentence_length
         self.agent_id = agent_id
         self.logger = logger 
+        self.log_idx = 0
 
         # Multi-round:
         self._reset_rnn_states()
@@ -51,9 +53,13 @@ class Listener(nn.Module):
         if self.logger is None: 
             return 
 
+        agent_log_dict = {f"{self.agent_id}": dict()}
         for key, data in log_dict.items():
-            logdict = { f"{self.agent_id}": {f"{key}":data}}
-            self.logger.add_dict(logdict, batch=True) 
+            agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
+        
+        self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
+        
+        self.log_idx += 1
 
     def _tidyup(self):
         pass 
@@ -132,10 +138,21 @@ class Listener(nn.Module):
             if self.training:
                 if 'gumbel_softmax' in graphtype:
                     self.tau = self._compute_tau(tau0=tau0)
-                    tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
-                
-                    straight_through = (graphtype == 'straight_through_gumbel_softmax')
-                    next_sentences = nn.functional.gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
+                    #tau = self.tau.view((-1,1,1)).repeat(1,1,self.vocab_size)
+                    tau = self.tau.view((-1))
+
+                    straight_through = ('straight_through_gumbel_softmax' in graphtype)
+                    
+                    next_sentences_stgs = []
+                    for bidx in range(len(next_sentences_logits)):
+                        nsl_in = next_sentences_logits[bidx]
+                        tau_in = tau[bidx]
+                        next_sentences_stgs.append( gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                        #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                    next_sentences = next_sentences_stgs
+                    if isinstance(next_sentences, list): 
+                        next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
+                        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
         
         output_dict = {'decision': decision_logits, 
                        'sentences_widx':next_sentences_widx, 

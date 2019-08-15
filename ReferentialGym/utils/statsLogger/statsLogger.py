@@ -25,21 +25,27 @@ class statsLogger(SummaryWriter):
         self.data = [dict()]
         
         if self.filename in os.listdir(self.path) :
-            self.data = pickle.load(open(os.path.join(self.path, self.filename), "rb"))
+            file = open(os.path.join(self.path, self.filename), "rb")
+            self.data = pickle.load(file)
+            file.close()
             
     def dump(self) :
         """
         Dumps the data that have been recorder so far with the `add_dict` method.
         """
-        pickle.dump(self.data, open(os.path.join(self.path, self.filename), "wb"))
+        file = open(os.path.join(self.path, self.filename+f".{self.counterDumpPeriod//self.dumpPeriod-1}"), "wb")
+        pickle.dump(self.data, file)
+        file.close()
+        
+        self.data = [dict() if idx!=(len(self.data)-1) else d for idx, d in enumerate(self.data)]
 
-    def switch_epoch(self):
+    def switch_epoch(self,):
         """
         Separate the data recording in epoch-based entries.
         """
         self.data.append(dict())
 
-    def add_dict(self,x, rec=None, batch=False) :
+    def add_dict(self,x, rec=None, batch=False, idx=None) :
         """
         Records the data.
 
@@ -50,7 +56,13 @@ class statsLogger(SummaryWriter):
         """
         # When this function is called from another object,
         # we use the latest period-associated entry in the data recording:
-        if rec is None: rec = self.data[-1]
+        if rec is None: 
+            rec = self.data[-1]
+            # Shall we dump the data recorder so far?
+            self.counterDumpPeriod += 1
+            if self.counterDumpPeriod%self.dumpPeriod == 0 :
+                self.dump()
+        
         # Otherwise it is called recursively by itself:
         elif not(isinstance(x, dict)):
             # Rec might be a dictionnary, newly created:
@@ -60,20 +72,17 @@ class statsLogger(SummaryWriter):
                 for bidx in range(len(x)):
                     xin = x[bidx]
                     if isinstance(xin, torch.Tensor):   xin = xin.cpu().detach().numpy()
-                    rec.append(xin)
+                    rec.append((idx,xin))
             else:
                 if isinstance(x, torch.Tensor): x = x.cpu().detach().numpy()
-                rec.append(x)
+                rec.append((idx,x))
+            
+            return rec
 
-            # Shall we dump the data recorder so far?
-            self.counterDumpPeriod = (self.counterDumpPeriod+1)%self.dumpPeriod
-            if self.counterDumpPeriod == 0 :
-                self.dump()
-            return rec 
         # If the data to record, i.e. x, is a dictionnary to expand,
         # then we keep on recursively creating new dictionnaries:
         for key in x.keys() :
             if not(key in rec.keys()) :
                 rec[key] = dict()
-            rec[key] = self.add_dict(x=x[key], rec=rec[key], batch=batch)
+            rec[key] = self.add_dict(x=x[key], rec=rec[key], batch=batch, idx=idx)
         return rec 

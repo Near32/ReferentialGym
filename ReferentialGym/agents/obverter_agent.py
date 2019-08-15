@@ -54,6 +54,8 @@ class ObverterAgent(Listener):
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         
+        self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
+        
         self.reset()
 
     def reset(self):
@@ -64,6 +66,10 @@ class ObverterAgent(Listener):
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
+
+    def _compute_tau(self, tau0):
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.embedding_tf_final_outputs))).squeeze()
+        return 1.0/invtau
 
     def _sense(self, experiences, sentences=None):
         """
@@ -309,13 +315,13 @@ class ObverterAgent(Listener):
                     decision_probs = F.softmax(decision_logits, dim=1)
                 # (batch_size=vocab_size, (nbr_distractors+1) )
                                     
-                target_decision_probs_per_vocab = decision_probs[:,btarget_idx].cpu()
+                target_decision_probs_per_vocab = decision_probs[:,btarget_idx]#.cpu()
                 # (batch_size=vocab_size, )
                 vocab_idx_op, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
                 # (batch_size=vocab_size, )
                 
                 sentences_widx[b].append( vocab_idx_argop)
-                sentences_logits[b].append( target_decision_probs_per_vocab.view((1,1,-1)))
+                sentences_logits[b].append( target_decision_probs_per_vocab.view((1,-1)))
                 sentences_one_hots[b].append( nn.functional.one_hot(vocab_idx_argop, num_classes=vocab_size).view((1,-1)))
                 
                 # next rnn_states:
@@ -332,17 +338,15 @@ class ObverterAgent(Listener):
             # Embed the sentence:
             sentences_widx[b] = torch.cat([ torch.FloatTensor([word_idx]).view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
-            sentences_logits[b] = torch.cat(sentences_logits[b], dim=1)
-            # (batch_size=1, sentence_length<=max_sentence_length, vocab_size)
+            sentences_logits[b] = torch.cat(sentences_logits[b], dim=0)
+            # (sentence_length<=max_sentence_length, vocab_size)
             sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
-            # (batch_size=1, sentence_length<=max_sentence_length, vocab_size)
+            # (sentence_length<=max_sentence_length, vocab_size)
 
             # Reset the state for the next sentence generation in the batch:
             states = init_rnn_states
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         # (batch_size=1, max_sentence_length<=max_sentence_length, vocab_size)
-
-        if features_embedding.is_cuda: sentences_one_hots = sentences_one_hots.cuda()
 
         return sentences_widx, sentences_logits, sentences_one_hots

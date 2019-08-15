@@ -19,7 +19,7 @@ def test_example_cultural_obverter_agents():
 
 
   rg_config = {
-      "observability":            "partial",
+      "observability":            "full",
       "max_sentence_length":      5,
       "nbr_communication_round":  1,
       "nbr_distractors":          3,
@@ -41,7 +41,7 @@ def test_example_cultural_obverter_agents():
       "cultural_pressure_it_period": 500,
       "cultural_substrate_size":  2,
       
-      "batch_size":               32,
+      "batch_size":               256,
       "dataloader_num_worker":    8,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -69,7 +69,7 @@ def test_example_cultural_obverter_agents():
   rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
-  logger = statsLogger(path=save_path,dumpPeriod=100)
+  logger = statsLogger(path=save_path,dumpPeriod=1000)
   
   # # Agent Configuration:
 

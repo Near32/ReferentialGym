@@ -114,7 +114,7 @@ class ReferentialGame(object):
                                                   tau0=self.config['tau0'], 
                                                   multi_round=multi_round)
                         
-                        if 'obverter' in self.config['graphtype']:
+                        if self.config['graphtype'] == 'obverter':
                             speaker_outputs['sentences'] = speaker_outputs['sentences'].detach()
 
                         listener_outputs = listener(sentences=speaker_outputs['sentences'], 
@@ -123,7 +123,7 @@ class ReferentialGame(object):
                                                     tau0=self.config['tau0'],
                                                     multi_round=multi_round)
 
-                        if 'obverter' in self.config['graphtype']:
+                        if self.config['graphtype'] == 'obverter':
                             if isinstance(listener_outputs['sentences'], torch.Tensor):
                                 listener_outputs['sentences'] = listener_outputs['sentences'].detach()
 
