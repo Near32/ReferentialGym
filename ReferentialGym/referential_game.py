@@ -79,16 +79,32 @@ class ReferentialGame(object):
         for epoch in range(nbr_epoch):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
+                counterGames = 0
                 for idx_stimuli, sample in enumerate(data_loader):
+                    if 'obverter' in self.config['graphtype']:
+                        # Let us decide whether to exchange the speakers and listeners:
+                        # i.e. is the round of games finished?
+                        if not('obverter_nbr_games_per_round' in self.config):
+                            self.config['obverter_nbr_games_per_round'] = 1 
+                        if  counterGames%self.config['obverter_nbr_games_per_round']==0:
+                            counterGames = 0
+                            speakers, \
+                            listeners, \
+                            speakers_optimizers, \
+                            listeners_optimizers = (listeners, \
+                                                   speakers, \
+                                                   listeners_optimizers, \
+                                                   speakers_optimizers)
+                        else:
+                            counterGames += 1
 
-                    speaker, listener, speaker_optimizer, listener_optimizer = self._select_agents(speakers,
-                                                                                                  listeners,
-                                                                                                  speakers_optimizers,
-                                                                                                  listeners_optimizers)
-                    if 'obverter' in self.config['graphtype'] and idx_stimuli%2==0:
-                        # Let us exchange the speaker and listener:
-                        speaker, listener, speaker_optimizer, listener_optimizer = listener, speaker, listener_optimizer, speaker_optimizer
-
+                    speaker, \
+                    listener, \
+                    speaker_optimizer, \
+                    listener_optimizer = self._select_agents(speakers,
+                                                             listeners,
+                                                             speakers_optimizers,
+                                                             listeners_optimizers)
                     '''
                     if mode == 'train': 
                         speaker.train()
@@ -139,7 +155,10 @@ class ReferentialGame(object):
                         criterion = nn.MSELoss(reduction='mean')
                         loss = criterion( decision_probs, target_decision_probs)
                     else:   
-                        decision_probs = F.softmax( final_decision_logits, dim=-1)
+                        if self.config['observability'] == 'full':
+                            decision_probs = F.softmax( final_decision_logits, dim=-1)
+                        else:
+                            decision_probs = torch.sigmoid( final_decision_logits)
                         criterion = nn.CrossEntropyLoss(reduction='mean')
                         loss = criterion( final_decision_logits, sample['target_decision_idx'])
                     

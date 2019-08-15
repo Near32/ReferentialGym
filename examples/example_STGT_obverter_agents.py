@@ -42,6 +42,8 @@ def test_example_cultural_obverter_agents():
 
       "cultural_pressure_it_period": None,
       "cultural_substrate_size":  1,
+
+      "obverter_nbr_games_per_round": 20,
       
       "batch_size":               128,
       "dataloader_num_worker":    8,
@@ -56,9 +58,11 @@ def test_example_cultural_obverter_agents():
       "use_cuda":                 True,
   }
 
-  save_path = './{}Speaker-{}-STGTCulturalObverter-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], 
+  save_path = './{}Speaker-{}-STGTCulturalObverter-{}GPR-S{}-CELoss+SiSentEnc_{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}_example_log'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
-    seed,rg_config['observability'], 
+    rg_config['obverter_nbr_games_per_round'],
+    seed,
+    rg_config['observability'], 
     rg_config['batch_size'], 
     rg_config['graphtype'], 
     rg_config['tau0'], 
