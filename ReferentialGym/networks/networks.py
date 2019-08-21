@@ -38,9 +38,13 @@ def layer_init(layer, w_scale=1.0):
             weight = torch.randn(fanIn, fanOut) * factor
             layer._parameters[name].data.copy_(weight)
             '''
+            
+            '''
             layer._parameters[name].data.uniform_(-0.08,0.08)
             layer._parameters[name].data.mul_(w_scale)
-        
+            '''
+            nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
+            
     '''
     if hasattr(layer,"weight"):    
         #nn.init.orthogonal_(layer.weight.data)
@@ -122,7 +126,8 @@ class ConvolutionalBody(nn.Module):
             self.convs.append( layer_init(nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=k, stride=s, padding=p), w_scale=math.sqrt(2)))
             # Update of the shape of the input-image, following Conv:
             dim = (dim-k+2*p)//s+1
-
+            print(dim)
+            
         hidden_units = (dim * dim * channels[-1],)
         if isinstance(feature_dim, tuple):
             hidden_units = hidden_units + feature_dim
@@ -343,16 +348,18 @@ class GRUBody(nn.Module):
         return self.feature_dim
 
 class ModelResNet18(models.ResNet) :
-    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, **kwargs):
+    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False, **kwargs):
         '''
         Default input channels assume a RGB image (3 channels).
 
         :param input_shape: dimensions of the input.
         :param feature_dim: integer size of the output.
         :param nbr_layer: int, number of convolutional residual layer to use.
+        :param pretrained: bool, specifies whether to load a pretrained model.
         '''
         super(ModelResNet18, self).__init__(BasicBlock, [2, 2, 2, 2], **kwargs)
-        self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        if pretrained:
+            self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
         
         self.input_shape = input_shape
         self.nbr_layer = nbr_layer

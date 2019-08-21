@@ -6,7 +6,7 @@ from .listener import Listener
 from ..networks import choose_architecture, layer_init
 
 
-class ObverterAgent(Listener):
+class CategoricalObverterAgent(Listener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -16,7 +16,7 @@ class ObverterAgent(Listener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(ObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
+        super(CategoricalObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
@@ -54,6 +54,16 @@ class ObverterAgent(Listener):
         #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         
+        # Decision making: which input stimuli is the target? 
+        decision_input_size = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
+        decision_output_size = self.kwargs['nbr_distractors']+1
+        if self.kwargs['descriptive']: decision_output_size += 1
+        self.decision_decoder = nn.Sequential(
+            nn.Linear(decision_input_size, 128),
+            nn.ReLU(),
+            nn.Linear(128,decision_output_size)
+        )
+        
         self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
         
         self.reset()
@@ -62,6 +72,7 @@ class ObverterAgent(Listener):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.symbol_decoder.apply(layer_init)
+        self.decision_decoder.apply(layer_init)
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
 
@@ -141,27 +152,14 @@ class ObverterAgent(Listener):
         for widx in range(rnn_outputs.size(1)):
             decision_inputs = rnn_outputs[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-            decision_logits_until_widx = []
-            for b in range(batch_size):
-                bemb = self.embedding_tf_final_outputs[b].view((-1, self.kwargs['temporal_encoder_nbr_hidden_units']))
-                # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), kwargs['temporal_encoder_nbr_hidden_units'])
-                bdin = decision_inputs[b].unsqueeze(1)
-                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-                dl = torch.matmul( bemb, bdin).view((1,-1))
-                # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
-                decision_logits_until_widx.append(dl)
-            decision_logits_until_widx = torch.cat(decision_logits_until_widx, dim=0)
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_inputs = torch.cat([decision_inputs, self.embedding_tf_final_outputs], dim=-1)
+            # (batch_size, decision_input_size)
+            decision_logits_until_widx = self.decision_decoder(decision_inputs)
+            # (batch_size, decision_output_size)
             decision_logits.append(decision_logits_until_widx.unsqueeze(1))
-            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            # (batch_size, 1, decision_output_size)
         decision_logits = torch.cat(decision_logits, dim=1)
-        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
-        
-        l_shape = decision_logits.size()
-        not_target_logit = torch.zeros( *l_shape[:2], 1)
-        if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
-        decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
-        
+        # (batch_size, max_sentence_length, decision_output_size)           
         return decision_logits, self.embedding_tf_final_outputs
 
 
@@ -219,18 +217,19 @@ class ObverterAgent(Listener):
         # Utter the next sentences:
         next_sentences_widx, \
         next_sentences_logits, \
-        next_sentences_one_hots = ObverterAgent._compute_sentence(features_embedding=self.embedding_tf_final_outputs,
-            target_idx=predicted_target_idx,
-            symbol_encoder=self.symbol_encoder,
-            symbol_processing=self.symbol_processing,
-            symbol_decoder=self.symbol_decoder,
-            init_rnn_states=self.rnn_states,
-            vocab_size=self.vocab_size,
-            max_sentence_length=self.max_sentence_length,
-            nbr_distractors_po=nbr_distractors_po,
-            operation=operation,
-            use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
-            use_stop_word=False)
+        next_sentences_one_hots = CategoricalObverterAgent._compute_sentence(features_embedding=self.embedding_tf_final_outputs,
+          target_idx=predicted_target_idx,
+          symbol_encoder=self.symbol_encoder,
+          symbol_processing=self.symbol_processing,
+          symbol_decoder=self.symbol_decoder,
+          decision_decoder=self.decision_decoder,
+          init_rnn_states=self.rnn_states,
+          vocab_size=self.vocab_size,
+          max_sentence_length=self.max_sentence_length,
+          nbr_distractors_po=nbr_distractors_po,
+          operation=operation,
+          use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
+          use_stop_word=False)
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
@@ -239,6 +238,7 @@ class ObverterAgent(Listener):
                           symbol_encoder, 
                           symbol_processing, 
                           symbol_decoder, 
+                          decision_decoder,
                           init_rnn_states=None, 
                           vocab_size=10, 
                           max_sentence_length=14,
@@ -261,6 +261,7 @@ class ObverterAgent(Listener):
         :param symbol_encoder: torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.
         :param symbol_processing: torch.nn.Module used to generate the sentences.
         :param symbol_decoder: torch.nn.Module used to decode the embeddings generated by the `:param symbol_processing:` module. 
+        :param decision_decoder: torch.nn.Module used to output the decision over the experiences. 
         :param init_rnn_states: None or Tuple of Tensors to initialize the symbol_processing's rnn states.
         :param vocab_size: int, size of the vocabulary.
         :param max_sentence_length: int, maximal length for each generated sentences.
@@ -298,12 +299,14 @@ class ObverterAgent(Listener):
         if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
         vocab_idx = symbol_encoder(vocab_idx)
         # Embedding: (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
-
+        
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
         sentences_one_hots = [list() for _ in range(batch_size)]
         for b in range(batch_size):
             bemb = features_embedding[b].view((nbr_distractors_po, -1))
+            # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+            bemb = bemb.repeat(vocab_size,1)
             # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             btarget_idx = target_idx[b]
             # (1,)
@@ -327,38 +330,14 @@ class ObverterAgent(Listener):
                 # Compute the decision: following the last hidden/output vector from the rnn:
                 decision_inputs = rnn_outputs[:,-1,...]
                 # (batch_size=vocab_size, kwargs['symbol_processing_nbr_hidden_units'])
-                decision_logits = []
-                for bv in range(vocab_size):
-                    bdin = decision_inputs[bv].unsqueeze(1)
-                    # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-                    dl = torch.matmul( bemb, bdin).view((1,-1))
-                    # ( 1, (nbr_distractors+1))
-                    decision_logits.append(dl)
-                decision_logits = torch.cat(decision_logits, dim=0)
+                decision_inputs = torch.cat([decision_inputs, bemb], dim=-1)
+                # (batch_size=vocab_size, decision_input_size)
+                decision_logits = decision_decoder(decision_inputs)
+                # (batch_size=vocab_size, decision_output_size)
+                
+                decision_probs = F.softmax(decision_logits, dim=-1)
                 # (batch_size=vocab_size, (nbr_distractors+1) )
-                
-                '''
-                if nbr_distractors_po==1:
-                    # Partial observability:
-                    decision_probs = torch.sigmoid(decision_logits)
-                else:
-                    # Full observability:
-                    decision_probs = F.softmax(decision_logits, dim=-1)
-                # (batch_size=vocab_size, (nbr_distractors+1) )
-                
-                '''
-                
-                not_target_logit = torch.zeros(decision_logits.size(0), 1)
-                if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
-                decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
-                
-                # Probs over Distractors and Vocab: 
-                #decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((vocab_size, -1))
-                
-                decision_probs = F.softmax( decision_logits, dim=-1)
-                # (batch_size=vocab_size, (nbr_distractors+2) )
-                
-
+                                    
                 target_decision_probs_per_vocab = decision_probs[:,btarget_idx]
                 # (batch_size=vocab_size, )
                 vocab_idx_op, vocab_idx_argop = operation(target_decision_probs_per_vocab, dim=0)
@@ -389,7 +368,7 @@ class ObverterAgent(Listener):
                     continuer = False 
 
             # Embed the sentence:
-
+            
             # Padding token:
             while len(sentences_widx[b]) < max_sentence_length:
               sentences_widx[b].append(vocab_size)
@@ -406,7 +385,7 @@ class ObverterAgent(Listener):
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         # (batch_size=1, max_sentence_length<=max_sentence_length, vocab_size)
-        
+
         sentences_widx = torch.cat(sentences_widx, dim=0)
         # (batch_size, max_sentence_length, 1)
         if features_embedding.is_cuda: sentences_widx = sentences_widx.cuda()

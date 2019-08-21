@@ -167,7 +167,7 @@ def test_example_basic_agents():
 
   # In[22]:
 
-  nbr_epoch = 100
+  nbr_epoch = 20
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,

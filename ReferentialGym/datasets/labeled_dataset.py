@@ -25,16 +25,19 @@ class LabeledDataset(Dataset):
     def getNbrClasses(self) -> int:
         return len(self.classes)
 
-    def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None) -> Tuple[torch.Tensor, List[int]]:
+    def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None, target_only: bool = False) -> Tuple[torch.Tensor, List[int]]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
         If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
         :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
+        :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
+
         :returns:
             - experiences: Tensor of the sampled experiences.
             - indices: List[int] of the indices of the sampled experiences.
+            - exp_labels: List[int] consisting of the indices of the label to which the experiences belong.
         '''
         if from_class is None:
             from_class = range(10)
@@ -64,12 +67,15 @@ class LabeledDataset(Dataset):
             indices.append( chosen)
         
         experiences = []
+        exp_labels = []
         for idx in indices:
             exp, tc = self.dataset[idx]
             experiences.append(exp.unsqueeze(0))
-            
+            exp_labels.append(tc)
+            if target_only and idx==0: break
+
         experiences = torch.cat(experiences,dim=0)
         experiences = experiences.unsqueeze(1)
         # account for the temporal dimension...
         
-        return experiences, indices
+        return experiences, indices, exp_labels

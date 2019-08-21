@@ -12,7 +12,7 @@ import torchvision.transforms as T
 
 
 def test_example_cultural_obverter_agents():
-  seed = 60
+  seed = 40
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -20,16 +20,16 @@ def test_example_cultural_obverter_agents():
 
 
   rg_config = {
-      "observability":            "partial",
-      "max_sentence_length":      5,
-      "nbr_communication_round":  1,
+      "observability":            "partial", 
+      "max_sentence_length":      20,
+      "nbr_communication_round":  1,  
       "nbr_distractors":          0,
       "distractor_sampling":      "uniform",
       
       "descriptive":              True,
       "descriptive_target_ratio": 0.5,
       
-      "object_centric":           True,
+      "object_centric":           False,
       
       "nbr_stimulus":             1,
 
@@ -37,42 +37,52 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.2,
       "vocab_size":               5,
 
-      "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'pretrained-ResNet18-2'
+      "agent_architecture":       'CNN', #'CNN', #/'pretrained-ResNet18-2'
 
       "cultural_pressure_it_period": None,
       "cultural_substrate_size":  1,
 
       "iterated_learning_scheme": False,
       "iterated_learning_period": 200,
-
+      
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
       "obverter_nbr_games_per_round": 20,
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
-      "dataloader_num_worker":    8,
+      "batch_size":               256,
+      "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
       "learning_rate":            6e-4,
       "adam_eps":                 1e-5,
-      "gradient_clip":            5.0,
-      "with_entropy_regularization":  False,
+      "with_gradient_clip":       True,
+      "gradient_clip":            1e-1,
+      "with_speaker_entropy_regularization":  False,
+      "with_listener_entropy_regularization":  False,
       "with_weight_maxl1_loss":   False,
 
       "use_cuda":                 True,
   }
 
+  assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
+  assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
+
   save_path = './'
   save_path += 'NLLLoss'
+  save_path += '+UsingWIDX+GRU'
   #save_path += 'MSELoss'
+  if rg_config['with_gradient_clip']:
+    save_path += '+ClipGrad{}'.format(rg_config['gradient_clip'])
   save_path += '+ProbOverDistrAndVocab-'
-  if rg_config['with_entropy_regularization']:
-    save_path += 'EntrReg'
+  if rg_config['with_speaker_entropy_regularization']:
+    save_path += 'SPEntrReg'
+  if rg_config['with_listener_entropy_regularization']:
+    save_path += 'LSEntrReg'
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
-  save_path += '-{}Speaker-{}-{}CulturalObverter{}-{}GPR-S{}-{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}DescriptiveCulturalCategoricalObverter{}-{}GPR-S{}-{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     rg_config['obverter_stop_threshold'],
@@ -121,43 +131,41 @@ def test_example_cultural_obverter_agents():
   agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
   agent_config['symbol_processing_nbr_rnn_layers'] = 1
   '''
-  '''
-  # CNN : 
-  agent_config['cnn_encoder_channels'] = [32,32,32,32]
-  agent_config['cnn_encoder_kernels'] = [3,3,3,3]
-  agent_config['cnn_encoder_strides'] = [2,2,2,2]
-  agent_config['cnn_encoder_paddings'] = [1,1,1,1]
-  agent_config['cnn_encoder_feature_dim'] = 256
-  agent_config['cnn_encoder_mini_batch_size'] = 128
-  agent_config['temporal_encoder_nbr_hidden_units'] = 64
-  agent_config['temporal_encoder_nbr_rnn_layers'] = 1
-  agent_config['temporal_encoder_mini_batch_size'] = 128
-  agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
-  agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  if 'CNN' in agent_config['architecture']:
+    # CNN : 
+    agent_config['cnn_encoder_channels'] = [32,32,32,32]
+    agent_config['cnn_encoder_kernels'] = [3,3,3,3]
+    agent_config['cnn_encoder_strides'] = [1,2,2,2]
+    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
+    agent_config['cnn_encoder_feature_dim'] = 256
+    agent_config['cnn_encoder_mini_batch_size'] = 128
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 128
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'ResNet' in agent_config['architecture']:
+    # ResNet18-2:
+    agent_config['cnn_encoder_channels'] = [32, 32, 64]
+    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+    agent_config['cnn_encoder_strides'] = [4, 2, 1]
+    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+    agent_config['cnn_encoder_feature_dim'] = 512
+    agent_config['cnn_encoder_mini_batch_size'] = 128
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 128
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
   
-  '''
-  # ResNet18-2:
-  agent_config['cnn_encoder_channels'] = [32, 32, 64]
-  agent_config['cnn_encoder_kernels'] = [4, 3, 3]
-  agent_config['cnn_encoder_strides'] = [4, 2, 1]
-  agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-  agent_config['cnn_encoder_feature_dim'] = 512
-  agent_config['cnn_encoder_mini_batch_size'] = 128
-  agent_config['temporal_encoder_nbr_hidden_units'] = 64
-  agent_config['temporal_encoder_nbr_rnn_layers'] = 1
-  agent_config['temporal_encoder_mini_batch_size'] = 128
-  agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
-  agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  
-
-  # # Agents
+  # # Basic Agents
 
   # ## Obverter Speaker:
 
   # In[4]:
 
 
-  from ReferentialGym.agents import ObverterAgent
+  from ReferentialGym.agents import CategoricalObverterAgent
 
 
   # In[5]:
@@ -170,7 +178,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  bspeaker = ObverterAgent(kwargs=agent_config, 
+  bspeaker = CategoricalObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
@@ -190,7 +198,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  blistener = ObverterAgent(kwargs=agent_config, 
+  blistener = CategoricalObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,

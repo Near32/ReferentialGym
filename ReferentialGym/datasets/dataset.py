@@ -37,16 +37,18 @@ class Dataset(torchDataset):
     def getNbrClasses(self) -> int:
         raise NotImplementedError
 
-    def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None) -> Tuple[torch.Tensor, List[int]]:
+    def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None, target_only: bool = False) -> Tuple[torch.Tensor, List[int]]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
         If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
         :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
+        :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
         :returns:
             - experiences: Tensor of the sampled experiences.
             - indices: List[int] of the indices of the sampled experiences.
+            - exp_labels: List[int] consisting of the indices of the label to which the experiences belong.
         '''
         raise NotImplementedError
 
@@ -63,13 +65,16 @@ class Dataset(torchDataset):
                                      among the 'listener_experiences'.
         '''
         if self.kwargs['descriptive']:
-            experiences = self.sample(idx=idx)[0].unsqueeze(0)
+            experiences, indices, exp_labels = self.sample(idx=idx)
+            experiences = experiences.unsqueeze(0)
             # In descriptive mode, the speaker observability is alwasy partial:
             speaker_experiences = experiences[:,0].unsqueeze(1)
             
             if torch.rand(size=(1,)).item() > self.kwargs['descriptive_target_ratio']:
                 # Target experience remain in the experiences yielded to the listener:
                 listener_experiences = experiences 
+                if self.kwargs['object_centric']:
+                    listener_experiences[:,0] = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)[0].unsqueeze(0)
                 listener_experiences, target_decision_idx = shuffle(listener_experiences)
             else:
                 # Target experience is excluded from the experiences yielded to the listener:
@@ -77,7 +82,8 @@ class Dataset(torchDataset):
                 # The target_decision_idx is set to `nbr_experiences`:
                 target_decision_idx = (self.kwargs['nbr_distractors']+1)*torch.ones(1).long()                         
         else:
-            experiences = self.sample(idx=idx)[0].unsqueeze(0)
+            experiences, indices, exp_labels = self.sample(idx=idx)
+            experiences = experiences.unsqueeze(0)
             listener_experiences, target_decision_idx = shuffle(experiences)
             speaker_experiences = experiences 
             if self.kwargs['observability'] == "partial":

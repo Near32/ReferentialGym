@@ -30,9 +30,11 @@ def choose_architecture( architecture,
                                      paddings=paddings)
     if 'ResNet18' in architecture:
         nbr_layer = int(architecture[-1])
+        pretrained = ('pretrained' in architecture)
         body = ModelResNet18(input_shape=input_shape,
                              feature_dim=feature_dim,
-                             nbr_layer=nbr_layer)
+                             nbr_layer=nbr_layer,
+                             pretrained=pretrained)
 
     if architecture == 'CNN-RNN':
         channels = [input_shape[0]] + nbr_channels_list

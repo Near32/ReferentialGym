@@ -11,7 +11,7 @@ import torch.optim as optim
 
 from tensorboardX import SummaryWriter
 
-from .agents import Speaker, Listener
+from .agents import Speaker, Listener, ObverterAgent
 from .networks import handle_nan, hasnan
 from .datasets import collate_dict_wrapper
 
@@ -81,22 +81,28 @@ class ReferentialGame(object):
                 data_loader = data_loaders[mode]
                 counterGames = 0
                 for idx_stimuli, sample in enumerate(data_loader):
-                    if 'obverter' in self.config['graphtype']:
-                        # Let us decide whether to exchange the speakers and listeners:
-                        # i.e. is the round of games finished?
-                        if not('obverter_nbr_games_per_round' in self.config):
-                            self.config['obverter_nbr_games_per_round'] = 1 
-                        if  counterGames%self.config['obverter_nbr_games_per_round']==0:
-                            counterGames = 0
-                            speakers, \
-                            listeners, \
-                            speakers_optimizers, \
-                            listeners_optimizers = (listeners, \
-                                                   speakers, \
-                                                   listeners_optimizers, \
-                                                   speakers_optimizers)
-                        else:
+                    if mode == 'train':
+                        if'obverter' in self.config['graphtype']:
+                            # Let us decide whether to exchange the speakers and listeners:
+                            # i.e. is the round of games finished?
+                            if not('obverter_nbr_games_per_round' in self.config):
+                                self.config['obverter_nbr_games_per_round'] = 1 
                             counterGames += 1
+                            if  counterGames%self.config['obverter_nbr_games_per_round']==0:
+                                speakers, \
+                                listeners, \
+                                speakers_optimizers, \
+                                listeners_optimizers = (listeners, \
+                                                       speakers, \
+                                                       listeners_optimizers, \
+                                                       speakers_optimizers)
+                            if self.config['iterated_learning_scheme'] and counterGames%self.config['iterated_learning_period']==0:
+                                for lidx in range(len(listeners)):
+                                    listeners[lidx].reset()
+                                    print("Iterated Learning Scheme: Listener {} have just been resetted.".format(listeners[lidx].agent_id))
+                                    listeners_optimizers[lidx] = optim.Adam(listeners[lidx].parameters(), 
+                                        lr=self.config['learning_rate'], 
+                                        eps=self.config['adam_eps'])
 
                     speaker, \
                     listener, \
@@ -131,37 +137,80 @@ class ReferentialGame(object):
                                                   multi_round=multi_round)
                         
                         if self.config['graphtype'] == 'obverter':
-                            speaker_outputs['sentences'] = speaker_outputs['sentences'].detach()
+                            if isinstance(speaker_outputs['sentences'], torch.Tensor):
+                                speaker_outputs['sentences'] = speaker_outputs['sentences'].detach()
+                            if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
+                                speaker_outputs['sentences_widx'] = speaker_outputs['sentences_widx'].detach()
 
+                        '''
                         listener_outputs = listener(sentences=speaker_outputs['sentences'], 
                                                     experiences=sample['listener_experiences'], 
                                                     graphtype=self.config['graphtype'], 
                                                     tau0=self.config['tau0'],
                                                     multi_round=multi_round)
+                        '''
+                        listener_outputs = listener(sentences=speaker_outputs['sentences_widx'], 
+                                                    experiences=sample['listener_experiences'], 
+                                                    graphtype=self.config['graphtype'], 
+                                                    tau0=self.config['tau0'],
+                                                    multi_round=multi_round)
+                        
 
                         if self.config['graphtype'] == 'obverter':
                             if isinstance(listener_outputs['sentences'], torch.Tensor):
                                 listener_outputs['sentences'] = listener_outputs['sentences'].detach()
+                            if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
+                                listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
 
                         decision_logits = listener_outputs['decision']
                         listener_sentences = listener_outputs['sentences']
 
+                        if self.config['iterated_learning_scheme']:
+                            listener_speaking_outputs = listener(experiences=sample['speaker_experiences'], 
+                                                                  sentences=None, 
+                                                                  graphtype=self.config['graphtype'], 
+                                                                  tau0=self.config['tau0'], 
+                                                                  multi_round=multi_round)
+                            
+                            
                     final_decision_logits = decision_logits
-
+                    # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                     if self.config['descriptive']:  
-                        decision_probs = torch.sigmoid( final_decision_logits)
-                        num_classes = self.config['nbr_distractors']+2
-                        target_decision_probs = F.one_hot(sample['target_decision_idx'], num_classes=num_classes).float()[:,:-1]
-                        criterion = nn.MSELoss(reduction='mean')
-                        loss = criterion( decision_probs, target_decision_probs)
-                    else:   
-                        if self.config['observability'] == 'full':
-                            decision_probs = F.softmax( final_decision_logits, dim=-1)
+                        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                        criterion = nn.NLLLoss(reduction='mean')
+                        
+                        if self.config['obverter_least_effort_loss']:
+                            loss = 0.0
+                            losses4widx = []
+                            for widx in range(decision_probs.size(1)):
+                                dp = decision_probs[:,widx,...]
+                                ls = criterion( dp, sample['target_decision_idx'])
+                                loss += self.config['obverter_least_effort_loss_weights'][widx]*ls 
+                                losses4widx.append(ls)
                         else:
-                            decision_probs = torch.sigmoid( final_decision_logits)
-                        criterion = nn.CrossEntropyLoss(reduction='mean')
+                            decision_probs = decision_probs[:,-1,...]
+                            loss = criterion( decision_probs, sample['target_decision_idx'])
+                    else:   
+                        final_decision_logits = final_decision_logits[:,-1,...]
+                        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                        criterion = nn.NLLLoss(reduction='mean')
                         loss = criterion( final_decision_logits, sample['target_decision_idx'])
-                    
+                        '''
+                        decision_probs = F.softmax( final_decision_logits, dim=-1)
+                        criterion = nn.MSELoss(reduction='mean')
+                        loss = criterion( decision_probs, nn.functional.one_hot(sample['target_decision_idx'], num_classes=decision_probs.size(1)).float())
+                        '''
+                        
+                    if self.config['iterated_learning_scheme']:
+                        # Let us enforce the Minimum Description Length Principle:
+                        # Listener's speaking entropy:
+                        listener_speaking_entropies = [torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy().mean().view(-1) for w_logits in s_logits], dim=0) for s_logits in listener_speaking_outputs['sentences_logits']]
+                        # List of size batch_size of Tensor of shape (sentence_length,)
+                        per_sentence_max_entropies = torch.stack([ lss.max(dim=0)[0] for lss in listener_speaking_entropies])
+                        # Tensor of shape (batch_size,1)
+                        loss += per_sentence_max_entropies.mean()
+
                     '''
                     criterion = nn.MSELoss(reduction='mean')
                     loss = criterion( decision_probs, nn.functional.one_hot(sample['target_decision_idx'], num_classes=decision_probs.size(1)).float())
@@ -182,6 +231,16 @@ class ReferentialGame(object):
                     loss = losses.mean()
                     '''
                     
+                    # Speaker's entropy regularization:
+                    if self.config['with_speaker_entropy_regularization']:
+                        entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                        loss += -0.25*entropies.mean()
+
+                    # Listener's entropy regularization:
+                    if self.config['with_listener_entropy_regularization']:
+                        entropies = torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=d_logits).entropy() for d_logits in final_decision_logits], dim=0)
+                        loss += -0.25*entropies.mean()
+
                     # Weight MaxL1 Loss:
                     weight_maxl1_loss = 0.0
                     for p in speaker.parameters() :
@@ -197,19 +256,53 @@ class ReferentialGame(object):
                         listener_optimizer.zero_grad()
                         loss.backward()
                         
-                        nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
-                        nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
                         speaker.apply(handle_nan)
                         listener.apply(handle_nan)
-
+                        if self.config['with_gradient_clip']:
+                            nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
+                            nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
+                        
                         speaker_optimizer.step()
                         listener_optimizer.step()
                     
                     if logger is not None:
+                        maxgrad = 0.0
+                        for name, p in speaker.named_parameters() :
+                            if hasattr(p,'grad') and p.grad is not None:
+                                logger.add_histogram( "Speaker/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)
+                                cmg = torch.abs(p.grad).max()
+                                if cmg > maxgrad:
+                                    maxgrad = cmg
+                        logger.add_scalar( "{}/SpeakerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
+                        maxgrad = 0
+                        for name, p in listener.named_parameters() :
+                            if hasattr(p,'grad') and p.grad is not None:
+                                logger.add_histogram( "Listener/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)                    
+                                cmg = torch.abs(p.grad).max()
+                                if cmg > maxgrad:
+                                    maxgrad = cmg
+                        logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
+                                
+                        #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
+                        batch_size = len(speaker_outputs['sentences_widx'])
+                        sentence_length = (speaker_outputs['sentences_widx']<self.config['vocab_size']).sum()/batch_size
+                        logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], idx_stimuli+len(data_loader)*epoch)
+                        
+                        entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                        logger.add_scalar('{}/Entropy'.format(mode), entropies.mean(), idx_stimuli+len(data_loader)*epoch)
+                        
                         logger.add_scalar('{}/Loss'.format(mode), loss.item(), idx_stimuli+len(data_loader)*epoch)
                         logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), weight_maxl1_loss.item(), idx_stimuli+len(data_loader)*epoch)
                         if self.config['descriptive']:
-                            acc = (torch.abs(decision_probs-target_decision_probs) < 0.5).float().mean()*100
+                            if self.config['obverter_least_effort_loss']:
+                                for widx in range(len(losses4widx)):
+                                    logger.add_scalar('{}/Loss@w{}'.format(mode,widx), losses4widx[widx].item(), idx_stimuli+len(data_loader)*epoch)
+                                    acc = (torch.abs(decision_probs[:,widx,...]-target_decision_probs) < 0.5).float().mean()*100
+                                    logger.add_scalar('{}/Accuracy@{}'.format(mode,widx), acc.item(), idx_stimuli+len(data_loader)*epoch)
+                            else:
+                                #acc = (torch.abs(decision_probs-target_decision_probs) < 0.5).float().mean()*100
+                                decision_idx = decision_probs.max(dim=-1)[1]
+                                acc = (decision_idx==sample['target_decision_idx']).float().mean()*100
                         else:
                             decision_idx = decision_probs.max(dim=-1)[1]
                             acc = (decision_idx==sample['target_decision_idx']).float().mean()*100
@@ -227,8 +320,17 @@ class ReferentialGame(object):
                                 logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
                         
                     if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                        print('Epoch {} :: {} Iteration {}/{} :: Training/Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
-
+                        print('Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
+                        # Show message:
+                        batch_size = len(speaker_outputs['sentences_widx'])
+                        for sidx in range(batch_size):
+                            if sidx>=10:
+                                break
+                            #print(f"{sidx} : ", ''.join([chr(97+int(s[0])) for s in speaker_outputs['sentences_widx'][sidx][0] ]), \
+                            print(f"{sidx} : ", ''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]), \
+                                f"\t /label: {sample['target_decision_idx'][sidx]}",\
+                                f" /decision: {decision_idx[sidx]}")
+                            
                     if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
                         idx_speaker2reset = random.randint(0,len(speakers)-1)
                         idx_listener2reset = random.randint(0,len(listeners)-1)
@@ -240,14 +342,15 @@ class ReferentialGame(object):
 
                         print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
 
-
+                if logger is not None:
+                    logger.switch_epoch()
 
             # Save agent:
-            prototype_speaker.save(path=os.path.join(self.config['save_path'],'{}_speaker.pt'.format(prototype_speaker.kwargs['architecture'])))
-            prototype_listener.save(path=os.path.join(self.config['save_path'],'{}_listener.pt'.format(prototype_listener.kwargs['architecture'])))
+            for agent in speakers:
+                agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
+            for agent in listeners:
+                agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
             
-            if logger is not None:
-                logger.switch_epoch()
 
 
 

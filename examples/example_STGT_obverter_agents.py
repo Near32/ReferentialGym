@@ -86,7 +86,8 @@ def test_example_cultural_obverter_agents():
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
-  agent_config['use_obverter_threshold_to_stop_message_generation'] = False
+  agent_config['use_obverter_threshold_to_stop_message_generation'] = True
+  agent_config['descriptive'] = rg_config['descriptive']
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']

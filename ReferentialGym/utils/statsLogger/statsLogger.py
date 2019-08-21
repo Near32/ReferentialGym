@@ -23,11 +23,6 @@ class statsLogger(SummaryWriter):
             os.mkdir(self.path)
 
         self.data = [dict()]
-        
-        if self.filename in os.listdir(self.path) :
-            file = open(os.path.join(self.path, self.filename), "rb")
-            self.data = pickle.load(file)
-            file.close()
             
     def dump(self) :
         """
