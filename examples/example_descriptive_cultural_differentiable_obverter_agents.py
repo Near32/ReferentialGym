@@ -12,7 +12,7 @@ import torchvision.transforms as T
 
 
 def test_example_cultural_obverter_agents():
-  seed = 40
+  seed = 10
   torch.manual_seed(seed)
   # # Hyperparameters:
 
@@ -21,19 +21,19 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      10,
+      "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          0,
-      "distractor_sampling":      "similarity-0.5",#"uniform",
+      "nbr_distractors":          3,
+      "distractor_sampling":      "similarity-0.9",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
       # Speakers find the strategy of uttering
       # a word that is relevant to the class/label
       # of the target, seemingly.  
-
+      
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5,
+      "descriptive_target_ratio": 0.94, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -42,35 +42,35 @@ def test_example_cultural_obverter_agents():
       
       "nbr_stimulus":             1,
 
-      "graphtype":                'obverter', #'obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
+      "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
       "vocab_size":               5,
 
-      "agent_architecture":       'CNN', #'CNN', #/'pretrained-ResNet18-2'
+      "agent_architecture":       'CNN', #'CNN'/'[pretrained-]ResNet18-2'
 
       "cultural_pressure_it_period": None,
       "cultural_substrate_size":  1,
-
+      
       "iterated_learning_scheme": False,
       "iterated_learning_period": 200,
-      
+
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 20,
+      "obverter_nbr_games_per_round": 2,
 
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               256,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
-      "learning_rate":            6e-4,
+      "learning_rate":            3e-4,
       "adam_eps":                 1e-5,
-
+      
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
-      
+
       "with_utterance_penalization":  False,
       "utterance_penalization_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
                                                 # The greater this value, the greater the loss/cost.
@@ -89,7 +89,8 @@ def test_example_cultural_obverter_agents():
 
   save_path = './'
   save_path += 'NLLLoss' #'MSELoss'
-  save_path += '+UsingWIDX+GRU'
+  save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
+  save_path += '+difftest+1e-1+1e1LeastEffort+5e1'
   #save_path += '+ProbOverDistrAndVocab-'
   if rg_config['with_utterance_penalization']:
     save_path += "+Tau-10-OOV{}Prob{}".format(rg_config['utterance_penalization_factor'], rg_config['utterance_penalization_oov_prob'])  
@@ -101,7 +102,7 @@ def test_example_cultural_obverter_agents():
     save_path += 'LSEntrReg'
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
-  save_path += '-{}Speaker-{}-{}{}CulturalCategoricalObverter{}-{}GPR-S{}-{}-obs_b{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -110,6 +111,7 @@ def test_example_cultural_obverter_agents():
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
+    rg_config['learning_rate'],
     rg_config['graphtype'], 
     rg_config['tau0'], 
     rg_config['distractor_sampling'],
@@ -133,7 +135,7 @@ def test_example_cultural_obverter_agents():
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
-  agent_config['use_obverter_threshold_to_stop_message_generation'] = rg_config['obverter_stop_threshold']
+  agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
 
   # Recurrent Convolutional Architecture:
@@ -178,7 +180,7 @@ def test_example_cultural_obverter_agents():
     agent_config['temporal_encoder_mini_batch_size'] = 128
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  
+
   # # Basic Agents
 
   # ## Obverter Speaker:
@@ -186,7 +188,7 @@ def test_example_cultural_obverter_agents():
   # In[4]:
 
 
-  from ReferentialGym.agents import CategoricalObverterAgent
+  from ReferentialGym.agents import DifferentiableObverterAgent
 
 
   # In[5]:
@@ -199,7 +201,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  bspeaker = CategoricalObverterAgent(kwargs=agent_config, 
+  bspeaker = DifferentiableObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
@@ -219,7 +221,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  blistener = CategoricalObverterAgent(kwargs=agent_config, 
+  blistener = DifferentiableObverterAgent(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
@@ -239,6 +241,12 @@ def test_example_cultural_obverter_agents():
   #dataset = torchvision.datasets.MNIST(root='./datasets/MNIST/', train=True, transform=transform, target_transform=None, download=True)
   train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=transform, target_transform=None, download=True)
   test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=transform, target_transform=None, download=True)
+  
+  '''
+  train_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=True, transform=transform, target_transform=None, download=True)
+  test_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=False, transform=transform, target_transform=None, download=True)
+  '''
+  
   dataset_args = {
       "dataset_class":            "LabeledDataset",
       "train_dataset":            train_dataset,

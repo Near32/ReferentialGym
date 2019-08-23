@@ -14,6 +14,7 @@ from tensorboardX import SummaryWriter
 from .agents import Speaker, Listener, ObverterAgent
 from .networks import handle_nan, hasnan
 from .datasets import collate_dict_wrapper
+from .utils import cardinality
 
 
 class ReferentialGame(object):
@@ -80,6 +81,8 @@ class ReferentialGame(object):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
                 counterGames = 0
+                total_sentences = []
+                total_nbr_unique_stimulus = 0
                 for idx_stimuli, sample in enumerate(data_loader):
                     if mode == 'train':
                         if'obverter' in self.config['graphtype']:
@@ -124,7 +127,8 @@ class ReferentialGame(object):
                         sample = sample.cuda()
 
                     listener_sentences = None 
-                    
+                    batch_size = len(sample['speaker_experiences'])
+                        
                     for idx_round in range(self.config['nbr_communication_round']):
                         multi_round = True
                         if idx_round == self.config['nbr_communication_round']-1:
@@ -142,13 +146,6 @@ class ReferentialGame(object):
                             if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
                                 speaker_outputs['sentences_widx'] = speaker_outputs['sentences_widx'].detach()
 
-                        '''
-                        listener_outputs = listener(sentences=speaker_outputs['sentences'], 
-                                                    experiences=sample['listener_experiences'], 
-                                                    graphtype=self.config['graphtype'], 
-                                                    tau0=self.config['tau0'],
-                                                    multi_round=multi_round)
-                        '''
                         listener_outputs = listener(sentences=speaker_outputs['sentences_widx'], 
                                                     experiences=sample['listener_experiences'], 
                                                     graphtype=self.config['graphtype'], 
@@ -163,9 +160,9 @@ class ReferentialGame(object):
                                 listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
 
                         decision_logits = listener_outputs['decision']
-                        listener_sentences = listener_outputs['sentences']
+                        listener_sentences = listener_outputs['sentences_widx']
 
-                        if self.config['iterated_learning_scheme']:
+                        if self.config['with_utterance_penalization'] or self.config['iterated_learning_scheme']:
                             listener_speaking_outputs = listener(experiences=sample['speaker_experiences'], 
                                                                   sentences=None, 
                                                                   graphtype=self.config['graphtype'], 
@@ -211,10 +208,23 @@ class ReferentialGame(object):
                         # Tensor of shape (batch_size,1)
                         loss += per_sentence_max_entropies.mean()
 
-                    '''
-                    criterion = nn.MSELoss(reduction='mean')
-                    loss = criterion( decision_probs, nn.functional.one_hot(sample['target_decision_idx'], num_classes=decision_probs.size(1)).float())
-                    '''
+                    if self.config['with_utterance_penalization']:
+                        # Listener's speaking entropy:
+                        arange_vocab = torch.arange(self.config['vocab_size']+1).float()
+                        if self.config['use_cuda']: arange_vocab = arange_vocab.cuda()
+                        listener_speaking_utterances = torch.cat( \
+                            [((s+1) / (s.detach()+1)) * torch.nn.functional.one_hot(s.long().squeeze(), num_classes=self.config['vocab_size']+1).float().unsqueeze(0) \
+                            for s in listener_speaking_outputs['sentences_widx']], 
+                            dim=0)
+                        # (batch_size, sentence_length,vocab_size+1)
+                        listener_speaking_utterances_count = listener_speaking_utterances.sum(dim=0).sum(dim=0).float().squeeze()
+                        # (vocab_size+1,)
+                        total_nbr_utterances = listener_speaking_utterances_count.sum().item()
+                        d_listener_speaking_utterances_probs = (listener_speaking_utterances_count/(self.config['utterance_penalization_oov_prob']+total_nbr_utterances-1)).detach()
+                        # (vocab_size+1,)
+                        oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(listener_speaking_utterances_count*torch.log(d_listener_speaking_utterances_probs+1e-5))
+                        #oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(listener_speaking_utterances_count*d_listener_speaking_utterances_probs)
+                        loss += oov_loss
                     
                     '''
                     losses = []
@@ -265,28 +275,45 @@ class ReferentialGame(object):
                         speaker_optimizer.step()
                         listener_optimizer.step()
                     
+
+                    # Compute sentences:
+                    sentences = []
+                    for sidx in range(batch_size):
+                        sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
+                    
                     if logger is not None:
-                        maxgrad = 0.0
-                        for name, p in speaker.named_parameters() :
-                            if hasattr(p,'grad') and p.grad is not None:
-                                logger.add_histogram( "Speaker/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)
-                                cmg = torch.abs(p.grad).max()
-                                if cmg > maxgrad:
-                                    maxgrad = cmg
-                        logger.add_scalar( "{}/SpeakerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
-                        maxgrad = 0
-                        for name, p in listener.named_parameters() :
-                            if hasattr(p,'grad') and p.grad is not None:
-                                logger.add_histogram( "Listener/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)                    
-                                cmg = torch.abs(p.grad).max()
-                                if cmg > maxgrad:
-                                    maxgrad = cmg
-                        logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
-                                
+                        if self.config['with_grad_logging']:
+                            maxgrad = 0.0
+                            for name, p in speaker.named_parameters() :
+                                if hasattr(p,'grad') and p.grad is not None:
+                                    logger.add_histogram( "Speaker/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)
+                                    cmg = torch.abs(p.grad).max()
+                                    if cmg > maxgrad:
+                                        maxgrad = cmg
+                            logger.add_scalar( "{}/SpeakerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
+                            maxgrad = 0
+                            for name, p in listener.named_parameters() :
+                                if hasattr(p,'grad') and p.grad is not None:
+                                    logger.add_histogram( "Listener/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)                    
+                                    cmg = torch.abs(p.grad).max()
+                                    if cmg > maxgrad:
+                                        maxgrad = cmg
+                            logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
+                        
+                        if self.config['with_utterance_penalization']:
+                            for widx in range(self.config['vocab_size']+1):
+                                #logger.add_histogram("{}/Word{}Counts".format(mode,widx), listener_speaking_utterances_count[widx], idx_stimuli+len(data_loader)*epoch)
+                                logger.add_scalar("{}/Word{}Counts".format(mode,widx), listener_speaking_utterances_count[widx], idx_stimuli+len(data_loader)*epoch)
+                            logger.add_scalar("{}/OOVLoss".format(mode), oov_loss, idx_stimuli+len(data_loader)*epoch)
+                        
                         #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
-                        batch_size = len(speaker_outputs['sentences_widx'])
-                        sentence_length = (speaker_outputs['sentences_widx']<self.config['vocab_size']).sum()/batch_size
+                        sentence_length = (speaker_outputs['sentences_widx']<self.config['vocab_size']).sum().float()/batch_size
                         logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], idx_stimuli+len(data_loader)*epoch)
+                        
+                        for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
+                        total_nbr_unique_sentences = cardinality(total_sentences)
+                        total_nbr_unique_stimulus += batch_size
+                        logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, idx_stimuli+len(data_loader)*epoch)
                         
                         entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in speaker_outputs['sentences_logits']], dim=0)
                         logger.add_scalar('{}/Entropy'.format(mode), entropies.mean(), idx_stimuli+len(data_loader)*epoch)
@@ -318,19 +345,17 @@ class ReferentialGame(object):
                             if hasattr(listener,'tau'): 
                                 logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, idx_stimuli+len(data_loader)*epoch)
                                 logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
-                        
+                    
                     if verbose_period is not None and idx_stimuli % verbose_period == 0:
                         print('Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
-                        # Show message:
-                        batch_size = len(speaker_outputs['sentences_widx'])
+                        # Show some sentences:
                         for sidx in range(batch_size):
                             if sidx>=10:
                                 break
-                            #print(f"{sidx} : ", ''.join([chr(97+int(s[0])) for s in speaker_outputs['sentences_widx'][sidx][0] ]), \
-                            print(f"{sidx} : ", ''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]), \
+                            print(f"{sidx} : ", sentences[sidx], \
                                 f"\t /label: {sample['target_decision_idx'][sidx]}",\
                                 f" /decision: {decision_idx[sidx]}")
-                            
+                                
                     if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
                         idx_speaker2reset = random.randint(0,len(speakers)-1)
                         idx_listener2reset = random.randint(0,len(listeners)-1)

@@ -21,13 +21,22 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      20,
+      "max_sentence_length":      10,
       "nbr_communication_round":  1,  
       "nbr_distractors":          0,
-      "distractor_sampling":      "uniform",
-      
+      "distractor_sampling":      "similarity-0.5",#"uniform",
+      # Default: use 'similarity-0.5'
+      # otherwise the emerging language 
+      # will have very high ambiguity...
+      # Speakers find the strategy of uttering
+      # a word that is relevant to the class/label
+      # of the target, seemingly.  
+
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5,
+      "descriptive_target_ratio": 0.5, 
+      # Default: 1-(1/(nbr_distractors+2)), 
+      # otherwise the agent find the local minimum
+      # where it only predicts 'no-target'...
       
       "object_centric":           False,
       
@@ -46,23 +55,32 @@ def test_example_cultural_obverter_agents():
       "iterated_learning_period": 200,
 
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 40,
+      "obverter_nbr_games_per_round": 2,
+
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               256,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
-      "learning_rate":            6e-4,
+      "learning_rate":            3e-4,
       "adam_eps":                 1e-5,
+      
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
+
+      "with_utterance_penalization":  False,
+      "utterance_penalization_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
+                                                # The greater this value, the greater the loss/cost.
+      "utterance_penalization_factor":    1e-2,
+
       "with_speaker_entropy_regularization":  False,
       "with_listener_entropy_regularization":  False,
       "with_weight_maxl1_loss":   False,
 
+      "with_grad_logging":        True,
       "use_cuda":                 True,
   }
 
@@ -70,11 +88,11 @@ def test_example_cultural_obverter_agents():
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
   save_path = './'
-  save_path += 'NLLLoss'
+  save_path += 'NLLLoss' #'MSELoss'
   save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
   #save_path += '+ProbOverDistrAndVocab-'
-  
-  #save_path += 'MSELoss'
+  if rg_config['with_utterance_penalization']:
+    save_path += "+Tau-10-OOV{}Prob{}".format(rg_config['utterance_penalization_factor'], rg_config['utterance_penalization_oov_prob'])  
   if rg_config['with_gradient_clip']:
     save_path += '+ClipGrad{}'.format(rg_config['gradient_clip'])
   if rg_config['with_speaker_entropy_regularization']:
@@ -83,16 +101,19 @@ def test_example_cultural_obverter_agents():
     save_path += 'LSEntrReg'
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
-  save_path += '-{}Speaker-{}-{}DescriptiveCulturalObverter{}-{}GPR-S{}-{}_b{}-obs-{}-tau0-{}-distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}{}CulturalObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
+    'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
     rg_config['obverter_stop_threshold'],
     rg_config['obverter_nbr_games_per_round'],
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
+    rg_config['learning_rate'],
     rg_config['graphtype'], 
     rg_config['tau0'], 
+    rg_config['distractor_sampling'],
     rg_config['nbr_distractors'], 
     rg_config['nbr_stimulus'], 
     rg_config['vocab_size'], 
@@ -219,11 +240,18 @@ def test_example_cultural_obverter_agents():
   #dataset = torchvision.datasets.MNIST(root='./datasets/MNIST/', train=True, transform=transform, target_transform=None, download=True)
   train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=transform, target_transform=None, download=True)
   test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=transform, target_transform=None, download=True)
+  
+  '''
+  train_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=True, transform=transform, target_transform=None, download=True)
+  test_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=False, transform=transform, target_transform=None, download=True)
+  '''
+  
   dataset_args = {
       "dataset_class":            "LabeledDataset",
       "train_dataset":            train_dataset,
       "test_dataset":             test_dataset,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
+      "distractor_sampling":      rg_config['distractor_sampling'],
       "nbr_distractors":          rg_config['nbr_distractors'],
       "observability":            rg_config['observability'],
       "object_centric":           rg_config['object_centric'],
@@ -235,7 +263,7 @@ def test_example_cultural_obverter_agents():
 
   # In[22]:
 
-  nbr_epoch = 20
+  nbr_epoch = 15
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,

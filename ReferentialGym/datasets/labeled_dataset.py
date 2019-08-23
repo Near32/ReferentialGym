@@ -10,9 +10,6 @@ class LabeledDataset(Dataset):
         self.kwargs = kwargs
         self.dataset = kwargs['dataset']
         
-        self.nbr_distractors = self.kwargs['nbr_distractors']
-        self.nbr_stimulus = self.kwargs['nbr_stimulus']
-        
         self.classes = {}
         for idx in range(len(self.dataset)):
             img, cl = self.dataset[idx]
@@ -40,7 +37,7 @@ class LabeledDataset(Dataset):
             - exp_labels: List[int] consisting of the indices of the label to which the experiences belong.
         '''
         if from_class is None:
-            from_class = range(10)
+            from_class = range(len(self.classes))
             
         set_indices = set()
         for class_idx in from_class:
@@ -72,7 +69,7 @@ class LabeledDataset(Dataset):
             exp, tc = self.dataset[idx]
             experiences.append(exp.unsqueeze(0))
             exp_labels.append(tc)
-            if target_only and idx==0: break
+            if target_only: break
 
         experiences = torch.cat(experiences,dim=0)
         experiences = experiences.unsqueeze(1)

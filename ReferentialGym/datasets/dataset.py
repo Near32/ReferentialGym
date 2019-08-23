@@ -29,6 +29,10 @@ class Dataset(torchDataset):
         self.kwargs = kwargs
         if "root_folder" in kwargs:
             self.root_folder = kwargs['root_folder']
+        
+        self.nbr_distractors = self.kwargs['nbr_distractors']
+        self.nbr_stimulus = self.kwargs['nbr_stimulus']
+        
         self.classes = None 
 
     def __len__(self) -> int:
@@ -64,13 +68,21 @@ class Dataset(torchDataset):
             - 'target_decision_idx': Tensor of type Long and shape `(1,)` containing the index of the target experience
                                      among the 'listener_experiences'.
         '''
+        from_class = None
+        if 'similarity' in self.kwargs['distractor_sampling']:
+            similarity_ratio = float(self.kwargs['distractor_sampling'].split('-')[-1])
+            _, _, exp_labels = self.sample(idx=idx, target_only=True)
+            from_class = None
+            if torch.rand(size=(1,)).item() < similarity_ratio:
+                from_class = exp_labels
+
         if self.kwargs['descriptive']:
-            experiences, indices, exp_labels = self.sample(idx=idx)
+            experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
             # In descriptive mode, the speaker observability is alwasy partial:
             speaker_experiences = experiences[:,0].unsqueeze(1)
             
-            if torch.rand(size=(1,)).item() > self.kwargs['descriptive_target_ratio']:
+            if torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']:
                 # Target experience remain in the experiences yielded to the listener:
                 listener_experiences = experiences 
                 if self.kwargs['object_centric']:
@@ -78,11 +90,11 @@ class Dataset(torchDataset):
                 listener_experiences, target_decision_idx = shuffle(listener_experiences)
             else:
                 # Target experience is excluded from the experiences yielded to the listener:
-                listener_experiences = self.sample(idx=None, excepts=[idx])[0].unsqueeze(0)
+                listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
                 # The target_decision_idx is set to `nbr_experiences`:
                 target_decision_idx = (self.kwargs['nbr_distractors']+1)*torch.ones(1).long()                         
         else:
-            experiences, indices, exp_labels = self.sample(idx=idx)
+            experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
             listener_experiences, target_decision_idx = shuffle(experiences)
             speaker_experiences = experiences 

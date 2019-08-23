@@ -1,4 +1,6 @@
 import torch
+import numpy as np 
+
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
@@ -39,6 +41,7 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
 
     u = torch.rand_like(logits)+eps
     gumbels = -torch.log( -u.log())
+    #gumbels = -torch.empty_like(logits).exponential_().log()
     gumbels = (logits + gumbels) / tau  # ~Gumbel(logits,tau)
     y_soft = gumbels.softmax(dim)
 
@@ -51,3 +54,12 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
         # Reparametrization trick.
         ret = y_soft
     return ret
+
+
+def cardinality(data):
+    if isinstance(data[0], np.ndarray):
+        data_array = np.concatenate([np.expand_dims(d, 0) for d in data], axis=0)
+        data_set = np.unique(data_array, axis=0)
+    else:
+        data_set = set(data)
+    return len(data_set)
