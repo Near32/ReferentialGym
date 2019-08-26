@@ -4,6 +4,7 @@
 # In[1]:
 
 
+import random
 import ReferentialGym
 
 import torch
@@ -14,6 +15,7 @@ import torchvision.transforms as T
 def test_example_cultural_obverter_agents():
   seed = 10
   torch.manual_seed(seed)
+  random.seed(seed)
   # # Hyperparameters:
 
   # In[23]:
@@ -23,8 +25,8 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      10,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          0,
-      "distractor_sampling":      "similarity-0.5",#"uniform",
+      "nbr_distractors":          2,
+      "distractor_sampling":      "similarity-0.5", #"uniform", #
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -33,7 +35,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
 
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5, 
+      "descriptive_target_ratio": 0.8, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -46,7 +48,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.2,
       "vocab_size":               5,
 
-      "agent_architecture":       'CNN', #'CNN'/'[pretrained-]ResNet18-2'
+      "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'[pretrained-]ResNet18-2'
 
       "cultural_pressure_it_period": None,
       "cultural_substrate_size":  1,
@@ -55,29 +57,33 @@ def test_example_cultural_obverter_agents():
       "iterated_learning_period": 200,
 
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 2,
+      "obverter_nbr_games_per_round": 10,
 
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               64,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
-      "stimulus_resize_dim":      64,#28,
+      "stimulus_resize_dim":      84,#64,#28,
       
       "learning_rate":            3e-4,
       "adam_eps":                 1e-5,
+      "dropout_prob":             0.0,
       
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
 
       "with_utterance_penalization":  False,
-      "utterance_penalization_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
+      "with_utterance_promotion":     False,
+      "utterance_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
                                                 # The greater this value, the greater the loss/cost.
-      "utterance_penalization_factor":    1e-2,
+      "utterance_factor":    1e-2,
 
       "with_speaker_entropy_regularization":  False,
       "with_listener_entropy_regularization":  False,
+      "entropy_regularization_factor":    2e0,
+
       "with_weight_maxl1_loss":   False,
 
       "with_grad_logging":        True,
@@ -87,21 +93,30 @@ def test_example_cultural_obverter_agents():
   assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
+  assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
+
+
   save_path = './'
+  save_path += 'SDP{}'.format(rg_config['dropout_prob'])
+  nbrSampledQstPerImg = 5 # max is 10
+  save_path += 'SoCLEVRSimplified{}'.format(nbrSampledQstPerImg)
   save_path += 'NLLLoss' #'MSELoss'
-  save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
+  #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
   #save_path += '+ProbOverDistrAndVocab-'
   if rg_config['with_utterance_penalization']:
-    save_path += "+Tau-10-OOV{}Prob{}".format(rg_config['utterance_penalization_factor'], rg_config['utterance_penalization_oov_prob'])  
+    save_path += "+Tau-10-OOV{}PenProb{}".format(rg_config['utterance_factor'], rg_config['utterance_oov_prob'])  
+  if rg_config['with_utterance_promotion']:
+    save_path += "+Tau-10-OOV{}ProProb{}".format(rg_config['utterance_factor'], rg_config['utterance_oov_prob'])  
   if rg_config['with_gradient_clip']:
     save_path += '+ClipGrad{}'.format(rg_config['gradient_clip'])
   if rg_config['with_speaker_entropy_regularization']:
-    save_path += 'SPEntrReg'
+    save_path += 'SPEntrReg{}'.format(rg_config['entropy_regularization_factor'])
   if rg_config['with_listener_entropy_regularization']:
-    save_path += 'LSEntrReg'
+    save_path += 'LSEntrReg{}'.format(rg_config['entropy_regularization_factor'])
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
-  save_path += '-{}Speaker-{}-{}{}CulturalObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}{}CulturalObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_SoCLEVR_{}'.format(rg_config['cultural_substrate_size'], 
+  #save_path += '-{}Speaker-{}-{}{}CulturalObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -139,6 +154,7 @@ def test_example_cultural_obverter_agents():
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
+  agent_config['dropout_prob'] = rg_config['dropout_prob']
   '''
   # CNN : from paper
   agent_config['cnn_encoder_channels'] = [32,32,32,32,32,32,32,32]
@@ -235,16 +251,23 @@ def test_example_cultural_obverter_agents():
 
   from ReferentialGym.networks.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
-  #transform = T.ToTensor()
+  
+  '''
+  dataset = torchvision.datasets.MNIST(root='./datasets/MNIST/', train=True, transform=transform, target_transform=None, download=True)
+  '''
 
-  #dataset = torchvision.datasets.MNIST(root='./datasets/MNIST/', train=True, transform=transform, target_transform=None, download=True)
+  '''
   train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=transform, target_transform=None, download=True)
   test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=transform, target_transform=None, download=True)
-  
+  '''
+
   '''
   train_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=True, transform=transform, target_transform=None, download=True)
   test_dataset = torchvision.datasets.CIFAR100(root='./datasets/CIFAR100/', train=False, transform=transform, target_transform=None, download=True)
   '''
+  
+  train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=True, transform=transform, generate=True, nbrSampledQstPerImg=nbrSampledQstPerImg)
+  test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=False, transform=transform, generate=True, nbrSampledQstPerImg=1)
   
   dataset_args = {
       "dataset_class":            "LabeledDataset",
@@ -263,7 +286,7 @@ def test_example_cultural_obverter_agents():
 
   # In[22]:
 
-  nbr_epoch = 15
+  nbr_epoch = 100
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,

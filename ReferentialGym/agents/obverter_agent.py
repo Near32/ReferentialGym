@@ -28,7 +28,8 @@ class ObverterAgent(Listener):
                                                   nbr_channels_list=self.kwargs['cnn_encoder_channels'],
                                                   kernels=self.kwargs['cnn_encoder_kernels'],
                                                   strides=self.kwargs['cnn_encoder_strides'],
-                                                  paddings=self.kwargs['cnn_encoder_paddings'])
+                                                  paddings=self.kwargs['cnn_encoder_paddings'],
+                                                  dropout=self.kwargs['dropout_prob'])
         elif 'ResNet18' in self.kwargs['architecture']:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
@@ -39,7 +40,7 @@ class ObverterAgent(Listener):
                                           hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
                                           num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
                                           batch_first=True,
-                                          dropout=0.0,
+                                          dropout=self.kwargs['dropout_prob'],
                                           bidirectional=False)
 
         symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']
@@ -47,13 +48,15 @@ class ObverterAgent(Listener):
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
-                                      dropout=0.0,
+                                      dropout=self.kwargs['dropout_prob'],
                                       bidirectional=False)
 
         self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
-        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
-        
+        self.symbol_decoder = nn.ModuleList()
+        self.symbol_decoder.append(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size))
+        if self.kwargs['dropout_prob']: self.symbol_decoder.append(nn.Dropout(p=self.kwargs['dropout_prob']))
+
         self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
         
         self.reset()
