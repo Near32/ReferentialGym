@@ -94,7 +94,7 @@ class FCBody(nn.Module):
 
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.leaky_relu]):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.leaky_relu]):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -105,10 +105,12 @@ class ConvolutionalBody(nn.Module):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
         super(ConvolutionalBody, self).__init__()
+        self.dropout = dropout
         self.non_linearities = non_linearities
         if not isinstance(non_linearities, list):
             self.non_linearities = [non_linearities] * (len(channels) - 1)
@@ -137,6 +139,8 @@ class ConvolutionalBody(nn.Module):
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
             self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            if self.dropout:
+                self.fcs.append( nn.Dropout(p=self.dropout))
 
     def forward(self, x, non_lin_output=True):
         conv_map = x
@@ -159,7 +163,7 @@ class ConvolutionalBody(nn.Module):
 
 
 class ConvolutionalLstmBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -170,6 +174,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
@@ -179,6 +184,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
                                                 kernel_sizes=kernel_sizes,
                                                 strides=strides,
                                                 paddings=paddings,
+                                                dropout=dropout,
                                                 non_linearities=non_linearities)
 
         self.lstm_body = LSTMBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
@@ -204,7 +210,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
 
 
 class ConvolutionalGruBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -215,6 +221,7 @@ class ConvolutionalGruBody(ConvolutionalBody):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
@@ -224,6 +231,7 @@ class ConvolutionalGruBody(ConvolutionalBody):
                                                 kernel_sizes=kernel_sizes,
                                                 strides=strides,
                                                 paddings=paddings,
+                                                dropout=dropout,
                                                 non_linearities=non_linearities)
 
         self.gru_body = GRUBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
@@ -414,7 +422,7 @@ class ModelResNet18(models.ResNet) :
 
         depth = 64
         for idx_layer in range(nbr_layer):
-            dim = dim // layers_divisions[idx_layer]
+            dim = math.ceil(float(dim) / layers_divisions[idx_layer])
             depth = layers_depths[idx_layer]
 
         # Avg Pool:

@@ -10,7 +10,8 @@ def choose_architecture( architecture,
                          nbr_channels_list=None, 
                          kernels=None, 
                          strides=None, 
-                         paddings=None):
+                         paddings=None,
+                         dropout=0.0):
     if 'LSTM-RNN' in architecture:
         return LSTMBody(input_shape[0], hidden_units=hidden_units_list, gate=F.leaky_relu)
     
@@ -27,7 +28,8 @@ def choose_architecture( architecture,
                                      channels=channels,
                                      kernel_sizes=kernels,
                                      strides=strides,
-                                     paddings=paddings)
+                                     paddings=paddings,
+                                     dropout=dropout)
     if 'ResNet18' in architecture:
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture)
@@ -44,5 +46,6 @@ def choose_architecture( architecture,
                                      kernel_sizes=kernels,
                                      strides=strides,
                                      paddings=paddings,
-                                     hidden_units=hidden_units_list)
+                                     hidden_units=hidden_units_list,
+                                     dropout=dropout)
     return body
