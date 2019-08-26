@@ -36,27 +36,39 @@ class LabeledDataset(Dataset):
             - indices: List[int] of the indices of the sampled experiences.
             - exp_labels: List[int] consisting of the indices of the label to which the experiences belong.
         '''
-        if from_class is None:
-            from_class = range(len(self.classes))
+        test = True
+        not_enough_elements = False
+        while test:
+            if from_class is None or not_enough_elements:
+                from_class = list(self.classes.keys())
+                
+            set_indices = set()
+            for class_idx in from_class:
+                set_indices = set_indices.union(set(self.classes[class_idx]))
             
-        set_indices = set()
-        for class_idx in from_class:
-            set_indices = set_indices.union(set(self.classes[class_idx]))
-        
-        if excepts is not None:
-            set_indices = set_indices.difference(excepts)
-            
-        indices = []
-        nbr_samples = self.nbr_distractors
-        if idx is None: 
-            nbr_samples += 1
-        else: 
-            try:
-                set_indices.remove(idx)
-            except Exception as e:
-                print("Exception caught during removal of the target index:")
-                print(e)
-            indices.append(idx)
+            if excepts is not None:
+                set_indices = set_indices.difference(excepts)
+                
+            indices = []
+            nbr_samples = self.nbr_distractors
+            if idx is None: 
+                nbr_samples += 1
+            else: 
+                try:
+                    set_indices.remove(idx)
+                except Exception as e:
+                    print("Exception caught during removal of the target index:")
+                    print(e)
+                indices.append(idx)
+
+            if len(set_indices) < nbr_samples:
+                print("WARNING: Dataset's class has not enough element to choose from...")
+                print("WARNING: Using all the classes to sample...")
+                not_enough_elements = True
+            elif not_enough_elements and test:
+                raise RuntimeError("Please make sure that the dataset is adequate.")
+            else:
+                test = False 
 
         for choice_idx in range(nbr_samples):
             chosen = random.choice( list(set_indices))

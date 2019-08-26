@@ -30,6 +30,7 @@ setup(
 
     install_requires=['pip',
                       'numpy',
+                      'opencv-python',
                       'torch>=1.1',
                       'torchvision',
                       'tensorboardX',
