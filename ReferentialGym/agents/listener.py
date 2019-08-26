@@ -132,7 +132,7 @@ class Listener(nn.Module):
         next_sentences_logits = None
         next_sentences = None
 
-        if multi_round or ('obverter' in graphtype and sentences is None):
+        if multi_round or ('obverter' in graphtype.lower() and sentences is None):
             next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
             
             if self.training:
