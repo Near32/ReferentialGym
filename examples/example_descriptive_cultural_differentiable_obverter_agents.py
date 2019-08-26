@@ -23,8 +23,8 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          3,
-      "distractor_sampling":      "similarity-0.9",#"uniform",
+      "nbr_distractors":          15,
+      "distractor_sampling":      "similarity-0.5",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -38,7 +38,7 @@ def test_example_cultural_obverter_agents():
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
 
-      "object_centric":           False,
+      "object_centric":           True,
       
       "nbr_stimulus":             1,
 
@@ -55,12 +55,12 @@ def test_example_cultural_obverter_agents():
       "iterated_learning_period": 200,
 
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 2,
+      "obverter_nbr_games_per_round": 80,
 
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               32,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -72,11 +72,12 @@ def test_example_cultural_obverter_agents():
       "gradient_clip":            1e-1,
 
       "with_utterance_penalization":  False,
-      "utterance_penalization_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
+      "utterance_penalization_oov_prob":  1e1,  # Expected penalty of observing out-of-vocabulary words. 
                                                 # The greater this value, the greater the loss/cost.
       "utterance_penalization_factor":    1e-2,
 
       "with_speaker_entropy_regularization":  False,
+      "speaker_entropy_regularization_factor":  1e-2,
       "with_listener_entropy_regularization":  False,
       "with_weight_maxl1_loss":   False,
 
@@ -89,15 +90,15 @@ def test_example_cultural_obverter_agents():
 
   save_path = './'
   save_path += 'NLLLoss' #'MSELoss'
-  save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
-  save_path += '+difftest+1e-1+1e1LeastEffort+5e1'
+  #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
+  save_path += 'CPtau0+2e-1+1e1LeastEffort+5e1'
   #save_path += '+ProbOverDistrAndVocab-'
   if rg_config['with_utterance_penalization']:
-    save_path += "+Tau-10-OOV{}Prob{}".format(rg_config['utterance_penalization_factor'], rg_config['utterance_penalization_oov_prob'])  
+    save_path += "-OOV{}Prob{}".format(rg_config['utterance_penalization_factor'], rg_config['utterance_penalization_oov_prob'])  
   if rg_config['with_gradient_clip']:
     save_path += '+ClipGrad{}'.format(rg_config['gradient_clip'])
   if rg_config['with_speaker_entropy_regularization']:
-    save_path += 'SPEntrReg'
+    save_path += 'SPEntrReg{}'.format(rg_config['speaker_entropy_regularization_factor'])
   if rg_config['with_listener_entropy_regularization']:
     save_path += 'LSEntrReg'
   if rg_config['iterated_learning_scheme']:
@@ -124,7 +125,7 @@ def test_example_cultural_obverter_agents():
   rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
-  logger = statsLogger(path=save_path,dumpPeriod=100)
+  logger = statsLogger(path=save_path,dumpPeriod=1000)
   
   # # Agent Configuration:
 

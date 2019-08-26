@@ -69,8 +69,9 @@ class DifferentiableObverterAgent(Listener):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
-    def _compute_tau(self, tau0):
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.embedding_tf_final_outputs))).squeeze()
+    def _compute_tau(self, tau0, emb=None):
+        if emb is None: emb = self.embedding_tf_final_outputs
+        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(emb))).squeeze()
         return 1.0/invtau
 
     def _sense(self, experiences, sentences=None):
@@ -127,13 +128,19 @@ class DifferentiableObverterAgent(Listener):
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
-        sentences = sentences.view((batch_size, -1)).long()
+        sentences = sentences.view((batch_size, -1))
         # (batch_size, max_sentence_length)
-        embedded_sentences = self.symbol_encoder(sentences).view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
+        embedded_sentences = self.symbol_encoder(sentences.long())
+        
+        #TODO: decide on a differentiation strategy: sum or product?
+        #diff_embedded_sentences = (sentences/sentences.detach()).unsqueeze(-1)*embedded_sentences
+        diff_embedded_sentences = (sentences-sentences.detach()).unsqueeze(-1)+embedded_sentences
+        
+        diff_embedded_sentences = diff_embedded_sentences.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         states = self.rnn_states
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-        rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
+        rnn_outputs, self.rnn_states = self.symbol_processing(diff_embedded_sentences, states)          
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
@@ -231,7 +238,9 @@ class DifferentiableObverterAgent(Listener):
             nbr_distractors_po=nbr_distractors_po,
             operation=operation,
             use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
-            use_stop_word=False)
+            use_stop_word=False,
+            _compute_tau=self._compute_tau,
+            logger=self.logger)
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
@@ -247,7 +256,9 @@ class DifferentiableObverterAgent(Listener):
                           operation=torch.max,
                           vocab_stop_idx=0,
                           use_obverter_threshold_to_stop_message_generation=False,
-                          use_stop_word=False):
+                          use_stop_word=False,
+                          _compute_tau=None,
+                          logger=None):
         """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
 
@@ -372,7 +383,14 @@ class DifferentiableObverterAgent(Listener):
                 target_decision_probs_per_vocab_logits = decision_probs[:,btarget_idx]
                 target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,btarget_idx]
                 # (batch_size=vocab_size, )
-                tau = 1e-1 
+                tau = 2e-1 
+                if _compute_tau is not None:    tau = _compute_tau(tau0=tau, emb=bemb[btarget_idx].unsqueeze(0))
+                if logger is not None: 
+                    it = 0
+                    key = "Obverter/ComputeSentenceTau"
+                    logger.add_scalar(key, tau.item(), it)
+
+                tau = tau.view((-1))
                 tau1 = 5e1
                 # The closer to zero this value is, the more accurate the operation is.
                 straight_through = True

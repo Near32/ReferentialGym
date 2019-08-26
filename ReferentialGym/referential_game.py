@@ -133,20 +133,24 @@ class ReferentialGame(object):
                         multi_round = True
                         if idx_round == self.config['nbr_communication_round']-1:
                             multi_round = False
-
+                            
                         speaker_outputs = speaker(experiences=sample['speaker_experiences'], 
                                                   sentences=listener_sentences, 
                                                   graphtype=self.config['graphtype'], 
                                                   tau0=self.config['tau0'], 
                                                   multi_round=multi_round)
                         
+                        listener_inputs = dict()
+                        for k in speaker_outputs:
+                            listener_inputs[k] = speaker_outputs[k] 
+
                         if self.config['graphtype'] == 'obverter':
                             if isinstance(speaker_outputs['sentences'], torch.Tensor):
-                                speaker_outputs['sentences'] = speaker_outputs['sentences'].detach()
+                                listener_inputs['sentences'] = listener_inputs['sentences'].detach()
                             if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
-                                speaker_outputs['sentences_widx'] = speaker_outputs['sentences_widx'].detach()
+                                listener_inputs['sentences_widx'] = listener_inputs['sentences_widx'].detach()
 
-                        listener_outputs = listener(sentences=speaker_outputs['sentences_widx'], 
+                        listener_outputs = listener(sentences=listener_inputs['sentences_widx'], 
                                                     experiences=sample['listener_experiences'], 
                                                     graphtype=self.config['graphtype'], 
                                                     tau0=self.config['tau0'],
@@ -162,7 +166,8 @@ class ReferentialGame(object):
                         decision_logits = listener_outputs['decision']
                         listener_sentences = listener_outputs['sentences_widx']
 
-                        if self.config['with_utterance_penalization'] or self.config['iterated_learning_scheme']:
+                        #if self.config['with_utterance_penalization'] or self.config['iterated_learning_scheme']:
+                        if self.config['iterated_learning_scheme']:
                             listener_speaking_outputs = listener(experiences=sample['speaker_experiences'], 
                                                                   sentences=None, 
                                                                   graphtype=self.config['graphtype'], 
@@ -212,17 +217,17 @@ class ReferentialGame(object):
                         # Listener's speaking entropy:
                         arange_vocab = torch.arange(self.config['vocab_size']+1).float()
                         if self.config['use_cuda']: arange_vocab = arange_vocab.cuda()
-                        listener_speaking_utterances = torch.cat( \
+                        speaker_utterances = torch.cat( \
                             [((s+1) / (s.detach()+1)) * torch.nn.functional.one_hot(s.long().squeeze(), num_classes=self.config['vocab_size']+1).float().unsqueeze(0) \
-                            for s in listener_speaking_outputs['sentences_widx']], 
+                            for s in speaker_outputs['sentences_widx']], 
                             dim=0)
                         # (batch_size, sentence_length,vocab_size+1)
-                        listener_speaking_utterances_count = listener_speaking_utterances.sum(dim=0).sum(dim=0).float().squeeze()
+                        speaker_utterances_count = speaker_utterances.sum(dim=0).sum(dim=0).float().squeeze()
                         # (vocab_size+1,)
-                        total_nbr_utterances = listener_speaking_utterances_count.sum().item()
-                        d_listener_speaking_utterances_probs = (listener_speaking_utterances_count/(self.config['utterance_penalization_oov_prob']+total_nbr_utterances-1)).detach()
+                        total_nbr_utterances = speaker_utterances_count.sum().item()
+                        d_speaker_utterances_probs = (speaker_utterances_count/(self.config['utterance_penalization_oov_prob']+total_nbr_utterances-1)).detach()
                         # (vocab_size+1,)
-                        oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(listener_speaking_utterances_count*torch.log(d_listener_speaking_utterances_probs+1e-5))
+                        oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
                         #oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(listener_speaking_utterances_count*d_listener_speaking_utterances_probs)
                         loss += oov_loss
                     
@@ -244,12 +249,12 @@ class ReferentialGame(object):
                     # Speaker's entropy regularization:
                     if self.config['with_speaker_entropy_regularization']:
                         entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in speaker_outputs['sentences_logits']], dim=0)
-                        loss += -0.25*entropies.mean()
+                        loss += -self.config['speaker_entropy_regularization_factor']*entropies.mean()
 
                     # Listener's entropy regularization:
                     if self.config['with_listener_entropy_regularization']:
                         entropies = torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=d_logits).entropy() for d_logits in final_decision_logits], dim=0)
-                        loss += -0.25*entropies.mean()
+                        loss += -1.0*entropies.mean()
 
                     # Weight MaxL1 Loss:
                     weight_maxl1_loss = 0.0
@@ -303,7 +308,7 @@ class ReferentialGame(object):
                         if self.config['with_utterance_penalization']:
                             for widx in range(self.config['vocab_size']+1):
                                 #logger.add_histogram("{}/Word{}Counts".format(mode,widx), listener_speaking_utterances_count[widx], idx_stimuli+len(data_loader)*epoch)
-                                logger.add_scalar("{}/Word{}Counts".format(mode,widx), listener_speaking_utterances_count[widx], idx_stimuli+len(data_loader)*epoch)
+                                logger.add_scalar("{}/Word{}Counts".format(mode,widx), speaker_utterances_count[widx], idx_stimuli+len(data_loader)*epoch)
                             logger.add_scalar("{}/OOVLoss".format(mode), oov_loss, idx_stimuli+len(data_loader)*epoch)
                         
                         #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
