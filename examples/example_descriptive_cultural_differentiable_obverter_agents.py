@@ -61,7 +61,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               32,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      84,#28,
@@ -74,7 +74,7 @@ def test_example_cultural_obverter_agents():
       "gradient_clip":            1e-1,
 
       "with_utterance_penalization":  False,
-      "with_utterance_promotion":     True,
+      "with_utterance_promotion":     False,
       "utterance_oov_prob":  0.5,  # Expected penalty of observing out-of-vocabulary words. 
                                                 # The greater this value, the greater the loss/cost.
       "utterance_factor":    1e-2,
@@ -98,7 +98,7 @@ def test_example_cultural_obverter_agents():
   save_path += 'SoCLEVRSimplified{}'.format(nbrSampledQstPerImg)
   save_path += 'NLLLoss' #'MSELoss'
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
-  save_path += '+difftest+1e-1+1e1LeastEffort+5e1'
+  save_path += 'CPtau0+2e-1+1e1LeastEffort+5e1'
   #save_path += '+ProbOverDistrAndVocab-'
   
   if rg_config['with_utterance_penalization']:
@@ -137,7 +137,7 @@ def test_example_cultural_obverter_agents():
   rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
-  logger = statsLogger(path=save_path,dumpPeriod=100)
+  logger = statsLogger(path=save_path,dumpPeriod=1000)
   
   # # Agent Configuration:
 

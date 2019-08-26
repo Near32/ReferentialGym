@@ -15,12 +15,16 @@ def hasnan(tensor):
         return True
     return False
 
-def handle_nan(layer):
+def handle_nan(layer, verbose=True):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
-        layer._parameters[name].data[torch.isnan(layer._parameters[name].data)]=0
+        nan_indices = torch.isnan(layer._parameters[name].data)
+        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in {}.".format(name))
+        layer._parameters[name].data[nan_indices]=0
         if param.grad is None: continue
-        layer._parameters[name].grad.data[torch.isnan(layer._parameters[name].grad.data)]=0
+        nan_indices = torch.isnan(layer._parameters[name].grad.data)
+        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in the GRADIENT of {}.".format(name))
+        layer._parameters[name].grad.data[nan_indices]=0
         
 def layer_init(layer, w_scale=1.0):
     for name, param in layer._parameters.items():

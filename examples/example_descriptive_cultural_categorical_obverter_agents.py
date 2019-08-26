@@ -21,10 +21,10 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      10,
+      "max_sentence_length":      20,
       "nbr_communication_round":  1,  
       "nbr_distractors":          0,
-      "distractor_sampling":      "similarity-0.5",#"uniform",
+      "distractor_sampling":      "uniform",#"similarity-0.5",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -68,7 +68,7 @@ def test_example_cultural_obverter_agents():
       "learning_rate":            6e-4,
       "adam_eps":                 1e-5,
 
-      "with_gradient_clip":       False,
+      "with_gradient_clip":       True,
       "gradient_clip":            1e-1,
       
       "with_utterance_penalization":  False,
@@ -101,7 +101,7 @@ def test_example_cultural_obverter_agents():
     save_path += 'LSEntrReg'
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
-  save_path += '-{}Speaker-{}-{}{}CulturalCategoricalObverter{}-{}GPR-S{}-{}-obs_b{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}{}CulturalCategoricalObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -110,6 +110,7 @@ def test_example_cultural_obverter_agents():
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
+    rg_config['learning_rate'],
     rg_config['graphtype'], 
     rg_config['tau0'], 
     rg_config['distractor_sampling'],
