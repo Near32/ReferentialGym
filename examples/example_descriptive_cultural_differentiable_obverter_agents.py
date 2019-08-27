@@ -4,6 +4,7 @@
 # In[1]:
 
 import random
+import numpy as np 
 import ReferentialGym
 
 import torch
@@ -12,8 +13,9 @@ import torchvision.transforms as T
 
 
 def test_example_cultural_obverter_agents():
-  seed = 10
+  seed = 30
   torch.manual_seed(seed)
+  np.random.seed(seed)
   random.seed(seed)
   # # Hyperparameters:
 
@@ -22,10 +24,10 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      5,
+      "max_sentence_length":      10,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          1,
-      "distractor_sampling":      "similarity-0.5",#"uniform",
+      "nbr_distractors":          0,
+      "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -34,7 +36,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.66, 
+      "descriptive_target_ratio": 0.5, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -44,7 +46,7 @@ def test_example_cultural_obverter_agents():
       "nbr_stimulus":             1,
 
       "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
-      "tau0":                     0.2,
+      "tau0":                     0.1,
       "vocab_size":               5,
 
       "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'[pretrained-]ResNet18-2'
@@ -61,10 +63,10 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               32,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
-      "stimulus_resize_dim":      84,#28,
+      "stimulus_resize_dim":      64,#28,
       
       "learning_rate":            3e-4,
       "adam_eps":                 1e-5,
@@ -83,6 +85,9 @@ def test_example_cultural_obverter_agents():
       "with_listener_entropy_regularization":  False,
       "entropy_regularization_factor":    2e0,
 
+      "with_mdl_principle":       False,
+      "mdl_principle_factor":     1e1,
+
       "with_weight_maxl1_loss":   False,
 
       "with_grad_logging":        True,
@@ -92,14 +97,17 @@ def test_example_cultural_obverter_agents():
   assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
-  save_path = './'
+  assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
+
+  save_path = './Agent+'
+  save_path += '+SoftmaxDV-'
   save_path += 'SDP{}'.format(rg_config['dropout_prob'])
-  nbrSampledQstPerImg = 5 # max is 10
-  save_path += 'SoCLEVRSimplified{}'.format(nbrSampledQstPerImg)
+  nbrSampledQstPerImg = 5   # max is 10
+  save_path += 'SoCLEVR{}'.format(nbrSampledQstPerImg)
+  
   save_path += 'NLLLoss' #'MSELoss'
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
-  save_path += 'CPtau0+2e-1+1e1LeastEffort+5e1'
-  #save_path += '+ProbOverDistrAndVocab-'
+  save_path += 'CPtau05e0+1e1LeastEffort+5e1'
   
   if rg_config['with_utterance_penalization']:
     save_path += "+Tau-10-OOV{}PenProb{}".format(rg_config['utterance_factor'], rg_config['utterance_oov_prob'])  
@@ -108,12 +116,18 @@ def test_example_cultural_obverter_agents():
   
   if rg_config['with_gradient_clip']:
     save_path += '+ClipGrad{}'.format(rg_config['gradient_clip'])
+  
   if rg_config['with_speaker_entropy_regularization']:
     save_path += 'SPEntrReg{}'.format(rg_config['entropy_regularization_factor'])
   if rg_config['with_listener_entropy_regularization']:
     save_path += 'LSEntrReg{}'.format(rg_config['entropy_regularization_factor'])
+  
   if rg_config['iterated_learning_scheme']:
     save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
+  
+  if rg_config['with_mdl_principle']:
+    save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
+  
   save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_SoCLEVR_{}'.format(rg_config['cultural_substrate_size'], 
   #save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
@@ -137,7 +151,7 @@ def test_example_cultural_obverter_agents():
   rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
-  logger = statsLogger(path=save_path,dumpPeriod=1000)
+  logger = statsLogger(path=save_path,dumpPeriod=100)
   
   # # Agent Configuration:
 
@@ -175,7 +189,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_strides'] = [1,2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
     agent_config['cnn_encoder_feature_dim'] = 256
-    agent_config['cnn_encoder_mini_batch_size'] = 128
+    agent_config['cnn_encoder_mini_batch_size'] = 1
     agent_config['temporal_encoder_nbr_hidden_units'] = 64
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 128
@@ -188,7 +202,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
     agent_config['cnn_encoder_feature_dim'] = 512
-    agent_config['cnn_encoder_mini_batch_size'] = 128
+    agent_config['cnn_encoder_mini_batch_size'] = 1
     agent_config['temporal_encoder_nbr_hidden_units'] = 64
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 128

@@ -1,3 +1,5 @@
+from .agent import Agent
+
 from .speaker import Speaker
 from .listener import Listener
 

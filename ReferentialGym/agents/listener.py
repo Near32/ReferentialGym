@@ -5,9 +5,9 @@ import copy
 
 from ..networks import layer_init
 from ..utils import gumbel_softmax 
+from .agent import Agent
 
-
-class Listener(nn.Module):
+class Listener(Agent):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_stimuli, sequence_length, *experience_shape)`
@@ -17,14 +17,11 @@ class Listener(nn.Module):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(Listener, self).__init__()
+        super(Listener, self).__init__(agent_id=agent_id, logger=logger)
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
-        self.agent_id = agent_id
-        self.logger = logger 
-        self.log_idx = 0
-
+        
         # Multi-round:
         self._reset_rnn_states()
 
@@ -33,33 +30,6 @@ class Listener(nn.Module):
 
     def _reset_rnn_states(self):
         self.rnn_states = None 
-
-    def clone(self, clone_id='l0'):
-        logger = self.logger
-        self.logger = None 
-        clone = copy.deepcopy(self)
-        clone.agent_id = clone_id
-        clone.logger = logger 
-        self.logger = logger  
-        return clone 
-
-    def save(self, path):
-        logger = self.logger
-        self.logger = None
-        torch.save(self, path)
-        self.logger = logger 
-
-    def _log(self, log_dict):
-        if self.logger is None: 
-            return 
-
-        agent_log_dict = {f"{self.agent_id}": dict()}
-        for key, data in log_dict.items():
-            agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
-        
-        self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
-        
-        self.log_idx += 1
 
     def _tidyup(self):
         pass 
@@ -119,7 +89,7 @@ class Listener(nn.Module):
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
                     - `'obverter'`: obverter training scheme...
-        :param tau0: 
+        :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
         features = self._sense(experiences=experiences, sentences=sentences)
         if sentences is not None:
@@ -158,7 +128,7 @@ class Listener(nn.Module):
                        'sentences_widx':next_sentences_widx, 
                        'sentences_logits':next_sentences_logits, 
                        'sentences':next_sentences,
-                       'features':features,
+                       #'features':features,
                        'temporal_features': temporal_features}
         
         if not(multi_round):

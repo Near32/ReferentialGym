@@ -3,8 +3,10 @@ import torch.nn as nn
 
 from ..networks import layer_init
 from ..utils import gumbel_softmax
+from .agent import Agent 
 
-class Speaker(nn.Module):
+
+class Speaker(Agent):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None):
         '''
         :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
@@ -14,13 +16,11 @@ class Speaker(nn.Module):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         '''
-        super(Speaker, self).__init__()
+        super(Speaker, self).__init__(agent_id=agent_id,logger=logger)
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
-        self.agent_id = agent_id
-        self.logger = logger
-
+        
         # Multi-round:
         self._reset_rnn_states()
 
@@ -29,29 +29,6 @@ class Speaker(nn.Module):
 
     def _reset_rnn_states(self):
         self.rnn_states = None
-
-    def clone(self, clone_id='s0'):
-        logger = self.logger
-        self.logger = None 
-        clone = copy.deepcopy(self)
-        clone.agent_id = clone_id
-        clone.logger = logger 
-        self.logger = logger  
-        return clone 
-
-    def save(self, path):
-        logger = self.logger
-        self.logger = None
-        torch.save(self, path)
-        self.logger = logger 
-        
-    def _log(self, log_dict):
-        if self.logger is None: 
-            return 
-
-        for key, data in log_dict.items():
-            logdict = { f"{self.agent_id}": {f"{key}":data}}
-            self.logger.add_dict(logdict, batch=True)
 
     def _compute_tau(self, tau0):
         raise NotImplementedError
@@ -94,7 +71,7 @@ class Speaker(nn.Module):
                     - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
                     - `'obverter'`: obverter training scheme...
-        :param tau0: 
+        :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         '''
 
         # Add the target-boolean-channel:

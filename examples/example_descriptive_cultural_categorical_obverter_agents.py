@@ -3,7 +3,8 @@
 
 # In[1]:
 
-
+import random
+import numpy as np 
 import ReferentialGym
 
 import torch
@@ -14,6 +15,8 @@ import torchvision.transforms as T
 def test_example_cultural_obverter_agents():
   seed = 40
   torch.manual_seed(seed)
+  np.random.seed(seed)
+  random.seed(seed)
   # # Hyperparameters:
 
   # In[23]:
