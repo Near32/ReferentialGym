@@ -1,4 +1,3 @@
-from .utils import ResizeNormalize
 from .networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ModelResNet18, layer_init, hasnan, handle_nan
 
 import torch.nn.functional as F 

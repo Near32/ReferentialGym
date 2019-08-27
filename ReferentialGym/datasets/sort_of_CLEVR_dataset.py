@@ -220,7 +220,7 @@ class SortOfCLEVRDataset(Dataset):
             nbrImage += 1
 
             bina = np.power( 2, np.arange(len(relations[0][0])))
-            relations = [ ( int( np.sum(bina*ans)), ans) for qst, ans in zip(relations[0],relations[1])]
+            relations = [ ( int( np.sum(bina*qst)), ans) for qst, ans in zip(relations[0],relations[1])]
             
             for _ in range(self.nbrSampledQstPerImg):
                 if len(relations) == 0:    break
@@ -265,6 +265,13 @@ class SortOfCLEVRDataset(Dataset):
             return
         os.makedirs(self.root, exist_ok=True)
         generate_dataset(self.root)
+
+    def getclass(self, idx):
+        if idx >= len(self):
+            idx = idx%len(self)
+
+        _, target = self.dataset[idx]
+        return target
 
     def __getitem__(self, idx):
         """

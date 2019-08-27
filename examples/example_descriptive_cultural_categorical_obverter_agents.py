@@ -236,7 +236,7 @@ def test_example_cultural_obverter_agents():
 
   # In[10]:
 
-  from ReferentialGym.networks.utils import ResizeNormalize
+  from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   #transform = T.ToTensor()
 

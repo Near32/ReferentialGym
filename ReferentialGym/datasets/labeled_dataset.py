@@ -12,7 +12,10 @@ class LabeledDataset(Dataset):
         
         self.classes = {}
         for idx in range(len(self.dataset)):
-            img, cl = self.dataset[idx]
+            if hasattr(self.dataset, 'getclass'):
+                cl = self.dataset.getclass(idx)
+            else :
+                _, cl = self.dataset[idx]
             if cl not in self.classes: self.classes[cl] = []
             self.classes[cl].append(idx)
     

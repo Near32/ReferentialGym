@@ -99,7 +99,7 @@ def test_example_cultural_obverter_agents():
 
   assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  save_path = './Agent+'
+  save_path = './'
   save_path += '+SoftmaxDV-'
   save_path += 'SDP{}'.format(rg_config['dropout_prob'])
   nbrSampledQstPerImg = 5   # max is 10
@@ -128,7 +128,7 @@ def test_example_cultural_obverter_agents():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_SoCLEVR_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_substrate_size'], 
   #save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
     'ObjectCentric' if rg_config['object_centric'] else '',
@@ -262,7 +262,7 @@ def test_example_cultural_obverter_agents():
 
   # In[10]:
 
-  from ReferentialGym.networks.utils import ResizeNormalize
+  from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   #transform = T.ToTensor()
 

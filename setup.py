@@ -21,7 +21,7 @@ setup(
 
     classifiers=[
         'Intended Audience :: Developers',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence :: Language Emergence / Grounding',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence :: Deep Learning :: Language Emergence / Grounding',
         'Programming Language :: Python'
     ],
 
@@ -30,6 +30,7 @@ setup(
 
     install_requires=['pip',
                       'numpy',
+                      'h5py',
                       'opencv-python',
                       'torch>=1.1',
                       'torchvision',
