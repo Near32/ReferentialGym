@@ -368,12 +368,14 @@ class DifferentiableObverterAgent(Listener):
                 if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
                 decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
                 
-                # Probs over Distractors and Vocab: 
-                #decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((vocab_size, -1))
-                
-                decision_probs = F.softmax( decision_logits, dim=-1)
                 tau0 = 1e1
+                # Probs over Distractors and Vocab: 
+                decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((vocab_size, -1))
+                decision_probs_least_effort = F.softmax( decision_logits.view(-1)*tau0, dim=-1).view((vocab_size, -1))
+                '''
+                decision_probs = F.softmax( decision_logits, dim=-1)
                 decision_probs_least_effort = F.softmax( decision_logits*tau0, dim=-1)
+                '''
                 # (batch_size=vocab_size, (nbr_distractors+2) )
                 
                 '''
@@ -386,7 +388,7 @@ class DifferentiableObverterAgent(Listener):
                 target_decision_probs_per_vocab_logits = decision_probs[:,btarget_idx]
                 target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,btarget_idx]
                 # (batch_size=vocab_size, )
-                tau = 2e-1 
+                tau = 1.0/5e0 
                 if _compute_tau is not None:    tau = _compute_tau(tau0=tau, emb=bemb[btarget_idx].unsqueeze(0))
                 if logger is not None: 
                     it = 0
@@ -401,9 +403,6 @@ class DifferentiableObverterAgent(Listener):
                 # (batch_size=vocab_size,)
                 vocab_idx_argop = torch.sum(arange_vocab*one_hot_sampled_vocab)
                 vocab_idx_op = target_decision_probs_least_effort_per_vocab_logits[vocab_idx_argop.long()]
-                
-                '''
-                '''
                 
                 sentences_widx[b].append( vocab_idx_argop)
                 sentences_logits[b].append( target_decision_probs_least_effort_per_vocab_logits.view((1,-1)))
