@@ -65,8 +65,6 @@ class LabeledDataset(Dataset):
                 print("WARNING: Dataset's class has not enough element to choose from...")
                 print("WARNING: Using all the classes to sample...")
                 not_enough_elements = True
-            elif not_enough_elements and test:
-                raise RuntimeError("Please make sure that the dataset is adequate.")
             else:
                 test = False 
 

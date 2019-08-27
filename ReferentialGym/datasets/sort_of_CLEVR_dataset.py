@@ -219,12 +219,13 @@ class SortOfCLEVRDataset(Dataset):
             img = img.transpose((2,0,1))
             nbrImage += 1
 
-            relations = [ (int(np.amax(qst)),int(np.amax(ans))) for qst, ans in zip(relations[0],relations[1])]
-            qstans_set = set(relations)
-            for idxsample in range(self.nbrSampledQstPerImg):
-                if len(qstans_set) == 0:    break
-                qst, ans = random.choice(list(qstans_set))
-                qstans_set.remove( (qst,ans))
+            bina = np.power( 2, np.arange(len(relations[0][0])))
+            relations = [ ( int( np.sum(bina*ans)), ans) for qst, ans in zip(relations[0],relations[1])]
+            
+            for _ in range(self.nbrSampledQstPerImg):
+                if len(relations) == 0:    break
+                idxsample = random.choice(range(len(relations)))
+                qst, ans = relations.pop(idxsample)
                 dataset.append((img,qst,ans))
                 nbrQst += 1
             
