@@ -24,9 +24,9 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      10,
+      "max_sentence_length":      1,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          0,
+      "nbr_distractors":          1,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -36,7 +36,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5, 
+      "descriptive_target_ratio": 0.66, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -52,18 +52,20 @@ def test_example_cultural_obverter_agents():
       "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'[pretrained-]ResNet18-2'
 
       "cultural_pressure_it_period": None,
-      "cultural_substrate_size":  1,
-      
+      "cultural_substrate_size":  4,
+      "cultural_reset_strategy":  "meta-oldest-SGD", # "uniformSL"
+      "cultural_reset_meta_learning_rate":  1e-3,
+
       "iterated_learning_scheme": False,
       "iterated_learning_period": 200,
 
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 2,
+      "obverter_nbr_games_per_round": 32,
 
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               256,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -100,7 +102,6 @@ def test_example_cultural_obverter_agents():
   assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
   save_path = './'
-  save_path += '+SoftmaxDV-'
   save_path += 'SDP{}'.format(rg_config['dropout_prob'])
   nbrSampledQstPerImg = 5   # max is 10
   save_path += 'SoCLEVR{}'.format(nbrSampledQstPerImg)
@@ -128,9 +129,10 @@ def test_example_cultural_obverter_agents():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_substrate_size'], 
-  #save_path += '-{}Speaker-{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
+  save_path += '-{}Speaker-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_substrate_size'], 
+  #save_path += '-{}Speaker-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_pressure_it_period'],
+    rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
     rg_config['obverter_stop_threshold'],
@@ -189,7 +191,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_strides'] = [1,2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
     agent_config['cnn_encoder_feature_dim'] = 256
-    agent_config['cnn_encoder_mini_batch_size'] = 1
+    agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = 64
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 128
@@ -202,7 +204,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
     agent_config['cnn_encoder_feature_dim'] = 512
-    agent_config['cnn_encoder_mini_batch_size'] = 1
+    agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = 64
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 128

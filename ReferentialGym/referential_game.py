@@ -25,7 +25,7 @@ class ReferentialGame(object):
         self.datasets = datasets
         self.config = config
 
-    def _select_agents(self, speakers, listeners, speakers_optimizers, listeners_optimizers):
+    def _select_agents(self, it, speakers, listeners, speakers_optimizers, listeners_optimizers, agents_stats):
         idx_speaker = random.randint(0,len(speakers)-1)
         idx_listener = random.randint(0,len(listeners)-1)
             
@@ -35,7 +35,10 @@ class ReferentialGame(object):
         if self.config['use_cuda']:
             speaker = speaker.cuda()
             listener = listener.cuda()
-            
+        
+        agents_stats[speaker.agent_id]['selection_iterations'].append(it)
+        agents_stats[listener.agent_id]['selection_iterations'].append(it)
+
         return speaker, listener, speaker_optimizer, listener_optimizer
 
     def train(self, prototype_speaker: Speaker, prototype_listener: Listener, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose_period=None):
@@ -73,10 +76,26 @@ class ReferentialGame(object):
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_agents-1)]
         speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for speaker in speakers ]
         listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
+        
+        if 'meta' in self.config['cultural_reset_strategy']:
+            meta_agents = dict()
+            meta_agents_optimizers = dict()
+            for agent in [prototype_speaker, prototype_listener]: 
+                if type(agent) not in meta_agents:
+                    meta_agents[type(agent)] = agent.clone(clone_id=f'meta_{agent.agent_id}')
+                    #meta_agents_optimizers[type(agent)] = optim.Adam(meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'], eps=self.config['adam_eps'])
+                    meta_agents_optimizers[type(agent)] = optim.SGD(meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'])
 
+        agents_stats = dict()
+        for agent in speakers:
+            agents_stats[agent.agent_id] = {'reset_iterations':[0], 'selection_iterations':[]}
+        for agent in listeners:
+            agents_stats[agent.agent_id] = {'reset_iterations':[0], 'selection_iterations':[]}
+        
         print("Create Agents: OK.")
         print("Launching training: ...")
 
+        it = 0
         for epoch in range(nbr_epoch):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
@@ -84,6 +103,7 @@ class ReferentialGame(object):
                 total_sentences = []
                 total_nbr_unique_stimulus = 0
                 for idx_stimuli, sample in enumerate(data_loader):
+                    it += 1
                     if mode == 'train':
                         if'obverter' in self.config['graphtype']:
                             # Let us decide whether to exchange the speakers and listeners:
@@ -110,10 +130,12 @@ class ReferentialGame(object):
                     speaker, \
                     listener, \
                     speaker_optimizer, \
-                    listener_optimizer = self._select_agents(speakers,
+                    listener_optimizer = self._select_agents(it,
+                                                             speakers,
                                                              listeners,
                                                              speakers_optimizers,
-                                                             listeners_optimizers)
+                                                             listeners_optimizers,
+                                                             agents_stats)
                     '''
                     if mode == 'train': 
                         speaker.train()
@@ -310,16 +332,68 @@ class ReferentialGame(object):
 
                     
                     if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
-                        idx_speaker2reset = random.randint(0,len(speakers)-1)
-                        idx_listener2reset = random.randint(0,len(listeners)-1)
-                        
-                        speakers[idx_speaker2reset].reset()
-                        speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
-                        listeners[idx_listener2reset].reset()
-                        listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                        if self.config['use_cuda']:
+                            speaker = speaker.cpu()
+                            listener = listener.cpu()
 
-                        print("Agents Speaker{} and Listener{} have just been resetted.".format(idx_speaker2reset, idx_listener2reset))
+                        if 'oldest' in self.config['cultural_reset_strategy']:
+                            if 'S' in self.config['cultural_reset_strategy']:
+                                weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ] 
+                                idx_speaker2reset = random.choices( range(len(speakers)), weights=weights)[0]
+                            elif 'L' in self.config['cultural_reset_strategy']:
+                                weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in listeners ] 
+                                idx_listener2reset = random.choices( range(len(listeners)), weights=weights)[0]
+                            else:
+                                weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in listeners ] 
+                                weights += [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ]
+                                idx_agent2reset = random.choices( range(len(listeners)*2), weights=weights)[0]
+                        else: #uniform
+                            if 'S' in self.config['cultural_reset_strategy']:
+                                idx_speaker2reset = random.randint(0,len(speakers)-1)
+                            elif 'L' in self.config['cultural_reset_strategy']:
+                                idx_listener2reset = random.randint(0,len(listeners)-1)
+                            else:
+                                idx_agent2reset = random.randint(0,2*len(listeners)-1)
 
+                        if 'S' in self.config['cultural_reset_strategy']:
+                            if 'meta' in self.config['cultural_reset_strategy']:
+                                self._apply_meta_update(meta_learner=meta_agents[type(speakers[idx_speaker2reset])],
+                                                       meta_optimizer=meta_agents_optimizers[type(speakers[idx_speaker2reset])],
+                                                       learner=speakers[idx_speaker2reset])
+                            else:
+                                speakers[idx_speaker2reset].reset()
+                            speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                            agents_stats[speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
+                            print("Agent Speaker {} has just been resetted.".format(speakers[idx_speaker2reset].agent_id))
+                        elif 'L' in self.config['cultural_reset_strategy']:
+                            if 'meta' in self.config['cultural_reset_strategy']:
+                                self._apply_meta_update(meta_learner=meta_agents[type(listeners[idx_listener2reset])],
+                                                       meta_optimizer=meta_agents_optimizers[type(listeners[idx_listener2reset])],
+                                                       learner=listeners[idx_listener2reset])
+                            else:
+                                listeners[idx_listener2reset].reset()
+                            listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                            agents_stats[listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
+                            print("Agent  Listener {} has just been resetted.".format(speakers[idx_listener2reset].agent_id))
+                        else:
+                            if idx_agent2reset < len(listeners):
+                                agents = listeners 
+                                agents_optimizers = listeners_optimizers
+                            else:
+                                agents = speakers 
+                                agents_optimizers = speakers_optimizers
+                                idx_agent2reset -= len(listeners)
+                            if 'meta' in self.config['cultural_reset_strategy']:
+                                self._apply_meta_update(meta_learner=meta_agents[type(agents[idx_agent2reset])],
+                                                       meta_optimizer=meta_agents_optimizers[type(agents[idx_agent2reset])],
+                                                       learner=agents[idx_agent2reset])
+                            else:
+                                agents[idx_agent2reset].reset()
+                                agents_optimizers[idx_agent2reset] = optim.Adam(agents[idx_agent2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
+                                agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
+                            print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
+                            
+                                
                     # //------------------------------------------------------------//
                     
                 if logger is not None:
@@ -331,6 +405,32 @@ class ReferentialGame(object):
             for agent in listeners:
                 agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
             
+            if 'meta' in self.config['cultural_reset_strategy']:
+                for agent in meta_agents.values():
+                    agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
+            
+    def _reptile_step(self, learner, reptile_learner, nbr_grad_steps=1, verbose=False) :
+        k = 1.0/float(nbr_grad_steps)
+        nbrParams = 0
+        nbrUpdatedParams = 0
+        for (name, lp), (namer, lrp) in zip( learner.named_parameters(), reptile_learner.named_parameters() ) :
+            nbrParams += 1
+            if lrp.grad is not None:
+                nbrUpdatedParams += 1
+                lrp.grad.data.copy_( k*(lp.data-lrp.data) )
+            else:
+                lrp.grad = k*(lp.data-lrp.data)
+                if verbose:
+                    print("Parameter {} has not been updated...".format(name))
+        print("Meta-cultural learning step :: {}/{} updated params.".format(nbrUpdatedParams, nbrParams))
+        return 
+
+    def _apply_meta_update(self, meta_learner, meta_optimizer, learner):
+        meta_learner.zero_grad()
+        self._reptile_step(learner=learner, reptile_learner=meta_learner)
+        meta_optimizer.step()
+        learner.load_state_dict( meta_learner.state_dict())
+        return 
 
 
 
