@@ -2,19 +2,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..networks import HomoscedasticMultiTasksLoss
 import copy
 
 
 class Agent(nn.Module):
-    def __init__(self, agent_id='l0', logger=None):
+    def __init__(self, agent_id='l0', logger=None, kwargs=None):
         """
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
+        :param kwargs: Dict of kwargs...
         """
         super(Agent, self).__init__()
         self.agent_id = agent_id
         self.logger = logger 
+        self.kwargs = kwargs
         self.log_idx = 0
+
+        self.use_sentences_one_hot_vectors = False
+
+        self.homoscedastic = self.kwargs['homoscedastic_multitasks_loss']
+        if self.homoscedastic:
+            self.homoscedastic_speaker_loss = HomoscedasticMultiTasksLoss()
+            self.homoscedastic_listener_loss = HomoscedasticMultiTasksLoss()
 
     def clone(self, clone_id='a0'):
         logger = self.logger
@@ -63,7 +73,8 @@ class Agent(nn.Module):
         Compute the losses and return them along with the produced outputs.
 
         :param inputs_dict: Dict that should contain, at least, the following keys and values:
-            - `'sentences'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+            - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
+            - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - `'experiences'`: Tensor of shape `(batch_size, *self.obs_shape)`. 
                             Make sure to shuffle the experiences so that the order does not give away the target. 
             - `'multi_round'`: Boolean defining whether to utter a sentence back or not.
@@ -78,7 +89,11 @@ class Agent(nn.Module):
         
         batch_size = len(inputs_dict['experiences'])
 
-        outputs_dict = self(sentences=inputs_dict['sentences'],
+        input_sentence = inputs_dict['sentences_widx']
+        if self.use_sentences_one_hot_vectors:
+            input_sentence = inputs_dict['sentences_one_hot']
+
+        outputs_dict = self(sentences=input_sentence,
                            experiences=inputs_dict['experiences'],
                            multi_round=inputs_dict['multi_round'],
                            graphtype=inputs_dict['graphtype'],
@@ -97,7 +112,7 @@ class Agent(nn.Module):
 
         losses_dict = dict()
         if 'speaker' in role:
-            if config['with_utterance_penalization'] or config['with_utterance_promotion']:
+            if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
                 arange_vocab = torch.arange(config['vocab_size']+1).float()
                 if config['use_cuda']: arange_vocab = arange_vocab.cuda()
                 speaker_utterances = torch.cat( \
@@ -111,27 +126,41 @@ class Agent(nn.Module):
                 total_nbr_utterances = speaker_utterances_count.sum().item()
                 d_speaker_utterances_probs = (speaker_utterances_count/(config['utterance_oov_prob']+total_nbr_utterances-1)).detach()
                 # (vocab_size+1,)
-                #oov_loss = -(config['utterance_factor']/(batch_size*config['max_sentence_length']))*torch.sum(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
-                oov_loss = -(1.0/(batch_size*config['max_sentence_length']))*torch.sum(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
-                #oov_loss = -(self.config['utterance_penalization_factor']/(batch_size*self.config['max_sentence_length']))*torch.sum(listener_speaking_utterances_count*d_listener_speaking_utterances_probs)
+                #oov_loss = -(1.0/(batch_size*config['max_sentence_length']))*torch.sum(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
+                oov_loss = -(1.0/(batch_size*config['max_sentence_length']))*(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
+                # (batch_size, 1)
                 if config['with_utterance_promotion']:
                     oov_loss *= -1 
                 losses_dict['oov_loss'] = [config['utterance_factor'], oov_loss]
 
-            if config['with_mdl_principle']:
-                speaker_utterances_max_logit = torch.cat([torch.max(s, dim=-1)[0].view((-1)) for s in outputs_dict['sentences_logits']], dim=0)
-                #speaker_utterances_max_logit = torch.cat([torch.max(s[0], dim=-1)[0].view((-1)) for s in outputs_dict['sentences_logits']], dim=0)
-                mask = (speaker_utterances_max_logit < config['obverter_stop_threshold']).float()
-                if speaker_utterances_max_logit.is_cuda: mask = mask.cuda()
-                # (batch_size*sentence_length,)
+            if 'with_mdl_principle' in config and config['with_mdl_principle']:
+                '''
+                speaker_utterances_max_logit = [torch.max(s, dim=-1)[0].view((1,-1)) for s in outputs_dict['sentences_logits']]
+                # (batch_size, (1,sentence_length))
+                mask = [ (l < config['obverter_stop_threshold']).float() for l in speaker_utterances_max_logit]
+                # (batch_size, (1,sentence_lenght))
+                if config['use_cuda']: mask = [ m.cuda() for m in mask]
+                # (batch_size, (1,sentence_lenght))
                 #mdl_loss = -(mask*speaker_utterances_max_logit).sum()/(batch_size*self.config['max_sentence_length'])
-                mdl_loss = (mask*(1-speaker_utterances_max_logit)).sum()/(batch_size)
-                losses['mdl_loss'] = (config['mdl_principle_factor'], mdl_loss)
-            
-            if config['with_speaker_entropy_regularization']:
+                mdl_loss = torch.cat([ (m*(1-l)).sum(dim=-1)/(batch_size) for m,l in zip(mask,speaker_utterances_max_logit)], dim=0)
+                # (batch_size, )
+                losses_dict['mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
+                '''
+                arange_token = torch.arange(config['max_sentence_length'])
+                arange_token = (config['vocab_size']*arange_token).float().view((1,-1)).repeat(batch_size,1)
+                if config['use_cuda']: arange_token = arange_token.cuda()
+                mask = (outputs_dict['sentences_widx'] < (config['vocab_size']-1)).float()
+                # (batch_size, max_sentence_length, 1)
+                if config['use_cuda']: mask = mask.cuda()
+                speaker_reweighted_utterances = 1+mask*outputs_dict['sentences_widx']+(-1)*(1-mask)*outputs_dict['sentences_widx']/(config['vocab_size']-1)
+                mdl_loss = (arange_token+speaker_reweighted_utterances.squeeze()).mean(dim=-1)
+                # (batch_size, )
+                losses_dict['mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
+                
+            if 'with_speaker_entropy_regularization' in config and config['with_speaker_entropy_regularization']:
                 entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in outputs_dict['sentences_logits']], dim=0)
-                losses_dict['speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies.mean()]
-
+                losses_dict['speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies.mean(dim=-1)]
+                # (batch_size, )
             if config['with_weight_maxl1_loss']:
                 losses_dict['speaker_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
 
@@ -156,9 +185,9 @@ class Agent(nn.Module):
             # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             if config['descriptive']:  
                 decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                criterion = nn.NLLLoss(reduction='mean')
+                criterion = nn.NLLLoss(reduction='none')
                 
-                if config['obverter_least_effort_loss']:
+                if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
                     loss = 0.0
                     losses4widx = []
                     for widx in range(decision_probs.size(1)):
@@ -169,12 +198,15 @@ class Agent(nn.Module):
                 else:
                     decision_probs = decision_probs[:,-1,...]
                     loss = criterion( decision_probs, sample['target_decision_idx'])
+                    # (batch_size, )
+                
             else:   
                 final_decision_logits = final_decision_logits[:,-1,...]
                 # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                 decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                criterion = nn.NLLLoss(reduction='mean')
+                criterion = nn.NLLLoss(reduction='none')
                 loss = criterion( final_decision_logits, sample['target_decision_idx'])
+                # (batch_size, )
             losses_dict['referential_game_loss'] = [1.0, loss] 
 
             #Havrylov's Hinge loss:
@@ -195,21 +227,26 @@ class Agent(nn.Module):
 
             outputs_dict['decision_probs'] = decision_probs
             
-            if config['iterated_learning_scheme']:
+            if 'iterated_learning_scheme' in config and config['iterated_learning_scheme']:
                 # Let us enforce the Minimum Description Length Principle:
                 # Listener's speaking entropy:
                 listener_speaking_entropies = [torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy().mean().view(-1) for w_logits in s_logits], dim=0) for s_logits in listener_speaking_outputs['sentences_logits']]
                 # List of size batch_size of Tensor of shape (sentence_length,)
                 per_sentence_max_entropies = torch.stack([ lss.max(dim=0)[0] for lss in listener_speaking_entropies])
                 # Tensor of shape (batch_size,1)
-                ilm_loss = per_sentence_max_entropies.mean()
+                ilm_loss = per_sentence_max_entropies.mean(dim=-1)
+                # (batch_size, )
                 losses_dict['ilm_loss'] = [1.0, ilm_loss]            
 
-            if config['with_listener_entropy_regularization']:
+            if 'with_listener_entropy_regularization' in config and config['with_listener_entropy_regularization']:
                 entropies = torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=d_logits).entropy() for d_logits in final_decision_logits], dim=0)
-                losses_dict['listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies.mean()]
-
+                losses_dict['listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies.mean(dim=-1)]
+                # (batch_size, )
             if config['with_weight_maxl1_loss']:
                 losses_dict['listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
         
+        if len(losses_dict) and self.homoscedastic:
+            if 'speaker' in role:   losses_dict = self.homoscedastic_speaker_loss(losses_dict)
+            if 'listener' in role:   losses_dict = self.homoscedastic_listener_loss(losses_dict)
+
         return outputs_dict, losses_dict    

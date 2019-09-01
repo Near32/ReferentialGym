@@ -1,4 +1,5 @@
 from .networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ModelResNet18, layer_init, hasnan, handle_nan
+from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
 
 import torch.nn.functional as F 
 
