@@ -71,9 +71,10 @@ class ReferentialGame(object):
         print("Create Agents: ...")
         
         # Agents:
-        nbr_agents = self.config['cultural_substrate_size']
-        speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_agents-1)]
-        listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_agents-1)]
+        nbr_speaker = self.config['cultural_speaker_substrate_size']
+        speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
+        nbr_listener = self.config['cultural_listener_substrate_size']
+        listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
         speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for speaker in speakers ]
         listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
         
@@ -148,7 +149,8 @@ class ReferentialGame(object):
                     if self.config['use_cuda']:
                         sample = sample.cuda()
 
-                    listener_sentences = None 
+                    listener_sentences_one_hot = None
+                    listener_sentences_widx = None 
                     batch_size = len(sample['speaker_experiences'])
 
                     # //------------------------------------------------------------//
@@ -162,7 +164,8 @@ class ReferentialGame(object):
                             multi_round = False
                         
                         speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
-                                               'sentences':listener_sentences, 
+                                               'sentences_one_hot':listener_sentences_one_hot,
+                                               'sentences_widx':listener_sentences_widx, 
                                                'graphtype':self.config['graphtype'],
                                                'tau0':self.config['tau0'],
                                                'multi_round':multi_round,
@@ -182,25 +185,24 @@ class ReferentialGame(object):
                             listener_inputs_dict[k] = speaker_outputs[k] 
 
                         if self.config['graphtype'] == 'obverter':
-                            if isinstance(speaker_outputs['sentences'], torch.Tensor):
-                                listener_inputs_dict['sentences'] = listener_inputs_dict['sentences'].detach()
+                            if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
+                                listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
                             if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
                                 listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
 
                         listener_inputs_dict['experiences'] = sample['listener_experiences']
-                        listener_inputs_dict['sentences'] = listener_inputs_dict['sentences_widx']
-
                         listener_outputs, listener_losses = listener.train(inputs_dict=listener_inputs_dict,
                                                                            config=self.config,
                                                                            role='listener')
 
                         if self.config['graphtype'] == 'obverter':
-                            if isinstance(listener_outputs['sentences'], torch.Tensor):
-                                listener_outputs['sentences'] = listener_outputs['sentences'].detach()
+                            if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
+                                listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
                             if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
                                 listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
 
-                        listener_sentences = listener_outputs['sentences_widx']
+                        listener_sentences_one_hot = listener_outputs['sentences_one_hot']
+                        listener_sentences_widx = listener_outputs['sentences_widx']
 
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
@@ -211,9 +213,10 @@ class ReferentialGame(object):
                     losses = dict()
                     losses.update(speaker_losses)
                     losses.update(listener_losses)
+                    idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
                     for k, v in losses.items():
-                        losses[k][1] = v[0]*v[1]
-                    loss = sum( [l[1] for l in losses.values()])
+                        losses[k][idx_loss] = v[0]*v[idx_loss]
+                    loss = sum( [l[idx_loss].mean() for l in losses.values()])
 
                     if mode == 'train':
                         speaker_optimizer.zero_grad()
@@ -261,13 +264,13 @@ class ReferentialGame(object):
                         if self.config['with_utterance_penalization'] or self.config['with_utterance_promotion']:
                             for widx in range(self.config['vocab_size']+1):
                                 logger.add_scalar("{}/Word{}Counts".format(mode,widx), speaker_outputs['speaker_utterances_count'][widx], idx_stimuli+len(data_loader)*epoch)
-                            logger.add_scalar("{}/OOVLoss".format(mode), speaker_losses['oov_loss'][0], idx_stimuli+len(data_loader)*epoch)
+                            logger.add_scalar("{}/OOVLoss".format(mode), speaker_losses['oov_loss'][idx_loss].mean().item(), idx_stimuli+len(data_loader)*epoch)
 
-                        if self.config['with_mdl_principle']:
-                            logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][0], idx_stimuli+len(data_loader)*epoch)
+                        if 'with_mdl_principle' in self.config and self.config['with_mdl_principle']:
+                            logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][idx_loss].mean().item(), idx_stimuli+len(data_loader)*epoch)
                         
                         #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
-                        sentence_length = (speaker_outputs['sentences_widx']<self.config['vocab_size']).sum().float()/batch_size
+                        sentence_length = (speaker_outputs['sentences_widx']< (self.config['vocab_size']-1)).sum().float()/batch_size
                         logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], idx_stimuli+len(data_loader)*epoch)
                         
                         for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
@@ -275,8 +278,9 @@ class ReferentialGame(object):
                         total_nbr_unique_stimulus += batch_size
                         logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, idx_stimuli+len(data_loader)*epoch)
                         
-                        entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in speaker_outputs['sentences_logits']], dim=0)
-                        logger.add_scalar('{}/Entropy'.format(mode), entropies.mean(), idx_stimuli+len(data_loader)*epoch)
+                        entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                        # (batch_size, )
+                        logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), idx_stimuli+len(data_loader)*epoch)
                         
                         logger.add_scalar('{}/Loss'.format(mode), loss.item(), idx_stimuli+len(data_loader)*epoch)
                         logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_outputs['maxl1_loss'].item()+listener_outputs['maxl1_loss'].item(), idx_stimuli+len(data_loader)*epoch)
@@ -284,7 +288,7 @@ class ReferentialGame(object):
                         decision_probs = listener_outputs['decision_probs']
 
                         if self.config['descriptive']:
-                            if self.config['obverter_least_effort_loss']:
+                            if 'obverter_least_effort_loss' in self.config and self.config['obverter_least_effort_loss']:
                                 for widx in range(len(losses4widx)):
                                     logger.add_scalar('{}/Loss@w{}'.format(mode,widx), losses4widx[widx].item(), idx_stimuli+len(data_loader)*epoch)
                                     acc = (torch.abs(decision_probs[:,widx,...]-target_decision_probs) < 0.5).float().mean()*100
@@ -330,12 +334,11 @@ class ReferentialGame(object):
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
 
+                    if self.config['use_cuda']:
+                        speaker = speaker.cpu()
+                        listener = listener.cpu()
                     
                     if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
-                        if self.config['use_cuda']:
-                            speaker = speaker.cpu()
-                            listener = listener.cpu()
-
                         if 'oldest' in self.config['cultural_reset_strategy']:
                             if 'S' in self.config['cultural_reset_strategy']:
                                 weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ] 
@@ -346,7 +349,7 @@ class ReferentialGame(object):
                             else:
                                 weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in listeners ] 
                                 weights += [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ]
-                                idx_agent2reset = random.choices( range(len(listeners)*2), weights=weights)[0]
+                                idx_agent2reset = random.choices( range(len(listeners)+len(speakers)), weights=weights)[0]
                         else: #uniform
                             if 'S' in self.config['cultural_reset_strategy']:
                                 idx_speaker2reset = random.randint(0,len(speakers)-1)
@@ -365,7 +368,8 @@ class ReferentialGame(object):
                             speakers_optimizers[idx_speaker2reset] = optim.Adam(speakers[idx_speaker2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
                             agents_stats[speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
                             print("Agent Speaker {} has just been resetted.".format(speakers[idx_speaker2reset].agent_id))
-                        elif 'L' in self.config['cultural_reset_strategy']:
+                        
+                        if 'L' in self.config['cultural_reset_strategy']:
                             if 'meta' in self.config['cultural_reset_strategy']:
                                 self._apply_meta_update(meta_learner=meta_agents[type(listeners[idx_listener2reset])],
                                                        meta_optimizer=meta_agents_optimizers[type(listeners[idx_listener2reset])],
@@ -375,7 +379,8 @@ class ReferentialGame(object):
                             listeners_optimizers[idx_listener2reset] = optim.Adam(listeners[idx_listener2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
                             agents_stats[listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
                             print("Agent  Listener {} has just been resetted.".format(speakers[idx_listener2reset].agent_id))
-                        else:
+
+                        if 'L' not in self.config['cultural_reset_strategy'] and 'S' not in self.config['cultural_reset_strategy']:
                             if idx_agent2reset < len(listeners):
                                 agents = listeners 
                                 agents_optimizers = listeners_optimizers

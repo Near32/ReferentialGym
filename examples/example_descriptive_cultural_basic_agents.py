@@ -12,7 +12,7 @@ import torchvision
 import torchvision.transforms as T 
 
 
-def test_example_cultural_obverter_agents():
+def test_example_cultural_basic_agents():
   seed = 30
   torch.manual_seed(seed)
   np.random.seed(seed)
@@ -26,7 +26,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      10,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          7,
+      "nbr_distractors":          3,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -36,7 +36,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.9, 
+      "descriptive_target_ratio": 0.8, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -45,9 +45,9 @@ def test_example_cultural_obverter_agents():
       
       "nbr_stimulus":             1,
 
-      "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
+      "graphtype":                'straight_through_gumbel_softmax', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.1,
-      "vocab_size":               5,
+      "vocab_size":               20,
 
       "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'[pretrained-]ResNet18-2'
 
@@ -60,13 +60,13 @@ def test_example_cultural_obverter_agents():
       "iterated_learning_scheme": False,
       "iterated_learning_period": 200,
 
-      "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 20,
+      #"obverter_stop_threshold":  0.95,  #0.0 if not in use.
+      #"obverter_nbr_games_per_round": 2,
 
-      "obverter_least_effort_loss": False,
-      "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
+      #"obverter_least_effort_loss": False,
+      #"obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               64,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -86,9 +86,9 @@ def test_example_cultural_obverter_agents():
                                                 # The greater this value, the greater the loss/cost.
       "utterance_factor":    1e-2,
 
-      "with_speaker_entropy_regularization":  True,
+      "with_speaker_entropy_regularization":  False,
       "with_listener_entropy_regularization":  False,
-      "entropy_regularization_factor":    1e0,
+      "entropy_regularization_factor":    2e0,
 
       "with_mdl_principle":       False,
       "mdl_principle_factor":     5e-2,
@@ -104,7 +104,7 @@ def test_example_cultural_obverter_agents():
 
   assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  save_path = './stoptoken'
+  save_path = './stoptoken-'
   save_path += 'SDP{}'.format(rg_config['dropout_prob'])
   nbrSampledQstPerImg = 5   # max is 10
   save_path += 'SoCLEVR{}'.format(nbrSampledQstPerImg)
@@ -134,14 +134,13 @@ def test_example_cultural_obverter_agents():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  save_path += '-S{}L{}-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_speaker_substrate_size'], 
+  save_path += '-S{}L{}-{}-Reset{}-{}{}CulturalBasicAgent-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_speaker_substrate_size'], 
+  #save_path += '-{}Speaker-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_CIFAR10_{}'.format(rg_config['cultural_substrate_size'], 
     rg_config['cultural_listener_substrate_size'],
     rg_config['cultural_pressure_it_period'],
     rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'],
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
-    rg_config['obverter_stop_threshold'],
-    rg_config['obverter_nbr_games_per_round'],
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
@@ -169,7 +168,7 @@ def test_example_cultural_obverter_agents():
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['homoscedastic_multitasks_loss'] = rg_config['use_homoscedastic_multitasks_loss']
   agent_config['max_sentence_length'] = rg_config['max_sentence_length']
-  agent_config['nbr_distractors'] = rg_config['nbr_distractors']
+  agent_config['nbr_distractors'] = 0 if rg_config['observability'] == "partial" else rg_config['nbr_distractors']
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
   agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
@@ -225,7 +224,7 @@ def test_example_cultural_obverter_agents():
   # In[4]:
 
 
-  from ReferentialGym.agents import DifferentiableObverterAgent
+  from ReferentialGym.agents import BasicCNNSpeaker
 
 
   # In[5]:
@@ -238,7 +237,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  bspeaker = DifferentiableObverterAgent(kwargs=agent_config, 
+  bspeaker = BasicCNNSpeaker(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
@@ -249,8 +248,12 @@ def test_example_cultural_obverter_agents():
 
   # ## Obverter Listener:
 
+  from ReferentialGym.agents import BasicCNNListener
+  
   # In[7]:
 
+  agent_config['nbr_distractors'] = rg_config['nbr_distractors']
+  
   batch_size = 4
   nbr_distractors = agent_config['nbr_distractors']
   nbr_stimulus = agent_config['nbr_stimulus']
@@ -258,7 +261,7 @@ def test_example_cultural_obverter_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  blistener = DifferentiableObverterAgent(kwargs=agent_config, 
+  blistener = BasicCNNListener(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
@@ -309,7 +312,7 @@ def test_example_cultural_obverter_agents():
 
   # In[22]:
 
-  nbr_epoch = 20
+  nbr_epoch = 100
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,

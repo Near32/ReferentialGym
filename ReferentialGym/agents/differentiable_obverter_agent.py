@@ -17,7 +17,7 @@ class DifferentiableObverterAgent(Listener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(DifferentiableObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
+        super(DifferentiableObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
@@ -59,6 +59,9 @@ class DifferentiableObverterAgent(Listener):
         if self.kwargs['dropout_prob']: self.symbol_decoder.append(nn.Dropout(p=self.kwargs['dropout_prob']))
         
         self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
+        
+        self.not_target_logits_per_token = nn.Parameter(torch.ones((1,self.kwargs['max_sentence_length'])))
+        self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
         
         self.reset()
 
@@ -168,8 +171,9 @@ class DifferentiableObverterAgent(Listener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
         
-        l_shape = decision_logits.size()
-        not_target_logit = torch.zeros( *l_shape[:2], 1)
+        #l_shape = decision_logits.size()
+        #not_target_logit = torch.zeros( *l_shape[:2], 1)
+        not_target_logit = self.not_target_logits_per_token.view((1,self.max_sentence_length,1)).repeat(batch_size, 1, 1)
         if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
         decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
         
@@ -240,9 +244,11 @@ class DifferentiableObverterAgent(Listener):
             max_sentence_length=self.max_sentence_length,
             nbr_distractors_po=nbr_distractors_po,
             operation=operation,
+            vocab_stop_idx=self.vocab_size-1,
             use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
-            use_stop_word=False,
+            use_stop_word=True,
             _compute_tau=self._compute_tau,
+            not_target_logits_per_token=self.not_target_logits_per_token,
             logger=self.logger)
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
@@ -261,6 +267,7 @@ class DifferentiableObverterAgent(Listener):
                           use_obverter_threshold_to_stop_message_generation=False,
                           use_stop_word=False,
                           _compute_tau=None,
+                          not_target_logits_per_token=None,
                           logger=None):
         """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
@@ -325,7 +332,9 @@ class DifferentiableObverterAgent(Listener):
             btarget_idx = target_idx[b]
             # (1,)
             continuer = True
+            sentence_token_count = 0
             while continuer:
+                sentence_token_count += 1
                 if states is not None:
                     '''
                     hs, cs = states[0], states[1]
@@ -364,7 +373,10 @@ class DifferentiableObverterAgent(Listener):
                 # (batch_size=vocab_size, (nbr_distractors+1) )
                 
                 '''
-                not_target_logit = torch.zeros(decision_logits.size(0), 1)
+                if not_target_logits_per_token is None:
+                    not_target_logit = torch.zeros(decision_logits.size(0), 1)
+                else:
+                    not_target_logit = not_target_logits_per_token[:,sentence_token_count-1].repeat(vocab_size,1)
                 if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
                 decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
                 
@@ -432,7 +444,7 @@ class DifferentiableObverterAgent(Listener):
 
             # Padding token:
             while len(sentences_widx[b]) < max_sentence_length:
-              sentences_widx[b].append(vocab_size*torch.ones_like(vocab_idx_argop))
+                sentences_widx[b].append((vocab_size-1)*torch.ones_like(vocab_idx_argop))
 
             sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
@@ -445,7 +457,7 @@ class DifferentiableObverterAgent(Listener):
             states = init_rnn_states
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
-        # (batch_size=1, max_sentence_length<=max_sentence_length, vocab_size)
+        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
         
         sentences_widx = torch.cat(sentences_widx, dim=0)
         # (batch_size, max_sentence_length, 1)

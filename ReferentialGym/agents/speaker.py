@@ -7,7 +7,7 @@ from .agent import Agent
 
 
 class Speaker(Agent):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None, kwargs=None):
         '''
         :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
                           where, by default, `nbr_experiences=1` (partial observability), and `sequence_length=1` (static stimuli). 
@@ -15,8 +15,9 @@ class Speaker(Agent):
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
+        :param kwargs: Dict of kwargs...
         '''
-        super(Speaker, self).__init__(agent_id=agent_id,logger=logger)
+        super(Speaker, self).__init__(agent_id=agent_id, logger=logger, kwargs=kwargs)
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
@@ -29,6 +30,9 @@ class Speaker(Agent):
 
     def _reset_rnn_states(self):
         self.rnn_states = None
+
+    def _tidyup(self):
+        pass 
 
     def _compute_tau(self, tau0):
         raise NotImplementedError
@@ -91,20 +95,32 @@ class Speaker(Agent):
         if self.training:
             if 'gumbel_softmax' in graphtype:    
                 self.tau = self._compute_tau(tau0=tau0)
-                tau = self.tau.view((-1,1,1)).repeat(1,self.max_sentence_length,self.vocab_size)
-                
+                #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
+                tau = self.tau.view((-1))
+
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')
-                next_sentences = gumbel_softmax(logits=next_sentences_logits, tau=tau, hard=straight_through, dim=-1)
+                
+                next_sentences_stgs = []
+                for bidx in range(len(next_sentences_logits)):
+                    nsl_in = next_sentences_logits[bidx]
+                    tau_in = tau[bidx]
+                    next_sentences_stgs.append( gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                    #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                next_sentences = next_sentences_stgs
+                if isinstance(next_sentences, list): 
+                    next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
+                    # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
         output_dict = {'sentences_widx':next_sentences_widx, 
                        'sentences_logits':next_sentences_logits, 
-                       'sentences':next_sentences,
-                       'features':features,
+                       'sentences_one_hot':next_sentences,
+                       #'features':features,
                        'temporal_features':temporal_features}
         
         if not multi_round:
             self._reset_rnn_states()
 
+        self._tidyup()
         self._log(output_dict)
 
         return output_dict

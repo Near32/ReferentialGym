@@ -158,8 +158,9 @@ class Agent(nn.Module):
                 losses_dict['mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
                 
             if 'with_speaker_entropy_regularization' in config and config['with_speaker_entropy_regularization']:
-                entropies = torch.cat([torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy() for w_logits in s_logits], dim=0) for s_logits in outputs_dict['sentences_logits']], dim=0)
-                losses_dict['speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies.mean(dim=-1)]
+                entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in outputs_dict['sentences_logits']], dim=0)
+                # (batch_size, 1)
+                losses_dict['speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies_per_sentence.squeeze()]
                 # (batch_size, )
             if config['with_weight_maxl1_loss']:
                 losses_dict['speaker_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
@@ -239,8 +240,8 @@ class Agent(nn.Module):
                 losses_dict['ilm_loss'] = [1.0, ilm_loss]            
 
             if 'with_listener_entropy_regularization' in config and config['with_listener_entropy_regularization']:
-                entropies = torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=d_logits).entropy() for d_logits in final_decision_logits], dim=0)
-                losses_dict['listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies.mean(dim=-1)]
+                entropies = torch.cat([ torch.distributions.categorical.Categorical(logits=d_logits).entropy().view(1) for d_logits in final_decision_logits], dim=-1)
+                losses_dict['listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies_per_decision.squeeze()]
                 # (batch_size, )
             if config['with_weight_maxl1_loss']:
                 losses_dict['listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]

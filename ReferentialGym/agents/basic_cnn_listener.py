@@ -16,7 +16,8 @@ class BasicCNNListener(Listener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(BasicCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger)
+        super(BasicCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
+        self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
@@ -28,7 +29,8 @@ class BasicCNNListener(Listener):
                                                   nbr_channels_list=self.kwargs['cnn_encoder_channels'],
                                                   kernels=self.kwargs['cnn_encoder_kernels'],
                                                   strides=self.kwargs['cnn_encoder_strides'],
-                                                  paddings=self.kwargs['cnn_encoder_paddings'])
+                                                  paddings=self.kwargs['cnn_encoder_paddings'],
+                                                  dropout=self.kwargs['dropout_prob'])
         elif 'ResNet18' in self.kwargs['architecture']:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
@@ -40,60 +42,73 @@ class BasicCNNListener(Listener):
                                           hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
                                           num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
                                           batch_first=True,
-                                          dropout=0.0,
+                                          dropout=self.kwargs['dropout_prob'],
                                           bidirectional=False))
 
-        symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
+        #symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
+        symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']
         self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
-                                      dropout=0.0,
+                                      dropout=self.kwargs['dropout_prob'],
                                       bidirectional=False)
 
-        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size, bias=False)
+        #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        
+        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
+        
+        #self.symbol_decoder = nn.ModuleList()
+        #self.symbol_decoder.append(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size))
+        #if self.kwargs['dropout_prob']: self.symbol_decoder.append(nn.Dropout(p=self.kwargs['dropout_prob']))
 
-        # Decision making: which input stimuli is the target? 
-        self.decision_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs['nbr_distractors']+1)
+        # Decision making: which input stimuli is the target? Using a categorical approach: 
+        #self.decision_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs['nbr_distractors']+1)
         
         self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
         
+        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs['max_sentence_length'], 1)))
+        self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
+
         self.reset()
 
     def reset(self):
         self.symbol_processing.apply(layer_init)
-        self.symbol_decoder.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
-        self.decision_decoder.apply(layer_init)
+        self.symbol_decoder.apply(layer_init)
+        #self.decision_decoder.apply(layer_init)
         self._reset_rnn_states()
+
+    def _tidyup(self):
+        self.embedding_tf_final_outputs = None
 
     def _compute_tau(self, tau0):
         invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
         return 1.0/invtau
         
-    def _sense(self, stimuli, sentences=None):
+    def _sense(self, experiences, sentences=None):
         r"""
-        Infers features from the stimuli that have been provided.
+        Infers features from the experiences that have been provided.
 
-        :param stimuli: Tensor of shape `(batch_size, *self.obs_shape)`. 
+        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
                         Make sure to shuffle the stimuli so that the order does not give away the target. 
         :param sentences: None or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         
         :returns:
-            features: Tensor of shape `(batch_size, *(self.obs_shape[:2]), feature_dim).
+            features: Tensor of shape `(batch_size, -1, feature_dim).
         
         """
-        batch_size = stimuli.size(0)
-        stimuli = stimuli.view(-1, *(stimuli.size()[3:]))
+        batch_size = experiences.size(0)
+        experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
-        total_size = stimuli.size(0)
+        total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
-        for stin in torch.split(stimuli, split_size_or_sections=mini_batch_size, dim=0):
+        for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             features.append( self.cnn_encoder(stin))
         features = torch.cat(features, dim=0)
-        features = features.view(batch_size, *(self.obs_shape[:2]), -1)
-        # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
+        features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
+        # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 
 
     def _reason(self, sentences, features):
@@ -122,7 +137,7 @@ class BasicCNNListener(Listener):
         outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
         
         embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-        embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
+        self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
         # (batch_size, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
@@ -147,14 +162,19 @@ class BasicCNNListener(Listener):
         # Compute the decision: following the last hidden/output vector from the rnn:
         decision_inputs = rnn_outputs[:,-1,...]
         """
+        '''
         decision_inputs = encoded_sentences[:,-1,...]
+        '''
         # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-        # last output of the rnn...
-        #decision_logits = F.softmax( self.decision_decoder(decision_inputs), dim=-1)
-        #decision_logits = self.decision_decoder(decision_inputs)
+        
+        rnn_outputs, self.rnn_states = self.symbol_processing(encoded_sentences, states)          
+        # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
+        # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+        
+        '''
         decision_logits = []
         for b in range(batch_size):
-            bemb = embedding_tf_final_outputs[b].view((self.obs_shape[0], -1))
+            bemb = self.embedding_tf_final_outputs[b].view((self.obs_shape[0], -1))
             #bemb = F.relu(bemb)
             # ( (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             bdin = decision_inputs[b].unsqueeze(1)
@@ -165,7 +185,35 @@ class BasicCNNListener(Listener):
             decision_logits.append(dl.unsqueeze(0))
         decision_logits = torch.cat(decision_logits, dim=0)
         # (batch_size, (nbr_distractors+1) )
-        return decision_logits, embedding_tf_final_outputs
+        '''
+
+        # Compute the decision: following each hidden/output vector from the rnn:
+        decision_logits = []
+        for widx in range(rnn_outputs.size(1)):
+            decision_inputs = rnn_outputs[:,widx,...]
+            # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+            decision_logits_until_widx = []
+            for b in range(batch_size):
+                bemb = self.embedding_tf_final_outputs[b].view((-1, self.kwargs['temporal_encoder_nbr_hidden_units']))
+                # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), kwargs['temporal_encoder_nbr_hidden_units'])
+                bdin = decision_inputs[b].unsqueeze(1)
+                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
+                dl = torch.matmul( bemb, bdin).view((1,-1))
+                # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+                decision_logits_until_widx.append(dl)
+            decision_logits_until_widx = torch.cat(decision_logits_until_widx, dim=0)
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_logits.append(decision_logits_until_widx.unsqueeze(1))
+            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        decision_logits = torch.cat(decision_logits, dim=1)
+        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
+        
+        not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
+        if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
+        decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
+        # (batch_size, (nbr_distractors+1) )
+        
+        return decision_logits, self.embedding_tf_final_outputs
 
 
     def _utter(self, features, sentences):
@@ -207,7 +255,7 @@ class BasicCNNListener(Listener):
         outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
         
         embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-        embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size,1, -1)
+        self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size,1, -1)
         # (batch_size, 1, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # No need to consume the sentences:
@@ -219,15 +267,15 @@ class BasicCNNListener(Listener):
         next_sentences_widx = []
         # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
         inputs = torch.zeros((batch_size,1,self.kwargs['symbol_processing_nbr_hidden_units']))
-        if embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
-        inputs = torch.cat( [embedding_tf_final_outputs, inputs], dim=-1)
+        if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
+        inputs = torch.cat( [self.embedding_tf_final_outputs, inputs], dim=-1)
         # (batch_size, 1, kwargs['nbr_stimuli']*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
         
         # Utter the next sentences:
         for i in range(self.max_sentence_length):
             hiddens, self.rnn_states = self.symbol_processing(inputs, self.rnn_states)          
             # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
-            inputs = torch.cat([embedding_tf_final_outputs,hiddens], dim=-1)
+            inputs = torch.cat([self.embedding_tf_final_outputs,hiddens], dim=-1)
             # (batch_size, 1, kwargs['nbr_stimuli']*kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
         
             outputs = self.symbol_decoder(hiddens.squeeze(1))            
@@ -247,4 +295,4 @@ class BasicCNNListener(Listener):
         # (batch_size, max_sentence_length, vocab_size)
         next_sentences_logits = torch.cat(next_sentences_logits, dim=1)
         # (batch_size, max_sentence_length, vocab_size)
-        return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, embedding_tf_final_outputs
+        return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs.squeeze()

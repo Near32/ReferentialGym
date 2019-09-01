@@ -8,7 +8,7 @@ from ..utils import gumbel_softmax
 from .agent import Agent
 
 class Listener(Agent):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None, kwargs=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_stimuli, sequence_length, *experience_shape)`
                           where, by default, `sequence_length=1` (static stimuli). 
@@ -16,8 +16,9 @@ class Listener(Agent):
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
+        :param kwargs: Dict of kwargs...
         """
-        super(Listener, self).__init__(agent_id=agent_id, logger=logger)
+        super(Listener, self).__init__(agent_id=agent_id, logger=logger, kwargs=kwargs)
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         self.max_sentence_length = max_sentence_length
@@ -127,9 +128,10 @@ class Listener(Agent):
         output_dict = {'decision': decision_logits, 
                        'sentences_widx':next_sentences_widx, 
                        'sentences_logits':next_sentences_logits, 
-                       'sentences':next_sentences,
+                       'sentences_one_hot':next_sentences,
                        #'features':features,
-                       'temporal_features': temporal_features}
+                       #'temporal_features': temporal_features
+                       }
         
         if not(multi_round):
             self._reset_rnn_states()
