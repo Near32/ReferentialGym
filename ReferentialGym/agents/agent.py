@@ -68,7 +68,7 @@ class Agent(nn.Module):
         """
         raise NotImplementedError
 
-    def train(self, inputs_dict, config, role='speaker'):
+    def compute(self, inputs_dict, config, role='speaker'):
         """
         Compute the losses and return them along with the produced outputs.
 

@@ -137,15 +137,13 @@ class ReferentialGame(object):
                                                              speakers_optimizers,
                                                              listeners_optimizers,
                                                              agents_stats)
-                    '''
                     if mode == 'train': 
                         speaker.train()
                         listener.train()
                     else:
                         speaker.eval()
                         listener.eval()
-                    '''
-
+                    
                     if self.config['use_cuda']:
                         sample = sample.cuda()
 
@@ -171,7 +169,7 @@ class ReferentialGame(object):
                                                'multi_round':multi_round,
                                                'sample':sample
                                                }
-                        speaker_outputs, speaker_losses = speaker.train(inputs_dict=speaker_inputs_dict,
+                        speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
                                                                         config=self.config,
                                                                         role='speaker')
 
@@ -191,7 +189,7 @@ class ReferentialGame(object):
                                 listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
 
                         listener_inputs_dict['experiences'] = sample['listener_experiences']
-                        listener_outputs, listener_losses = listener.train(inputs_dict=listener_inputs_dict,
+                        listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
                                                                            config=self.config,
                                                                            role='listener')
 
