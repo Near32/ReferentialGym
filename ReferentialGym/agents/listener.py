@@ -130,7 +130,7 @@ class Listener(Agent):
                        'sentences_logits':next_sentences_logits, 
                        'sentences_one_hot':next_sentences,
                        #'features':features,
-                       #'temporal_features': temporal_features
+                       'temporal_features': temporal_features
                        }
         
         if not(multi_round):

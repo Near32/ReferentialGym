@@ -28,7 +28,7 @@ def test_example_cultural_obverter_agents():
       "max_sentence_length":      10,
       "nbr_communication_round":  1,  
       "nbr_distractors":          0,
-      "distractor_sampling":      "similarity-0.5",#"uniform",
+      "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -50,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               5,
 
-      "agent_architecture":       'pretrained-ResNet18-2', #'CNN'/'[pretrained-]ResNet18-2'
+      "agent_architecture":       'pretrained-ResNet18-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -67,7 +67,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               256,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -76,7 +76,7 @@ def test_example_cultural_obverter_agents():
       "adam_eps":                 1e-5,
       "dropout_prob":             0.0,
       
-      "use_homoscedastic_multitasks_loss": True,
+      "use_homoscedastic_multitasks_loss": False,
 
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
@@ -105,9 +105,12 @@ def test_example_cultural_obverter_agents():
 
   assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  save_path = './MineRL-S4-T50'
-  save_path += 'SDP{}'.format(rg_config['dropout_prob'])
-  save_path += 'NLLLoss' #'MSELoss'
+  skip_interval = 24
+  #save_path = './SoC-MineRL-S24-T100-f512'
+  save_path = './MineRL-S24-T50-'
+  #save_path += 'TF64-NoNTL-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
+  save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
+  #save_path += 'NLLLoss' #'MSELoss'
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
   #save_path += 'CPtau05e0+1e1LeastEffort+5e1'
   
@@ -189,7 +192,7 @@ def test_example_cultural_obverter_agents():
   agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
   agent_config['symbol_processing_nbr_rnn_layers'] = 1
   '''
-  if 'CNN' in agent_config['architecture']:
+  if 'CNN' == agent_config['architecture']:
     # CNN : 
     agent_config['cnn_encoder_channels'] = [32,32,32,32]
     agent_config['cnn_encoder_kernels'] = [3,3,3,3]
@@ -197,12 +200,12 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
     agent_config['cnn_encoder_feature_dim'] = 256
     agent_config['cnn_encoder_mini_batch_size'] = 32
-    agent_config['temporal_encoder_nbr_hidden_units'] = 64
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#256
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
-    agent_config['temporal_encoder_mini_batch_size'] = 128
+    agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  elif 'ResNet' in agent_config['architecture']:
+  elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
     # ResNet18-2:
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
@@ -210,9 +213,42 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
     agent_config['cnn_encoder_feature_dim'] = 512
     agent_config['cnn_encoder_mini_batch_size'] = 32
-    agent_config['temporal_encoder_nbr_hidden_units'] = 64
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
-    agent_config['temporal_encoder_mini_batch_size'] = 128
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'ResNet' in agent_config['architecture'] and 'MHDPA' in agent_config['architecture']:
+    # ResNet18MHDPA-2:
+    agent_config['cnn_encoder_channels'] = [32, 32, 64]
+    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+    agent_config['cnn_encoder_strides'] = [4, 2, 1]
+    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+    agent_config['cnn_encoder_feature_dim'] = 512
+    agent_config['mhdpa_nbr_head'] = 4
+    agent_config['mhdpa_nbr_rec_update'] = 1
+    agent_config['mhdpa_nbr_mlp_unit'] = 256
+    agent_config['mhdpa_interaction_dim'] = 128
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'CNN-MHDPA' in agent_config['architecture']:
+    agent_config['cnn_encoder_channels'] = [32,32,64,128]
+    agent_config['cnn_encoder_kernels'] = [3,3,3,3]
+    agent_config['cnn_encoder_strides'] = [1,2,2,2]
+    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
+    agent_config['mhdpa_nbr_head'] = 4
+    agent_config['mhdpa_nbr_rec_update'] = 1
+    agent_config['mhdpa_nbr_mlp_unit'] = 256
+    agent_config['mhdpa_interaction_dim'] = 128
+    agent_config['cnn_encoder_feature_dim'] = 256
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = 256
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
@@ -241,7 +277,8 @@ def test_example_cultural_obverter_agents():
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
                                 agent_id='os0',
-                                logger=logger)
+                                logger=logger,
+                                use_sentences_one_hot_vectors=('informed' in rg_config['graphtype']))
 
   print("Speaker:",bspeaker)
 
@@ -261,7 +298,8 @@ def test_example_cultural_obverter_agents():
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
                                 agent_id='ol0',
-                                logger=logger)
+                                logger=logger,
+                                use_sentences_one_hot_vectors=('informed' in rg_config['graphtype']))
 
   print("Listener:",blistener)
 
@@ -283,11 +321,31 @@ def test_example_cultural_obverter_agents():
       "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
 
-  train_dataset = ReferentialGym.datasets.MineRLDataset(kwargs=dataset_args, root='./datasets/MineRL/', train=True, transform=transform, download=True, skip_interval=4)
-  test_dataset = ReferentialGym.datasets.MineRLDataset(kwargs=dataset_args, root='./datasets/MineRL/', train=False, transform=transform, download=True, skip_interval=4)
+  train_dataset = ReferentialGym.datasets.MineRLDataset(kwargs=dataset_args, root='./datasets/MineRL/', train=True, transform=transform, download=True, skip_interval=skip_interval)
+  test_dataset = ReferentialGym.datasets.MineRLDataset(kwargs=dataset_args, root='./datasets/MineRL/', train=False, transform=transform, download=True, skip_interval=skip_interval)
 
   dataset_args['train_dataset'] = train_dataset
   dataset_args['test_dataset'] = test_dataset
+  
+
+  '''
+  nbrSampledQstPerImg = 5
+  train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=True, transform=transform, generate=True, nbrSampledQstPerImg=nbrSampledQstPerImg)
+  test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=False, transform=transform, generate=True, nbrSampledQstPerImg=1)
+  
+  dataset_args = {
+      "dataset_class":            "LabeledDataset",
+      "train_dataset":            train_dataset,
+      "test_dataset":             test_dataset,
+      "nbr_stimulus":             rg_config['nbr_stimulus'],
+      "distractor_sampling":      rg_config['distractor_sampling'],
+      "nbr_distractors":          rg_config['nbr_distractors'],
+      "observability":            rg_config['observability'],
+      "object_centric":           rg_config['object_centric'],
+      "descriptive":              rg_config['descriptive'],
+      "descriptive_target_ratio": rg_config['descriptive_target_ratio']
+  }
+  '''
 
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
 

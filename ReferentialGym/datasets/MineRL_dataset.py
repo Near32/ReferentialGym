@@ -47,8 +47,13 @@ class MineRLDataset(Dataset):
                     if idxtraj % 2 == 1 or idxtraj > nbrTraj//nbrTrajTestDivider: continue
 
                 dataset_exp_trajname.append(trajname)
+                '''
                 self.dataset_exp_traj_data[exp][trajname] = self.dataset_exp[exp].load_data(stream_name=trajname, 
                                                                                             skip_interval=self.skip_interval,
+                                                                                            include_metadata=False)
+                '''
+                self.dataset_exp_traj_data[exp][trajname] = self.dataset_exp[exp].load_data(stream_name=trajname, 
+                                                                                            skip_interval=0,
                                                                                             include_metadata=False)
                 self.dataset_exptraj_data_loaded[exp+trajname] = True 
                 self.exptraj2int[exp+trajname] = exptrajIdx
@@ -70,7 +75,8 @@ class MineRLDataset(Dataset):
                 self.trajectories[exp+trajname] = self.dataset_exp_traj_data[exp][trajname]
 
                 exptraj_data = []
-                for data in self.trajectories[exp+trajname]:
+                for idxdata, data in enumerate(self.trajectories[exp+trajname]):
+                    if idxdata % self.skip_interval != 0:   continue
                     obs = data[0]['pov']
                     exptraj_data.append(obs)
                 self.trajectories[exp+trajname] = exptraj_data

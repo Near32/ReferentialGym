@@ -8,7 +8,7 @@ from ..utils import gumbel_softmax
 
 
 class DifferentiableObverterAgent(Listener):
-    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None):
+    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None, use_sentences_one_hot_vectors=False):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 
@@ -19,10 +19,12 @@ class DifferentiableObverterAgent(Listener):
         """
         super(DifferentiableObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
         self.kwargs = kwargs 
+        self.use_sentences_one_hot_vectors = use_sentences_one_hot_vectors
+        self.use_learning_not_target_logit = True
 
         cnn_input_shape = self.obs_shape[2:]
         if self.kwargs['architecture'] == 'CNN':
-            self.cnn_encoder = choose_architecture(architecture='CNN',
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
                                                   hidden_units_list=None,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'],
@@ -31,10 +33,40 @@ class DifferentiableObverterAgent(Listener):
                                                   strides=self.kwargs['cnn_encoder_strides'],
                                                   paddings=self.kwargs['cnn_encoder_paddings'],
                                                   dropout=self.kwargs['dropout_prob'])
-        elif 'ResNet18' in self.kwargs['architecture']:
+        elif 'ResNet18' in self.kwargs['architecture'] and not("MHDPA" in self.kwargs['architecture']):
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'])
+        elif 'ResNet18' in self.kwargs['architecture'] and "MHDPA" in self.kwargs['architecture']:
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                  input_shape=cnn_input_shape,
+                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                  dropout=self.kwargs['dropout_prob'],
+                                                  MHDPANbrHead=self.kwargs['mhdpa_nbr_head'],
+                                                  MHDPANbrRecUpdate=self.kwargs['mhdpa_nbr_rec_update'],
+                                                  MHDPANbrMLPUnit=self.kwargs['mhdpa_nbr_mlp_unit'],
+                                                  MHDPAInteractionDim=self.kwargs['mhdpa_interaction_dim'])
+        elif self.kwargs['architecture'] == 'CNN-MHDPA':
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                  input_shape=cnn_input_shape,
+                                                  hidden_units_list=None,
+                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                  nbr_channels_list=self.kwargs['cnn_encoder_channels'],
+                                                  kernels=self.kwargs['cnn_encoder_kernels'],
+                                                  strides=self.kwargs['cnn_encoder_strides'],
+                                                  paddings=self.kwargs['cnn_encoder_paddings'],
+                                                  dropout=self.kwargs['dropout_prob'],
+                                                  MHDPANbrHead=self.kwargs['mhdpa_nbr_head'],
+                                                  MHDPANbrRecUpdate=self.kwargs['mhdpa_nbr_rec_update'],
+                                                  MHDPANbrMLPUnit=self.kwargs['mhdpa_nbr_mlp_unit'],
+                                                  MHDPAInteractionDim=self.kwargs['mhdpa_interaction_dim'])
+        elif 'BetaVAE' in self.kwargs['architecture']:
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                   input_shape=cnn_input_shape,
+                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                   dropout=self.kwargs['dropout_prob'])
+
+
 
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         self.temporal_feature_encoder = nn.GRU(input_size=temporal_encoder_input_dim,
@@ -52,8 +84,11 @@ class DifferentiableObverterAgent(Listener):
                                       dropout=self.kwargs['dropout_prob'],
                                       bidirectional=False)
 
-        self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
-        #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        if self.use_sentences_one_hot_vectors:
+            self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        else:
+            self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
+        
         self.symbol_decoder = nn.ModuleList()
         self.symbol_decoder.append(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size))
         if self.kwargs['dropout_prob']: self.symbol_decoder.append(nn.Dropout(p=self.kwargs['dropout_prob']))
@@ -134,16 +169,22 @@ class DifferentiableObverterAgent(Listener):
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) * kwargs['temporal_encoder_nbr_hidden_units'])
         
         # Consume the sentences:
-        sentences = sentences.view((batch_size, -1))
-        # (batch_size, max_sentence_length)
-        embedded_sentences = self.symbol_encoder(sentences.long())
+        if self.use_sentences_one_hot_vectors:
+            sentences = sentences.view((-1, self.vocab_size))
+            # (batch_size*max_sentence_lengthm, vocab_size)
+            diff_embedded_sentences = self.symbol_encoder(sentences)
+            diff_embedded_sentences = diff_embedded_sentences.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
+            # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
+        else:
+            sentences = sentences.view((batch_size, -1))
+            # (batch_size, max_sentence_length)
+            embedded_sentences = self.symbol_encoder(sentences.long())
+            #TODO: decide on a differentiation strategy: sum or product?
+            #diff_embedded_sentences = (sentences/sentences.detach()).unsqueeze(-1)*embedded_sentences
+            diff_embedded_sentences = (sentences-sentences.detach()).unsqueeze(-1)+embedded_sentences    
+            diff_embedded_sentences = diff_embedded_sentences.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
+            # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         
-        #TODO: decide on a differentiation strategy: sum or product?
-        #diff_embedded_sentences = (sentences/sentences.detach()).unsqueeze(-1)*embedded_sentences
-        diff_embedded_sentences = (sentences-sentences.detach()).unsqueeze(-1)+embedded_sentences
-        
-        diff_embedded_sentences = diff_embedded_sentences.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
-        # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         states = self.rnn_states
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         rnn_outputs, self.rnn_states = self.symbol_processing(diff_embedded_sentences, states)          
@@ -171,9 +212,12 @@ class DifferentiableObverterAgent(Listener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
         
-        #l_shape = decision_logits.size()
-        #not_target_logit = torch.zeros( *l_shape[:2], 1)
-        not_target_logit = self.not_target_logits_per_token.view((1,self.max_sentence_length,1)).repeat(batch_size, 1, 1)
+        
+        if not(self.use_learning_not_target_logit):
+            l_shape = decision_logits.size()
+            not_target_logit = torch.zeros( *l_shape[:2], 1)
+        else:
+            not_target_logit = self.not_target_logits_per_token.view((1,self.max_sentence_length,1)).repeat(batch_size, 1, 1)
         if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
         decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
         
@@ -231,6 +275,16 @@ class DifferentiableObverterAgent(Listener):
         predicted_target_idx = torch.zeros((batch_size, )).long()
         if self.embedding_tf_final_outputs.is_cuda: predicted_target_idx = predicted_target_idx.cuda()
 
+        self.allowed_vocab_size = self.vocab_size//2
+        if False:#self.train:
+            logits = 0.5*torch.ones(self.vocab_size-1).float()
+            logits[self.allowed_vocab_size] = 1.0
+            # [0, ..., self.vocab_size-2]
+            # allowed_vocab_size >= 2: 
+            allowed_vocab_size = self.vocab_size - torch.distributions.categorical.Categorical(logits=logits).sample()
+        else:
+            allowed_vocab_size = self.vocab_size
+
         # Utter the next sentences:
         next_sentences_widx, \
         next_sentences_logits, \
@@ -240,15 +294,17 @@ class DifferentiableObverterAgent(Listener):
             symbol_processing=self.symbol_processing,
             symbol_decoder=self.symbol_decoder,
             init_rnn_states=self.rnn_states,
+            allowed_vocab_size=allowed_vocab_size,
             vocab_size=self.vocab_size,
             max_sentence_length=self.max_sentence_length,
             nbr_distractors_po=nbr_distractors_po,
             operation=operation,
             vocab_stop_idx=self.vocab_size-1,
             use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
-            use_stop_word=True,
+            use_stop_word=False,
             _compute_tau=self._compute_tau,
-            not_target_logits_per_token=self.not_target_logits_per_token,
+            not_target_logits_per_token=self.not_target_logits_per_token if self.use_learning_not_target_logit else None,
+            use_sentences_one_hot_vectors=self.use_sentences_one_hot_vectors,
             logger=self.logger)
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
@@ -258,7 +314,8 @@ class DifferentiableObverterAgent(Listener):
                           symbol_encoder, 
                           symbol_processing, 
                           symbol_decoder, 
-                          init_rnn_states=None, 
+                          init_rnn_states=None,
+                          allowed_vocab_size=10, 
                           vocab_size=10, 
                           max_sentence_length=14,
                           nbr_distractors_po=1,
@@ -268,6 +325,7 @@ class DifferentiableObverterAgent(Listener):
                           use_stop_word=False,
                           _compute_tau=None,
                           not_target_logits_per_token=None,
+                          use_sentences_one_hot_vectors=False,
                           logger=None):
         """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
@@ -316,12 +374,22 @@ class DifferentiableObverterAgent(Listener):
         # (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
         '''
         arange_vocab = torch.arange(vocab_size).float()
-        if features_embedding.is_cuda: vocab_idx = arange_vocab = arange_vocab.cuda()
-        vocab_idx = torch.zeros((vocab_size,1)).long()
-        for i in range(vocab_size): vocab_idx[i] = i
+        arange_allowed_vocab = torch.arange(allowed_vocab_size).float()
+        if features_embedding.is_cuda: 
+            arange_vocab = arange_vocab.cuda()
+            arange_allowed_vocab = arange_allowed_vocab.cuda()
+        
+        if use_sentences_one_hot_vectors:
+            vocab_idx = torch.zeros((allowed_vocab_size, vocab_size))
+            # (allowed_vocab_size, vocab_size)
+            for i in range(allowed_vocab_size): vocab_idx[i,i] = 1.0
+        else:
+            vocab_idx = torch.zeros((allowed_vocab_size,1)).long()
+            # (allowed_vocab, 1)
+            for i in range(allowed_vocab_size): vocab_idx[i] = i
         if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
-        vocab_idx = symbol_encoder(vocab_idx)
-        # Embedding: (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+        vocab_idx = symbol_encoder(vocab_idx).view((allowed_vocab_size,1,-1))
+        # Embedding: (batch_size=allowed_vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
 
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
@@ -342,26 +410,26 @@ class DifferentiableObverterAgent(Listener):
                     cs = cs.repeat( 1, vocab_size, 1)
                     rnn_states = (hs, cs)
                     '''
-                    rnn_states = states.repeat(1,vocab_size, 1)
+                    rnn_states = states.repeat(1,allowed_vocab_size, 1)
                 else :
                     rnn_states = states
 
                 rnn_outputs, next_rnn_states = symbol_processing(vocab_idx, rnn_states )
-                # (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+                # (batch_size=allowed_vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
                 # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
                 
                 # Compute the decision: following the last hidden/output vector from the rnn:
                 decision_inputs = rnn_outputs[:,-1,...]
-                # (batch_size=vocab_size, kwargs['symbol_processing_nbr_hidden_units'])
+                # (batch_size=allowed_vocab_size, kwargs['symbol_processing_nbr_hidden_units'])
                 decision_logits = []
-                for bv in range(vocab_size):
+                for bv in range(allowed_vocab_size):
                     bdin = decision_inputs[bv].unsqueeze(1)
                     # (kwargs['symbol_processing_nbr_hidden_units'], 1)
                     dl = torch.matmul( bemb, bdin).view((1,-1))
                     # ( 1, (nbr_distractors+1))
                     decision_logits.append(dl)
                 decision_logits = torch.cat(decision_logits, dim=0)
-                # (batch_size=vocab_size, (nbr_distractors+1) )
+                # (batch_size=allowed_vocab_size, (nbr_distractors+1) )
                 
                 '''
                 if nbr_distractors_po==1:
@@ -370,20 +438,20 @@ class DifferentiableObverterAgent(Listener):
                 else:
                     # Full observability:
                     decision_probs = F.softmax(decision_logits, dim=-1)
-                # (batch_size=vocab_size, (nbr_distractors+1) )
+                # (batch_size=allowed_vocab_size, (nbr_distractors+1) )
                 
                 '''
                 if not_target_logits_per_token is None:
                     not_target_logit = torch.zeros(decision_logits.size(0), 1)
                 else:
-                    not_target_logit = not_target_logits_per_token[:,sentence_token_count-1].repeat(vocab_size,1)
+                    not_target_logit = not_target_logits_per_token[:,sentence_token_count-1].repeat(allowed_vocab_size,1)
                 if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
                 decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
                 
                 tau0 = 1e1
                 # Probs over Distractors and Vocab: 
-                decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((vocab_size, -1))
-                decision_probs_least_effort = F.softmax( decision_logits.view(-1)*tau0, dim=-1).view((vocab_size, -1))
+                decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((allowed_vocab_size, -1))
+                decision_probs_least_effort = F.softmax( decision_logits.view(-1)*tau0, dim=-1).view((allowed_vocab_size, -1))
                 '''
                 decision_probs = F.softmax( decision_logits, dim=-1)
                 decision_probs_least_effort = F.softmax( decision_logits*tau0, dim=-1)
@@ -399,7 +467,7 @@ class DifferentiableObverterAgent(Listener):
                 '''
                 target_decision_probs_per_vocab_logits = decision_probs[:,btarget_idx]
                 target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,btarget_idx]
-                # (batch_size=vocab_size, )
+                # (batch_size=allowed_vocab_size, )
                 tau = 1.0/5e0 
                 if _compute_tau is not None:    tau = _compute_tau(tau0=tau, emb=bemb[btarget_idx].unsqueeze(0))
                 if logger is not None: 
@@ -412,7 +480,15 @@ class DifferentiableObverterAgent(Listener):
                 # The closer to zero this value is, the more accurate the operation is.
                 straight_through = True
                 one_hot_sampled_vocab = gumbel_softmax(logits=target_decision_probs_per_vocab_logits*tau1, tau=tau, hard=straight_through, dim=-1)
-                # (batch_size=vocab_size,)
+                # (batch_size=allowed_vocab_size,)
+
+                if allowed_vocab_size < vocab_size:
+                    zeros4complete_vocab = torch.zeros((vocab_size-allowed_vocab_size,))
+                    if one_hot_sampled_vocab.is_cuda: zeros4complete_vocab = zeros4complete_vocab.cuda()
+                    one_hot_sampled_vocab = torch.cat([one_hot_sampled_vocab, zeros4complete_vocab], dim=0)
+                    
+                    target_decision_probs_least_effort_per_vocab_logits = torch.cat([target_decision_probs_least_effort_per_vocab_logits,
+                                                                                     zeros4complete_vocab], dim=0)
                 vocab_idx_argop = torch.sum(arange_vocab*one_hot_sampled_vocab)
                 vocab_idx_op = target_decision_probs_least_effort_per_vocab_logits[vocab_idx_argop.long()]
                 
@@ -444,7 +520,10 @@ class DifferentiableObverterAgent(Listener):
 
             # Padding token:
             while len(sentences_widx[b]) < max_sentence_length:
-                sentences_widx[b].append((vocab_size-1)*torch.ones_like(vocab_idx_argop))
+                if False:#use_sentences_one_hot_vectors:
+                    sentences_widx[b].append((vocab_stop_idx)*torch.ones_like(vocab_idx_argop))
+                else:
+                    sentences_widx[b].append((vocab_size)*torch.ones_like(vocab_idx_argop))
 
             sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
