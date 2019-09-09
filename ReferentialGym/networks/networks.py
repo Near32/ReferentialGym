@@ -46,7 +46,8 @@ def layer_init(layer, w_scale=1.0):
             layer._parameters[name].data.uniform_(-0.08,0.08)
             layer._parameters[name].data.mul_(w_scale)
             '''
-            nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
+            if len(layer._parameters[name].size()) > 1:
+                nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
             
     '''
     if hasattr(layer,"weight"):    

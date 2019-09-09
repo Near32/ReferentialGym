@@ -1,6 +1,6 @@
 from .networks import FCBody, LSTMBody, GRUBody 
 from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody 
-from .networks import ModelResNet18
+from .networks import ModelResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
 from .networks import layer_init, hasnan, handle_nan
 
