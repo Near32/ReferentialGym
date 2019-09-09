@@ -8,6 +8,7 @@ from .basic_cnn_listener import BasicCNNListener
 
 from .caption_speaker import CaptionSpeaker 
 
-from .obverter_agent import ObverterAgent 
-from .differentiable_obverter_agent import DifferentiableObverterAgent 
+from .obverter_agent import ObverterAgent
+from .differentiable_obverter_agent import DifferentiableObverterAgent
+from .differentiable_relational_obverter import DifferentiableRelationalObverterAgent 
 from .categorical_obverter_agent import CategoricalObverterAgent 

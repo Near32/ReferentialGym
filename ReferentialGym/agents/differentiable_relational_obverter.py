@@ -88,7 +88,7 @@ class DifferentiableRelationalObverterAgent(Listener):
 
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['thought_space_depth_dim'], bias=False)
 
-        self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
+        self.tau_fc = layer_init(nn.Linear(self.mm_ponderer_depth_dim, 1 , bias=False))
         
         self.not_target_logits_per_token = nn.Parameter(torch.ones((1,self.kwargs['max_sentence_length'])))
         self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
@@ -257,8 +257,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         # x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) 
         # x nbr_visual_entity
         # x mm_ponderer_depth_dim=though_space_depth_dim+5)
-        import ipdb; ipdb.set_trace()
-
+        
         # Format the symbolic entities:
         encoded_sentences = self.symbol_encoder( sentences.view((-1,self.vocab_size))).view(batch_size, -1, self.vocab_size)
         self.symbolic_entities = self._makeSymbolicXYTSfeatures(encoded_sentences)
@@ -350,16 +349,8 @@ class DifferentiableRelationalObverterAgent(Listener):
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)`.
         """
         batch_size = features.size(0)
-        nbr_distractors_po = features.size(1)
         # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) x nbr_stimulus 
         # x mm_ponderer_depth_dim=though_space_depth_dim+5 x ..nbr_visual_entity.. )
-        
-        # Format the visual entities:
-        visual_entities = features.view(*(features.size()[:-3]), -1).transpose(-2,-1).view((batch_size, nbr_distractors_po, -1, self.mm_ponderer_depth_dim))
-        # (batch_size 
-        # x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) 
-        # x nbr_visual_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
         
         # The operation (max/min) to use during the computation of the sentences
         # depends on the current role of the agent, that is determined by 
@@ -386,16 +377,12 @@ class DifferentiableRelationalObverterAgent(Listener):
         # Utter the next sentences:
         next_sentences_widx, \
         next_sentences_logits, \
-        next_sentences_one_hots = self._compute_sentence(visual_entities=visual_entities,
+        next_sentences_one_hots = self._compute_sentence(features=features,
             target_idx=predicted_target_idx,
-            symbol_encoder=self.symbol_encoder,
-            symbol_processing=self.symbol_processing,
-            symbol_decoder=self.symbol_decoder,
-            init_rnn_states=self.rnn_states,
+            _reason=self._reason,
             allowed_vocab_size=allowed_vocab_size,
             vocab_size=self.vocab_size,
             max_sentence_length=self.max_sentence_length,
-            nbr_distractors_po=nbr_distractors_po,
             operation=operation,
             vocab_stop_idx=self.vocab_size-1,
             use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
@@ -408,16 +395,12 @@ class DifferentiableRelationalObverterAgent(Listener):
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
     def _compute_sentence(self,
-                          visual_entities, 
+                          features, 
                           target_idx, 
-                          symbol_encoder, 
-                          symbol_processing, 
-                          symbol_decoder, 
-                          init_rnn_states=None,
+                          _reason=None,
                           allowed_vocab_size=10, 
                           vocab_size=10, 
                           max_sentence_length=14,
-                          nbr_distractors_po=1,
                           operation=torch.max,
                           vocab_stop_idx=0,
                           use_obverter_threshold_to_stop_message_generation=False,
@@ -435,15 +418,11 @@ class DifferentiableRelationalObverterAgent(Listener):
         is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
         this likelyhood over the sentence's next word.
         
-        :param visual_entities: Tensor of (temporal) features embedding of shape `(batch_size, *self.obs_shape)`.
+        :param features: Tensor of (temporal) features embedding of shape `(batch_size, *self.obs_shape)`.
         :param target_idx: Tensor of indices of the target experiences of shape `(batch_size, 1)`.
-        :param symbol_encoder: torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.
-        :param symbol_processing: torch.nn.Module used to generate the sentences.
-        :param symbol_decoder: torch.nn.Module used to decode the embeddings generated by the `:param symbol_processing:` module. 
-        :param init_rnn_states: None or Tuple of Tensors to initialize the symbol_processing's rnn states.
+        :param _reason: Function used to reason about the visual and textual entities.
         :param vocab_size: int, size of the vocabulary.
         :param max_sentence_length: int, maximal length for each generated sentences.
-        :param nbr_distractors_po: int, number of distractors and target, i.e. `nbr_distractors+1.
         :param operation: Function, expect `torch.max` or `torch.min`.
         :param vocab_stop_idx: int, index of the STOP symbol in the vocabulary.
         :param use_obverter_threshold_to_stop_message_generation:  boolean, or float that specifies whether to stop the 
@@ -463,178 +442,126 @@ class DifferentiableRelationalObverterAgent(Listener):
                                 It represents the sentences as one-hot-encoded word vectors.
         
         """
-        batch_size = features_embedding.size(0)
-        states = init_rnn_states
-        '''
-        vocab_idx = torch.zeros((vocab_size,vocab_size))
-        for i in range(vocab_size): vocab_idx[i,i] = 1
-        if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
-        vocab_idx = symbol_encoder(vocab_idx).unsqueeze(1)
-        # (batch_size=vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
-        '''
-        arange_vocab = torch.arange(vocab_size).float()
+        import ipdb; ipdb.set_trace()
+
+        batch_size = features.size(0)
+        nbr_distractors_po = features.size(1)
+
+        arange_vocab = torch.arange(vocab_size).float().view((1,vocab_size))
         arange_allowed_vocab = torch.arange(allowed_vocab_size).float()
-        if features_embedding.is_cuda: 
+        if features.is_cuda: 
             arange_vocab = arange_vocab.cuda()
             arange_allowed_vocab = arange_allowed_vocab.cuda()
         
         if use_sentences_one_hot_vectors:
-            vocab_idx = torch.zeros((allowed_vocab_size, vocab_size))
+            vocab_vectors = torch.zeros((allowed_vocab_size, vocab_size))
             # (allowed_vocab_size, vocab_size)
-            for i in range(allowed_vocab_size): vocab_idx[i,i] = 1.0
+            for i in range(allowed_vocab_size): vocab_vectors[i,i] = 1.0
         else:
-            vocab_idx = torch.zeros((allowed_vocab_size,1)).long()
+            vocab_vectors = torch.zeros((allowed_vocab_size,1)).long()
             # (allowed_vocab, 1)
-            for i in range(allowed_vocab_size): vocab_idx[i] = i
-        if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
-        vocab_idx = symbol_encoder(vocab_idx).view((allowed_vocab_size,1,-1))
-        # Embedding: (batch_size=allowed_vocab_size, 1, mm_ponderer_depth_dim)
+            for i in range(allowed_vocab_size): vocab_vectors[i] = i
+        if features.is_cuda: vocab_vectors = vocab_vectors.cuda()
+        vocab_vectors = vocab_vectors.view((allowed_vocab_size,1,-1))
+        # (batch_size=allowed_vocab_size, 1, vocab_size)
 
         sentences_widx = vocab_stop_idx*torch.ones((batch_size, max_sentence_length, 1))
         sentences_logits = torch.zeros((batch_size, max_sentence_length, vocab_size))
         sentences_one_hots =  torch.zeros((batch_size, max_sentence_length, vocab_size))
-        
-        continuer = True
-        sentence_token_count = 0
-        while continuer:
-            sentence_token_count += 1
-            if states is not None:
-                '''
-                hs, cs = states[0], states[1]
-                hs = hs.repeat( 1, vocab_size, 1)
-                cs = cs.repeat( 1, vocab_size, 1)
-                rnn_states = (hs, cs)
-                '''
-                rnn_states = states.repeat(1,allowed_vocab_size, 1)
-            else :
-                rnn_states = states
+        sentences_logits[:,:,vocab_stop_idx] = 1.0
+        sentences_one_hots[:,:,vocab_stop_idx] = 1.0
 
-            rnn_outputs, next_rnn_states = symbol_processing(vocab_idx, rnn_states )
-            # (batch_size=allowed_vocab_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
-            # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+        if features.is_cuda: 
+            sentences_widx = sentences_widx.cuda()
+            sentences_logits = sentences_logits.cuda()
+            sentences_one_hots = sentences_one_hots.cuda()
+
+
+        relevant_batch = list(range(batch_size))
+        for sentence_token_idx in range(max_sentence_length):
+            sentences = sentences_one_hots[relevant_batch]
+            # (cbatch_size, max_sentence_length, vocab_size)
+            cbatch_size = sentences.size(0)
+
+            sentences = sentences.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1) 
+            # (cbatch_size, allowed_vocab_size, max_sentence_length, vocab_size)
+            for vidx in range(allowed_vocab_size):
+                sentences[:,vidx,sentence_token_idx,:] = vocab_vectors[vidx].view((1,-1)).repeat(cbatch_size,1)
+            sentences = sentences.view((-1, max_sentence_length, vocab_size))
+            # (cbatch_size*allowed_vocab_size, max_sentence_length, vocab_size)
             
-            # Compute the decision: following the last hidden/output vector from the rnn:
-            decision_inputs = rnn_outputs[:,-1,...]
-            # (batch_size=allowed_vocab_size, kwargs['symbol_processing_nbr_hidden_units'])
-            decision_logits = []
-            for bv in range(allowed_vocab_size):
-                bdin = decision_inputs[bv].unsqueeze(1)
-                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-                dl = torch.matmul( bemb, bdin).view((1,-1))
-                # ( 1, (nbr_distractors+1))
-                decision_logits.append(dl)
-            decision_logits = torch.cat(decision_logits, dim=0)
-            # (batch_size=allowed_vocab_size, (nbr_distractors+1) )
-            
-            '''
-            if nbr_distractors_po==1:
-                # Partial observability:
-                decision_probs = torch.sigmoid(decision_logits)
-            else:
-                # Full observability:
-                decision_probs = F.softmax(decision_logits, dim=-1)
-            # (batch_size=allowed_vocab_size, (nbr_distractors+1) )
-            
-            '''
-            if not_target_logits_per_token is None:
-                not_target_logit = torch.zeros(decision_logits.size(0), 1)
-            else:
-                not_target_logit = not_target_logits_per_token[:,sentence_token_count-1].repeat(allowed_vocab_size,1)
-            if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
-            decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
+            acc_decision_logits, _ = _reason(sentences, features)
+            # (cbatch_size*allowed_vocab_size, max_sentence_length, nbr_distractors_po)
+            decision_logits = acc_decision_logits[:,-1].view((cbatch_size, allowed_vocab_size*nbr_distractors_po))
             
             tau0 = 1e1
             # Probs over Distractors and Vocab: 
-            decision_probs = F.softmax( decision_logits.view(-1), dim=-1).view((allowed_vocab_size, -1))
-            decision_probs_least_effort = F.softmax( decision_logits.view(-1)*tau0, dim=-1).view((allowed_vocab_size, -1))
-            '''
-            decision_probs = F.softmax( decision_logits, dim=-1)
-            decision_probs_least_effort = F.softmax( decision_logits*tau0, dim=-1)
-            '''
-            # (batch_size=vocab_size, (nbr_distractors+2) )
+            decision_probs = F.softmax( decision_logits, dim=-1).view((cbatch_size, allowed_vocab_size, -1))
+            decision_probs_least_effort = F.softmax( decision_logits*tau0, dim=-1).view((cbatch_size, allowed_vocab_size, -1))
             
-            '''
-            target_decision_probs_per_vocab_logits = decision_probs[:,btarget_idx]
-            # (batch_size=vocab_size, )
-            vocab_idx_op, vocab_idx_argop = operation(target_decision_probs_per_vocab_logits, dim=0)
-            # (batch_size=vocab_size, )
+            target_decision_probs_per_vocab_logits = decision_probs[:,:,btarget_idx]
+            target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,:,btarget_idx]
+            # (cbatch_size, allowed_vocab_size)
             
-            '''
-            target_decision_probs_per_vocab_logits = decision_probs[:,btarget_idx]
-            target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,btarget_idx]
-            # (batch_size=allowed_vocab_size, )
             tau = 1.0/5e0 
-            if _compute_tau is not None:    tau = _compute_tau(tau0=tau, emb=bemb[btarget_idx].unsqueeze(0))
+            if _compute_tau is not None:    
+                cemb = features[relevant_batch]
+                ctarget_idx = target_idx[relevant_batch]
+                emb = []
+                for cbidx, ctidx in enumerate(ctarget_idx):
+                    emb.append(cemb[cbidx].index_select(index=ctidx, dim=0))
+                emb = torch.cat(emb, dim=0)
+                tau = _compute_tau(tau0=tau, emb=emb)
+            else:
+                tau = tau*torch.ones((cbatch_size,1))
+            # The closer to zero this value is, the more accurate the operation is.
             if logger is not None: 
                 it = 0
                 key = "Obverter/ComputeSentenceTau"
-                logger.add_scalar(key, tau.item(), it)
+                logger.add_scalar(key, tau.mean().item(), it)
 
-            tau = tau.view((-1))
             tau1 = 5e1
-            # The closer to zero this value is, the more accurate the operation is.
+            # the higher this value is, the less random is the output.
+            # and the more likely will it act like an argmax function...
             straight_through = True
             one_hot_sampled_vocab = gumbel_softmax(logits=target_decision_probs_per_vocab_logits*tau1, tau=tau, hard=straight_through, dim=-1)
-            # (batch_size=allowed_vocab_size,)
+            # (cbatch_size, allowed_vocab_size)
 
             if allowed_vocab_size < vocab_size:
-                zeros4complete_vocab = torch.zeros((vocab_size-allowed_vocab_size,))
+                zeros4complete_vocab = torch.zeros((cbatch_size, vocab_size-allowed_vocab_size,))
                 if one_hot_sampled_vocab.is_cuda: zeros4complete_vocab = zeros4complete_vocab.cuda()
-                one_hot_sampled_vocab = torch.cat([one_hot_sampled_vocab, zeros4complete_vocab], dim=0)
+                one_hot_sampled_vocab = torch.cat([one_hot_sampled_vocab, zeros4complete_vocab], dim=1)
                 
                 target_decision_probs_least_effort_per_vocab_logits = torch.cat([target_decision_probs_least_effort_per_vocab_logits,
-                                                                                 zeros4complete_vocab], dim=0)
-            vocab_idx_argop = torch.sum(arange_vocab*one_hot_sampled_vocab)
-            vocab_idx_op = target_decision_probs_least_effort_per_vocab_logits[vocab_idx_argop.long()]
-            
-            sentences_widx[b].append( vocab_idx_argop)
-            sentences_logits[b].append( target_decision_probs_least_effort_per_vocab_logits.view((1,-1)))
-            sentences_one_hots[b].append( nn.functional.one_hot(vocab_idx_argop.long(), num_classes=vocab_size).view((1,-1)))
-            
-            # next rnn_states:
-            #states = [st[-1, vocab_idx_argop].view((1,1,-1)) for st in next_rnn_states]
-            states = next_rnn_states[-1, vocab_idx_argop.long()].view((1,1,-1))
+                                                                                 zeros4complete_vocab], dim=1)
 
-            if use_obverter_threshold_to_stop_message_generation:
-                if operation == torch.max:
-                    operation_condition = (vocab_idx_op >= use_obverter_threshold_to_stop_message_generation)
+            vocab_idx_argop = torch.sum(arange_vocab.repeat(cbatch_size,1)*one_hot_sampled_vocab, dim=-1)
+            # (cbatch_size)
+
+            for (bidx, diff_widx_argop, td_logits) in zip(relevant_batch, vocab_idx_argop, target_decision_probs_least_effort_per_vocab_logits):
+                vocab_idx_op = td_logits[diff_widx_argop.long()]
+            
+                sentences_widx[bidx, sentences_widx] = diff_widx_argop
+                sentences_logits[bidx, sentences_widx] = td_logits.view((1,-1))
+                sentences_one_hots[bidx, sentences_widx] = nn.functional.one_hot(diff_widx_argop.long(), num_classes=vocab_size).view((1,-1))
+                
+                if use_obverter_threshold_to_stop_message_generation:
+                    if operation == torch.max:
+                        operation_condition = (vocab_idx_op >= use_obverter_threshold_to_stop_message_generation)
+                    else:
+                        operation_condition = (vocab_idx_op < 1-use_obverter_threshold_to_stop_message_generation) 
                 else:
-                    operation_condition = (vocab_idx_op < 1-use_obverter_threshold_to_stop_message_generation) 
-            else:
-                operation_condition = False
-            
-            if use_stop_word:
-                stop_word_condition = (vocab_idx_argop.long() == vocab_stop_idx)
-            else:
-                stop_word_condition = False 
-
-            if len(sentences_widx[b]) >= max_sentence_length or stop_word_condition or operation_condition:
-                continuer = False 
-
-            # Embed the sentence:
-
-            # Padding token:
-            while len(sentences_widx[b]) < max_sentence_length:
-                if False:#use_sentences_one_hot_vectors:
-                    sentences_widx[b].append((vocab_stop_idx)*torch.ones_like(vocab_idx_argop))
+                    operation_condition = False
+                
+                if use_stop_word:
+                    stop_word_condition = (diff_widx_argop.long() == vocab_stop_idx)
                 else:
-                    sentences_widx[b].append((vocab_size)*torch.ones_like(vocab_idx_argop))
+                    stop_word_condition = False 
 
-            sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
-            # (batch_size=1, sentence_length<=max_sentence_length, 1)
-            sentences_logits[b] = torch.cat(sentences_logits[b], dim=0)
-            # (sentence_length<=max_sentence_length, vocab_size)
-            sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
-            # (sentence_length<=max_sentence_length, vocab_size)
+                if stop_word_condition or operation_condition:
+                    relevant_batch.remove(bidx)
 
-            # Reset the state for the next sentence generation in the batch:
-            states = init_rnn_states
+            if len(relevant_batch) == 0:    break
 
-        sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
-        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
-        
-        sentences_widx = torch.cat(sentences_widx, dim=0)
-        # (batch_size, max_sentence_length, 1)
-        if features_embedding.is_cuda: sentences_widx = sentences_widx.cuda()
 
         return sentences_widx, sentences_logits, sentences_one_hots
