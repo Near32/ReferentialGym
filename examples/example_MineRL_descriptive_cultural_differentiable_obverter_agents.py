@@ -25,7 +25,7 @@ def test_example_cultural_obverter_agents():
 
   rg_config = {
       "observability":            "partial", 
-      "max_sentence_length":      10,
+      "max_sentence_length":      5,
       "nbr_communication_round":  1,  
       "nbr_distractors":          0,
       "distractor_sampling":      "similarity-0.75",#"uniform",
@@ -42,7 +42,7 @@ def test_example_cultural_obverter_agents():
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
 
-      "object_centric":           False,
+      "object_centric":           True,
       
       "nbr_stimulus":             1,
 
@@ -50,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               5,
 
-      "agent_architecture":       'pretrained-ResNet18-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'ResNet18-MHDPA-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,

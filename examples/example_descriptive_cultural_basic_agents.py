@@ -219,7 +219,7 @@ def test_example_cultural_basic_agents():
 
   # # Basic Agents
 
-  # ## Obverter Speaker:
+  # ## Basic Speaker:
 
   # In[4]:
 
@@ -241,12 +241,12 @@ def test_example_cultural_basic_agents():
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
-                                agent_id='os0',
+                                agent_id='bs0',
                                 logger=logger)
 
   print("Speaker:",bspeaker)
 
-  # ## Obverter Listener:
+  # ## Basic Listener:
 
   from ReferentialGym.agents import BasicCNNListener
   
@@ -265,7 +265,7 @@ def test_example_cultural_basic_agents():
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
-                                agent_id='ol0',
+                                agent_id='bl0',
                                 logger=logger)
 
   print("Listener:",blistener)
