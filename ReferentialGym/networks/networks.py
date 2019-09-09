@@ -9,7 +9,6 @@ from torchvision import models
 from torchvision.models.resnet import model_urls, BasicBlock
 
 
-
 def hasnan(tensor):
     if torch.isnan(tensor).max().item() == 1:
         return True
@@ -133,7 +132,10 @@ class ConvolutionalBody(nn.Module):
             # Update of the shape of the input-image, following Conv:
             dim = (dim-k+2*p)//s+1
             print(dim)
-            
+        
+        self.feat_map_dim = dim 
+        self.feat_map_depth = channels[-1]
+
         hidden_units = (dim * dim * channels[-1],)
         if isinstance(feature_dim, tuple):
             hidden_units = hidden_units + feature_dim
@@ -146,12 +148,16 @@ class ConvolutionalBody(nn.Module):
             if self.dropout:
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
-    def forward(self, x, non_lin_output=True):
-        conv_map = x
+    def _compute_feat_map(self, x):
+        feat_map = x
         for conv_layer, non_lin in zip(self.convs, self.non_linearities):
-            conv_map = non_lin(conv_layer(conv_map))
+            feat_map = non_lin(conv_layer(feat_map))
+        return feat_map
 
-        features = conv_map.view(conv_map.size(0), -1)
+    def forward(self, x, non_lin_output=True):
+        feat_map = self._compute_feat_map(x)
+
+        features = feat_map.view(feat_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
             if idx != len(self.fcs)-1 or non_lin_output:
@@ -359,8 +365,8 @@ class GRUBody(nn.Module):
     def get_feature_shape(self):
         return self.feature_dim
 
-class ModelResNet18(models.ResNet) :
-    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False, **kwargs):
+class ModelResNet18(models.ResNet):
+    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -369,7 +375,7 @@ class ModelResNet18(models.ResNet) :
         :param nbr_layer: int, number of convolutional residual layer to use.
         :param pretrained: bool, specifies whether to load a pretrained model.
         '''
-        super(ModelResNet18, self).__init__(BasicBlock, [2, 2, 2, 2], **kwargs)
+        super(ModelResNet18, self).__init__(BasicBlock, [2, 2, 2, 2])
         if pretrained:
             self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
         
@@ -383,7 +389,7 @@ class ModelResNet18(models.ResNet) :
             '''
             in3depth = input_shape[0] // 3
             concat_kernel = []
-            for i in range(in3depth) :
+            for i in range(in3depth):
                 concat_kernel.append( saved_kernel)
             concat_kernel = torch.cat(concat_kernel, dim=1)
 
@@ -409,11 +415,14 @@ class ModelResNet18(models.ResNet) :
             self.feature_dim = feature_dim[-1]
 
         # Compute the number of features:
-        num_ftrs = self._compute_feature_dim(input_shape[-1], self.nbr_layer)
-
+        self.feat_map_dim, self.feat_map_depth = self._compute_feature_shape(input_shape[-1], self.nbr_layer)
+        # Avg Pool:
+        feat_dim = self.feat_map_dim-1
+        num_ftrs = self.feat_map_depth * feat_dim * feat_dim
+        
         self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
     
-    def _compute_feature_dim(self, input_dim, nbr_layer):
+    def _compute_feature_shape(self, input_dim, nbr_layer):
         if nbr_layer is None: return self.fc.in_features
 
         layers_depths = [64,128,256,512]
@@ -429,12 +438,9 @@ class ModelResNet18(models.ResNet) :
             dim = math.ceil(float(dim) / layers_divisions[idx_layer])
             depth = layers_depths[idx_layer]
 
-        # Avg Pool:
-        dim -= 1
+        return dim, depth
 
-        return depth * dim * dim  
-
-    def forward(self, x):
+    def _compute_feat_map(self, x):
         #xsize = x.size()
         #print('input:',xsize)
         x = self.conv1(x)
@@ -448,44 +454,415 @@ class ModelResNet18(models.ResNet) :
         #xsize = self.x0.size()
         #print('mxp0:',xsize)
 
-        if self.nbr_layer >= 1 :
+        if self.nbr_layer >= 1:
             self.x1 = self.layer1(self.x0)
             #xsize = self.x1.size()
             #print('1:',xsize)
-            if self.nbr_layer >= 2 :
+            if self.nbr_layer >= 2:
                 self.x2 = self.layer2(self.x1)
                 #xsize = self.x2.size()
                 #print('2:',xsize)
-                if self.nbr_layer >= 3 :
+                if self.nbr_layer >= 3:
                     self.x3 = self.layer3(self.x2)
                     #xsize = self.x3.size()
                     #print('3:',xsize)
-                    if self.nbr_layer >= 4 :
+                    if self.nbr_layer >= 4:
                         self.x4 = self.layer4(self.x3)
                         #xsize = self.x4.size()
                         #print('4:',xsize)
                         
                         self.features_map = self.x4
-                    else :
+                    else:
                         self.features_map = self.x3
-                else :
+                else:
                     self.features_map = self.x2
-            else :
+            else:
                 self.features_map = self.x1
-        else :
+        else:
             self.features_map = self.x0
         
+        return self.features_map
+
+    def forward(self, x):
+        self.features_map = self._compute_feat_map(x)
         avgx = self.avgpool(self.features_map)
         #xsize = avgx.size()
-        #print('avg : x :',xsize)
+        #print('avg: x:',xsize)
         fcx = avgx.view(avgx.size(0), -1)
         #xsize = fcx.size()
-        #print('reg avg : x :',xsize)
+        #print('reg avg: x:',xsize)
         fcx = self.fc(fcx)
         #xsize = fcx.size()
-        #print('fc output : x :',xsize)
+        #print('fc output: x:',xsize)
         
         return fcx
 
     def get_feature_shape(self):
         return self.feature_dim
+
+
+class MHDPA(nn.Module):
+    def __init__(self,depth_dim=24+11+2,
+                    interactions_dim=64, 
+                    hidden_size=256):
+        super(MHDPA,self).__init__()
+
+        self.depth_dim = depth_dim
+        self.interactions_dim = interactions_dim
+        self.hidden_size = hidden_size
+        self.fXY = None 
+        self.batch = None 
+        
+        self.queryGenerator = nn.Linear(self.depth_dim,self.interactions_dim,bias=False)
+        self.keyGenerator = nn.Linear(self.depth_dim,self.interactions_dim,bias=False)
+        self.valueGenerator = nn.Linear(self.depth_dim,self.interactions_dim,bias=False)
+            
+        self.queryGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
+        self.keyGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
+        self.valueGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
+        
+    def addXYfeatures(self,x,outputFsizes=False):
+        xsize = x.size()
+        batch = xsize[0]
+        if self.batch != batch or self.fXY is None:
+            # batch x depth x X x Y
+            self.batch = xsize[0]
+            self.depth = xsize[1]
+            self.sizeX = xsize[2]
+            self.sizeY = xsize[3]
+            stepX = 2.0/self.sizeX
+            stepY = 2.0/self.sizeY
+
+            fx = torch.zeros((self.batch,1,self.sizeX,1))
+            fy = torch.zeros((self.batch,1,1,self.sizeY))
+            vx = -1+0.5*stepX
+            for i in range(self.sizeX):
+                fx[:,:,i,:] = vx
+                vx += stepX
+            vy = -1+0.5*stepY
+            for i in range(self.sizeY):
+                fy[:,:,:,i] = vy
+                vy += stepY
+            fxy = fx.repeat( 1,1,1,self.sizeY)
+            fyx = fy.repeat( 1,1,self.sizeX,1)
+            fXY = torch.cat( [fxy,fyx], dim=1)
+            if x.is_cuda: fXY = fXY.cuda()
+            self.fXY = fXY 
+
+        out = torch.cat( [x,self.fXY], dim=1)
+        out = out.view((self.batch,self.depth+2,-1))
+
+        if outputFsizes:
+            return out, self.sizeX, self.sizeY
+
+        return out 
+
+    def forward(self,x, usef=False):
+        # input: b x d x f
+        batchsize = x.size()[0]
+        depth_dim = x.size()[1]
+        featuresize = x.size()[2]
+        updated_entities = []
+        
+        xb = x.transpose(1,2).contiguous()
+        # batch x depth_dim x featuremap_dim^2: stack of column entity: d x f   
+        #  b x f x d   
+
+        augx_full_flat = xb.view( batchsize*featuresize, -1) 
+        # ( batch*featuresize x depth )
+        query = self.queryGenerator( augx_full_flat )
+        key = self.keyGenerator( augx_full_flat )
+        value = self.valueGenerator( augx_full_flat )
+        # b*f x i
+        
+        query = self.queryGenerator_layerNorm(query)
+        key = self.keyGenerator_layerNorm(key)
+        value = self.valueGenerator_layerNorm(value)
+        # b*f x interactions_dim
+
+        query = query.view((batchsize, featuresize, self.interactions_dim))
+        key = key.view((batchsize, featuresize, self.interactions_dim))
+        value = value.view((batchsize, featuresize, self.interactions_dim))
+        # b x f x interactions_dim
+
+        att = torch.matmul(query, key.transpose(-2,-1) ) / math.sqrt(self.interactions_dim)
+        weights = F.softmax( att, dim=1 )
+        # b x f x i * b x i x f --> b x f x f
+        sdpa_out = torch.matmul( weights, value)
+        # b x f x f * b x f x i = b x f x i 
+        return sdpa_out 
+    
+    def save(self,path):
+        wts = self.state_dict()
+        rnpath = path + 'MHDPA.weights'
+        torch.save( wts, rnpath )
+        print('MHDPA saved at: {}'.format(rnpath) )
+
+
+    def load(self,path):
+        rnpath = path + 'MHDPA.weights'
+        self.load_state_dict( torch.load( rnpath ) )
+        print('MHDPA loaded from: {}'.format(rnpath) )
+
+
+
+class MHDPA_RN(nn.Module):
+    def __init__(self,
+                 depth_dim=24+11+2, 
+                 nbrHead=3,
+                 nbrRecurrentSharedLayers=1,
+                 nbrEntity=7,
+                 units_per_MLP_layer=256,
+                 interactions_dim=128,
+                 output_dim=None,
+                 dropout_prob=0.0):
+        super(MHDPA_RN,self).__init__()
+
+        self.nbrEntity = nbrEntity
+        self.output_dim = output_dim
+        self.depth_dim = depth_dim
+        self.dropout_prob = dropout_prob
+
+        self.nbrHead = nbrHead
+        self.nbrRecurrentSharedLayers = nbrRecurrentSharedLayers
+        
+        self.units_per_MLP_layer = units_per_MLP_layer 
+        self.interactions_dim = interactions_dim 
+        self.use_bias = False 
+
+        self.MHDPAs = nn.ModuleList()
+        for i in range(self.nbrHead):
+            self.MHDPAs.append(MHDPA(depth_dim=self.depth_dim,interactions_dim=self.interactions_dim))
+
+        self.nonLinearModule = nn.LeakyReLU
+        
+        # Layer Normalization at the spatial level:
+        self.layerNorm = nn.LayerNorm(self.nbrEntity )
+        # F function:
+        self.f = nn.Sequential( nn.Linear(self.nbrHead*self.interactions_dim,self.units_per_MLP_layer,bias=self.use_bias),
+                                        self.nonLinearModule(),
+                                        nn.Linear(self.units_per_MLP_layer,self.units_per_MLP_layer,bias=self.use_bias),
+                                        self.nonLinearModule(),
+                                        nn.Linear(self.units_per_MLP_layer,self.depth_dim,bias=self.use_bias)                                              
+                                                )
+        # FF final layer: MLP2
+        # computes a representation over the spatially-max-pooled or flattened representation:
+        if self.output_dim is not None:
+            self.fout_input_dim = int( (self.depth_dim) * self.nbrEntity )
+            self.fout = nn.Sequential( nn.Linear(self.fout_input_dim,self.units_per_MLP_layer,bias=self.use_bias),
+                                            self.nonLinearModule(),
+                                            nn.Linear(self.units_per_MLP_layer,self.output_dim,bias=self.use_bias))
+
+    def forwardScaledDPAhead(self, x, head, reset_hidden_states=False):
+        # input: b x d x f
+        output = self.MHDPAs[head](x,usef=False)
+        # batch x f x i or batch x output_dim
+        return output 
+
+    def forwardStackedMHDPA(self, augx):
+        # input: b x d x f
+        MHDPAouts = []
+        for i in range(self.nbrHead):
+            MHDPAouts.append( self.forwardScaledDPAhead(augx,head=i) )
+            # head x [ batch x f x i ]
+        concatOverHeads = torch.cat( MHDPAouts, dim=2)
+        # (batch x f x nbr_head*interaction_dim)
+        
+        input4f = concatOverHeads.view((self.batchsize*self.featuresize, -1))
+        # (batch*f x nbr_head*interaction_dim)
+        
+        updated_entities = self.f(input4f).view((self.batchsize, self.featuresize, self.depth_dim))
+        # (batch x f x depth_dim)
+        
+        updated_entities = self.layerNorm( updated_entities.transpose(1,2))
+        # (batch x depth_dim x f )
+        updated_entities = F.dropout2d(updated_entities, p=self.dropout_prob)
+        
+        res_updated_entities = augx + updated_entities
+        # (batch x depth_dim x f )
+        return res_updated_entities
+
+    def forward(self,x, augx=None):
+        self.batchsize = x.size()[0]
+
+        if augx is None:
+            # add coordinate channels:
+            augx, self.sizeX, self.sizeY = self.MHDPAs[0].addXYfeatures(x,outputFsizes=True)
+            self.featuresize = self.sizeX*self.sizeY
+            # batch x d x f(=featuremap_dim^2)
+
+        # Compute MHDPA towards convergence...
+        self.outputRec = [augx]
+        for i in range(self.nbrRecurrentSharedLayers):
+            # input/output: b x d x f
+            self.outputRec.append(self.forwardStackedMHDPA(self.outputRec[i]))
+        
+        # Retrieve the (hopefully) converged representation:    
+        intermediateOutput = self.outputRec[-1].view( (self.batchsize, self.depth_dim, self.sizeX,self.sizeY))
+        # batch x d x sizeX x sizeX=sizeY
+
+        if self.output_dim is not None:
+            # Flattening:
+            intermediateOutput = intermediateOutput.view( (self.batchsize, -1) )    
+            # batch x d*sizeX*sizeY
+
+            foutput = self.fout(intermediateOutput)
+            # batch x d*sizeX*sizeY/ d --> batch x output_dim
+            return foutput
+
+        return intermediateOutput
+
+
+class ConvolutionalMHDPABody(ConvolutionalBody):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 channels=[3, 3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0], 
+                 dropout=0.0, 
+                 non_linearities=[F.leaky_relu],
+                 nbrHead=4,
+                 nbrRecurrentSharedLayers=1,  
+                 units_per_MLP_layer=512,
+                 interaction_dim=128):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                         with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param dropout: dropout probability to use.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                                after each convolutional layer.
+        :param nbrHead: Int, number of Scaled Dot-Product Attention head.
+        :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
+        :param units_per_MLP_layer: Int, number of neurons in the transformation from the
+                                    concatenated head outputs to the entity embedding space.
+        :param interaction_dim: Int, number of dimensions in the interaction space.
+        '''
+        super(ConvolutionalMHDPABody, self).__init__(input_shape=input_shape,
+                                                     feature_dim=feature_dim,
+                                                     channels=channels,
+                                                     kernel_sizes=kernel_sizes,
+                                                     strides=strides,
+                                                     paddings=paddings,
+                                                     dropout=dropout,
+                                                     non_linearities=non_linearities)       
+        
+        self.relationModule = MHDPA_RN(output_dim=None,
+                                       depth_dim=channels[-1]+2,
+                                       nbrHead=nbrHead, 
+                                       nbrRecurrentSharedLayers=nbrRecurrentSharedLayers, 
+                                       nbrEntity=self.feat_map_dim*self.feat_map_dim,  
+                                       units_per_MLP_layer=units_per_MLP_layer,
+                                       interactions_dim=interaction_dim,
+                                       dropout_prob=dropout)
+        
+        hidden_units = (self.feat_map_dim * self.feat_map_dim * (channels[-1]+2),)
+        if isinstance(feature_dim, tuple):
+            hidden_units = hidden_units + feature_dim
+        else:
+            hidden_units = hidden_units + (self.feature_dim,)
+
+        self.fcs = nn.ModuleList()
+        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
+            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            if self.dropout:
+                self.fcs.append( nn.Dropout(p=self.dropout))
+
+    def forward(self, x):
+        x = self._compute_feat_map(x) 
+
+        xsize = x.size()
+        batchsize = xsize[0]
+        depthsize = xsize[1]
+        spatialSize = xsize[2]
+        featuresize = spatialSize*spatialSize
+
+        feat_map = self.relationModule(x)
+
+        features = feat_map.view(feat_map.size(0), -1)
+        for idx, fc in enumerate(self.fcs):
+            features = fc(features)
+            features = F.leaky_relu(features)
+
+        return features
+
+
+class ResNet18MHDPA(ModelResNet18):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 nbr_layer=None, 
+                 pretrained=False, 
+                 dropout=0.0, 
+                 non_linearities=[F.leaky_relu],
+                 nbrHead=4,
+                 nbrRecurrentSharedLayers=1,  
+                 units_per_MLP_layer=512,
+                 interaction_dim=128):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param nbr_layer: int, number of convolutional residual layer to use.
+        :param pretrained: bool, specifies whether to load a pretrained model.
+        :param dropout: dropout probability to use.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                                after each convolutional layer.
+        :param nbrHead: Int, number of Scaled Dot-Product Attention head.
+        :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
+        :param units_per_MLP_layer: Int, number of neurons in the transformation from the
+                                    concatenated head outputs to the entity embedding space.
+        :param interaction_dim: Int, number of dimensions in the interaction space.
+        '''
+        super(ResNet18MHDPA, self).__init__(input_shape=input_shape,
+                                            feature_dim=feature_dim,
+                                            nbr_layer=nbr_layer,
+                                            pretrained=pretrained)       
+        self.dropout = dropout
+        self.relationModule = MHDPA_RN(output_dim=None,
+                                       depth_dim=self.feat_map_depth+2,
+                                       nbrHead=nbrHead, 
+                                       nbrRecurrentSharedLayers=nbrRecurrentSharedLayers, 
+                                       nbrEntity=self.feat_map_dim*self.feat_map_dim,  
+                                       units_per_MLP_layer=units_per_MLP_layer,
+                                       interactions_dim=interaction_dim,
+                                       dropout_prob=self.dropout)
+        
+        hidden_units = (self.feat_map_dim * self.feat_map_dim * (self.feat_map_depth+2),)
+        if isinstance(feature_dim, tuple):
+            hidden_units = hidden_units + feature_dim
+        else:
+            hidden_units = hidden_units + (self.feature_dim,)
+
+        self.fcs = nn.ModuleList()
+        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
+            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            if self.dropout:
+                self.fcs.append( nn.Dropout(p=self.dropout))
+
+    def forward(self, x):
+        x = self._compute_feat_map(x) 
+
+        xsize = x.size()
+        batchsize = xsize[0]
+        depthsize = xsize[1]
+        spatialSize = xsize[2]
+        featuresize = spatialSize*spatialSize
+
+        feat_map = self.relationModule(x)
+
+        features = feat_map.view(feat_map.size(0), -1)
+        for idx, fc in enumerate(self.fcs):
+            features = fc(features)
+            features = F.leaky_relu(features)
+
+        return features
