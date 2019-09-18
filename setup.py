@@ -30,6 +30,7 @@ setup(
 
     install_requires=['pip',
                       'numpy',
+                      'scipy',
                       'h5py',
                       'opencv-python',
                       'torch>=1.1',
