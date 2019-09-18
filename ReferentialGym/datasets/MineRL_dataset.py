@@ -138,14 +138,14 @@ class MineRLDataset(Dataset):
         imgs, target = self.trajectories[exptraj][idx_in_exptraj], self.exptraj2int[exptraj]
         img = random.choice(imgs)
 
-        #img = (img*255).astype('uint8').transpose((2,1,0))
-        img = img.transpose((2,1,0))
         img = Image.fromarray(img, mode='RGB')
 
         if self.transform is not None:
-            img = self.transform(img)
+            tr_img = self.transform(img)
+        else:
+            tr_img = img 
 
-        return img, target
+        return tr_img, target
 
     def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None, target_only: bool = False) -> Tuple[torch.Tensor, List[int]]:
         '''
