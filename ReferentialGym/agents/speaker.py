@@ -31,9 +31,6 @@ class Speaker(Agent):
     def _reset_rnn_states(self):
         self.rnn_states = None
 
-    def _tidyup(self):
-        pass 
-
     def _compute_tau(self, tau0):
         raise NotImplementedError
 
@@ -120,7 +117,6 @@ class Speaker(Agent):
         if not multi_round:
             self._reset_rnn_states()
 
-        self._tidyup()
         self._log(output_dict)
 
         return output_dict

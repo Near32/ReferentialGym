@@ -32,9 +32,6 @@ class Listener(Agent):
     def _reset_rnn_states(self):
         self.rnn_states = None 
 
-    def _tidyup(self):
-        pass 
-
     def _compute_tau(self, tau0):
         raise NotImplementedError
         
@@ -92,6 +89,7 @@ class Listener(Agent):
                     - `'obverter'`: obverter training scheme...
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
+        batch_size = experiences.size(0)
         features = self._sense(experiences=experiences, sentences=sentences)
         if sentences is not None:
             decision_logits, temporal_features = self._reason(sentences=sentences, features=features)
@@ -136,7 +134,6 @@ class Listener(Agent):
         if not(multi_round):
             self._reset_rnn_states()
 
-        self._tidyup()
-        self._log(output_dict)
+        self._log(output_dict, batch_size=batch_size)
 
         return output_dict 

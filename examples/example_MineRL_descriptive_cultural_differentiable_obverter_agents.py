@@ -14,7 +14,7 @@ import torchvision.transforms as T
 
 
 def test_example_cultural_obverter_agents():
-  seed = 30
+  seed = 20
   torch.manual_seed(seed)
   np.random.seed(seed)
   random.seed(seed)
@@ -27,7 +27,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          0,
+      "nbr_distractors":          4,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -37,7 +37,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5, 
+      "descriptive_target_ratio": 0.99, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -48,9 +48,9 @@ def test_example_cultural_obverter_agents():
 
       "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.1,
-      "vocab_size":               5,
+      "vocab_size":               20,
 
-      "agent_architecture":       'ResNet18-MHDPA-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretrained-ResNetBetaVAE-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -67,12 +67,12 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               64,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
       
-      "learning_rate":            3e-4,
+      "learning_rate":            6e-4,
       "adam_eps":                 1e-5,
       "dropout_prob":             0.0,
       
@@ -103,13 +103,15 @@ def test_example_cultural_obverter_agents():
   assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
-  assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
+  #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
+  vae_beta = 1e3
+  maxCap = 1e2
+  nbrepochtillmaxcap = 10
   skip_interval = 24
   #save_path = './SoC-MineRL-S24-T100-f512'
-  save_path = './MineRL-S24-T50-'
-  #save_path += 'TF64-NoNTL-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
-  save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
+  save_path = './MineRL-S{}+LVAE+RDec'.format(skip_interval)
+  #save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
   #save_path += 'NLLLoss' #'MSELoss'
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
   #save_path += 'CPtau05e0+1e1LeastEffort+5e1'
@@ -135,7 +137,7 @@ def test_example_cultural_obverter_agents():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  save_path += '-S{}L{}-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}'.format(rg_config['cultural_speaker_substrate_size'], 
+  save_path += '-S{}L{}-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}{}'.format(rg_config['cultural_speaker_substrate_size'], 
     rg_config['cultural_listener_substrate_size'],
     rg_config['cultural_pressure_it_period'],
     rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'],
@@ -154,7 +156,8 @@ def test_example_cultural_obverter_agents():
     rg_config['nbr_stimulus'], 
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
-    rg_config['agent_architecture'])
+    rg_config['agent_architecture'],
+    f'beta{vae_beta}MC{maxCap}over{nbrepochtillmaxcap}' if 'BetaVAE' in rg_config['agent_architecture'] else '')
 
   rg_config['save_path'] = save_path
 
@@ -201,6 +204,22 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_feature_dim'] = 256
     agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = 64#256
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'ResNetBetaVAE' in agent_config['architecture']:
+    # ResNet18-2:
+    agent_config['cnn_encoder_channels'] = [32, 32, 64]
+    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+    agent_config['cnn_encoder_strides'] = [4, 2, 1]
+    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+    agent_config['cnn_encoder_feature_dim'] = 256
+    agent_config['vae_beta'] = vae_beta
+    agent_config['vae_max_capacity'] = maxCap
+    agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']

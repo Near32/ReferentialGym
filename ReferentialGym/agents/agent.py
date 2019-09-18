@@ -18,6 +18,7 @@ class Agent(nn.Module):
         self.logger = logger 
         self.kwargs = kwargs
         self.log_idx = 0
+        self.log_dict = dict()
 
         self.use_sentences_one_hot_vectors = False
 
@@ -41,12 +42,17 @@ class Agent(nn.Module):
         torch.save(self, path)
         self.logger = logger 
 
-    def _log(self, log_dict):
+    def _tidyup(self):
+        pass 
+    
+    def _log(self, log_dict, batch_size):
         if self.logger is None: 
             return 
 
         agent_log_dict = {f"{self.agent_id}": dict()}
         for key, data in log_dict.items():
+            if data is None:
+                data = [None]*batch_size
             agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
         
         self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
@@ -68,7 +74,7 @@ class Agent(nn.Module):
         """
         raise NotImplementedError
 
-    def compute(self, inputs_dict, config, role='speaker'):
+    def compute(self, inputs_dict, config, role='speaker', mode='train', it=0):
         """
         Compute the losses and return them along with the produced outputs.
 
@@ -110,7 +116,18 @@ class Agent(nn.Module):
             weight_maxl1_loss += torch.max( torch.abs(p) )
         outputs_dict['maxl1_loss'] = weight_maxl1_loss        
 
+
+        for logname, value in self.log_dict.items():
+            self.logger.add_scalar('{}/{}/{}'.format(mode,role, logname), value.item(), it)    
+        self.log_dict = {}
+
+
         losses_dict = dict()
+
+        if 'BetaVAE' in self.kwargs['architecture']:
+            if 'listener' in role or not('obverter' in inputs_dict['graphtype']):
+                losses_dict[f'{role}/VAE_loss'] = [1e-3, self.VAE_losses]
+
         if 'speaker' in role:
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
                 arange_vocab = torch.arange(config['vocab_size']+1).float()
@@ -208,7 +225,8 @@ class Agent(nn.Module):
                 criterion = nn.NLLLoss(reduction='none')
                 loss = criterion( final_decision_logits, sample['target_decision_idx'])
                 # (batch_size, )
-            losses_dict['referential_game_loss'] = [1.0, loss] 
+            losses_dict['referential_game_loss'] = [1.0, loss]
+
 
             #Havrylov's Hinge loss:
             '''
@@ -250,4 +268,6 @@ class Agent(nn.Module):
             if 'speaker' in role:   losses_dict = self.homoscedastic_speaker_loss(losses_dict)
             if 'listener' in role:   losses_dict = self.homoscedastic_listener_loss(losses_dict)
 
+        self._tidyup()
+        
         return outputs_dict, losses_dict    

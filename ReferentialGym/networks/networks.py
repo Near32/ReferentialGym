@@ -585,7 +585,7 @@ class MHDPA(nn.Module):
         key = key.view((batchsize, featuresize, self.interactions_dim))
         value = value.view((batchsize, featuresize, self.interactions_dim))
         # b x f x interactions_dim
-
+        
         att = torch.matmul(query, key.transpose(-2,-1) ) / math.sqrt(self.interactions_dim)
         weights = F.softmax( att, dim=1 )
         # b x f x i * b x i x f --> b x f x f
@@ -683,14 +683,23 @@ class MHDPA_RN(nn.Module):
         # (batch x depth_dim x f )
         return res_updated_entities
 
-    def forward(self,x, augx=None):
+    def forward(self, x=None, augx=None):
+        if x is None:
+            if augx is not None:
+                x = augx 
+            else:
+                raise NotImplementedError
         self.batchsize = x.size()[0]
-
+        
+        augxNone = True
         if augx is None:
             # add coordinate channels:
             augx, self.sizeX, self.sizeY = self.MHDPAs[0].addXYfeatures(x,outputFsizes=True)
             self.featuresize = self.sizeX*self.sizeY
             # batch x d x f(=featuremap_dim^2)
+        else:
+            augxNone = False
+            self.featuresize = augx.size(-1)
 
         # Compute MHDPA towards convergence...
         self.outputRec = [augx]
@@ -699,8 +708,10 @@ class MHDPA_RN(nn.Module):
             self.outputRec.append(self.forwardStackedMHDPA(self.outputRec[i]))
         
         # Retrieve the (hopefully) converged representation:    
-        intermediateOutput = self.outputRec[-1].view( (self.batchsize, self.depth_dim, self.sizeX,self.sizeY))
-        # batch x d x sizeX x sizeX=sizeY
+        intermediateOutput = self.outputRec[-1]
+        if augxNone:
+            intermediateOutput = intermediateOutput.view( (self.batchsize, self.depth_dim, self.sizeX,self.sizeY))
+            # batch x d x sizeX x sizeX=sizeY
 
         if self.output_dim is not None:
             # Flattening:

@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 from .agents import Speaker, Listener, ObverterAgent
 from .networks import handle_nan, hasnan
 from .datasets import collate_dict_wrapper
-from .utils import cardinality
+from .utils import cardinality, query_vae_latent_space
 
 
 class ReferentialGame(object):
@@ -171,7 +171,9 @@ class ReferentialGame(object):
                                                }
                         speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
                                                                         config=self.config,
-                                                                        role='speaker')
+                                                                        role='speaker',
+                                                                        mode=mode,
+                                                                        it=idx_stimuli+len(data_loader)*epoch)
 
                         
                         listener_inputs_dict = {'graphtype':self.config['graphtype'],
@@ -191,7 +193,9 @@ class ReferentialGame(object):
                         listener_inputs_dict['experiences'] = sample['listener_experiences']
                         listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
                                                                            config=self.config,
-                                                                           role='listener')
+                                                                           role='listener',
+                                                                           mode=mode,
+                                                                           it=idx_stimuli+len(data_loader)*epoch)
 
                         if self.config['graphtype'] == 'obverter':
                             if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
@@ -213,8 +217,8 @@ class ReferentialGame(object):
                     losses.update(listener_losses)
                     idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
                     for k, v in losses.items():
-                        losses[k][idx_loss] = v[0]*v[idx_loss]
-                    loss = sum( [l[idx_loss].mean() for l in losses.values()])
+                        losses[k][idx_loss] = v[0]*v[idx_loss].mean()
+                    loss = sum( [l[idx_loss] for l in losses.values()])
 
                     if mode == 'train':
                         speaker_optimizer.zero_grad()
@@ -281,6 +285,10 @@ class ReferentialGame(object):
                         logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), idx_stimuli+len(data_loader)*epoch)
                         
                         logger.add_scalar('{}/Loss'.format(mode), loss.item(), idx_stimuli+len(data_loader)*epoch)
+                        
+                        for l_name, l in losses.items():
+                            logger.add_scalar('{}/{}'.format(mode, l_name), l[idx_loss].item(), idx_stimuli+len(data_loader)*epoch)    
+
                         logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_outputs['maxl1_loss'].item()+listener_outputs['maxl1_loss'].item(), idx_stimuli+len(data_loader)*epoch)
                         
                         decision_probs = listener_outputs['decision_probs']
@@ -327,7 +335,23 @@ class ReferentialGame(object):
                                 f"\t /label: {sample['target_decision_idx'][sidx]}",\
                                 f" /decision: {decision_idx[sidx]}")
                     
+                    if 'BetaVAE' in speaker.kwargs['architecture']:
+                        image_save_path = logger.path 
+                        query_vae_latent_space(prototype_speaker.VAE, 
+                                               sample=sample['speaker_experiences'],
+                                               path=image_save_path,
+                                               test=('test' in mode),
+                                               full=False,
+                                               idxoffset=idx_stimuli,
+                                               suffix='speaker')
 
+                        query_vae_latent_space(prototype_speaker.VAE, 
+                                               sample=sample['listener_experiences'],
+                                               path=image_save_path,
+                                               test=('test' in mode),
+                                               full=False,
+                                               idxoffset=idx_stimuli,
+                                               suffix='listener')
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
@@ -400,6 +424,15 @@ class ReferentialGame(object):
                     # //------------------------------------------------------------//
                     
                 if logger is not None:
+                    if mode == 'test':  
+                        max_nbr_samples = None
+                    else:   
+                        max_nbr_samples = int(len(total_sentences)*0.1)
+
+                    topo_sims, pvalues = logger.measure_topographic_similarity(max_nbr_samples=max_nbr_samples)
+                    for agent_id in topo_sims:
+                        logger.add_scalar('{}/{}/Topographic Similarity (%)'.format(mode,agent_id), topo_sims[agent_id], epoch)
+                    
                     logger.switch_epoch()
 
             # Save agent:
