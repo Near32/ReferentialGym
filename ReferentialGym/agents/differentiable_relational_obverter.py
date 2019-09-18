@@ -26,6 +26,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         super(DifferentiableRelationalObverterAgent, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
         self.kwargs = kwargs 
         self.use_sentences_one_hot_vectors = True
+        self.use_learning_not_target_logit = True
 
         cnn_input_shape = self.obs_shape[2:]
         if self.kwargs['architecture'] == 'CNN':
@@ -66,7 +67,7 @@ class DifferentiableRelationalObverterAgent(Listener):
                                                   MHDPANbrMLPUnit=self.kwargs['mhdpa_nbr_mlp_unit'],
                                                   MHDPAInteractionDim=self.kwargs['mhdpa_interaction_dim'])
         
-        self.kwargs['thought_space_depth_dim'] = self.kwargs['cnn_encoder_channels'][-1]
+        self.kwargs['thought_space_depth_dim'] = self.cnn_encoder.feat_map_depth
         self.visual_feat_spatial_dim = self.cnn_encoder.feat_map_dim
         self.mm_ponderer_depth_dim = self.kwargs['thought_space_depth_dim']+4
         # feat_depth_dim + X coord + Y coord + T coord + Vocab Coord
@@ -83,8 +84,8 @@ class DifferentiableRelationalObverterAgent(Listener):
                                     dropout_prob=self.kwargs['dropout_prob'])
         
         self.nbr_distractors_po = self.kwargs['nbr_distractors']+1
-        self.visualXYDTS = None
-        self.symbolXYDTS = None 
+        self.visualXYTS = None
+        self.symbolicXYTS = None 
 
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['thought_space_depth_dim'], bias=False)
 
@@ -120,31 +121,32 @@ class DifferentiableRelationalObverterAgent(Listener):
             features: Tensor of shape `(batch_size, -1, nbr_stimulus, feature_dim).
         """
         batch_size = experiences.size(0)
+        nbr_distractors_po = experiences.size(1)
         experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
         total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
-            feat_map = self.cnn_encoder(stin)
-            # (mini_batch_size x though_space_depth_dim x visual_feat_spatial_dim x visual_feat_spatial_dim )
+            feat_map = self.cnn_encoder._compute_feat_map(stin)
+            # (mini_batch_size x thought_space_depth_dim x visual_feat_spatial_dim x visual_feat_spatial_dim )
             features.append( feat_map)
         features = torch.cat(features, dim=0)
-        features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['though_space_depth_dim'], self.visual_feat_spatial_dim, self.visual_feat_spatial_dim)
-        # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) x nbr_stimulus x though_space_depth_dim x ..nbr_visual_entity.. )
+        features = features.view(batch_size, nbr_distractors_po, self.kwargs['nbr_stimulus'], -1, self.visual_feat_spatial_dim, self.visual_feat_spatial_dim)
+        # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) x nbr_stimulus x thought_space_depth_dim x ..nbr_visual_entity.. )
 
         features = self._makeVisualXYTSfeatures(features)
         # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) 
-        # x nbr_stimulus x mm_ponderer_depth_dim=though_space_depth_dim+4 x ..nbr_visual_entity.. )
+        # x nbr_stimulus x mm_ponderer_depth_dim=thought_space_depth_dim+4 x ..nbr_visual_entity.. )
 
         return features 
 
     def _makeVisualXYTSfeatures(self, features):
-        # (batch_size x nbr_distractors+1 x nbr_stimulus x though_space_depth_dim x ..nbr_visual_entity_per_stimulus.. )
+        # (batch_size x nbr_distractors+1 x nbr_stimulus x thought_space_depth_dim x ..nbr_visual_entity_per_stimulus.. )
         fsize = features.size()
         batch_size = fsize[0]
         nbr_distractors_po = fsize[1] 
 
-        if self.visualXYDTS is None:
+        if self.visualXYTS is None:
             sizeX = fsize[4]
             sizeY = fsize[5]
             sizeT = fsize[2]
@@ -183,29 +185,29 @@ class DifferentiableRelationalObverterAgent(Listener):
             self.visualXYTS = fXYTS
             # (1 x 1 x nbr_stimulus x 5 x ..nbr_visual_entity.. )
             
-        fXYDTS = self.visualXYTS.repeat(batch_size, nbr_distractors_po, 1, 1, 1, 1)
+        fXYTS = self.visualXYTS.repeat(batch_size, nbr_distractors_po, 1, 1, 1, 1)
         # (batch_size x nbr_distractors_po x nbr_stimulus x 5 x ..nbr_visual_entity_per_stimulus.. )
 
-        if features.is_cuda: fXYDTS = fXYDTS.cuda()
-        out = torch.cat([x, fXYDTS], dim=3)
+        if features.is_cuda: fXYTS = fXYTS.cuda()
+        out = torch.cat([features, fXYTS], dim=3)
         # (batch_size 
         # x nbr_distractors_po x nbr_stimulus 
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5 x ..nbr_visual_entity_per_stimulus.. )
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5 x ..nbr_visual_entity_per_stimulus.. )
 
         return out
 
 
     def _makeSymbolicXYTSfeatures(self, sentences):
-        # (batch_size x sentence_length x though_space_depth_dim )
-        # (batch_size, d=1, t=1, mm_ponderer_depth_dim=though_space_depth_dim+4, x*y=sentence_length)
+        # (batch_size x sentence_length x thought_space_depth_dim )
+        # (batch_size, d=1, t=1, mm_ponderer_depth_dim=thought_space_depth_dim+4, x*y=sentence_length)
         ssize = sentences.size()
         batch_size = ssize[0]
         sentence_length = ssize[1]
 
-        sentences = sentences.transpose((0,2,1)).unsqueeze(1,2)
-        # (batch_size x 1 x 1 x though_space_depth_dim x sentence_length)
+        sentences = sentences.transpose(-2,-1).view(batch_size, 1, 1, -1, sentence_length)
+        # (batch_size x 1 x 1 x thought_space_depth_dim x sentence_length)
         
-        if self.symbolicXYDTS is None or sentence_length != self.sentence_length:
+        if self.symbolicXYTS is None or sentence_length != self.sentence_length:
             self.sentence_length = sentence_length
             stepS = 2.0/self.sentence_length
 
@@ -231,8 +233,8 @@ class DifferentiableRelationalObverterAgent(Listener):
         # (batch_size x d=1 x t=1 x 4 x ..nbr_symbolic_entity.. )
 
         if sentences.is_cuda: sXYTS = sXYTS.cuda()
-        out = torch.cat([sentences, sXYDTS], dim=3)
-        # (batch_size x d=1 x t=1 x mm_ponderer_depth_dim=though_space_depth_dim+4 x ..nbr_symbolic_entity.. )
+        out = torch.cat([sentences, sXYTS], dim=3)
+        # (batch_size x d=1 x t=1 x mm_ponderer_depth_dim=thought_space_depth_dim+4 x ..nbr_symbolic_entity.. )
         return out
         
     def _reason(self, sentences, features):
@@ -240,7 +242,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         Reasons about the features and sentences to yield the target-prediction logits.
         
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param features: Tensor of shape `(batch_size, nbr_distractors_po, nbr_stimulus, mm_ponderer_depth_dim=though_space_depth_dim+5, ..nbr_visual_entity..)`.
+        :param features: Tensor of shape `(batch_size, nbr_distractors_po, nbr_stimulus, mm_ponderer_depth_dim=thought_space_depth_dim+5, ..nbr_visual_entity..)`.
         
         :returns:
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
@@ -249,54 +251,64 @@ class DifferentiableRelationalObverterAgent(Listener):
         batch_size = features.size(0)
         nbr_distractors_po = features.size(1)
         # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) x nbr_stimulus 
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5 x ..nbr_visual_entity.. )
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5 x ..nbr_visual_entity.. )
         
         # Format the visual entities:
         self.visual_entities = features.view(*(features.size()[:-3]), -1).transpose(-2,-1).view((batch_size, nbr_distractors_po, -1, self.mm_ponderer_depth_dim))
         # (batch_size 
         # x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) 
         # x nbr_visual_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
         
         # Format the symbolic entities:
-        encoded_sentences = self.symbol_encoder( sentences.view((-1,self.vocab_size))).view(batch_size, -1, self.vocab_size)
+        encoded_sentences = self.symbol_encoder( sentences.view((-1,self.vocab_size))).view(batch_size, self.max_sentence_length, -1)
         self.symbolic_entities = self._makeSymbolicXYTSfeatures(encoded_sentences)
         self.symbolic_entities = self.symbolic_entities.transpose(-2,-1).view((batch_size, 1, -1, self.mm_ponderer_depth_dim))
         # (batch_size 
-        # x 1 * 1 * nbr_symbolic_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x 1 
+        # x nbr_symbolic_entity
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
         self.symbolic_entities = self.symbolic_entities.repeat((1,nbr_distractors_po,1,1))
         # (batch_size 
         # x nbr_distractors_po
         # x nbr_symbolic_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
 
         # Thoughts to ponder:
-        self.thoughts = torch.cat([self.visual_entities, self.symbolic_entities], dim=1)
+        self.thoughts = torch.cat([self.visual_entities, self.symbolic_entities], dim=2)
         # (batch_size 
         # x nbr_distractors_po
         # x nbr_visual_entity + nbr_symbolic_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
-        
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
+
+        mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], batch_size)
         self.pondered_thoughts = []
         for d in range(nbr_distractors_po):
-            self.pondered_thoughts.append( self.mm_ponderer(self.thoughts[:,d,...]).unsqueeze(1) )
-        self.pondered_thoughts = torch.cat(self.pondered_thoughts, dim=1)
+            augx = self.thoughts[:,d,...]
+            outs = []
+            for augxin in torch.split(augx, split_size_or_sections=mini_batch_size, dim=0):
+                augxin = augxin.transpose(-2,-1)
+                out = self.mm_ponderer(augx=augxin).unsqueeze(1)
+                out = out.transpose(-2,-1)
+                outs.append(out)
+            outs = torch.cat(outs, dim=0)
+            self.pondered_thoughts.append( outs )
+        self.pondered_thoughts = torch.cat(self.pondered_thoughts, dim=1).contiguous()
         # (batch_size 
         # x nbr_distractors_po
         # x nbr_visual_entity + nbr_symbolic_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
         
-        self.pondered_visual_entities = self.pondered_thoughts[:,:,:self.nbr_visual_entity,...]
+        self.pondered_visual_entities = self.pondered_thoughts[:,:,:self.nbr_visual_entity,...].contiguous()
         # (batch_size 
         # x nbr_distractors_po
         # x nbr_visual_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
         
-        self.pondered_symbolic_entities = self.pondered_thoughts[:,:,self.nbr_visual_entity+1:,...].mean(1)
+        self.pondered_symbolic_entities = self.pondered_thoughts[:,:,self.nbr_visual_entity:,...].mean(1).contiguous()
         # (batch_size 
         # x nbr_symbolic_entity
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5)
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5)
 
         # Compute the decision: 
         decision_logits = []
@@ -305,9 +317,9 @@ class DifferentiableRelationalObverterAgent(Listener):
             # (batch_size, mm_ponderer_depth_dim)
             emb = self.pondered_visual_entities.view((batch_size, nbr_distractors_po, self.nbr_visual_entity, -1, 1)).transpose(-2,-1)
             #  batch_size, nbr_distractors_po, nbr_visual_entity, 1, mm_ponderer_depth_dim)
-            din = decision_inputs[b].view((batch_size, 1, 1, -1, 1)).repeat(1, nbr_distractors_po, self.nbr_visual_entity, 1, 1)
+            din = decision_inputs.view((batch_size, 1, 1, -1, 1)).repeat(1, nbr_distractors_po, self.nbr_visual_entity, 1, 1)
             # (batch_size, nbr_distractors_po, nbr_visual_entity, mm_ponderer_depth_dim, 1)
-            dl_per_visual_entity = torch.matmul( emb, din).squeeze()
+            dl_per_visual_entity = torch.matmul( emb, din).view((batch_size, nbr_distractors_po, self.nbr_visual_entity))
             # (batch_size, nbr_distractors_po, nbr_visual_entity)
             decision_logits4widx = dl_per_visual_entity.mean(-1)
             # (batch_size, nbr_distractors_po)
@@ -319,7 +331,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         # Accumulate the decisions over the sentence in a forward manner:
         acc_idx = 0
         for idx in range(1,decision_logits.size(1)):
-            decision_logits[:,idx,...] += (acc_idx+1)*decision_logits[:,acc_idx,:]
+            decision_logits[:,idx,...] += (acc_idx+1)*decision_logits[:,acc_idx,...]
             acc_idx += 1
             decision_logits[:,idx,...] /= (acc_idx+1)
 
@@ -350,7 +362,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         """
         batch_size = features.size(0)
         # (batch_size x nbr_distractors+1 / ? (descriptive mode depends on the role of the agent) x nbr_stimulus 
-        # x mm_ponderer_depth_dim=though_space_depth_dim+5 x ..nbr_visual_entity.. )
+        # x mm_ponderer_depth_dim=thought_space_depth_dim+5 x ..nbr_visual_entity.. )
         
         # The operation (max/min) to use during the computation of the sentences
         # depends on the current role of the agent, that is determined by 
@@ -362,7 +374,7 @@ class DifferentiableRelationalObverterAgent(Listener):
         # Similarly, as a speaker/teacher, it is assumed that `target_idx=0`.
         # TODO: decide on a strategy for the listener/student's predicted_target_idx's argument...
         predicted_target_idx = torch.zeros((batch_size, )).long()
-        if visual_entities.is_cuda: predicted_target_idx = predicted_target_idx.cuda()
+        if features.is_cuda: predicted_target_idx = predicted_target_idx.cuda()
 
         self.allowed_vocab_size = self.vocab_size//2
         if False:#self.train:
@@ -387,9 +399,8 @@ class DifferentiableRelationalObverterAgent(Listener):
             vocab_stop_idx=self.vocab_size-1,
             use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
             use_stop_word=False,
-            _compute_tau=self._compute_tau,
+            _compute_tau=None,#self._compute_tau,
             not_target_logits_per_token=self.not_target_logits_per_token if self.use_learning_not_target_logit else None,
-            use_sentences_one_hot_vectors=self.use_sentences_one_hot_vectors,
             logger=self.logger)
 
         return next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
@@ -407,7 +418,6 @@ class DifferentiableRelationalObverterAgent(Listener):
                           use_stop_word=False,
                           _compute_tau=None,
                           not_target_logits_per_token=None,
-                          use_sentences_one_hot_vectors=False,
                           logger=None):
         """Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
@@ -442,10 +452,9 @@ class DifferentiableRelationalObverterAgent(Listener):
                                 It represents the sentences as one-hot-encoded word vectors.
         
         """
-        import ipdb; ipdb.set_trace()
-
         batch_size = features.size(0)
         nbr_distractors_po = features.size(1)
+        nbr_distractors_pt = nbr_distractors_po+1
 
         arange_vocab = torch.arange(vocab_size).float().view((1,vocab_size))
         arange_allowed_vocab = torch.arange(allowed_vocab_size).float()
@@ -453,14 +462,9 @@ class DifferentiableRelationalObverterAgent(Listener):
             arange_vocab = arange_vocab.cuda()
             arange_allowed_vocab = arange_allowed_vocab.cuda()
         
-        if use_sentences_one_hot_vectors:
-            vocab_vectors = torch.zeros((allowed_vocab_size, vocab_size))
-            # (allowed_vocab_size, vocab_size)
-            for i in range(allowed_vocab_size): vocab_vectors[i,i] = 1.0
-        else:
-            vocab_vectors = torch.zeros((allowed_vocab_size,1)).long()
-            # (allowed_vocab, 1)
-            for i in range(allowed_vocab_size): vocab_vectors[i] = i
+        vocab_vectors = torch.zeros((allowed_vocab_size, vocab_size))
+        # (allowed_vocab_size, vocab_size)
+        for i in range(allowed_vocab_size): vocab_vectors[i,i] = 1.0
         if features.is_cuda: vocab_vectors = vocab_vectors.cuda()
         vocab_vectors = vocab_vectors.view((allowed_vocab_size,1,-1))
         # (batch_size=allowed_vocab_size, 1, vocab_size)
@@ -479,33 +483,49 @@ class DifferentiableRelationalObverterAgent(Listener):
 
         relevant_batch = list(range(batch_size))
         for sentence_token_idx in range(max_sentence_length):
-            sentences = sentences_one_hots[relevant_batch]
+            rsentences = sentences_one_hots[relevant_batch]
             # (cbatch_size, max_sentence_length, vocab_size)
-            cbatch_size = sentences.size(0)
+            rfeatures = features[relevant_batch]
+            cbatch_size = rsentences.size(0)
 
-            sentences = sentences.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1) 
+            rsentences = rsentences.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1) 
             # (cbatch_size, allowed_vocab_size, max_sentence_length, vocab_size)
             for vidx in range(allowed_vocab_size):
-                sentences[:,vidx,sentence_token_idx,:] = vocab_vectors[vidx].view((1,-1)).repeat(cbatch_size,1)
-            sentences = sentences.view((-1, max_sentence_length, vocab_size))
+                rsentences[:,vidx,sentence_token_idx,:] = vocab_vectors[vidx].view((1,-1)).repeat(cbatch_size,1)
+            rsentences = rsentences.view((-1, max_sentence_length, vocab_size))
             # (cbatch_size*allowed_vocab_size, max_sentence_length, vocab_size)
             
-            acc_decision_logits, _ = _reason(sentences, features)
+            rfeatures4allowed_vocab = rfeatures.repeat_interleave(repeats=allowed_vocab_size,dim=0)
+            acc_decision_logits, _ = _reason(rsentences, rfeatures4allowed_vocab)
             # (cbatch_size*allowed_vocab_size, max_sentence_length, nbr_distractors_po)
-            decision_logits = acc_decision_logits[:,-1].view((cbatch_size, allowed_vocab_size*nbr_distractors_po))
+            decision_logits = acc_decision_logits[:,-1].contiguous().view((cbatch_size, allowed_vocab_size*nbr_distractors_pt))
+            # (cbatch_size*allowed_vocab_size, max_sentence_length, nbr_distractors_pt)
             
             tau0 = 1e1
             # Probs over Distractors and Vocab: 
             decision_probs = F.softmax( decision_logits, dim=-1).view((cbatch_size, allowed_vocab_size, -1))
+            # (cbatch_size, allowed_vocab_size, nbr_distractors_pt)
             decision_probs_least_effort = F.softmax( decision_logits*tau0, dim=-1).view((cbatch_size, allowed_vocab_size, -1))
+            # (cbatch_size, allowed_vocab_size, nbr_distractors_pt)
             
-            target_decision_probs_per_vocab_logits = decision_probs[:,:,btarget_idx]
-            target_decision_probs_least_effort_per_vocab_logits = decision_probs_least_effort[:,:,btarget_idx]
+            ctarget_idx = target_idx[relevant_batch]
+            target_decision_probs_per_vocab_logits = []
+            for cbidx, ctidx in enumerate(ctarget_idx):
+                d = decision_probs[cbidx].index_select(index=ctidx, dim=-1).unsqueeze(0)
+                target_decision_probs_per_vocab_logits.append(d)
+            target_decision_probs_per_vocab_logits = torch.cat(target_decision_probs_per_vocab_logits, dim=0).view((cbatch_size, allowed_vocab_size))
+            # (cbatch_size, allowed_vocab_size)
+            
+            target_decision_probs_least_effort_per_vocab_logits = []
+            for cbidx, ctidx in enumerate(ctarget_idx):
+                d = decision_probs_least_effort[cbidx].index_select(index=ctidx, dim=-1).unsqueeze(0)
+                target_decision_probs_least_effort_per_vocab_logits.append(d)
+            target_decision_probs_least_effort_per_vocab_logits = torch.cat(target_decision_probs_least_effort_per_vocab_logits, dim=0).view((cbatch_size, allowed_vocab_size))
             # (cbatch_size, allowed_vocab_size)
             
             tau = 1.0/5e0 
             if _compute_tau is not None:    
-                cemb = features[relevant_batch]
+                cemb = rfeatures
                 ctarget_idx = target_idx[relevant_batch]
                 emb = []
                 for cbidx, ctidx in enumerate(ctarget_idx):
@@ -514,6 +534,7 @@ class DifferentiableRelationalObverterAgent(Listener):
                 tau = _compute_tau(tau0=tau, emb=emb)
             else:
                 tau = tau*torch.ones((cbatch_size,1))
+                if target_decision_probs_least_effort_per_vocab_logits.is_cuda: tau = tau.cuda()
             # The closer to zero this value is, the more accurate the operation is.
             if logger is not None: 
                 it = 0
@@ -541,9 +562,9 @@ class DifferentiableRelationalObverterAgent(Listener):
             for (bidx, diff_widx_argop, td_logits) in zip(relevant_batch, vocab_idx_argop, target_decision_probs_least_effort_per_vocab_logits):
                 vocab_idx_op = td_logits[diff_widx_argop.long()]
             
-                sentences_widx[bidx, sentences_widx] = diff_widx_argop
-                sentences_logits[bidx, sentences_widx] = td_logits.view((1,-1))
-                sentences_one_hots[bidx, sentences_widx] = nn.functional.one_hot(diff_widx_argop.long(), num_classes=vocab_size).view((1,-1))
+                sentences_widx[bidx, sentence_token_idx] = diff_widx_argop
+                sentences_logits[bidx, sentence_token_idx] = td_logits.view((1,-1))
+                sentences_one_hots[bidx, sentence_token_idx] = nn.functional.one_hot(diff_widx_argop.long(), num_classes=vocab_size).view((1,-1))
                 
                 if use_obverter_threshold_to_stop_message_generation:
                     if operation == torch.max:

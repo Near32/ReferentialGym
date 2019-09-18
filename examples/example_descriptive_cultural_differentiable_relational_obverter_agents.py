@@ -27,7 +27,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          0,
+      "nbr_distractors":          15,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -37,20 +37,20 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.5, 
+      "descriptive_target_ratio": 0.99, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
 
-      "object_centric":           False,
+      "object_centric":           True,
       
       "nbr_stimulus":             1,
 
       "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.1,
-      "vocab_size":               5,
+      "vocab_size":               20,
 
-      "agent_architecture":       'pretrained-ResNet18-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretraind-ResNet18-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -67,7 +67,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               4,
+      "batch_size":               64,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      64,#28,
@@ -103,10 +103,11 @@ def test_example_cultural_obverter_agents():
   assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
-  assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
+  #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
   skip_interval = 24
-  save_path = './SoCLEVR-S24-T50-'
+  #save_path = './SoCLEVR-S24-T50-'
+  save_path = './MineRL-S24-T50-'
   save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
   
   if rg_config['use_homoscedastic_multitasks_loss']:
@@ -173,7 +174,7 @@ def test_example_cultural_obverter_agents():
   agent_config['ponderer_nbr_head'] = 4
   agent_config['ponderer_nbr_rec_update'] = 1
   agent_config['ponderer_nbr_mlp_units'] = 128
-  agent_config['ponderer_interactions_dim'] = 128
+  agent_config['ponderer_interactions_dim'] = 32
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
@@ -308,7 +309,6 @@ def test_example_cultural_obverter_agents():
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   
-  '''
   dataset_args = {
       "dataset_class":            None,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
@@ -325,6 +325,7 @@ def test_example_cultural_obverter_agents():
 
   dataset_args['train_dataset'] = train_dataset
   dataset_args['test_dataset'] = test_dataset
+  
   '''  
 
   nbrSampledQstPerImg = 5
@@ -343,12 +344,13 @@ def test_example_cultural_obverter_agents():
       "descriptive":              rg_config['descriptive'],
       "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
+  '''
   
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
 
   # In[22]:
 
-  nbr_epoch = 200
+  nbr_epoch = 100
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,
