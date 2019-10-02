@@ -14,6 +14,7 @@ import torchvision.transforms as T
 
 
 def test_example_cultural_obverter_agents():
+  torch.autograd.set_detect_anomaly(True)
   seed = 20
   torch.manual_seed(seed)
   np.random.seed(seed)
@@ -27,7 +28,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          4,
+      "nbr_distractors":          1,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -42,13 +43,13 @@ def test_example_cultural_obverter_agents():
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
 
-      "object_centric":           True,
+      "object_centric":           False,
       
       "nbr_stimulus":             1,
 
       "graphtype":                'obverter', #'[informed-]obverter'/reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.1,
-      "vocab_size":               20,
+      "vocab_size":               10,
 
       "agent_architecture":       'pretrained-ResNetBetaVAE-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
@@ -67,10 +68,10 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               64,
+      "batch_size":               128,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
-      "stimulus_resize_dim":      64,#28,
+      "stimulus_resize_dim":      32,#28,
       
       "learning_rate":            6e-4,
       "adam_eps":                 1e-5,
@@ -105,12 +106,17 @@ def test_example_cultural_obverter_agents():
 
   #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  vae_beta = 1e3
+  vae_beta = 1e0
   maxCap = 1e2
-  nbrepochtillmaxcap = 10
-  skip_interval = 24
-  #save_path = './SoC-MineRL-S24-T100-f512'
-  save_path = './MineRL-S{}+LVAE+RDec'.format(skip_interval)
+  nbrepochtillmaxcap = 4
+  skip_interval = 48
+  #save_path = './FashionMNIST+LVAE+RDec'
+  
+  #save_path = './SoC+L6VAE+BrDec+AttPrior'
+  #save_path = './SoC+BetaVAE+BrDec'
+  
+  save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
+  
   #save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
   #save_path += 'NLLLoss' #'MSELoss'
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
@@ -208,20 +214,57 @@ def test_example_cultural_obverter_agents():
     agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  elif 'ResNetBetaVAE' in agent_config['architecture']:
+  elif 'BetaVAE' in agent_config['architecture']:
     # ResNet18-2:
+    '''
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-    agent_config['cnn_encoder_feature_dim'] = 256
+    '''
+    agent_config['vae_nbr_latent_dim'] = 32
+    agent_config['vae_decoder_nbr_layer'] = 3#4
+    agent_config['vae_decoder_conv_dim'] = 32
+    
+    agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']
+    
     agent_config['vae_beta'] = vae_beta
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
-    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
+    
+    agent_config['cnn_encoder_mini_batch_size'] = rg_config['batch_size']
     agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 32
+    
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'ResidualPABetaVAE' in agent_config['architecture'] or 'PHDPABetaVAE' in agent_config['architecture']:
+    # ResNet18-2:
+    '''
+    agent_config['cnn_encoder_channels'] = [32, 32, 64]
+    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+    agent_config['cnn_encoder_strides'] = [4, 2, 1]
+    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+    '''
+    agent_config['vae_nbr_attention_slot'] = 10
+    agent_config['vae_nbr_latent_dim'] = 6
+    agent_config['vae_decoder_nbr_layer'] = 3
+    agent_config['vae_decoder_conv_dim'] = 32
+    
+    agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']*agent_config['vae_nbr_attention_slot']
+    
+    agent_config['vae_beta'] = vae_beta
+    agent_config['vae_max_capacity'] = maxCap
+    agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
+    agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
+    
+    agent_config['cnn_encoder_mini_batch_size'] = rg_config['batch_size']
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
@@ -345,12 +388,29 @@ def test_example_cultural_obverter_agents():
 
   dataset_args['train_dataset'] = train_dataset
   dataset_args['test_dataset'] = test_dataset
-  
-
   '''
-  nbrSampledQstPerImg = 5
+
+  nbrSampledQstPerImg = 1#5
   train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=True, transform=transform, generate=True, nbrSampledQstPerImg=nbrSampledQstPerImg)
   test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=False, transform=transform, generate=True, nbrSampledQstPerImg=1)
+  
+  dataset_args = {
+      "dataset_class":            "LabeledDataset",
+      "train_dataset":            train_dataset,
+      "test_dataset":             test_dataset,
+      "nbr_stimulus":             rg_config['nbr_stimulus'],
+      "distractor_sampling":      rg_config['distractor_sampling'],
+      "nbr_distractors":          rg_config['nbr_distractors'],
+      "observability":            rg_config['observability'],
+      "object_centric":           rg_config['object_centric'],
+      "descriptive":              rg_config['descriptive'],
+      "descriptive_target_ratio": rg_config['descriptive_target_ratio']
+  }
+  '''
+
+  '''
+  train_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=True, transform=transform, download=True)
+  test_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=False, transform=transform, download=True)
   
   dataset_args = {
       "dataset_class":            "LabeledDataset",

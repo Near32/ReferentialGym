@@ -144,6 +144,8 @@ class ReferentialGame(object):
                         speaker.eval()
                         listener.eval()
                     
+                    if sample['speaker_experiences'].size(0) ==1: continue
+
                     if self.config['use_cuda']:
                         sample = sample.cuda()
 
@@ -245,7 +247,7 @@ class ReferentialGame(object):
                         sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
                     
                     if logger is not None:
-                        if self.config['with_grad_logging']:
+                        if self.config['with_grad_logging'] and mode == 'train':
                             maxgrad = 0.0
                             for name, p in speaker.named_parameters() :
                                 if hasattr(p,'grad') and p.grad is not None:
@@ -341,7 +343,7 @@ class ReferentialGame(object):
                                                sample=sample['speaker_experiences'],
                                                path=image_save_path,
                                                test=('test' in mode),
-                                               full=False,
+                                               full=('test' in mode),
                                                idxoffset=idx_stimuli,
                                                suffix='speaker')
 
@@ -349,7 +351,7 @@ class ReferentialGame(object):
                                                sample=sample['listener_experiences'],
                                                path=image_save_path,
                                                test=('test' in mode),
-                                               full=False,
+                                               full=('test' in mode),
                                                idxoffset=idx_stimuli,
                                                suffix='listener')
                     # //------------------------------------------------------------//

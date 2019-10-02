@@ -13,7 +13,13 @@ from .dataset import Dataset, shuffle
 
 
 class MineRLDataset(Dataset):
-    def __init__(self, kwargs, root, train=True, transform=None, download=False, experiments=['MineRLObtainDiamond-v0'], skip_interval=0):
+    def __init__(self, kwargs, 
+                       root, 
+                       train=True, 
+                       transform=None, 
+                       download=False, 
+                       experiments=['MineRLObtainDiamond-v0'], 
+                       skip_interval=0):
         super(MineRLDataset, self).__init__(kwargs=kwargs)
         
         self.kwargs = kwargs
@@ -122,7 +128,7 @@ class MineRLDataset(Dataset):
         _, target = self.dataset[idx]
         return target
 
-    def _get(self, idx):
+    def _get(self, idx, focus_on_sides=False):
         """
         Args:
             idx (int): Index
@@ -136,7 +142,14 @@ class MineRLDataset(Dataset):
         idx_in_exptraj, exptraj = self.dataset[idx]
 
         imgs, target = self.trajectories[exptraj][idx_in_exptraj], self.exptraj2int[exptraj]
-        img = random.choice(imgs)
+        
+        if focus_on_sides:
+            s1 = random.randint(0,len(imgs)//8)
+            s2 = random.randint(0,2)
+            if s2: s1 = len(imgs)-s1-1
+            img = imgs[s1]
+        else:
+            img = random.choice(imgs)
 
         img = Image.fromarray(img, mode='RGB')
 
@@ -147,7 +160,11 @@ class MineRLDataset(Dataset):
 
         return tr_img, target
 
-    def sample(self, idx: int = None, from_class: List[int] = None, excepts: List[int] = None, target_only: bool = False) -> Tuple[torch.Tensor, List[int]]:
+    def sample(self, idx: int = None, 
+                     from_class: List[int] = None, 
+                     excepts: List[int] = None, 
+                     target_only: bool = False,
+                     focus_on_sides: bool = False) -> Tuple[torch.Tensor, List[int]]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
@@ -201,7 +218,7 @@ class MineRLDataset(Dataset):
         experiences = []
         exp_labels = []
         for idx in indices:
-            exp, tc = self._get(idx)
+            exp, tc = self._get(idx, focus_on_sides=focus_on_sides)
             experiences.append(exp.unsqueeze(0))
             exp_labels.append(tc)
             if target_only: break
@@ -248,7 +265,7 @@ class MineRLDataset(Dataset):
                     is tantamount to seeing the same object on another viewpoint.
                     Thus, it is an object-centric approach.
                     '''
-                    listener_experiences[:,0] = self.sample(idx=idx, from_class=[exp_labels[0]], target_only=True)[0].unsqueeze(0)
+                    listener_experiences[:,0] = self.sample(idx=idx, from_class=[exp_labels[0]], target_only=True, focus_on_sides=True)[0].unsqueeze(0)
                 listener_experiences, target_decision_idx = shuffle(listener_experiences)
             else:
                 # Target experience is excluded from the experiences yielded to the listener:

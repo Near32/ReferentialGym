@@ -19,11 +19,11 @@ def handle_nan(layer, verbose=True):
         if param is None or param.data is None: continue
         nan_indices = torch.isnan(layer._parameters[name].data)
         if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in {}.".format(name))
-        layer._parameters[name].data[nan_indices]=0
+        layer._parameters[name].data[nan_indices] = 0
         if param.grad is None: continue
         nan_indices = torch.isnan(layer._parameters[name].grad.data)
         if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in the GRADIENT of {}.".format(name))
-        layer._parameters[name].grad.data[nan_indices]=0
+        layer._parameters[name].grad.data[nan_indices] = 0
         
 def layer_init(layer, w_scale=1.0):
     for name, param in layer._parameters.items():
@@ -132,7 +132,6 @@ class ConvolutionalBody(nn.Module):
             self.convs.append( layer_init(nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=k, stride=s, padding=p), w_scale=math.sqrt(2)))
             # Update of the shape of the input-image, following Conv:
             dim = (dim-k+2*p)//s+1
-            print(dim)
         
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
@@ -438,6 +437,7 @@ class ModelResNet18(models.ResNet):
         for idx_layer in range(nbr_layer):
             dim = math.ceil(float(dim) / layers_divisions[idx_layer])
             depth = layers_depths[idx_layer]
+            print(dim, depth)
 
         return dim, depth
 
@@ -484,9 +484,8 @@ class ModelResNet18(models.ResNet):
         
         return self.features_map
 
-    def forward(self, x):
-        self.features_map = self._compute_feat_map(x)
-        avgx = self.avgpool(self.features_map)
+    def _compute_features(self, features_map):
+        avgx = self.avgpool(features_map)
         #xsize = avgx.size()
         #print('avg: x:',xsize)
         fcx = avgx.view(avgx.size(0), -1)
@@ -495,8 +494,12 @@ class ModelResNet18(models.ResNet):
         fcx = self.fc(fcx)
         #xsize = fcx.size()
         #print('fc output: x:',xsize)
-        
         return fcx
+
+    def forward(self, x):
+        self.features_map = self._compute_feat_map(x)
+        self.features = self._compute_features(self.features_map)
+        return self.features
 
     def get_feature_shape(self):
         return self.feature_dim

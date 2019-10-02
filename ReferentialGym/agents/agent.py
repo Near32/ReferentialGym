@@ -125,6 +125,8 @@ class Agent(nn.Module):
         losses_dict = dict()
 
         if 'BetaVAE' in self.kwargs['architecture']:
+            if hasattr(self, 'TC_losses'):
+                losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
             if 'listener' in role or not('obverter' in inputs_dict['graphtype']):
                 losses_dict[f'{role}/VAE_loss'] = [1e-3, self.VAE_losses]
 

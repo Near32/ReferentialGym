@@ -172,7 +172,7 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
 
     save_path = os.path.join(path, 'generated_images/')
     if test :
-      os.path.join(save_path, 'test/')
+      save_path = os.path.join(save_path, 'test/')
     os.makedirs(save_path, exist_ok=True)
     save_path += 'query{}{}.png'.format(idxoffset, suffix)
     torchvision.utils.save_image(gen_images, save_path )
@@ -184,7 +184,47 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
   ri = torch.cat( [orimg, npfx], dim=2)
   save_path = os.path.join(path, 'reconstructed_images/')
   if test :
-    os.path.join(save_path, 'test/')
+    save_path = os.path.join(save_path, 'test/')
   os.makedirs(save_path, exist_ok=True)
-  save_path += 'query{}{}.png'.format(idxoffset, suffix)
-  torchvision.utils.save_image(ri,save_path )
+  query_save_path = save_path + 'query{}{}.png'.format(idxoffset, suffix)
+  torchvision.utils.save_image(ri,query_save_path )
+
+  if hasattr(model.encoder, 'attention_weights'):
+    attention_weights = model.encoder.attention_weights
+    seq_len = len(attention_weights)
+    attention = torch.cat([ attention[0].unsqueeze(0) for attention in attention_weights], dim=0).cpu().data.transpose(1,3).unsqueeze(2)
+    # seq_len x nbr_slots x 1 x spatialDim x spatialDim 
+    spatialDim = attention.size(-1)
+    # rescale between [0.25, 1.0]:
+    attention = 0.75*attention + 0.25
+    nbr_slot = attention.size(1)
+    orimg = orimg[0].unsqueeze(0).repeat(seq_len*nbr_slot, 1, 1, 1).cpu().data
+    # seq_len x 3 x img_w x img_h 
+
+    # resize:
+    imgw = orimg.size(-1)
+    resize = torchvision.transforms.Compose( [torchvision.transforms.ToPILImage(), 
+      torchvision.transforms.Resize(imgw),
+      torchvision.transforms.ToTensor()])
+    rattention = attention.contiguous().view(seq_len*nbr_slot, 1, spatialDim, spatialDim)
+    rattention = torch.cat([ resize(rattention[i]).unsqueeze(0) for i in range(seq_len*nbr_slot)], dim=0)
+    rattention = rattention.contiguous().view(seq_len*nbr_slot, 1, imgw, imgw)
+    # seq_len*nbr_slot x 1 x imgw x imgw 
+    rattention = rattention.contiguous().repeat(1,3,1,1)
+
+    att_img = rattention * orimg
+    grid_att_img = torchvision.utils.make_grid(att_img, nrow=nbr_slot)
+    att_save_path = save_path+'att{}{}.png'.format(idxoffset, suffix)
+    torchvision.utils.save_image(grid_att_img, att_save_path)
+
+
+def permutate_latents(z):
+    assert(z.dim() == 2)
+    batch_size, latent_dim = z.size()
+    pz = list()
+    for lz in torch.split(z, split_size_or_sections=1, dim=1):
+        b_perm = torch.randperm(batch_size).to(z.device)
+        p_lz = lz[b_perm]
+        pz.append(p_lz)
+    pz = torch.cat(pz, dim=1)
+    return pz 

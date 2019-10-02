@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from .listener import Listener
 from ..networks import choose_architecture, layer_init
-from ..utils import gumbel_softmax
+from ..utils import gumbel_softmax, permutate_latents
 
 
 class DifferentiableObverterAgent(Listener):
@@ -72,6 +72,15 @@ class DifferentiableObverterAgent(Listener):
                                                    dropout=self.kwargs['dropout_prob'])
             self.VAE = self.cnn_encoder
 
+            self.TC_losses = list()
+            self.vae_modularity = list()
+            if 'vae_tc_discriminator_hidden_units' in self.kwargs:
+                self.tc_discriminator = choose_architecture(architecture='MLP',
+                                                            input_shape=[self.VAE.latent_dim],
+                                                            hidden_units_list=self.kwargs['vae_tc_discriminator_hidden_units'])
+            else:
+                self.tc_discriminator = None
+
 
 
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
@@ -120,6 +129,9 @@ class DifferentiableObverterAgent(Listener):
             self.neg_log_likelyhoods.clear()
             self.kl_divs.clear()
             self.kl_div_regs.clear()
+            if self.tc_discriminator is not None:
+                self.TC_losses = list()
+                self.vae_modularity.clear()
 
     def _compute_tau(self, tau0, emb=None):
         if emb is None: emb = self.embedding_tf_final_outputs
@@ -150,6 +162,44 @@ class DifferentiableObverterAgent(Listener):
                 self.kl_divs.append(kl_div.cpu())
                 self.kl_div_regs.append(kl_div_reg.cpu())
                 featout = self.cnn_encoder.mu 
+
+                if self.tc_discriminator is not None:
+                    z = self.cnn_encoder.z.detach()
+                    z1, z2 = z.chunk(2, dim=0)
+                    
+                    zeros = torch.zeros(z1.size(0)).long().to(z1.device)
+                    ones = torch.ones(z2.size(0)).long().to(z2.device)
+                    
+                    pz = permutate_latents(z2)
+                    Dz = self.tc_discriminator(z1)
+                    Dpz = self.tc_discriminator(pz)
+                    tc_l11 = 0.5*F.cross_entropy(input=Dz, target=zeros, reduction='none')
+                    # (b1, )
+                    tc_l12 = 0.5*F.cross_entropy(input=Dpz, target=ones, reduction='none')
+                    # (b2, )
+                    
+                    zeros = torch.zeros(z2.size(0)).long().to(z2.device)
+                    ones = torch.ones(z1.size(0)).long().to(z1.device)
+                    
+                    pz = permutate_latents(z1)
+                    Dz = self.tc_discriminator(z2)
+                    Dpz = self.tc_discriminator(pz)
+                    tc_l21 = 0.5*F.cross_entropy(input=Dz, target=zeros, reduction='none')
+                    # (b1, )
+                    tc_l22 = 0.5*F.cross_entropy(input=Dpz, target=ones, reduction='none')
+                    # (b2, )
+                    
+                    tc_loss1 = tc_l11 + tc_l22
+                    tc_loss2 = tc_l12 + tc_l21
+                    
+                    tc_loss = torch.cat([tc_loss1, tc_loss2])
+                    # (b, )
+                    self.TC_losses.append(tc_loss)
+                    
+                    probDz = F.softmax(Dz.detach(), dim=1)[...,:1]
+                    probDpz = F.softmax(Dpz.detach(), dim=1)[...,1:]
+                    discr_acc = (torch.cat([probDz,probDpz],dim=0) >= 0.5).sum().float().div(2*probDz.size(0))
+                    self.vae_modularity.append(discr_acc.cpu().unsqueeze(0))
             else:
                 featout = self.cnn_encoder(stin)
             features.append( featout)
@@ -163,6 +213,9 @@ class DifferentiableObverterAgent(Listener):
             self.log_dict['kl_div_reg'] = torch.cat(self.kl_div_regs).mean()
             self.log_dict['kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
             self.log_dict['neg_log_lik'] = torch.cat(self.neg_log_likelyhoods).mean()
+            if self.tc_discriminator is not None:
+                self.TC_losses = torch.cat(self.TC_losses).contiguous().view((batch_size,-1)).mean(dim=-1)
+                self.log_dict['Modularity'] = torch.cat(self.vae_modularity).mean()
 
         return features 
 
