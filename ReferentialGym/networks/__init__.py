@@ -4,7 +4,7 @@ from .networks import ModelResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
 from .networks import layer_init, hasnan, handle_nan
 
-from .autoregressive_networks import BetaVAE
+from .autoregressive_networks import BetaVAE, MONet
 
 from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
 
@@ -118,5 +118,49 @@ def choose_architecture( architecture,
                        decoder_conv_dim=decoder_conv_dim,
                        maxEncodingCapacity=maxCap,
                        nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity)
+
+    if 'MONet' in architecture:
+        beta = kwargs['vae_beta']
+        gamma = kwargs['monet_gamma']
+
+        constrainedEncoding = False
+        if 'vae_constrainedEncoding' in kwargs:
+            constrainedEncoding = kwargs['vae_constrainedEncoding'] 
+        if constrainedEncoding:
+            maxCap = kwargs['vae_max_capacity']
+            nbrEpochTillMaxEncodingCapacity = kwargs['vae_nbr_epoch_till_max_capacity']
+        else:
+            maxCap = None,
+            nbrEpochTillMaxEncodingCapacity = None 
+
+        nbr_attention_slot = 10
+        if 'monet_nbr_attention_slot' in kwargs:
+            nbr_attention_slot = kwargs['monet_nbr_attention_slot']
+        latent_dim = feature_dim
+        if 'vae_nbr_latent_dim' in kwargs:
+            latent_dim = kwargs['vae_nbr_latent_dim']
+        
+        decoder_nbr_layer = 4
+        if 'vae_decoder_nbr_layer' in kwargs:
+            decoder_nbr_layer = kwargs['vae_decoder_nbr_layer']
+        if 'vae_decoder_conv_dim' in kwargs:
+            decoder_conv_dim = kwargs['vae_decoder_conv_dim']
+        
+        body = MONet(gamma=gamma,
+                     input_shape=input_shape, 
+                     nbr_attention_slot=nbr_attention_slot,
+                     anet_basis_nbr_channel=32,
+                     anet_block_depth=3,
+                     cvae_beta=beta, 
+                     cvae_latent_dim=latent_dim,
+                     cvae_decoder_conv_dim=decoder_conv_dim, 
+                     cvae_pretrained=False, 
+                     cvae_resnet_encoder=False,
+                     cvae_resnet_nbr_layer=2,
+                     cvae_decoder_nbr_layer=decoder_nbr_layer,
+                     cvae_maxEncodingCapacity=maxCap,
+                     cvae_nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity,
+                     cvae_constrainedEncoding=constrainedEncoding,
+                     cvae_observation_sigma=0.5)
 
     return body

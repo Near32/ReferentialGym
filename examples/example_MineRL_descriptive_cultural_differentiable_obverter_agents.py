@@ -6,7 +6,6 @@
 import random
 import numpy as np 
 import ReferentialGym
-import minerl
 
 import torch
 import torchvision
@@ -51,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               10,
 
-      "agent_architecture":       'pretrained-ResNetBetaVAE-2', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'MONet', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -68,7 +67,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
+      "batch_size":               64,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      32,#28,
@@ -106,16 +105,18 @@ def test_example_cultural_obverter_agents():
 
   #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  vae_beta = 1e0
+  vae_beta = 5e-1
+  monet_gamma = 5e-1
+  
   maxCap = 1e2
   nbrepochtillmaxcap = 4
   skip_interval = 48
   #save_path = './FashionMNIST+LVAE+RDec'
   
   #save_path = './SoC+L6VAE+BrDec+AttPrior'
-  #save_path = './SoC+BetaVAE+BrDec'
+  save_path = './SoC+'
   
-  save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
+  #save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
   
   #save_path += 'TF64-NoSW+VSS-SDP{}'.format(rg_config['dropout_prob'])
   #save_path += 'NLLLoss' #'MSELoss'
@@ -163,7 +164,7 @@ def test_example_cultural_obverter_agents():
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
     rg_config['agent_architecture'],
-    f'beta{vae_beta}MC{maxCap}over{nbrepochtillmaxcap}' if 'BetaVAE' in rg_config['agent_architecture'] else '')
+    f"beta{vae_beta}MC{maxCap}over{nbrepochtillmaxcap}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
 
   rg_config['save_path'] = save_path
 
@@ -215,13 +216,6 @@ def test_example_cultural_obverter_agents():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'BetaVAE' in agent_config['architecture']:
-    # ResNet18-2:
-    '''
-    agent_config['cnn_encoder_channels'] = [32, 32, 64]
-    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
-    agent_config['cnn_encoder_strides'] = [4, 2, 1]
-    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-    '''
     agent_config['vae_nbr_latent_dim'] = 32
     agent_config['vae_decoder_nbr_layer'] = 3#4
     agent_config['vae_decoder_conv_dim'] = 32
@@ -229,6 +223,29 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']
     
     agent_config['vae_beta'] = vae_beta
+    agent_config['vae_max_capacity'] = maxCap
+    agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
+    agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
+    
+    agent_config['cnn_encoder_mini_batch_size'] = rg_config['batch_size']
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  elif 'MONet' in agent_config['architecture']:
+    agent_config['monet_gamma'] = monet_gamma
+    agent_config['monet_nbr_attention_slot'] = 10
+
+    agent_config['vae_nbr_latent_dim'] = 10
+    agent_config['vae_decoder_nbr_layer'] = 3#4
+    agent_config['vae_decoder_conv_dim'] = 32
+    
+    agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']*agent_config['monet_nbr_attention_slot']
+    
+    agent_config['vae_beta'] = vae_beta
+    agent_config['vae_constrainedEncoding'] = True 
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
     agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
@@ -372,6 +389,7 @@ def test_example_cultural_obverter_agents():
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   
+  '''
   dataset_args = {
       "dataset_class":            None,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
@@ -406,8 +424,7 @@ def test_example_cultural_obverter_agents():
       "descriptive":              rg_config['descriptive'],
       "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
-  '''
-
+  
   '''
   train_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=True, transform=transform, download=True)
   test_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=False, transform=transform, download=True)

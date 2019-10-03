@@ -162,7 +162,7 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
 
       if use_cuda: var_z0 = var_z0.cuda()
 
-      gen_images_latent = model.decoder(var_z0)
+      gen_images_latent = model.decode(var_z0)
       npfx = gen_images_latent.cpu().data 
       
       gen_images.append(gen_images_latent)
@@ -177,7 +177,8 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
     save_path += 'query{}{}.png'.format(idxoffset, suffix)
     torchvision.utils.save_image(gen_images, save_path )
     
-  reconst_images,_ ,_ = model(fixed_x)
+  model_outputs = model(fixed_x)
+  reconst_images = model_outputs[0]
   
   npfx = reconst_images.cpu().data
   orimg = fixed_x

@@ -7,8 +7,10 @@ import torchvision
 from torchvision import models
 from torchvision.models.resnet import model_urls, BasicBlock
 
+import copy
 import math
 from numbers import Number 
+from functools import partial
 
 from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN
 
@@ -620,8 +622,6 @@ class BetaVAE(nn.Module) :
                                                                       net_depth=decoder_nbr_layer,
                                                                       conv_dim=decoder_conv_dim)
 
-        
-
     def get_feature_shape(self):
         return self.latent_dim
         
@@ -651,12 +651,19 @@ class BetaVAE(nn.Module) :
         self.z = self.reparameterize(self.mu, self.log_var)        
         return self.z, self.mu, self.log_var
 
+    def decode(self, z):
+        return self.decoder(z)
+
     def _forward(self,x=None,evaluation=False,fixed_latent=None,data=None) :
         if data is None and x is not None :
             if evaluation :
                 self.z, self.mu, self.log_var = self.encodeZ(x) 
             else :
-                self.VAE_output, self.mu, self.log_var = self(x)
+                self.x = x 
+                self.h = self.encoder(self.x)
+                self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
+                self.z = self.reparameterize(self.mu, self.log_var)
+                self.VAE_output = self.decoder(self.z)
         elif data is not None :
             self.mu, self.log_var = data 
             self.z = self.reparameterize(self.mu, self.log_var)
@@ -727,3 +734,344 @@ class BetaVAE(nn.Module) :
                 self.increaseEncodingCapacity = False 
         #--------------------------------------------------------------------------------------------------------------
         return self.VAE_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence
+
+
+class UNetBlock(nn.Module):
+    def __init__(self, 
+                 in_channel, 
+                 out_channel, 
+                 upsample=True, 
+                 interpolate=False,
+                 interpolation_factor=2,
+                 batch_norm=False):
+        super(UNetBlock, self).__init__()
+
+        self.upsample = upsample
+        self.interpolate = interpolate
+        self.interpolation_factor = interpolation_factor
+
+        self.norm = partial( nn.InstanceNorm2d, affine=True, track_running_stats=False)
+        if batch_norm:
+            self.norm = nn.BatchNorm2d
+
+        if self.upsample:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channel*2,in_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                self.norm(num_features=in_channel),
+                nn.LeakyReLU(0.05),
+                nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                self.norm(num_features=out_channel),
+                nn.LeakyReLU(0.05)
+            )
+        else:
+            self.layers = nn.Sequential(
+                nn.Conv2d(in_channel,out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                self.norm(num_features=out_channel),
+                nn.LeakyReLU(0.05),
+                nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                self.norm(num_features=out_channel),
+                nn.LeakyReLU(0.05)
+            )
+
+
+    def forward(self, x):
+        out = self.layers(x)
+        interout = out 
+        if self.interpolate:
+            interout = F.interpolate(out, scale_factor=self.interpolation_factor)
+        return interout, out
+
+
+class UNet(nn.Module):
+    def __init__(self, 
+                 in_channel, 
+                 out_channel, 
+                 basis_nbr_channel=32, 
+                 block_depth=3, 
+                 batch_norm=False):
+        super(UNet, self).__init__()
+
+        self.in_channel = in_channel
+        self.out_channel = out_channel
+        self.basis_nbr_channel = basis_nbr_channel
+        self.block_depth = block_depth
+
+        self.downsampling_blocks = nn.ModuleList()
+        running_nbr_channel = self.basis_nbr_channel
+        
+        interpolation = True
+        interpolation_factor=0.5
+        for ib in range(self.block_depth):
+            b = UNetBlock(in_channel, 
+                          running_nbr_channel,
+                          upsample=False,
+                          interpolate=interpolation,
+                          interpolation_factor=interpolation_factor,
+                          batch_norm=batch_norm)
+            self.downsampling_blocks.append(b)
+            in_channel = running_nbr_channel
+            running_nbr_channel *= 2
+
+        running_nbr_channel //= 2
+
+
+        self.mid_block = nn.Sequential(
+            nn.Conv2d(running_nbr_channel,running_nbr_channel*2, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.InstanceNorm2d(num_features=running_nbr_channel*2, affine=True, track_running_stats=False),
+            nn.LeakyReLU(0.05),
+            nn.Conv2d(running_nbr_channel*2, running_nbr_channel, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.InstanceNorm2d(num_features=running_nbr_channel, affine=True, track_running_stats=False),
+            nn.LeakyReLU(0.05)
+        )
+
+        in_channel = running_nbr_channel*2
+        running_nbr_channel //=2
+
+        self.upsampling_blocks = nn.ModuleList()
+        interpolation_factor = 2
+        for ib in range(self.block_depth):
+            b = UNetBlock(in_channel, 
+                          running_nbr_channel,
+                          upsample=False,
+                          interpolate=interpolation,
+                          interpolation_factor=interpolation_factor,
+                          batch_norm=batch_norm)
+            self.upsampling_blocks.append(b)
+            in_channel = 2 * running_nbr_channel
+            running_nbr_channel //= 2
+        running_nbr_channel *= 2
+
+        self.final_conv = nn.Conv2d(running_nbr_channel, self.out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+
+    def forward(self, x):
+        skipxs = list()
+        for bidx, block in enumerate(self.downsampling_blocks):
+            x, xout = block(x)
+            skipxs.append(xout)
+
+        x = self.mid_block(x)
+        x = F.interpolate(x, scale_factor=2)
+
+        for block, skipx in zip(self.upsampling_blocks, reversed(skipxs)):
+            xin = torch.cat([skipx, x], dim=1)
+            x, xout = block(xin)
+
+        # consuming the non-interpolated output:
+        y = self.final_conv(xout)
+
+        return y 
+
+
+
+class AttentionNetwork(nn.Module):
+    def __init__(self, 
+                 in_channel, 
+                 attention_basis_nbr_channel=32,
+                 attention_block_depth=3):
+        super(AttentionNetwork, self).__init__()
+        self.unet = UNet(in_channel=in_channel+1,
+                         out_channel=1,
+                         basis_nbr_channel=attention_basis_nbr_channel,
+                         block_depth=attention_block_depth)
+
+    def forward(self, x, logscope):
+        xin = torch.cat([logscope, x], dim=1)
+        xout = self.unet(xin)
+        # log( m_k ) = log( s_{k-1} * sigmoid(unet(xin)) )
+        logmask = logscope+F.logsigmoid(xout)
+        # log( s_k ) = log( s_{k-1} * (1-sigmoid(unet(xin))) ) = log(s_{k-1}) + log( 1-sigmoid(unet(xin))) (==sigmoid(-unet(xin)))
+        nlogscope = logscope+F.logsigmoid(-xout)
+        return logmask, nlogscope
+
+class MONet(BetaVAE):
+    def __init__(self,
+                 gamma=0.5,
+                 input_shape=[3, 64, 64], 
+                 nbr_attention_slot=10,
+                 anet_basis_nbr_channel=32,
+                 anet_block_depth=3,
+                 cvae_beta=0.5,
+                 cvae_latent_dim=10,
+                 cvae_decoder_conv_dim=32, 
+                 cvae_pretrained=False, 
+                 cvae_resnet_encoder=False,
+                 cvae_resnet_nbr_layer=2,
+                 cvae_decoder_nbr_layer=3,
+                 cvae_EncodingCapacityStep=None,
+                 cvae_maxEncodingCapacity=100,
+                 cvae_nbrEpochTillMaxEncodingCapacity=4,
+                 cvae_constrainedEncoding=True,
+                 cvae_observation_sigma=0.5):
+        cvae_input_shape = copy.deepcopy(input_shape)
+        cvae_input_shape[0] += 1
+        super(MONet, self).__init__(beta=cvae_beta, 
+                                    latent_dim=cvae_latent_dim,
+                                    nbr_attention_slot=None,
+                                    input_shape=cvae_input_shape, 
+                                    decoder_conv_dim=cvae_decoder_conv_dim, 
+                                    decoder_nbr_layer=cvae_decoder_nbr_layer,
+                                    pretrained=cvae_pretrained, 
+                                    resnet_encoder=cvae_resnet_encoder,
+                                    resnet_nbr_layer=cvae_resnet_nbr_layer,
+                                    NormalOutputDistribution=True,
+                                    EncodingCapacityStep=cvae_EncodingCapacityStep,
+                                    maxEncodingCapacity=cvae_maxEncodingCapacity,
+                                    nbrEpochTillMaxEncodingCapacity=cvae_nbrEpochTillMaxEncodingCapacity,
+                                    constrainedEncoding=cvae_constrainedEncoding,
+                                    observation_sigma=cvae_observation_sigma)
+        self.gamma = gamma
+        self.cvae_input_shape = cvae_input_shape
+        self.input_shape = input_shape
+
+        self.attention_network = AttentionNetwork(in_channel=input_shape[0],
+                                                  attention_basis_nbr_channel=anet_basis_nbr_channel,
+                                                  attention_block_depth=anet_block_depth)
+
+        self.nbr_attention_slot = nbr_attention_slot
+        self.initial_scope = torch.zeros(1, 1, *input_shape[-2:])
+
+    def get_feature_shape(self):
+        return self.latent_dim*self.nbr_attention_slot
+
+    def encodeZ(self,x) :
+        self.forward(x)
+        self.z = self.reparameterize(self.mu, self.logvar)        
+        return self.z, self.mu, self.logvar
+
+    def decode(self, z):
+        batch_size = z.size(0)
+        reconstructions = torch.empty(self.nbr_attention_slot,
+                                      batch_size,
+                                      *self.input_shape).to(z.device)
+        mask_reconstructions = torch.empty(batch_size, 
+                                           self.nbr_attention_slot, 
+                                           1,
+                                           *self.input_shape[-2:]).to(x.device)
+        for slot, slot_z in zip(range(self.nbr_attention_slot), torch.chunk(z, self.nbr_attention_slot, dim=1)):
+            cvae_out = self.decoder(slot_z)
+            x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
+            reconstructions[:,slot] = x_rec
+            mask_reconstructions[:,slot] = torch.clamp_min(log_mask_rec.exp(), min=1e-9)
+
+        reconstructions = torch.sum( mask_reconstructions * reconstructions, dim=1)
+        return reconstructions
+
+    def forward(self, 
+                x,
+                observation_sigma=None,
+                compute_loss=False):
+        if observation_sigma is None:
+            observation_sigma = self.observation_sigma
+
+        batch_size = x.size(0)
+        log_scope = self.initial_scope.repeat(batch_size, 1 ,1, 1).to(x.device)
+
+        logprobs = torch.empty(batch_size, 
+                               self.nbr_attention_slot, 
+                               *self.input_shape).to(x.device)
+        self.reconstructions = torch.empty_like(logprobs)
+        self.masks = torch.empty(batch_size, 
+                                           self.nbr_attention_slot, 
+                                           1,
+                                           *self.input_shape[-2:]).to(x.device)
+        self.log_mask_reconstructions = torch.empty_like(self.masks)
+
+        per_slot_kls = list()
+        self.mus = list()
+        self.logvars = list()
+
+        for slot in range(self.nbr_attention_slot):
+            log_mask, log_scope = self.attention_network(x, log_scope)
+            if slot == self.nbr_attention_slot-1:
+                log_mask = log_scope
+
+            vae_in = torch.cat((x, log_mask), dim=1)
+            mu, logvar, cvae_out = self._forward(vae_in)
+            self.mus.append(mu)
+            self.logvars.append(logvar)
+
+            # Reconstructions Distributions:
+            x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
+            rec_dist = Normal(x_rec, self.observation_sigma)
+            logprobs[:, slot] = log_mask + rec_dist.log_prob(x)
+
+            # KL divergence with latent prior:
+            kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+            per_slot_kls.append(kl.unsqueeze(1))
+
+            mask_probs = torch.clamp_min(log_mask.exp(), min=1e-9)
+            
+            self.masks[:, slot] = mask_probs
+            self.reconstructions[:, slot] = x_rec
+            self.log_mask_reconstructions[:, slot] = log_mask_rec
+
+        per_slot_kls = torch.cat(per_slot_kls, dim=1)
+        # batch_size x nbr_attention_slot x latent_dim
+
+        self.mu = torch.cat(self.mus, dim=-1)
+        self.logvar = torch.cat(self.logvars, dim=-1)
+        self.z = self.reparameterize(self.mu, self.logvar)
+
+        if not compute_loss:
+            self.reconstruction = torch.sum( self.masks * self.reconstructions, dim=1)
+            return self.reconstruction, self.mus, self.logvars, self.reconstructions, self.masks
+
+        
+        # sum over latent dimension and slots:
+        kl_sum = per_slot_kls.sum(-1).sum(-1)
+        # batch_size , 1
+
+        # sum (exp O log) prob over slot dimension, 
+        # compute log likelyhood and sum over input shape:
+        neg_log_lik = -logprobs.exp().sum(dim=1).log().view(batch_size,-1).sum(-1)
+        # batch_size, 1
+
+        # softmax over the slot dimension:
+        self.log_mask_reconstructions = F.log_softmax(self.log_mask_reconstructions, dim=1)
+        # mask reconstruction loss :: kl div loss:
+        mask_reconstruction_loss = F.kl_div(self.log_mask_reconstructions, self.masks, reduction='none').view(batch_size, -1).sum(-1)
+        # batch_size, 1
+
+        return self.reconstructions, self.masks, neg_log_lik, kl_sum, mask_reconstruction_loss
+
+    def compute_loss(self,
+                     x=None,
+                     observation_sigma=None):
+        self.reconstructions, \
+        self.mask_reconstructions, \
+        self.neg_log_lik, \
+        self.kl_sum, \
+        self.mask_reconstruction_loss = self.forward(x=x,
+                                                      observation_sigma=observation_sigma,
+                                                      compute_loss=True)
+        
+        #--------------------------------------------------------------------------------------------------------------
+        # Reconstruction loss :
+        #self.neg_log_lik = -Normal(self.VAE_output, self.observation_sigma).log_prob( gtx)
+        #self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)
+        #--------------------------------------------------------------------------------------------------------------
+        # KL Divergence :
+        self.true_kl_divergence = self.kl_sum #0.5 * (self.mu**2 + torch.exp(self.log_var) - self.log_var -1)
+        self.kl_divergence_regularized = torch.zeros_like(self.true_kl_divergence)
+        #--------------------------------------------------------------------------------------------------------------
+        # VAE Loss:
+        #--------------------------------------------------------------------------------------------------------------
+        if self.EncodingCapacityStep is None :
+            self.VAE_loss = self.neg_log_lik + self.beta*self.true_kl_divergence
+        else:
+            self.kl_divergence_regularized =  torch.abs( self.true_kl_divergence - self.EncodingCapacity )
+            self.VAE_loss = self.neg_log_lik + self.beta*self.kl_divergence_regularized
+            
+            if self.increaseEncodingCapacity and self.training:
+                self.EncodingCapacity += self.EncodingCapacityStep
+            if self.EncodingCapacity >= self.maxEncodingCapacity :
+                self.increaseEncodingCapacity = False 
+        #--------------------------------------------------------------------------------------------------------------
+        # MONet Loss:
+        #--------------------------------------------------------------------------------------------------------------
+        self.MONet_loss = self.VAE_loss + self.gamma*self.mask_reconstruction_loss
+        #--------------------------------------------------------------------------------------------------------------
+        
+        return self.MONet_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence
+
+

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .listener import Listener
-from ..networks import choose_architecture, layer_init
+from ..networks import choose_architecture, layer_init, BetaVAE
 from ..utils import gumbel_softmax, permutate_latents
 
 
@@ -60,7 +60,7 @@ class DifferentiableObverterAgent(Listener):
                                                   MHDPANbrRecUpdate=self.kwargs['mhdpa_nbr_rec_update'],
                                                   MHDPANbrMLPUnit=self.kwargs['mhdpa_nbr_mlp_unit'],
                                                   MHDPAInteractionDim=self.kwargs['mhdpa_interaction_dim'])
-        elif 'BetaVAE' in self.kwargs['architecture']:
+        elif 'BetaVAE' in self.kwargs['architecture'] or 'MONet' in self.kwargs['architecture']:
             self.VAE_losses = list()
             self.neg_log_likelyhoods = list()
             self.kl_divs = list()
@@ -76,7 +76,7 @@ class DifferentiableObverterAgent(Listener):
             self.vae_modularity = list()
             if 'vae_tc_discriminator_hidden_units' in self.kwargs:
                 self.tc_discriminator = choose_architecture(architecture='MLP',
-                                                            input_shape=[self.VAE.latent_dim],
+                                                            input_shape=[self.VAE.get_feature_shape()],
                                                             hidden_units_list=self.kwargs['vae_tc_discriminator_hidden_units'])
             else:
                 self.tc_discriminator = None
@@ -124,7 +124,8 @@ class DifferentiableObverterAgent(Listener):
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
-        if 'BetaVAE' in self.kwargs['architecture']:
+        #if 'BetaVAE' in self.kwargs['architecture']:
+        if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = list()
             self.neg_log_likelyhoods.clear()
             self.kl_divs.clear()
@@ -155,7 +156,8 @@ class DifferentiableObverterAgent(Listener):
         total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
-            if 'BetaVAE' in self.kwargs['architecture']:
+            #if 'BetaVAE' in self.kwargs['architecture']:
+            if isinstance(self.cnn_encoder, BetaVAE):
                 VAE_loss, neg_log_lik, kl_div_reg, kl_div  = self.cnn_encoder.compute_loss(stin)
                 self.VAE_losses.append(VAE_loss)
                 self.neg_log_likelyhoods.append(neg_log_lik.cpu())
@@ -207,7 +209,8 @@ class DifferentiableObverterAgent(Listener):
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
-        if 'BetaVAE' in self.kwargs['architecture']:
+        #if 'BetaVAE' in self.kwargs['architecture']:
+        if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = torch.cat(self.VAE_losses).contiguous().view((batch_size,-1)).mean(dim=-1)
             self.log_dict['kl_div'] = torch.cat(self.kl_divs).mean()
             self.log_dict['kl_div_reg'] = torch.cat(self.kl_div_regs).mean()

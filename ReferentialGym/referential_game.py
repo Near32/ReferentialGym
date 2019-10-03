@@ -337,7 +337,7 @@ class ReferentialGame(object):
                                 f"\t /label: {sample['target_decision_idx'][sidx]}",\
                                 f" /decision: {decision_idx[sidx]}")
                     
-                    if 'BetaVAE' in speaker.kwargs['architecture']:
+                    if hasattr(prototype_speaker,'VAE'):
                         image_save_path = logger.path 
                         query_vae_latent_space(prototype_speaker.VAE, 
                                                sample=sample['speaker_experiences'],
@@ -347,7 +347,7 @@ class ReferentialGame(object):
                                                idxoffset=idx_stimuli,
                                                suffix='speaker')
 
-                        query_vae_latent_space(prototype_speaker.VAE, 
+                        query_vae_latent_space(prototype_listener.VAE, 
                                                sample=sample['listener_experiences'],
                                                path=image_save_path,
                                                test=('test' in mode),
