@@ -67,7 +67,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               64,
+      "batch_size":               32,
       "dataloader_num_worker":    2,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      32,#28,
@@ -106,15 +106,18 @@ def test_example_cultural_obverter_agents():
   #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
   vae_beta = 5e-1
+  vae_observation_sigma = 0.11
   monet_gamma = 5e-1
   
+  vae_constrainedEncoding = False
   maxCap = 1e2
-  nbrepochtillmaxcap = 4
+  nbrepochtillmaxcap = 8
   skip_interval = 48
   #save_path = './FashionMNIST+LVAE+RDec'
   
   #save_path = './SoC+L6VAE+BrDec+AttPrior'
-  save_path = './SoC+'
+  
+  save_path = './t-midmlp-fbg-decNS-tnormal-SoC+DualVAEL+D+tiny34'
   
   #save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
   
@@ -165,6 +168,9 @@ def test_example_cultural_obverter_agents():
     rg_config['max_sentence_length'], 
     rg_config['agent_architecture'],
     f"beta{vae_beta}MC{maxCap}over{nbrepochtillmaxcap}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
+
+  save_path += f"beta{vae_beta}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
+  save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
 
   rg_config['save_path'] = save_path
 
@@ -236,16 +242,18 @@ def test_example_cultural_obverter_agents():
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'MONet' in agent_config['architecture']:
     agent_config['monet_gamma'] = monet_gamma
-    agent_config['monet_nbr_attention_slot'] = 10
+    agent_config['monet_nbr_attention_slot'] = 8#10
+    agent_config['monet_anet_block_depth'] = 3 #2
 
     agent_config['vae_nbr_latent_dim'] = 10
-    agent_config['vae_decoder_nbr_layer'] = 3#4
+    agent_config['vae_decoder_nbr_layer'] = 4#2 #3#4
     agent_config['vae_decoder_conv_dim'] = 32
+    agent_config['vae_observation_sigma'] = vae_observation_sigma
     
     agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']*agent_config['monet_nbr_attention_slot']
     
     agent_config['vae_beta'] = vae_beta
-    agent_config['vae_constrainedEncoding'] = True 
+    agent_config['vae_constrainedEncoding'] = vae_constrainedEncoding 
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
     agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])

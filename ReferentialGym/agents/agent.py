@@ -124,11 +124,10 @@ class Agent(nn.Module):
 
         losses_dict = dict()
 
-        if 'BetaVAE' in self.kwargs['architecture']:
-            if hasattr(self, 'TC_losses'):
-                losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
-            if 'listener' in role or not('obverter' in inputs_dict['graphtype']):
-                losses_dict[f'{role}/VAE_loss'] = [1e-3, self.VAE_losses]
+        if hasattr(self, 'TC_losses'):
+            losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
+        if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in inputs_dict['graphtype'])):
+            losses_dict[f'{role}/VAE_loss'] = [1.0, self.VAE_losses]
 
         if 'speaker' in role:
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):

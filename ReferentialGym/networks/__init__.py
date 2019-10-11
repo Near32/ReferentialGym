@@ -123,6 +123,12 @@ def choose_architecture( architecture,
         beta = kwargs['vae_beta']
         gamma = kwargs['monet_gamma']
 
+        resnet_encoder = ('ResNet' in architecture)
+        nbr_layer = 2
+        if resnet_encoder:
+            nbr_layer = int(architecture[-1])
+        pretrained = ('pretrained' in architecture)
+        
         constrainedEncoding = False
         if 'vae_constrainedEncoding' in kwargs:
             constrainedEncoding = kwargs['vae_constrainedEncoding'] 
@@ -130,8 +136,8 @@ def choose_architecture( architecture,
             maxCap = kwargs['vae_max_capacity']
             nbrEpochTillMaxEncodingCapacity = kwargs['vae_nbr_epoch_till_max_capacity']
         else:
-            maxCap = None,
-            nbrEpochTillMaxEncodingCapacity = None 
+            maxCap = 1.0
+            nbrEpochTillMaxEncodingCapacity = 1
 
         nbr_attention_slot = 10
         if 'monet_nbr_attention_slot' in kwargs:
@@ -143,24 +149,33 @@ def choose_architecture( architecture,
         decoder_nbr_layer = 4
         if 'vae_decoder_nbr_layer' in kwargs:
             decoder_nbr_layer = kwargs['vae_decoder_nbr_layer']
+        decoder_conv_dim =32
         if 'vae_decoder_conv_dim' in kwargs:
             decoder_conv_dim = kwargs['vae_decoder_conv_dim']
         
+        anet_block_depth = 3 
+        if 'monet_anet_block_depth' in kwargs:
+            anet_block_depth = kwargs['monet_anet_block_depth']
+
+        observation_sigma = 0.05
+        if 'vae_observation_sigma' in kwargs:
+            observation_sigma = kwargs['vae_observation_sigma']
+
         body = MONet(gamma=gamma,
                      input_shape=input_shape, 
                      nbr_attention_slot=nbr_attention_slot,
                      anet_basis_nbr_channel=32,
-                     anet_block_depth=3,
+                     anet_block_depth=anet_block_depth,
                      cvae_beta=beta, 
                      cvae_latent_dim=latent_dim,
                      cvae_decoder_conv_dim=decoder_conv_dim, 
-                     cvae_pretrained=False, 
-                     cvae_resnet_encoder=False,
-                     cvae_resnet_nbr_layer=2,
+                     cvae_pretrained=pretrained, 
+                     cvae_resnet_encoder=resnet_encoder,
+                     cvae_resnet_nbr_layer=nbr_layer,
                      cvae_decoder_nbr_layer=decoder_nbr_layer,
                      cvae_maxEncodingCapacity=maxCap,
                      cvae_nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity,
                      cvae_constrainedEncoding=constrainedEncoding,
-                     cvae_observation_sigma=0.5)
+                     cvae_observation_sigma=observation_sigma)
 
     return body

@@ -12,7 +12,7 @@ import math
 from numbers import Number 
 from functools import partial
 
-from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN
+from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init
 
 
 class Distribution(object) :
@@ -348,7 +348,7 @@ class Decoder(nn.Module) :
             ind = outd
             outd = self.conv_dim*(2**i)
             self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
-            self.dcs.append( nn.LeakyReLU(0.05) )
+            self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('Decoder: layer {} : dim {}.'.format(i, dim))
         self.dcs = nn.Sequential( *self.dcs) 
@@ -395,20 +395,24 @@ class BroadcastingDecoder(nn.Module) :
         dim = self.output_shape[-1]
         outd = self.conv_dim
         ind= self.latent_dim
-        outd = ind 
+        
         for i in range(self.net_depth) :
-            if i == self.net_depth-1: outd = self.output_shape[0]
+            
+            if i == self.net_depth-1: 
+                outd = self.output_shape[0]
 
             if i == 0: 
-                layer = coordconv( ind, outd, kernel_size, stride=stride, pad=padding)
+                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=1e0)
             else:
-                layer = nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding)
+                layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=1e0)
             
             self.dcs.append(layer)
 
             if i != self.net_depth-1: 
-                self.dcs.append( nn.LeakyReLU(0.05) )
+                self.dcs.append( nn.ReLU() )
+                #self.dcs.append( nn.LeakyReLU(0.05) )
             
+            ind = outd 
             dim = (dim-kernel_size+2*padding)//stride+1
             print('BroadcastingDecoder: layer {} : dim {}.'.format(i, dim))
         
@@ -418,7 +422,7 @@ class BroadcastingDecoder(nn.Module) :
         z = z.view( z.size(0), z.size(1), 1, 1)
         out = z.repeat(1, 1, self.output_shape[-2], self.output_shape[-1])
         out = self.dcs(out)
-        out = torch.sigmoid(out)
+        #out = torch.sigmoid(out)
         return out
 
     def forward(self,z) :
@@ -449,7 +453,7 @@ class BroadcastingDeconvDecoder(nn.Module) :
             ind = outd
             outd = self.conv_dim*(2**i)
             self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
-            self.dcs.append( nn.LeakyReLU(0.05) )
+            self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('BroadcastingDeconvDecoder: layer {} : dim {}.'.format(i, dim))
         self.dcs = nn.Sequential( *self.dcs) 
@@ -500,7 +504,7 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
             ind = outd
             outd = self.conv_dim*(2**i)
             self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
-            self.dcs.append( nn.LeakyReLU(0.05) )
+            self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('ParallelAttentionBroadcastingDeconvDecoder: layer {} : dim {}.'.format(i, dim))
         self.dcs = nn.Sequential( *self.dcs) 
@@ -547,7 +551,7 @@ class BetaVAE(nn.Module) :
                        maxEncodingCapacity=1000,
                        nbrEpochTillMaxEncodingCapacity=4,
                        constrainedEncoding=True,
-                       observation_sigma=0.5):
+                       observation_sigma=0.05):
         super(BetaVAE,self).__init__()
 
         self.beta = beta
@@ -565,7 +569,7 @@ class BetaVAE(nn.Module) :
         
         self.increaseEncodingCapacity = True
         if self.constrainedEncoding:
-            nbritperepoch = 1e3
+            nbritperepoch = 63
             print('ITER PER EPOCH : {}'.format(nbritperepoch))
             nbrepochtillmax = self.nbrEpochTillMaxEncodingCapacity
             nbrittillmax = nbrepochtillmax * nbritperepoch
@@ -756,21 +760,21 @@ class UNetBlock(nn.Module):
 
         if self.upsample:
             self.layers = nn.Sequential(
-                nn.Conv2d(in_channel*2,in_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                layer_init(nn.Conv2d(in_channel*2,in_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
                 self.norm(num_features=in_channel),
-                nn.LeakyReLU(0.05),
-                nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                nn.ReLU(),
+                layer_init(nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
                 self.norm(num_features=out_channel),
-                nn.LeakyReLU(0.05)
+                nn.ReLU()
             )
         else:
             self.layers = nn.Sequential(
-                nn.Conv2d(in_channel,out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                layer_init(nn.Conv2d(in_channel,out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
                 self.norm(num_features=out_channel),
-                nn.LeakyReLU(0.05),
-                nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False),
+                nn.ReLU(),
+                layer_init(nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
                 self.norm(num_features=out_channel),
-                nn.LeakyReLU(0.05)
+                nn.ReLU()
             )
 
 
@@ -784,13 +788,15 @@ class UNetBlock(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self, 
-                 in_channel, 
+                 input_shape,
+                 in_channel,
                  out_channel, 
                  basis_nbr_channel=32, 
                  block_depth=3, 
                  batch_norm=False):
         super(UNet, self).__init__()
 
+        self.input_shape = input_shape
         self.in_channel = in_channel
         self.out_channel = out_channel
         self.basis_nbr_channel = basis_nbr_channel
@@ -801,6 +807,7 @@ class UNet(nn.Module):
         
         interpolation = True
         interpolation_factor=0.5
+        spatialDim = self.input_shape[-1]
         for ib in range(self.block_depth):
             b = UNetBlock(in_channel, 
                           running_nbr_channel,
@@ -811,17 +818,27 @@ class UNet(nn.Module):
             self.downsampling_blocks.append(b)
             in_channel = running_nbr_channel
             running_nbr_channel *= 2
+            spatialDim /= 2
 
         running_nbr_channel //= 2
-
-
+        
+        '''
         self.mid_block = nn.Sequential(
-            nn.Conv2d(running_nbr_channel,running_nbr_channel*2, kernel_size=3, stride=1, padding=1, bias=False),
+            layer_init(nn.Conv2d(running_nbr_channel,running_nbr_channel*2, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
             nn.InstanceNorm2d(num_features=running_nbr_channel*2, affine=True, track_running_stats=False),
-            nn.LeakyReLU(0.05),
-            nn.Conv2d(running_nbr_channel*2, running_nbr_channel, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(running_nbr_channel*2, running_nbr_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
             nn.InstanceNorm2d(num_features=running_nbr_channel, affine=True, track_running_stats=False),
-            nn.LeakyReLU(0.05)
+            nn.ReLU()
+        )
+        '''
+        self.mid_block = nn.Sequential(
+            layer_init(nn.Linear(int(running_nbr_channel*(spatialDim**2)), 128), w_scale=1e0),
+            nn.ReLU(),
+            layer_init(nn.Linear(128, 128), w_scale=1e0),
+            nn.ReLU(),
+            layer_init(nn.Linear(128, int(running_nbr_channel*(spatialDim**2))), w_scale=1e0),
+            nn.ReLU(),
         )
 
         in_channel = running_nbr_channel*2
@@ -841,7 +858,7 @@ class UNet(nn.Module):
             running_nbr_channel //= 2
         running_nbr_channel *= 2
 
-        self.final_conv = nn.Conv2d(running_nbr_channel, self.out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+        self.final_conv = layer_init(nn.Conv2d(running_nbr_channel, self.out_channel, kernel_size=1, stride=1, padding=0, bias=True), w_scale=1e0)
 
     def forward(self, x):
         skipxs = list()
@@ -849,7 +866,11 @@ class UNet(nn.Module):
             x, xout = block(x)
             skipxs.append(xout)
 
-        x = self.mid_block(x)
+        # flattening non-skip output:
+        xsize = x.size()
+        flat_x = x.flatten(start_dim=1)
+        x = self.mid_block(flat_x)
+        x = x.view(xsize)
         x = F.interpolate(x, scale_factor=2)
 
         for block, skipx in zip(self.upsampling_blocks, reversed(skipxs)):
@@ -865,17 +886,21 @@ class UNet(nn.Module):
 
 class AttentionNetwork(nn.Module):
     def __init__(self, 
+                 input_shape,
                  in_channel, 
                  attention_basis_nbr_channel=32,
                  attention_block_depth=3):
         super(AttentionNetwork, self).__init__()
-        self.unet = UNet(in_channel=in_channel+1,
+        self.input_shape = input_shape
+        self.in_channel = input_shape[0]+1
+        self.unet = UNet(input_shape=self.input_shape,
+                         in_channel=self.in_channel,
                          out_channel=1,
                          basis_nbr_channel=attention_basis_nbr_channel,
                          block_depth=attention_block_depth)
 
     def forward(self, x, logscope):
-        xin = torch.cat([logscope, x], dim=1)
+        xin = torch.cat([x, logscope], dim=1)
         xout = self.unet(xin)
         # log( m_k ) = log( s_{k-1} * sigmoid(unet(xin)) )
         logmask = logscope+F.logsigmoid(xout)
@@ -901,7 +926,7 @@ class MONet(BetaVAE):
                  cvae_maxEncodingCapacity=100,
                  cvae_nbrEpochTillMaxEncodingCapacity=4,
                  cvae_constrainedEncoding=True,
-                 cvae_observation_sigma=0.5):
+                 cvae_observation_sigma=0.05):
         cvae_input_shape = copy.deepcopy(input_shape)
         cvae_input_shape[0] += 1
         super(MONet, self).__init__(beta=cvae_beta, 
@@ -919,34 +944,39 @@ class MONet(BetaVAE):
                                     nbrEpochTillMaxEncodingCapacity=cvae_nbrEpochTillMaxEncodingCapacity,
                                     constrainedEncoding=cvae_constrainedEncoding,
                                     observation_sigma=cvae_observation_sigma)
+
+        # Set attribute 'attention_weights' where to store each slot's attention mask:
+        setattr(self.encoder, 'attention_weights', list() )
+        # Set attribute 'attention_reconstructions' where to store each slot's reconstruction:
+        setattr(self.encoder, 'attention_reconstructions', list() )
+
         self.gamma = gamma
         self.cvae_input_shape = cvae_input_shape
         self.input_shape = input_shape
 
-        self.attention_network = AttentionNetwork(in_channel=input_shape[0],
+        self.attention_network = AttentionNetwork(input_shape=input_shape,
+                                                  in_channel=input_shape[0],
                                                   attention_basis_nbr_channel=anet_basis_nbr_channel,
                                                   attention_block_depth=anet_block_depth)
 
         self.nbr_attention_slot = nbr_attention_slot
-        self.initial_scope = torch.zeros(1, 1, *input_shape[-2:])
 
     def get_feature_shape(self):
         return self.latent_dim*self.nbr_attention_slot
 
     def encodeZ(self,x) :
-        self.forward(x)
-        self.z = self.reparameterize(self.mu, self.logvar)        
+        self.forward(x) 
         return self.z, self.mu, self.logvar
 
     def decode(self, z):
         batch_size = z.size(0)
-        reconstructions = torch.empty(self.nbr_attention_slot,
-                                      batch_size,
+        reconstructions = torch.empty(batch_size,
+                                      self.nbr_attention_slot,
                                       *self.input_shape).to(z.device)
         mask_reconstructions = torch.empty(batch_size, 
                                            self.nbr_attention_slot, 
                                            1,
-                                           *self.input_shape[-2:]).to(x.device)
+                                           *self.input_shape[-2:]).to(z.device)
         for slot, slot_z in zip(range(self.nbr_attention_slot), torch.chunk(z, self.nbr_attention_slot, dim=1)):
             cvae_out = self.decoder(slot_z)
             x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
@@ -964,7 +994,9 @@ class MONet(BetaVAE):
             observation_sigma = self.observation_sigma
 
         batch_size = x.size(0)
-        log_scope = self.initial_scope.repeat(batch_size, 1 ,1, 1).to(x.device)
+
+        initial_scope = torch.zeros(1, 1, *self.input_shape[-2:])
+        log_scope = initial_scope.repeat(batch_size, 1 ,1, 1).to(x.device)
 
         logprobs = torch.empty(batch_size, 
                                self.nbr_attention_slot, 
@@ -976,13 +1008,16 @@ class MONet(BetaVAE):
                                            *self.input_shape[-2:]).to(x.device)
         self.log_mask_reconstructions = torch.empty_like(self.masks)
 
+        scale = torch.empty((1,1,1,1)).fill_(self.observation_sigma).expand_as(x).to(x.device)
+
         per_slot_kls = list()
         self.mus = list()
         self.logvars = list()
 
         for slot in range(self.nbr_attention_slot):
-            log_mask, log_scope = self.attention_network(x, log_scope)
-            if slot == self.nbr_attention_slot-1:
+            if slot < self.nbr_attention_slot-1:
+                log_mask, log_scope = self.attention_network(x=x, logscope=log_scope)
+            else:
                 log_mask = log_scope
 
             vae_in = torch.cat((x, log_mask), dim=1)
@@ -992,7 +1027,12 @@ class MONet(BetaVAE):
 
             # Reconstructions Distributions:
             x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
-            rec_dist = Normal(x_rec, self.observation_sigma)
+            #rec_dist = Normal(x_rec, scale)
+            if slot == 0:
+                rec_dist = torch.distributions.Normal(x_rec, 0.9*scale)
+            else:
+                rec_dist = torch.distributions.Normal(x_rec, scale)
+
             logprobs[:, slot] = log_mask + rec_dist.log_prob(x)
 
             # KL divergence with latent prior:
@@ -1012,6 +1052,9 @@ class MONet(BetaVAE):
         self.logvar = torch.cat(self.logvars, dim=-1)
         self.z = self.reparameterize(self.mu, self.logvar)
 
+        setattr(self.encoder, 'attention_weights', self.masks.data)
+        setattr(self.encoder, 'attention_reconstructions', self.reconstructions.data)
+
         if not compute_loss:
             self.reconstruction = torch.sum( self.masks * self.reconstructions, dim=1)
             return self.reconstruction, self.mus, self.logvars, self.reconstructions, self.masks
@@ -1023,13 +1066,19 @@ class MONet(BetaVAE):
 
         # sum (exp O log) prob over slot dimension, 
         # compute log likelyhood and sum over input shape:
-        neg_log_lik = -logprobs.exp().sum(dim=1).log().view(batch_size,-1).sum(-1)
+        neg_log_lik = -torch.logsumexp(logprobs, dim=1).view(batch_size,-1).sum(-1)
         # batch_size, 1
 
         # softmax over the slot dimension:
         self.log_mask_reconstructions = F.log_softmax(self.log_mask_reconstructions, dim=1)
-        # mask reconstruction loss :: kl div loss:
-        mask_reconstruction_loss = F.kl_div(self.log_mask_reconstructions, self.masks, reduction='none').view(batch_size, -1).sum(-1)
+        
+        # softmax over the slot dimension:
+        #self.maks = F.softmax(self.masks, dim=1)
+        
+        # mask reconstruction loss :: kl div loss: expects log likelihood input and probabilities targets:
+        mask_reconstruction_loss = F.kl_div(input=self.log_mask_reconstructions, 
+                                            target=self.masks,
+                                            reduction='none').view(batch_size, -1).sum(-1)
         # batch_size, 1
 
         return self.reconstructions, self.masks, neg_log_lik, kl_sum, mask_reconstruction_loss

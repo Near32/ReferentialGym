@@ -205,7 +205,7 @@ class DifferentiableObverterAgent(Listener):
             else:
                 featout = self.cnn_encoder(stin)
             features.append( featout)
-        features = torch.cat(features, dim=0)
+        features = torch.cat(features, dim=0).detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
