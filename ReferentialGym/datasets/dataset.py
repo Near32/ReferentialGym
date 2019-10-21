@@ -35,6 +35,13 @@ class Dataset(torchDataset):
         
         self.classes = None 
 
+    def getNbrDistractors(self):
+        return self.nbr_distractors
+
+    def setNbrDistractors(self, nbr_distractors):
+        assert(nbr_distractors > 0)
+        self.nbr_distractors = nbr_distractors
+
     def __len__(self) -> int:
         raise NotImplementedError
 
@@ -92,7 +99,7 @@ class Dataset(torchDataset):
                 # Target experience is excluded from the experiences yielded to the listener:
                 listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
                 # The target_decision_idx is set to `nbr_experiences`:
-                target_decision_idx = (self.kwargs['nbr_distractors']+1)*torch.ones(1).long()                         
+                target_decision_idx = (self.nbr_distractors+1)*torch.ones(1).long()                         
         else:
             experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)

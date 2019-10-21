@@ -38,7 +38,7 @@ class MineRLDataset(Dataset):
         self.dataset_exp_trajname = { exp: self.dataset_exp[exp].get_trajectory_names() for exp in self.experiments2use}
         self.dataset_exp_traj_data = {exp: dict() for exp in self.experiments2use}
 
-        nbrTraj = 50
+        nbrTraj = 20
         nbrTrajTestDivider = 10
         self.dataset_exptraj_data_loaded = dict()
         self.exptraj2int = dict()
@@ -271,7 +271,7 @@ class MineRLDataset(Dataset):
                 # Target experience is excluded from the experiences yielded to the listener:
                 listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
                 # The target_decision_idx is set to `nbr_experiences`:
-                target_decision_idx = (self.kwargs['nbr_distractors']+1)*torch.ones(1).long()                         
+                target_decision_idx = (self.nbr_distractors+1)*torch.ones(1).long()
         else:
             experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
