@@ -97,6 +97,12 @@ class ReferentialGame(object):
         print("Launching training: ...")
 
         it = 0
+        if self.config['use_curriculum_nbr_distractors']:
+            windowed_accuracy = 0.0
+            window_count = 0
+            self.datasets['train'].setNbrDistractors(1)
+            self.datasets['test'].setNbrDistractors(1)
+
         for epoch in range(nbr_epoch):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
@@ -143,218 +149,223 @@ class ReferentialGame(object):
                     else:
                         speaker.eval()
                         listener.eval()
-                    
-                    if sample['speaker_experiences'].size(0) ==1: continue
 
                     if self.config['use_cuda']:
                         sample = sample.cuda()
 
-                    listener_sentences_one_hot = None
-                    listener_sentences_widx = None 
-                    batch_size = len(sample['speaker_experiences'])
-
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
                     
-                        
-                    for idx_round in range(self.config['nbr_communication_round']):
-                        multi_round = True
-                        if idx_round == self.config['nbr_communication_round']-1:
-                            multi_round = False
-                        
-                        speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
-                                               'sentences_one_hot':listener_sentences_one_hot,
-                                               'sentences_widx':listener_sentences_widx, 
-                                               'graphtype':self.config['graphtype'],
-                                               'tau0':self.config['tau0'],
-                                               'multi_round':multi_round,
-                                               'sample':sample
-                                               }
-                        speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
-                                                                        config=self.config,
-                                                                        role='speaker',
-                                                                        mode=mode,
-                                                                        it=idx_stimuli+len(data_loader)*epoch)
+                    for it_rep in range(self.config['nbr_experience_repetition']):
+                        listener_sentences_one_hot = None
+                        listener_sentences_widx = None 
+                        batch_size = len(sample['speaker_experiences'])
+                            
+                        for idx_round in range(self.config['nbr_communication_round']):
+                            multi_round = True
+                            if idx_round == self.config['nbr_communication_round']-1:
+                                multi_round = False
+                            
+                            speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
+                                                   'sentences_one_hot':listener_sentences_one_hot,
+                                                   'sentences_widx':listener_sentences_widx, 
+                                                   'graphtype':self.config['graphtype'],
+                                                   'tau0':self.config['tau0'],
+                                                   'multi_round':multi_round,
+                                                   'sample':sample
+                                                   }
+                            speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
+                                                                            config=self.config,
+                                                                            role='speaker',
+                                                                            mode=mode,
+                                                                            it=it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
 
+                            
+                            listener_inputs_dict = {'graphtype':self.config['graphtype'],
+                                                    'tau0':self.config['tau0'],
+                                                    'multi_round':multi_round,
+                                                    'sample':sample}
+
+                            for k in speaker_outputs:
+                                listener_inputs_dict[k] = speaker_outputs[k] 
+
+                            if self.config['graphtype'] == 'obverter':
+                                if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
+                                    listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
+                                if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
+                                    listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
+
+                            listener_inputs_dict['experiences'] = sample['listener_experiences']
+                            listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
+                                                                               config=self.config,
+                                                                               role='listener',
+                                                                               mode=mode,
+                                                                               it=it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+
+                            if self.config['graphtype'] == 'obverter':
+                                if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
+                                    listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
+                                if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
+                                    listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
+
+                            listener_sentences_one_hot = listener_outputs['sentences_one_hot']
+                            listener_sentences_widx = listener_outputs['sentences_widx']
+
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
                         
-                        listener_inputs_dict = {'graphtype':self.config['graphtype'],
-                                                'tau0':self.config['tau0'],
-                                                'multi_round':multi_round,
-                                                'sample':sample}
-
-                        for k in speaker_outputs:
-                            listener_inputs_dict[k] = speaker_outputs[k] 
-
-                        if self.config['graphtype'] == 'obverter':
-                            if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
-                                listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
-                            if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
-                                listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
-
-                        listener_inputs_dict['experiences'] = sample['listener_experiences']
-                        listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
-                                                                           config=self.config,
-                                                                           role='listener',
-                                                                           mode=mode,
-                                                                           it=idx_stimuli+len(data_loader)*epoch)
-
-                        if self.config['graphtype'] == 'obverter':
-                            if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
-                                listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
-                            if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
-                                listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
-
-                        listener_sentences_one_hot = listener_outputs['sentences_one_hot']
-                        listener_sentences_widx = listener_outputs['sentences_widx']
-
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    
-                    final_decision_logits = listener_outputs['decision']
-                    
-                    losses = dict()
-                    losses.update(speaker_losses)
-                    losses.update(listener_losses)
-                    idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
-                    for k, v in losses.items():
-                        losses[k][idx_loss] = v[0]*v[idx_loss].mean()
-                    loss = sum( [l[idx_loss] for l in losses.values()])
-
-                    if mode == 'train':
-                        speaker_optimizer.zero_grad()
-                        listener_optimizer.zero_grad()
-                        loss.backward()
+                        final_decision_logits = listener_outputs['decision']
                         
-                        speaker.apply(handle_nan)
-                        listener.apply(handle_nan)
-                        if self.config['with_gradient_clip']:
-                            nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
-                            nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
-                        
-                        speaker_optimizer.step()
-                        listener_optimizer.step()
-                    
+                        losses = dict()
+                        losses.update(speaker_losses)
+                        losses.update(listener_losses)
+                        idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
+                        for k, v in losses.items():
+                            losses[k][idx_loss] = v[0]*v[idx_loss].mean()
+                        loss = sum( [l[idx_loss] for l in losses.values()])
 
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    
-                    # Compute sentences:
-                    sentences = []
-                    for sidx in range(batch_size):
-                        sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
-                    
-                    if logger is not None:
-                        if self.config['with_grad_logging'] and mode == 'train':
-                            maxgrad = 0.0
-                            for name, p in speaker.named_parameters() :
-                                if hasattr(p,'grad') and p.grad is not None:
-                                    logger.add_histogram( "Speaker/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)
-                                    cmg = torch.abs(p.grad).max()
-                                    if cmg > maxgrad:
-                                        maxgrad = cmg
-                            logger.add_scalar( "{}/SpeakerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
-                            maxgrad = 0
-                            for name, p in listener.named_parameters() :
-                                if hasattr(p,'grad') and p.grad is not None:
-                                    logger.add_histogram( "Listener/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)                    
-                                    cmg = torch.abs(p.grad).max()
-                                    if cmg > maxgrad:
-                                        maxgrad = cmg
-                            logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, idx_stimuli+len(data_loader)*epoch)                    
+                        if mode == 'train':
+                            speaker_optimizer.zero_grad()
+                            listener_optimizer.zero_grad()
+                            loss.backward()
+                            
+                            speaker.apply(handle_nan)
+                            listener.apply(handle_nan)
+                            if self.config['with_gradient_clip']:
+                                nn.utils.clip_grad_value_(speaker.parameters(), self.config['gradient_clip'])
+                                nn.utils.clip_grad_value_(listener.parameters(), self.config['gradient_clip'])
+                            
+                            speaker_optimizer.step()
+                            listener_optimizer.step()
                         
-                        if self.config['with_utterance_penalization'] or self.config['with_utterance_promotion']:
-                            for widx in range(self.config['vocab_size']+1):
-                                logger.add_scalar("{}/Word{}Counts".format(mode,widx), speaker_outputs['speaker_utterances_count'][widx], idx_stimuli+len(data_loader)*epoch)
-                            logger.add_scalar("{}/OOVLoss".format(mode), speaker_losses['oov_loss'][idx_loss].mean().item(), idx_stimuli+len(data_loader)*epoch)
 
-                        if 'with_mdl_principle' in self.config and self.config['with_mdl_principle']:
-                            logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][idx_loss].mean().item(), idx_stimuli+len(data_loader)*epoch)
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
                         
-                        #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
-                        sentence_length = (speaker_outputs['sentences_widx']< (self.config['vocab_size']-1)).sum().float()/batch_size
-                        logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], idx_stimuli+len(data_loader)*epoch)
+                        # Compute sentences:
+                        sentences = []
+                        for sidx in range(batch_size):
+                            sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
                         
-                        for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
-                        total_nbr_unique_sentences = cardinality(total_sentences)
-                        total_nbr_unique_stimulus += batch_size
-                        logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, idx_stimuli+len(data_loader)*epoch)
-                        
-                        entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
-                        # (batch_size, )
-                        logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), idx_stimuli+len(data_loader)*epoch)
-                        
-                        logger.add_scalar('{}/Loss'.format(mode), loss.item(), idx_stimuli+len(data_loader)*epoch)
-                        
-                        for l_name, l in losses.items():
-                            logger.add_scalar('{}/{}'.format(mode, l_name), l[idx_loss].item(), idx_stimuli+len(data_loader)*epoch)    
+                        if logger is not None:
+                            if self.config['with_grad_logging'] and mode == 'train':
+                                maxgrad = 0.0
+                                for name, p in speaker.named_parameters() :
+                                    if hasattr(p,'grad') and p.grad is not None:
+                                        logger.add_histogram( "Speaker/{}".format(name), p.grad, idx_stimuli+len(data_loader)*epoch)
+                                        cmg = torch.abs(p.grad).max()
+                                        if cmg > maxgrad:
+                                            maxgrad = cmg
+                                logger.add_scalar( "{}/SpeakerMaxGrad".format(mode), maxgrad, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)                    
+                                maxgrad = 0
+                                for name, p in listener.named_parameters() :
+                                    if hasattr(p,'grad') and p.grad is not None:
+                                        logger.add_histogram( "Listener/{}".format(name), p.grad, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)                    
+                                        cmg = torch.abs(p.grad).max()
+                                        if cmg > maxgrad:
+                                            maxgrad = cmg
+                                logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)                    
+                            
+                            if self.config['with_utterance_penalization'] or self.config['with_utterance_promotion']:
+                                for widx in range(self.config['vocab_size']+1):
+                                    logger.add_scalar("{}/Word{}Counts".format(mode,widx), speaker_outputs['speaker_utterances_count'][widx], it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                logger.add_scalar("{}/OOVLoss".format(mode), speaker_losses['oov_loss'][idx_loss].mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
 
-                        logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_outputs['maxl1_loss'].item()+listener_outputs['maxl1_loss'].item(), idx_stimuli+len(data_loader)*epoch)
-                        
-                        decision_probs = listener_outputs['decision_probs']
+                            if 'with_mdl_principle' in self.config and self.config['with_mdl_principle']:
+                                logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][idx_loss].mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
+                            sentence_length = (speaker_outputs['sentences_widx']< (self.config['vocab_size']-1)).sum().float()/batch_size
+                            logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
+                            total_nbr_unique_sentences = cardinality(total_sentences)
+                            total_nbr_unique_stimulus += batch_size
+                            logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                            # (batch_size, )
+                            logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            logger.add_scalar('{}/Loss'.format(mode), loss.item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            for l_name, l in losses.items():
+                                logger.add_scalar('{}/{}'.format(mode, l_name), l[idx_loss].item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)    
 
-                        if self.config['descriptive']:
-                            if 'obverter_least_effort_loss' in self.config and self.config['obverter_least_effort_loss']:
-                                for widx in range(len(losses4widx)):
-                                    logger.add_scalar('{}/Loss@w{}'.format(mode,widx), losses4widx[widx].item(), idx_stimuli+len(data_loader)*epoch)
-                                    acc = (torch.abs(decision_probs[:,widx,...]-target_decision_probs) < 0.5).float().mean()*100
-                                    logger.add_scalar('{}/Accuracy@{}'.format(mode,widx), acc.item(), idx_stimuli+len(data_loader)*epoch)
+                            logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_outputs['maxl1_loss'].item()+listener_outputs['maxl1_loss'].item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            decision_probs = listener_outputs['decision_probs']
+
+                            if self.config['descriptive']:
+                                if 'obverter_least_effort_loss' in self.config and self.config['obverter_least_effort_loss']:
+                                    for widx in range(len(losses4widx)):
+                                        logger.add_scalar('{}/Loss@w{}'.format(mode,widx), losses4widx[widx].item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                        acc = (torch.abs(decision_probs[:,widx,...]-target_decision_probs) < 0.5).float().mean()*100
+                                        logger.add_scalar('{}/Accuracy@{}'.format(mode,widx), acc.item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                else:
+                                    #acc = (torch.abs(decision_probs-target_decision_probs) < 0.5).float().mean()*100
+                                    decision_idx = decision_probs.max(dim=-1)[1]
+                                    acc = (decision_idx==sample['target_decision_idx']).float().mean()*100
                             else:
-                                #acc = (torch.abs(decision_probs-target_decision_probs) < 0.5).float().mean()*100
                                 decision_idx = decision_probs.max(dim=-1)[1]
                                 acc = (decision_idx==sample['target_decision_idx']).float().mean()*100
-                        else:
-                            decision_idx = decision_probs.max(dim=-1)[1]
-                            acc = (decision_idx==sample['target_decision_idx']).float().mean()*100
-                        logger.add_scalar('{}/Accuracy'.format(mode), acc.item(), idx_stimuli+len(data_loader)*epoch)
+                            logger.add_scalar('{}/Accuracy'.format(mode), acc.item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            #logger.add_histogram( "{}/LossesPerStimulus".format(mode), losses, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            logger.add_scalar( "{}/Stimulus/Mean".format(mode), sample['listener_experiences'].mean(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            
+                            if mode == 'train':
+                                if hasattr(speaker,'tau'): 
+                                    logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    logger.add_scalar( "{}/Tau/Speaker".format(mode), speaker.tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                if hasattr(listener,'tau'): 
+                                    logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
                         
-                        #logger.add_histogram( "{}/LossesPerStimulus".format(mode), losses, idx_stimuli+len(data_loader)*epoch)
-                        logger.add_scalar( "{}/Stimulus/Mean".format(mode), sample['listener_experiences'].mean(), idx_stimuli+len(data_loader)*epoch)
+
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
+                        # //------------------------------------------------------------//
                         
-                        if mode == 'train':
-                            if hasattr(speaker,'tau'): 
-                                logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, idx_stimuli+len(data_loader)*epoch)
-                                logger.add_scalar( "{}/Tau/Speaker".format(mode), speaker.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
-                            if hasattr(listener,'tau'): 
-                                logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, idx_stimuli+len(data_loader)*epoch)
-                                logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), idx_stimuli+len(data_loader)*epoch)
-                    
 
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    # //------------------------------------------------------------//
-                    
+                        if verbose_period is not None and idx_stimuli % verbose_period == 0:
+                            print('Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch, loss.item()))
+                            # Show some sentences:
+                            for sidx in range(batch_size):
+                                if sidx>=10:
+                                    break
+                                print(f"{sidx} : ", sentences[sidx], \
+                                    f"\t /label: {sample['target_decision_idx'][sidx]}",\
+                                    f" /decision: {decision_idx[sidx]}")
 
-                    if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                        print('Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), idx_stimuli+len(data_loader)*epoch, loss.item()))
-                        # Show some sentences:
-                        for sidx in range(batch_size):
-                            if sidx>=10:
-                                break
-                            print(f"{sidx} : ", sentences[sidx], \
-                                f"\t /label: {sample['target_decision_idx'][sidx]}",\
-                                f" /decision: {decision_idx[sidx]}")
-                    
-                    if hasattr(prototype_speaker,'VAE') and idx_stimuli % 16 == 0:
-                        image_save_path = logger.path 
-                        query_vae_latent_space(prototype_speaker.VAE, 
-                                               sample=sample['speaker_experiences'],
-                                               path=image_save_path,
-                                               test=('test' in mode),
-                                               full=('test' in mode),
-                                               idxoffset=idx_stimuli,
-                                               suffix='speaker')
-                        '''
-                        query_vae_latent_space(prototype_listener.VAE, 
-                                               sample=sample['listener_experiences'],
-                                               path=image_save_path,
-                                               test=('test' in mode),
-                                               full=('test' in mode),
-                                               idxoffset=idx_stimuli,
-                                               suffix='listener')
-                        '''
+                        if self.config['use_curriculum_nbr_distractors']:
+                            nbr_distractors = self.datasets[mode].getNbrDistractors()
+                            logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                            logger.add_scalar( "{}/CurriculumWindowedAcc".format(mode), windowed_accuracy, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                        
+                        
+                        if hasattr(prototype_speaker,'VAE') and idx_stimuli % 4 == 0:
+                            image_save_path = logger.path 
+                            query_vae_latent_space(prototype_speaker.VAE, 
+                                                   sample=sample['speaker_experiences'],
+                                                   path=image_save_path,
+                                                   test=('test' in mode),
+                                                   full=('test' in mode),
+                                                   idxoffset=it_rep+idx_stimuli*self.config['nbr_experience_repetition'],
+                                                   suffix='speaker',
+                                                   use_cuda=True)
+                            '''
+                            query_vae_latent_space(prototype_listener.VAE, 
+                                                   sample=sample['listener_experiences'],
+                                                   path=image_save_path,
+                                                   test=('test' in mode),
+                                                   full=('test' in mode),
+                                                   idxoffset=idx_stimuli,
+                                                   suffix='listener')
+                            '''
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
@@ -422,10 +433,19 @@ class ReferentialGame(object):
                                 agents_optimizers[idx_agent2reset] = optim.Adam(agents[idx_agent2reset].parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps'])
                                 agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
                             print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
-                            
-                                
-                    # //------------------------------------------------------------//
                     
+                    if self.config['use_curriculum_nbr_distractors'] and mode == 'train':
+                        window_count += 1
+                        nbr_distractors = self.datasets['train'].getNbrDistractors()
+                        windowed_accuracy = (windowed_accuracy*self.config['curriculum_distractors_window_size']+acc.item())
+                        windowed_accuracy /= self.config['curriculum_distractors_window_size']
+                        if windowed_accuracy > 60 and window_count >= self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
+                            windowed_accuracy = 0
+                            window_count = 0
+                            self.datasets['train'].setNbrDistractors(self.datasets['train'].getNbrDistractors()+1)
+                            self.datasets['test'].setNbrDistractors(self.datasets['test'].getNbrDistractors()+1)
+                    # //------------------------------------------------------------//
+                        
                 if logger is not None:
                     if mode == 'test':  
                         max_nbr_samples = None

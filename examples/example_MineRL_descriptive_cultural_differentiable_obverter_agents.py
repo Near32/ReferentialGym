@@ -27,7 +27,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          1,
+      "nbr_distractors":          31,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -37,7 +37,7 @@ def test_example_cultural_obverter_agents():
       # of the target, seemingly.  
       
       "descriptive":              True,
-      "descriptive_target_ratio": 0.99, 
+      "descriptive_target_ratio": 0.97, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -50,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               10,
 
-      "agent_architecture":       'MONet', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'ParallelMONet', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -67,8 +67,8 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               32,
-      "dataloader_num_worker":    2,
+      "batch_size":               16,
+      "dataloader_num_worker":    4,
       "stimulus_depth_dim":       3,
       "stimulus_resize_dim":      32,#28,
       
@@ -78,8 +78,14 @@ def test_example_cultural_obverter_agents():
       
       "use_homoscedastic_multitasks_loss": False,
 
+      "use_curriculum_nbr_distractors": True,
+      "curriculum_distractors_window_size": 80,
+
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
+
+      "unsupervised_segmentation_factor": None, #1e5
+      "nbr_experience_repetition":  1,
 
       "with_utterance_penalization":  False,
       "with_utterance_promotion":     False,
@@ -96,28 +102,33 @@ def test_example_cultural_obverter_agents():
 
       "with_weight_maxl1_loss":   False,
 
-      "with_grad_logging":        True,
+      "with_grad_logging":        False,
       "use_cuda":                 True,
   }
 
   assert( rg_config['observability'] == 'partial') # Descriptive scheme is always with partial observability...
   assert( rg_config['nbr_communication_round']==1) # In descriptive scheme, the multi-round/step communication scheme is not implemented yet.
 
-  #assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
+  assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
   vae_beta = 5e-1
-  vae_observation_sigma = 0.11
+  vae_observation_sigma = 0.25 #0.11
   monet_gamma = 5e-1
   
   vae_constrainedEncoding = False
   maxCap = 1e2
   nbrepochtillmaxcap = 8
   skip_interval = 48
+  
   #save_path = './FashionMNIST+LVAE+RDec'
   
   #save_path = './SoC+L6VAE+BrDec+AttPrior'
   
-  save_path = './t-midmlp-fbg-decNS-tnormal-SoC+DualVAEL+D+tiny34'
+  #save_path = './SoC-CNN+Det'#tf-mlp-fbg-decNS-tnormal-SoC+DualVAEL+tiny'
+  #save_path = './MRL20-CNN-mhdpa+Det'
+  
+  #save_path = './MRL20-SAttCNN+CNN+D'
+  save_path = './MRL20-CNN+D'
   
   #save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
   
@@ -126,6 +137,9 @@ def test_example_cultural_obverter_agents():
   #save_path += '+UsingWIDX+GRU+Logit4DistrTarNoTarg'
   #save_path += 'CPtau05e0+1e1LeastEffort+5e1'
   
+  if rg_config['use_curriculum_nbr_distractors']:
+    #save_path += '+Curr'
+    save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
   if rg_config['use_homoscedastic_multitasks_loss']:
     save_path += '+Homo'
   if rg_config['with_utterance_penalization']:
@@ -171,7 +185,8 @@ def test_example_cultural_obverter_agents():
 
   save_path += f"beta{vae_beta}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
   save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
-
+  save_path += f"UnsupSeg{rg_config['unsupervised_segmentation_factor']}Rep{rg_config['nbr_experience_repetition']}" if rg_config['unsupervised_segmentation_factor'] is not None else ''
+  
   rg_config['save_path'] = save_path
 
   from ReferentialGym.utils import statsLogger
@@ -241,12 +256,14 @@ def test_example_cultural_obverter_agents():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'MONet' in agent_config['architecture']:
+    agent_config['unsup_seg_factor'] = rg_config['unsupervised_segmentation_factor']
+
     agent_config['monet_gamma'] = monet_gamma
     agent_config['monet_nbr_attention_slot'] = 8#10
-    agent_config['monet_anet_block_depth'] = 3 #2
+    agent_config['monet_anet_block_depth'] = 2 #3
 
     agent_config['vae_nbr_latent_dim'] = 10
-    agent_config['vae_decoder_nbr_layer'] = 4#2 #3#4
+    agent_config['vae_decoder_nbr_layer'] = 3 #4
     agent_config['vae_decoder_conv_dim'] = 32
     agent_config['vae_observation_sigma'] = vae_observation_sigma
     
@@ -397,7 +414,6 @@ def test_example_cultural_obverter_agents():
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   
-  '''
   dataset_args = {
       "dataset_class":            None,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
@@ -414,6 +430,7 @@ def test_example_cultural_obverter_agents():
 
   dataset_args['train_dataset'] = train_dataset
   dataset_args['test_dataset'] = test_dataset
+  
   '''
 
   nbrSampledQstPerImg = 1#5
@@ -432,6 +449,7 @@ def test_example_cultural_obverter_agents():
       "descriptive":              rg_config['descriptive'],
       "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
+  '''
   
   '''
   train_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=True, transform=transform, download=True)
