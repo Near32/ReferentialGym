@@ -437,8 +437,7 @@ class ReferentialGame(object):
                     if self.config['use_curriculum_nbr_distractors'] and mode == 'train':
                         window_count += 1
                         nbr_distractors = self.datasets['train'].getNbrDistractors()
-                        windowed_accuracy = (windowed_accuracy*self.config['curriculum_distractors_window_size']+acc.item())
-                        windowed_accuracy /= self.config['curriculum_distractors_window_size']
+                        windowed_accuracy = (windowed_accuracy*window_count+acc.item())/window_count
                         if windowed_accuracy > 60 and window_count >= self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
                             windowed_accuracy = 0
                             window_count = 0

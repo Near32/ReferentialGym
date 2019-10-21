@@ -27,7 +27,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          31,
+      "nbr_distractors":          15,
       "distractor_sampling":      "similarity-0.75",#"uniform",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -79,7 +79,7 @@ def test_example_cultural_obverter_agents():
       "use_homoscedastic_multitasks_loss": False,
 
       "use_curriculum_nbr_distractors": True,
-      "curriculum_distractors_window_size": 80,
+      "curriculum_distractors_window_size": 100,
 
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
