@@ -4,7 +4,7 @@ from .networks import ModelResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
 from .networks import layer_init, hasnan, handle_nan
 
-from .autoregressive_networks import BetaVAE, MONet
+from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
 
 from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
 
@@ -161,7 +161,15 @@ def choose_architecture( architecture,
         if 'vae_observation_sigma' in kwargs:
             observation_sigma = kwargs['vae_observation_sigma']
 
-        body = MONet(gamma=gamma,
+        compactness_factor = None
+        if 'unsup_seg_factor' in kwargs:
+            compactness_factor = kwargs['unsup_seg_factor']
+
+        arch = MONet 
+        if 'Parallel' in architecture:
+            arch = ParallelMONet
+        
+        body = arch(gamma=gamma,
                      input_shape=input_shape, 
                      nbr_attention_slot=nbr_attention_slot,
                      anet_basis_nbr_channel=32,
@@ -176,6 +184,7 @@ def choose_architecture( architecture,
                      cvae_maxEncodingCapacity=maxCap,
                      cvae_nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity,
                      cvae_constrainedEncoding=constrainedEncoding,
-                     cvae_observation_sigma=observation_sigma)
+                     cvae_observation_sigma=observation_sigma,
+                     compactness_factor=compactness_factor)
 
     return body

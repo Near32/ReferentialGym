@@ -12,7 +12,11 @@ import math
 from numbers import Number 
 from functools import partial
 
-from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init
+import numpy as np 
+from skimage import segmentation
+import cv2
+
+from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init, ConvolutionalMHDPABody
 
 
 class Distribution(object) :
@@ -402,9 +406,9 @@ class BroadcastingDecoder(nn.Module) :
                 outd = self.output_shape[0]
 
             if i == 0: 
-                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=1e0)
+                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=1e-3)
             else:
-                layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=1e0)
+                layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=1e-3)
             
             self.dcs.append(layer)
 
@@ -583,14 +587,29 @@ class BetaVAE(nn.Module) :
                                              nbr_layer=resnet_nbr_layer,
                                              pretrained=pretrained)
             else:
+                
                 self.encoder = ConvolutionalBody(input_shape=input_shape,
                                                  feature_dim=(256, latent_dim*2), 
                                                  channels=[input_shape[0], 32, 32, 64], 
                                                  kernel_sizes=[3, 3, 3], 
-                                                 strides=[2, 2, 2], 
-                                                 paddings=[0, 0, 0], 
+                                                 strides=[2, 2, 2],
+                                                 paddings=[0, 0, 0],
                                                  dropout=0.0,
                                                  non_linearities=[F.relu])
+                '''
+                self.encoder = ConvolutionalMHDPABody(input_shape=input_shape,
+                                      feature_dim=(256, latent_dim*2),
+                                      channels=[input_shape[0], 32, 32, 64],
+                                      kernel_sizes=[3, 3, 3],
+                                      strides=[2, 2, 2],
+                                      paddings=[0, 0, 0],
+                                      dropout=0.0,
+                                      nbrHead=4,
+                                      nbrRecurrentSharedLayers=1,
+                                      units_per_MLP_layer=256,
+                                      interaction_dim=128,
+                                      non_linearities=[F.relu])
+                '''
 
             self.decoder = BroadcastingDecoder(output_shape=input_shape,
                                                net_depth=decoder_nbr_layer, 
@@ -760,19 +779,19 @@ class UNetBlock(nn.Module):
 
         if self.upsample:
             self.layers = nn.Sequential(
-                layer_init(nn.Conv2d(in_channel*2,in_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+                layer_init(nn.Conv2d(in_channel*2,in_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
                 self.norm(num_features=in_channel),
                 nn.ReLU(),
-                layer_init(nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+                layer_init(nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
                 self.norm(num_features=out_channel),
                 nn.ReLU()
             )
         else:
             self.layers = nn.Sequential(
-                layer_init(nn.Conv2d(in_channel,out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+                layer_init(nn.Conv2d(in_channel,out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
                 self.norm(num_features=out_channel),
                 nn.ReLU(),
-                layer_init(nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+                layer_init(nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
                 self.norm(num_features=out_channel),
                 nn.ReLU()
             )
@@ -824,23 +843,23 @@ class UNet(nn.Module):
         
         '''
         self.mid_block = nn.Sequential(
-            layer_init(nn.Conv2d(running_nbr_channel,running_nbr_channel*2, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+            layer_init(nn.Conv2d(running_nbr_channel,running_nbr_channel*2, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
             nn.InstanceNorm2d(num_features=running_nbr_channel*2, affine=True, track_running_stats=False),
             nn.ReLU(),
-            layer_init(nn.Conv2d(running_nbr_channel*2, running_nbr_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e0),
+            layer_init(nn.Conv2d(running_nbr_channel*2, running_nbr_channel, kernel_size=3, stride=1, padding=1, bias=False), w_scale=1e-3),
             nn.InstanceNorm2d(num_features=running_nbr_channel, affine=True, track_running_stats=False),
             nn.ReLU()
         )
         '''
         self.mid_block = nn.Sequential(
-            layer_init(nn.Linear(int(running_nbr_channel*(spatialDim**2)), 128), w_scale=1e0),
+            layer_init(nn.Linear(int(running_nbr_channel*(spatialDim**2)), 128), w_scale=1e-3),
             nn.ReLU(),
-            layer_init(nn.Linear(128, 128), w_scale=1e0),
+            layer_init(nn.Linear(128, 128), w_scale=1e-3),
             nn.ReLU(),
-            layer_init(nn.Linear(128, int(running_nbr_channel*(spatialDim**2))), w_scale=1e0),
+            layer_init(nn.Linear(128, int(running_nbr_channel*(spatialDim**2))), w_scale=1e-3),
             nn.ReLU(),
         )
-
+        
         in_channel = running_nbr_channel*2
         running_nbr_channel //=2
 
@@ -858,7 +877,7 @@ class UNet(nn.Module):
             running_nbr_channel //= 2
         running_nbr_channel *= 2
 
-        self.final_conv = layer_init(nn.Conv2d(running_nbr_channel, self.out_channel, kernel_size=1, stride=1, padding=0, bias=True), w_scale=1e0)
+        self.final_conv = layer_init(nn.Conv2d(running_nbr_channel, self.out_channel, kernel_size=1, stride=1, padding=0, bias=True), w_scale=1e-3)
 
     def forward(self, x):
         skipxs = list()
@@ -871,8 +890,12 @@ class UNet(nn.Module):
         flat_x = x.flatten(start_dim=1)
         x = self.mid_block(flat_x)
         x = x.view(xsize)
+        '''
+        x = self.mid_block(x)
+        '''
+        
         x = F.interpolate(x, scale_factor=2)
-
+        
         for block, skipx in zip(self.upsampling_blocks, reversed(skipxs)):
             xin = torch.cat([skipx, x], dim=1)
             x, xout = block(xin)
@@ -893,11 +916,28 @@ class AttentionNetwork(nn.Module):
         super(AttentionNetwork, self).__init__()
         self.input_shape = input_shape
         self.in_channel = input_shape[0]+1
+        '''
         self.unet = UNet(input_shape=self.input_shape,
                          in_channel=self.in_channel,
                          out_channel=1,
                          basis_nbr_channel=attention_basis_nbr_channel,
                          block_depth=attention_block_depth)
+        '''
+        nChannel = attention_basis_nbr_channel
+        self.unet = [\
+            nn.Conv2d(self.in_channel, nChannel, kernel_size=3, stride=1, padding=1), \
+            nn.ReLU(), \
+            nn.BatchNorm2d(nChannel)]
+
+        for i in range(attention_block_depth):
+            self.unet.append( nn.Conv2d(nChannel, nChannel, kernel_size=3, stride=1, padding=1))
+            self.unet.append(nn.ReLU())
+            self.unet.append( nn.BatchNorm2d(nChannel))
+        
+        self.unet.append(nn.Conv2d(nChannel, 1, kernel_size=1, stride=1, padding=0))
+        self.unet.append(nn.BatchNorm2d(1))
+
+        self.unet = nn.Sequential(*self.unet)
 
     def forward(self, x, logscope):
         xin = torch.cat([x, logscope], dim=1)
@@ -907,6 +947,60 @@ class AttentionNetwork(nn.Module):
         # log( s_k ) = log( s_{k-1} * (1-sigmoid(unet(xin))) ) = log(s_{k-1}) + log( 1-sigmoid(unet(xin))) (==sigmoid(-unet(xin)))
         nlogscope = logscope+F.logsigmoid(-xout)
         return logmask, nlogscope
+
+class ParallelAttentionNetwork(nn.Module):
+    def __init__(self, 
+                 input_shape,
+                 in_channel, 
+                 nbr_attention_slot=10,
+                 attention_basis_nbr_channel=32,
+                 attention_block_depth=3):
+        super(ParallelAttentionNetwork, self).__init__()
+        self.input_shape = input_shape
+        self.in_channel = input_shape[0]+1
+        self.nbr_attention_slot = nbr_attention_slot
+        nChannel = attention_basis_nbr_channel
+        self.net = [\
+            nn.Conv2d(self.in_channel, nChannel, kernel_size=3, stride=1, padding=1), \
+            nn.ReLU(), \
+            nn.BatchNorm2d(nChannel)]
+
+        for i in range(attention_block_depth):
+            self.net.append( nn.Conv2d(nChannel, nChannel, kernel_size=3, stride=1, padding=1))
+            self.net.append(nn.ReLU())
+            self.net.append( nn.BatchNorm2d(nChannel))
+        
+        self.net.append(nn.Conv2d(nChannel, self.nbr_attention_slot-1, kernel_size=1, stride=1, padding=0))
+        self.net.append(nn.BatchNorm2d(self.nbr_attention_slot-1))
+
+        self.net = nn.Sequential(*self.net)
+
+    def forward(self, x, logscope):
+        batch_size = x.size(0)
+        xin = torch.cat([x, logscope], dim=1)
+        xout = self.net(xin)
+
+        logmasks = torch.empty(batch_size, self.nbr_attention_slot, *self.input_shape[-2:]).to(x.device)
+        logscopes = torch.empty(batch_size, self.nbr_attention_slot, *self.input_shape[-2:]).to(x.device)
+        logscopes[:,0:] = logscope 
+
+        for slot in range(self.nbr_attention_slot):
+            if slot < self.nbr_attention_slot-1:
+                x = xout[:,slot:slot+1,...]
+                ls = logscopes[:,slot:slot+1,...]  
+                # log( m_k ) = log( s_{k-1} * sigmoid(unet(xin)) )
+                #logmask = logscope+F.logsigmoid(xout)
+                logmask = ls+F.logsigmoid(x)
+                # log( s_k ) = log( s_{k-1} * (1-sigmoid(unet(xin))) ) = log(s_{k-1}) + log( 1-sigmoid(unet(xin))) (==sigmoid(-unet(xin)))
+                #nlogscope = logscope+F.logsigmoid(-xout)
+                nls = ls+F.logsigmoid(-x)
+
+                logmasks[:,slot:slot+1] = logmask
+                logscopes[:,slot:slot+1] = nls
+            else:
+                logmasks[:,slot:slot+1] = logscopes[:,slot:slot+1]
+        return logmasks, logscopes
+
 
 class MONet(BetaVAE):
     def __init__(self,
@@ -926,7 +1020,8 @@ class MONet(BetaVAE):
                  cvae_maxEncodingCapacity=100,
                  cvae_nbrEpochTillMaxEncodingCapacity=4,
                  cvae_constrainedEncoding=True,
-                 cvae_observation_sigma=0.05):
+                 cvae_observation_sigma=0.05,
+                 compactness_factor=None):
         cvae_input_shape = copy.deepcopy(input_shape)
         cvae_input_shape[0] += 1
         super(MONet, self).__init__(beta=cvae_beta, 
@@ -960,6 +1055,12 @@ class MONet(BetaVAE):
                                                   attention_block_depth=anet_block_depth)
 
         self.nbr_attention_slot = nbr_attention_slot
+
+        self.compactness_factor = compactness_factor
+        if self.compactness_factor is not None:
+            self.use_compactness_constraint = True
+        else:
+            self.use_compactness_constraint = False
 
     def get_feature_shape(self):
         return self.latent_dim*self.nbr_attention_slot
@@ -1003,9 +1104,9 @@ class MONet(BetaVAE):
                                *self.input_shape).to(x.device)
         self.reconstructions = torch.empty_like(logprobs)
         self.masks = torch.empty(batch_size, 
-                                           self.nbr_attention_slot, 
-                                           1,
-                                           *self.input_shape[-2:]).to(x.device)
+                                 self.nbr_attention_slot, 
+                                 1,
+                                 *self.input_shape[-2:]).to(x.device)
         self.log_mask_reconstructions = torch.empty_like(self.masks)
 
         scale = torch.empty((1,1,1,1)).fill_(self.observation_sigma).expand_as(x).to(x.device)
@@ -1014,6 +1115,7 @@ class MONet(BetaVAE):
         self.mus = list()
         self.logvars = list()
 
+        log_masks = self.attention_network(x=x, logscope=log_scope)
         for slot in range(self.nbr_attention_slot):
             if slot < self.nbr_attention_slot-1:
                 log_mask, log_scope = self.attention_network(x=x, logscope=log_scope)
@@ -1081,7 +1183,65 @@ class MONet(BetaVAE):
                                             reduction='none').view(batch_size, -1).sum(-1)
         # batch_size, 1
 
-        return self.reconstructions, self.masks, neg_log_lik, kl_sum, mask_reconstruction_loss
+        if self.use_compactness_constraint:
+            #
+            # Adapted from: 
+            # https://github.com/kanezaki/pytorch-unsupervised-segmentation/blob/master/demo.py
+            #
+            nx = x.cpu().numpy().astype('double')*255.
+            nx = nx.transpose((0, 2, 3, 1))
+            b_nx = [nx[i] for i in range(len(nx))]
+            b_labels = [segmentation.slic(nx, compactness=100.0, n_segments=10000) for nx in b_nx]
+            b_labels = [labels.reshape(self.input_shape[-1]**2) for labels in b_labels]#nx.shape[0]*nx.shape[1])
+            u_b_labels = [np.unique(labels) for labels in b_labels]
+            l_b_inds = []
+            for idx_u, u_labels in enumerate(u_b_labels):
+                l_inds = []
+                for i in range(len(u_labels)):
+                    l_inds.append( np.where( b_labels[idx_u] == u_b_labels[idx_u][ i ] )[ 0 ] )
+                l_b_inds.append(l_inds)
+
+            compactness_loss_fn = torch.nn.CrossEntropyLoss()
+
+            slot_logits_ppx = self.masks.permute(0, 3, 4, 1, 2).contiguous().view(batch_size, -1, self.nbr_attention_slot)
+            # batch x dim**2 x nbr_attention_slots
+            slot_probs_ppx = torch.softmax(slot_logits_ppx, dim=-1)
+            # batch x dim**2 x nbr_attention_slots
+            _, target = torch.max( slot_probs_ppx, -1 )
+            # batch x dim**2 x 1
+            im_target = target.data.cpu().numpy()
+            # batch x dim**2 x nbr_attention_slots
+
+            im_vis = target[0].data.cpu().numpy()
+            # dim**2 x 1
+            nLabels = len(np.unique(im_vis))
+            label_colours = np.random.randint(255,size=(100,3))
+            im_vis_rgb = np.array([label_colours[ c % 100 ] for c in im_vis])
+            im_vis_rgb = im_vis_rgb.reshape(*self.input_shape[-2:], 3).astype( np.uint8 )
+            im_input_rgb = nx[0].reshape(*self.input_shape[-2:], 3).astype( np.uint8 )
+            im_vis_rgb = np.concatenate([im_vis_rgb, im_input_rgb], axis=1)
+            cv2.imwrite( "./mrl_rep_labels.png", im_vis_rgb )
+
+            compactness_losses = []
+            for idx_b in range(len(b_nx)):
+                for i in range(len(l_inds)):
+                    labels_per_sp = im_target[idx_b][ l_b_inds[idx_b][i] ]
+                    u_labels_per_sp = np.unique( labels_per_sp )
+                    hist = np.zeros( len(u_labels_per_sp) )
+                    for j in range(len(hist)):
+                        hist[ j ] = len( np.where( labels_per_sp == u_labels_per_sp[ j ] )[ 0 ] )
+                    im_target[idx_b][l_b_inds[idx_b][i]] = u_labels_per_sp[ np.argmax( hist ) ]
+                target = torch.from_numpy(im_target[idx_b])
+                target = target.to(x.device)
+                compactness_losses.append(compactness_loss_fn(slot_logits_ppx[idx_b], target).sum().unsqueeze(0))
+            compactness_losses = torch.cat(compactness_losses, dim=0)
+            # batch x 1
+            #
+            #
+        else:
+            compactness_losses = None
+
+        return self.reconstructions, self.masks, neg_log_lik, kl_sum, mask_reconstruction_loss, compactness_losses
 
     def compute_loss(self,
                      x=None,
@@ -1090,9 +1250,10 @@ class MONet(BetaVAE):
         self.mask_reconstructions, \
         self.neg_log_lik, \
         self.kl_sum, \
-        self.mask_reconstruction_loss = self.forward(x=x,
-                                                      observation_sigma=observation_sigma,
-                                                      compute_loss=True)
+        self.mask_reconstruction_loss, \
+        self.compactness_losses = self.forward(x=x,
+                                              observation_sigma=observation_sigma,
+                                              compute_loss=True)
         
         #--------------------------------------------------------------------------------------------------------------
         # Reconstruction loss :
@@ -1121,6 +1282,293 @@ class MONet(BetaVAE):
         self.MONet_loss = self.VAE_loss + self.gamma*self.mask_reconstruction_loss
         #--------------------------------------------------------------------------------------------------------------
         
+        if self.compactness_losses is not None:
+            self.MONet_loss += self.compactness_factor*self.compactness_losses
+
+        return self.MONet_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence
+
+
+class ParallelMONet(BetaVAE):
+    def __init__(self,
+                 gamma=0.5,
+                 input_shape=[3, 64, 64], 
+                 nbr_attention_slot=10,
+                 anet_basis_nbr_channel=32,
+                 anet_block_depth=3,
+                 cvae_beta=0.5,
+                 cvae_latent_dim=10,
+                 cvae_decoder_conv_dim=32, 
+                 cvae_pretrained=False, 
+                 cvae_resnet_encoder=False,
+                 cvae_resnet_nbr_layer=2,
+                 cvae_decoder_nbr_layer=3,
+                 cvae_EncodingCapacityStep=None,
+                 cvae_maxEncodingCapacity=100,
+                 cvae_nbrEpochTillMaxEncodingCapacity=4,
+                 cvae_constrainedEncoding=True,
+                 cvae_observation_sigma=0.05,
+                 compactness_factor=None):
+        cvae_input_shape = copy.deepcopy(input_shape)
+        cvae_input_shape[0] += 1
+        super(ParallelMONet, self).__init__(beta=cvae_beta, 
+                                            latent_dim=cvae_latent_dim,
+                                            nbr_attention_slot=None,
+                                            input_shape=cvae_input_shape, 
+                                            decoder_conv_dim=cvae_decoder_conv_dim, 
+                                            decoder_nbr_layer=cvae_decoder_nbr_layer,
+                                            pretrained=cvae_pretrained, 
+                                            resnet_encoder=cvae_resnet_encoder,
+                                            resnet_nbr_layer=cvae_resnet_nbr_layer,
+                                            NormalOutputDistribution=True,
+                                            EncodingCapacityStep=cvae_EncodingCapacityStep,
+                                            maxEncodingCapacity=cvae_maxEncodingCapacity,
+                                            nbrEpochTillMaxEncodingCapacity=cvae_nbrEpochTillMaxEncodingCapacity,
+                                            constrainedEncoding=cvae_constrainedEncoding,
+                                            observation_sigma=cvae_observation_sigma)
+
+        # Set attribute 'attention_weights' where to store each slot's attention mask:
+        setattr(self.encoder, 'attention_weights', list() )
+        # Set attribute 'attention_reconstructions' where to store each slot's reconstruction:
+        setattr(self.encoder, 'attention_reconstructions', list() )
+
+        self.gamma = gamma
+        self.cvae_input_shape = cvae_input_shape
+        self.input_shape = input_shape
+        self.nbr_attention_slot = nbr_attention_slot
+
+        self.attention_network = ParallelAttentionNetwork(input_shape=input_shape,
+                                                          in_channel=input_shape[0],
+                                                          nbr_attention_slot=self.nbr_attention_slot,
+                                                          attention_basis_nbr_channel=anet_basis_nbr_channel,
+                                                          attention_block_depth=anet_block_depth)
+
+
+        self.compactness_factor = compactness_factor
+        if self.compactness_factor is not None:
+            self.use_compactness_constraint = True
+        else:
+            self.use_compactness_constraint = False
+
+    def get_feature_shape(self):
+        return self.latent_dim*self.nbr_attention_slot
+
+    def encodeZ(self,x) :
+        self.forward(x) 
+        return self.z, self.mu, self.logvar
+
+    def decode(self, z):
+        batch_size = z.size(0)
+        reconstructions = torch.empty(batch_size,
+                                      self.nbr_attention_slot,
+                                      *self.input_shape).to(z.device)
+        mask_reconstructions = torch.empty(batch_size, 
+                                           self.nbr_attention_slot, 
+                                           1,
+                                           *self.input_shape[-2:]).to(z.device)
+        for slot, slot_z in zip(range(self.nbr_attention_slot), torch.chunk(z, self.nbr_attention_slot, dim=1)):
+            cvae_out = self.decoder(slot_z)
+            x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
+            reconstructions[:,slot] = x_rec
+            mask_reconstructions[:,slot] = torch.clamp_min(log_mask_rec.exp(), min=1e-9)
+
+        reconstructions = torch.sum( mask_reconstructions * reconstructions, dim=1)
+        return reconstructions
+
+    def forward(self, 
+                x,
+                observation_sigma=None,
+                compute_loss=False):
+        if observation_sigma is None:
+            observation_sigma = self.observation_sigma
+
+        batch_size = x.size(0)
+
+        initial_scope = torch.zeros(1, 1, *self.input_shape[-2:])
+        log_scope = initial_scope.repeat(batch_size, 1 ,1, 1).to(x.device)
+
+        logprobs = torch.empty(batch_size, 
+                               self.nbr_attention_slot, 
+                               *self.input_shape).to(x.device)
+        self.reconstructions = torch.empty_like(logprobs)
+        self.masks = torch.empty(batch_size, 
+                                 self.nbr_attention_slot, 
+                                 1,
+                                 *self.input_shape[-2:]).to(x.device)
+        self.log_mask_reconstructions = torch.empty_like(self.masks)
+
+        scale = torch.empty((1,1,1,1)).fill_(self.observation_sigma).expand_as(x).to(x.device)
+
+        per_slot_kls = list()
+        self.mus = list()
+        self.logvars = list()
+
+        log_masks, log_scopes = self.attention_network(x=x, logscope=log_scope)
+        for slot in range(self.nbr_attention_slot):
+            log_mask = log_masks[:,slot:slot+1]
+
+            vae_in = torch.cat((x, log_mask), dim=1)
+            mu, logvar, cvae_out = self._forward(vae_in)
+            self.mus.append(mu)
+            self.logvars.append(logvar)
+
+            # Reconstructions Distributions:
+            x_rec, log_mask_rec = torch.split(cvae_out, self.input_shape[0], dim=1)
+            #rec_dist = Normal(x_rec, scale)
+            if slot == 0:
+                rec_dist = torch.distributions.Normal(x_rec, 0.9*scale)
+            else:
+                rec_dist = torch.distributions.Normal(x_rec, scale)
+
+            logprobs[:, slot] = log_mask + rec_dist.log_prob(x)
+
+            # KL divergence with latent prior:
+            kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+            per_slot_kls.append(kl.unsqueeze(1))
+
+            mask_probs = torch.clamp_min(log_mask.exp(), min=1e-9)
+            
+            self.masks[:, slot] = mask_probs
+            self.reconstructions[:, slot] = x_rec
+            self.log_mask_reconstructions[:, slot] = log_mask_rec
+
+        per_slot_kls = torch.cat(per_slot_kls, dim=1)
+        # batch_size x nbr_attention_slot x latent_dim
+
+        self.mu = torch.cat(self.mus, dim=-1)
+        self.logvar = torch.cat(self.logvars, dim=-1)
+        self.z = self.reparameterize(self.mu, self.logvar)
+
+        setattr(self.encoder, 'attention_weights', self.masks.data)
+        setattr(self.encoder, 'attention_reconstructions', self.reconstructions.data)
+
+        if not compute_loss:
+            self.reconstruction = torch.sum( self.masks * self.reconstructions, dim=1)
+            return self.reconstruction, self.mus, self.logvars, self.reconstructions, self.masks
+
+        
+        # sum over latent dimension and slots:
+        kl_sum = per_slot_kls.sum(-1).sum(-1)
+        # batch_size , 1
+
+        # sum (exp O log) prob over slot dimension, 
+        # compute log likelyhood and sum over input shape:
+        neg_log_lik = -torch.logsumexp(logprobs, dim=1).view(batch_size,-1).sum(-1)
+        # batch_size, 1
+
+        # softmax over the slot dimension:
+        self.log_mask_reconstructions = F.log_softmax(self.log_mask_reconstructions, dim=1)
+        
+        # softmax over the slot dimension:
+        #self.maks = F.softmax(self.masks, dim=1)
+        
+        # mask reconstruction loss :: kl div loss: expects log likelihood input and probabilities targets:
+        mask_reconstruction_loss = F.kl_div(input=self.log_mask_reconstructions, 
+                                            target=self.masks,
+                                            reduction='none').view(batch_size, -1).sum(-1)
+        # batch_size, 1
+
+        if self.use_compactness_constraint:
+            #
+            # Adapted from: 
+            # https://github.com/kanezaki/pytorch-unsupervised-segmentation/blob/master/demo.py
+            #
+            nx = x.cpu().numpy().astype('double')*255.
+            nx = nx.transpose((0, 2, 3, 1))
+            b_nx = [nx[i] for i in range(len(nx))]
+            b_labels = [segmentation.slic(nx, compactness=100.0, n_segments=10000) for nx in b_nx]
+            b_labels = [labels.reshape(self.input_shape[-1]**2) for labels in b_labels]#nx.shape[0]*nx.shape[1])
+            u_b_labels = [np.unique(labels) for labels in b_labels]
+            l_b_inds = []
+            for idx_u, u_labels in enumerate(u_b_labels):
+                l_inds = []
+                for i in range(len(u_labels)):
+                    l_inds.append( np.where( b_labels[idx_u] == u_b_labels[idx_u][ i ] )[ 0 ] )
+                l_b_inds.append(l_inds)
+
+            compactness_loss_fn = torch.nn.CrossEntropyLoss()
+
+            slot_logits_ppx = self.masks.permute(0, 3, 4, 1, 2).contiguous().view(batch_size, -1, self.nbr_attention_slot)
+            # batch x dim**2 x nbr_attention_slots
+            slot_probs_ppx = torch.softmax(slot_logits_ppx, dim=-1)
+            # batch x dim**2 x nbr_attention_slots
+            _, target = torch.max( slot_probs_ppx, -1 )
+            # batch x dim**2 x 1
+            im_target = target.data.cpu().numpy()
+            # batch x dim**2 x nbr_attention_slots
+
+            im_vis = target[0].data.cpu().numpy()
+            # dim**2 x 1
+            nLabels = len(np.unique(im_vis))
+            label_colours = np.random.randint(255,size=(100,3))
+            im_vis_rgb = np.array([label_colours[ c % 100 ] for c in im_vis])
+            im_vis_rgb = im_vis_rgb.reshape(*self.input_shape[-2:], 3).astype( np.uint8 )
+            im_input_rgb = nx[0].reshape(*self.input_shape[-2:], 3).astype( np.uint8 )
+            im_vis_rgb = np.concatenate([im_vis_rgb, im_input_rgb], axis=1)
+            cv2.imwrite( "./mrl_rep_parallel_labels.png", im_vis_rgb )
+
+            compactness_losses = []
+            for idx_b in range(len(b_nx)):
+                for i in range(len(l_inds)):
+                    labels_per_sp = im_target[idx_b][ l_b_inds[idx_b][i] ]
+                    u_labels_per_sp = np.unique( labels_per_sp )
+                    hist = np.zeros( len(u_labels_per_sp) )
+                    for j in range(len(hist)):
+                        hist[ j ] = len( np.where( labels_per_sp == u_labels_per_sp[ j ] )[ 0 ] )
+                    im_target[idx_b][l_b_inds[idx_b][i]] = u_labels_per_sp[ np.argmax( hist ) ]
+                target = torch.from_numpy(im_target[idx_b])
+                target = target.to(x.device)
+                compactness_losses.append(compactness_loss_fn(slot_logits_ppx[idx_b], target).sum().unsqueeze(0))
+            compactness_losses = torch.cat(compactness_losses, dim=0)
+            # batch x 1
+            #
+            #
+        else:
+            compactness_losses = None
+
+        return self.reconstructions, self.masks, neg_log_lik, kl_sum, mask_reconstruction_loss, compactness_losses
+
+    def compute_loss(self,
+                     x=None,
+                     observation_sigma=None):
+        self.reconstructions, \
+        self.mask_reconstructions, \
+        self.neg_log_lik, \
+        self.kl_sum, \
+        self.mask_reconstruction_loss, \
+        self.compactness_losses = self.forward(x=x,
+                                              observation_sigma=observation_sigma,
+                                              compute_loss=True)
+        
+        #--------------------------------------------------------------------------------------------------------------
+        # Reconstruction loss :
+        #self.neg_log_lik = -Normal(self.VAE_output, self.observation_sigma).log_prob( gtx)
+        #self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)
+        #--------------------------------------------------------------------------------------------------------------
+        # KL Divergence :
+        self.true_kl_divergence = self.kl_sum #0.5 * (self.mu**2 + torch.exp(self.log_var) - self.log_var -1)
+        self.kl_divergence_regularized = torch.zeros_like(self.true_kl_divergence)
+        #--------------------------------------------------------------------------------------------------------------
+        # VAE Loss:
+        #--------------------------------------------------------------------------------------------------------------
+        if self.EncodingCapacityStep is None :
+            self.VAE_loss = self.neg_log_lik + self.beta*self.true_kl_divergence
+        else:
+            self.kl_divergence_regularized =  torch.abs( self.true_kl_divergence - self.EncodingCapacity )
+            self.VAE_loss = self.neg_log_lik + self.beta*self.kl_divergence_regularized
+            
+            if self.increaseEncodingCapacity and self.training:
+                self.EncodingCapacity += self.EncodingCapacityStep
+            if self.EncodingCapacity >= self.maxEncodingCapacity :
+                self.increaseEncodingCapacity = False 
+        #--------------------------------------------------------------------------------------------------------------
+        # MONet Loss:
+        #--------------------------------------------------------------------------------------------------------------
+        self.MONet_loss = self.VAE_loss + self.gamma*self.mask_reconstruction_loss
+        #--------------------------------------------------------------------------------------------------------------
+        
+        if self.compactness_losses is not None:
+            self.MONet_loss += self.compactness_factor*self.compactness_losses
+
         return self.MONet_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence
 
 

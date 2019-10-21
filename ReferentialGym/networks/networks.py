@@ -550,9 +550,9 @@ class MHDPA(nn.Module):
             fxy = fx.repeat( 1,1,1,self.sizeY)
             fyx = fy.repeat( 1,1,self.sizeX,1)
             fXY = torch.cat( [fxy,fyx], dim=1)
-            if x.is_cuda: fXY = fXY.cuda()
             self.fXY = fXY 
 
+        self.fXY = self.fXY.to(x.device)
         out = torch.cat( [x,self.fXY], dim=1)
         out = out.view((self.batch,self.depth+2,-1))
 

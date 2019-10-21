@@ -207,7 +207,7 @@ class SortOfCLEVRDataset(Dataset):
         
         self.train = train 
         if self.train:
-            datasets = train_datasets[:2000]            
+            datasets = train_datasets[:2000]
         else:
             datasets = test_datasets[:2000]
 

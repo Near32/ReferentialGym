@@ -181,7 +181,7 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
   reconst_images = model_outputs[0]
   
   npfx = reconst_images.cpu().data
-  orimg = fixed_x
+  orimg = fixed_x.cpu().data
   ri = torch.cat( [orimg, npfx], dim=2)
   save_path = os.path.join(path, 'reconstructed_images/')
   if test :
@@ -202,7 +202,11 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
     # rescale between [0.25, 1.0]:
     attention = 0.75*attention + 0.25
     nbr_slot = attention.size(1)
-    orimg = orimg[0].unsqueeze(0).repeat(seq_len*nbr_slot, 1, 1, 1).cpu().data
+    if seq_len != orimg.size(0):
+      orimg = fixed_x[0].cpu().data.unsqueeze(0).repeat(seq_len*nbr_slot, 1, 1, 1)
+    else:
+      orimg = fixed_x.cpu().data.unsqueeze(0).repeat(nbr_slot, 1, 1, 1, 1)
+      orimg = orimg.transpose(1,0).contiguous().view((-1, *fixed_x.size()[1:]))
     # seq_len x 3 x img_w x img_h 
 
     # resize: if needs be:
@@ -215,7 +219,7 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
       attention = torch.cat([ resize(attention[i]).unsqueeze(0) for i in range(seq_len*nbr_slot)], dim=0)
     attention = attention.contiguous().view(seq_len*nbr_slot, 1, imgw, imgw)
     # seq_len*nbr_slot x 1 x imgw x imgw 
-    attention = attention.contiguous().repeat(1,3,1,1)
+    attention = attention.contiguous().repeat(1,3,1,1).cpu().data
 
     att_img = attention * orimg
     grid_att_img = torchvision.utils.make_grid(att_img, nrow=nbr_slot)
