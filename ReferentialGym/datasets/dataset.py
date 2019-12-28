@@ -2,21 +2,26 @@ from typing import Dict, List, Tuple
 import torch
 from torch.utils.data.dataset import Dataset as torchDataset
 
-def shuffle(experiences):
+def shuffle(experiences, orders=None):
     st_size = experiences.size()
     batch_size = st_size[0]
     nbr_distractors_po = st_size[1]
     perms = []
     shuffled_experiences = []
+    output_order = []
     for b in range(batch_size):
-        perm = torch.randperm(nbr_distractors_po)
+        if orders is None:
+            perm = torch.randperm(nbr_distractors_po)
+        else: 
+            perm = orders[b]
         if experiences.is_cuda: perm = perm.cuda()
+        output_order.append(perm)
         perms.append(perm.unsqueeze(0))
         shuffled_experiences.append( experiences[b,perm,...].unsqueeze(0))
     perms = torch.cat(perms, dim=0)
     shuffled_experiences = torch.cat(shuffled_experiences, dim=0)
     decision_target = (perms==0).max(dim=1)[1].long()
-    return shuffled_experiences, decision_target
+    return shuffled_experiences, decision_target, output_order
 
 
 class Dataset(torchDataset):
@@ -78,38 +83,57 @@ class Dataset(torchDataset):
         from_class = None
         if 'similarity' in self.kwargs['distractor_sampling']:
             similarity_ratio = float(self.kwargs['distractor_sampling'].split('-')[-1])
-            _, _, exp_labels = self.sample(idx=idx, target_only=True)
+            _, _, exp_labels, _ = self.sample(idx=idx, target_only=True)
             from_class = None
             if torch.rand(size=(1,)).item() < similarity_ratio:
                 from_class = exp_labels
 
         if self.kwargs['descriptive']:
-            experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
+            experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
-            # In descriptive mode, the speaker observability is alwasy partial:
+            latent_experiences = exp_latents.unsqueeze(0)
+            # In descriptive mode, the speaker observability is always partial:
             speaker_experiences = experiences[:,0].unsqueeze(1)
-            
+            speaker_latent_experiences = latent_experiences[:,0].unsqueeze(1)
+
             if torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']:
                 # Target experience remain in the experiences yielded to the listener:
                 listener_experiences = experiences 
+                listener_latent_experiences = latent_experiences 
                 if self.kwargs['object_centric']:
-                    listener_experiences[:,0] = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)[0].unsqueeze(0)
-                listener_experiences, target_decision_idx = shuffle(listener_experiences)
+                    lexp, _, _, lexp_latent = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
+                    listener_experiences[:,0] = lexp.unsqueeze(0)
+                    listener_latent_experiences[:,0] = lexp_latent.unsqueeze(0)
+                listener_experiences, target_decision_idx, orders = shuffle(listener_experiences)
+                listener_latent_experiences, _, _ = shuffle(listener_latent_experiences, orders=orders)
             else:
                 # Target experience is excluded from the experiences yielded to the listener:
-                listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
+                lexp, _, _, lexp_latent = self.sample(idx=None, from_class=from_class, excepts=[idx])
+                listener_experiences = lexp.unsqueeze(0)
+                listener_latent_experiences = lexp_latent.unsqueeze(0)
+                #listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
                 # The target_decision_idx is set to `nbr_experiences`:
                 target_decision_idx = (self.nbr_distractors+1)*torch.ones(1).long()                         
         else:
-            experiences, indices, exp_labels = self.sample(idx=idx, from_class=from_class)
+            experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
-            listener_experiences, target_decision_idx = shuffle(experiences)
+            exp_latents = exp_latents.unsqueeze(0)
+
+            listener_experiences, target_decision_idx, orders = shuffle(experiences)
+            listener_latent_experiences, _, _ = shuffle(exp_latents, orders=orders)
+            
             speaker_experiences = experiences 
+            speaker_latent_experiences = exp_latents
+            
             if self.kwargs['observability'] == "partial":
                 speaker_experiences = speaker_experiences[:,0].unsqueeze(1)
+                speaker_latent_experiences = speaker_latent_experiences[:,0].unsqueeze(1)
+                
 
         output_dict = {'speaker_experiences':speaker_experiences,
                        'listener_experiences':listener_experiences,
+                       'speaker_latent_experiences':speaker_latent_experiences,
+                       'listener_latent_experiences':listener_latent_experiences,
                        'target_decision_idx':target_decision_idx}
 
         return output_dict

@@ -94,6 +94,9 @@ def choose_architecture( architecture,
             nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture)
         beta = kwargs['vae_beta']
+        factor_vae_gamma = 0.0
+        if 'factor_vae_gamma' in kwargs:
+            factor_vae_gamma = kwargs['factor_vae_gamma']
         maxCap = kwargs['vae_max_capacity']
         nbrEpochTillMaxEncodingCapacity = kwargs['vae_nbr_epoch_till_max_capacity']
         nbr_attention_slot = None
@@ -107,6 +110,10 @@ def choose_architecture( architecture,
             decoder_nbr_layer = kwargs['vae_decoder_nbr_layer']
         if 'vae_decoder_conv_dim' in kwargs:
             decoder_conv_dim = kwargs['vae_decoder_conv_dim']
+        NormalOutputDistribution = True
+        if 'vae_use_gaussian_observation_model' in kwargs:
+            NormalOutputDistribution = kwargs['vae_use_gaussian_observation_model']
+        
         body = BetaVAE(beta=beta,
                        input_shape=input_shape,
                        latent_dim=latent_dim,
@@ -116,8 +123,10 @@ def choose_architecture( architecture,
                        pretrained=pretrained,
                        decoder_nbr_layer=decoder_nbr_layer,
                        decoder_conv_dim=decoder_conv_dim,
+                       NormalOutputDistribution=NormalOutputDistribution,
                        maxEncodingCapacity=maxCap,
-                       nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity)
+                       nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity,
+                       factor_vae_gamma=factor_vae_gamma)
 
     if 'MONet' in architecture:
         beta = kwargs['vae_beta']

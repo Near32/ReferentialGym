@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from .listener import Listener
 from ..networks import choose_architecture, layer_init, BetaVAE
-from ..utils import gumbel_softmax, permutate_latents
+from ..utils import gumbel_softmax
 
 
 class DifferentiableObverterAgent(Listener):
@@ -62,27 +62,14 @@ class DifferentiableObverterAgent(Listener):
                                                   MHDPAInteractionDim=self.kwargs['mhdpa_interaction_dim'])
         elif 'BetaVAE' in self.kwargs['architecture'] or 'MONet' in self.kwargs['architecture']:
             self.VAE_losses = list()
-            self.neg_log_likelyhoods = list()
-            self.kl_divs = list()
-            self.kl_div_regs = list()
             self.compactness_losses = list()
+            self.buffer_cnn_output_dict = dict()
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                    kwargs=self.kwargs,
                                                    input_shape=cnn_input_shape,
                                                    feature_dim=self.kwargs['cnn_encoder_feature_dim'],
                                                    dropout=self.kwargs['dropout_prob'])
             self.VAE = self.cnn_encoder
-
-            self.TC_losses = list()
-            self.vae_modularity = list()
-            if 'vae_tc_discriminator_hidden_units' in self.kwargs:
-                self.tc_discriminator = choose_architecture(architecture='MLP',
-                                                            input_shape=[self.VAE.get_feature_shape()],
-                                                            hidden_units_list=self.kwargs['vae_tc_discriminator_hidden_units'])
-            else:
-                self.tc_discriminator = None
-
-
 
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         self.temporal_feature_encoder = nn.GRU(input_size=temporal_encoder_input_dim,
@@ -128,13 +115,8 @@ class DifferentiableObverterAgent(Listener):
         #if 'BetaVAE' in self.kwargs['architecture']:
         if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = list()
-            self.neg_log_likelyhoods.clear()
-            self.kl_divs.clear()
-            self.kl_div_regs.clear()
             self.compactness_losses.clear()
-            if self.tc_discriminator is not None:
-                self.TC_losses = list()
-                self.vae_modularity.clear()
+            self.buffer_cnn_output_dict = dict()
 
     def _compute_tau(self, tau0, emb=None):
         if emb is None: emb = self.embedding_tf_final_outputs
@@ -160,76 +142,38 @@ class DifferentiableObverterAgent(Listener):
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             #if 'BetaVAE' in self.kwargs['architecture']:
             if isinstance(self.cnn_encoder, BetaVAE):
-                VAE_loss, neg_log_lik, kl_div_reg, kl_div  = self.cnn_encoder.compute_loss(stin)
-                self.VAE_losses.append(VAE_loss)
-                self.neg_log_likelyhoods.append(neg_log_lik.cpu())
-                self.kl_divs.append(kl_div.cpu())
-                self.kl_div_regs.append(kl_div_reg.cpu())
+                cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
+                if 'VAE_loss' in cnn_output_dict:
+                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
+                
                 if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
                     self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
-                featout = self.cnn_encoder.mu 
+                
+                for key in cnn_output_dict:
+                    if key not in self.buffer_cnn_output_dict:
+                        self.buffer_cnn_output_dict[key] = list()
+                    self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
 
-                if self.tc_discriminator is not None:
-                    z = self.cnn_encoder.z.detach()
-                    if z.size(0) > 1:
-                        z1, z2 = z.chunk(2, dim=0)
-                        
-                        zeros = torch.zeros(z1.size(0)).long().to(z1.device)
-                        ones = torch.ones(z2.size(0)).long().to(z2.device)
-                        
-                        pz = permutate_latents(z2)
-                        Dz = self.tc_discriminator(z1)
-                        Dpz = self.tc_discriminator(pz)
-                        tc_l11 = 0.5*F.cross_entropy(input=Dz, target=zeros, reduction='none')
-                        # (b1, )
-                        tc_l12 = 0.5*F.cross_entropy(input=Dpz, target=ones, reduction='none')
-                        # (b2, )
-                        
-                        zeros = torch.zeros(z2.size(0)).long().to(z2.device)
-                        ones = torch.ones(z1.size(0)).long().to(z1.device)
-                        
-                        pz = permutate_latents(z1)
-                        Dz = self.tc_discriminator(z2)
-                        Dpz = self.tc_discriminator(pz)
+                #featout = self.cnn_encoder.mu 
+                featout = self.cnn_encoder.z
 
-                        tc_l21 = 0.5*F.cross_entropy(input=Dz, target=zeros, reduction='none')
-                        # (b1, )
-                        tc_l22 = 0.5*F.cross_entropy(input=Dpz, target=ones, reduction='none')
-                        # (b2, )
-                        
-                        tc_loss1 = tc_l11 + tc_l22
-                        tc_loss2 = tc_l12 + tc_l21
-                        
-                        tc_loss = torch.cat([tc_loss1, tc_loss2])
-                        # (b, )
-                        self.TC_losses.append(tc_loss)
-                        
-                        probDz = F.softmax(Dz.detach(), dim=1)[...,:1]
-                        probDpz = F.softmax(Dpz.detach(), dim=1)[...,1:]
-                        discr_acc = (torch.cat([probDz,probDpz],dim=0) >= 0.5).sum().float().div(2*probDz.size(0))
-                        self.vae_modularity.append(discr_acc.cpu().unsqueeze(0))
-                    else:
-                        self.TC_losses.append(torch.zeros(1).to(z.device))
             else:
                 featout = self.cnn_encoder(stin)
-            features.append( featout)
-        features = torch.cat(features, dim=0).detach()
+            features.append(featout)
+        features = torch.cat(features, dim=0)#.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
-        #if 'BetaVAE' in self.kwargs['architecture']:
         if isinstance(self.cnn_encoder, BetaVAE):
-            self.VAE_losses = torch.cat(self.VAE_losses).contiguous().view((batch_size,-1)).mean(dim=-1)
-            self.log_dict['kl_div'] = torch.cat(self.kl_divs).mean()
-            self.log_dict['kl_div_reg'] = torch.cat(self.kl_div_regs).mean()
+            self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
+            
+            for key in self.buffer_cnn_output_dict:
+                self.log_dict[key] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
+
             self.log_dict['kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
-            self.log_dict['neg_log_lik'] = torch.cat(self.neg_log_likelyhoods).mean()
             if len(self.compactness_losses):
                 self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
-            if len(self.TC_losses):
-                self.TC_losses = torch.cat(self.TC_losses).contiguous().view((batch_size,-1)).mean(dim=-1)
-                self.log_dict['Modularity'] = torch.cat(self.vae_modularity).mean()
-
+            
         return features 
 
     def _reason(self, sentences, features):

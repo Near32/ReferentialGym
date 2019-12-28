@@ -118,7 +118,7 @@ def compute_topographic_similarity(sentences,features,comprange=100):
         f1 = features[idx1]
         tillidx = min(len(sentences)-1,idx1+1+comprange)
         for idx2, f2 in enumerate(features[idx1+1:tillidx]): 
-            cossims.append( compute_cosine_sim(f1,f2))
+            cossims.append( compute_cosine_sim(f1.squeeze(),f2.squeeze()))
     
     rho, p = spearmanr(levs, cossims)
     return -rho, p, levs, cossims  
@@ -251,15 +251,3 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
     grid_recs = torchvision.utils.make_grid(recs, nrow=nbr_slot)
     recs_save_path = save_path+'recs{}{}.png'.format(idxoffset, suffix)
     torchvision.utils.save_image(grid_recs, recs_save_path)
-
-
-def permutate_latents(z):
-    assert(z.dim() == 2)
-    batch_size, latent_dim = z.size()
-    pz = list()
-    for lz in torch.split(z, split_size_or_sections=1, dim=1):
-        b_perm = torch.randperm(batch_size).to(z.device)
-        p_lz = lz[b_perm]
-        pz.append(p_lz)
-    pz = torch.cat(pz, dim=1)
-    return pz 

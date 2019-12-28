@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
@@ -16,7 +17,7 @@ import numpy as np
 from skimage import segmentation
 import cv2
 
-from .networks import ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init, ConvolutionalMHDPABody
+from .networks import FCBody, ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init, ConvolutionalMHDPABody
 
 
 class Distribution(object) :
@@ -540,6 +541,86 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
         return self.decode(z)
 
 
+class TotalCorrelationDiscriminator(object):
+    def __init__(self, VAE):
+        self.latent_dim = VAE.latent_dim
+        tc_discriminator_hidden_units = tuple([2*self.latent_dim]*4+[2])
+        self.discriminator = FCBody(state_dim=self.latent_dim,
+                                    hidden_units=tc_discriminator_hidden_units,
+                                    gate=F.leaky_relu)
+        self.optimizer = optim.Adam(self.discriminator.parameters(), lr=1e-4)
+
+    def __call__(self, z):
+        if z.is_cuda: 
+            self.discriminator = self.discriminator.cuda()
+        return self.discriminator(z)
+
+    def update(self, z, train=True):
+        z = z.detach()
+        z1, z2 = z.chunk(2, dim=0)
+        
+        zeros = torch.zeros(z1.size(0)).long().to(z1.device)
+        ones = torch.ones(z2.size(0)).long().to(z2.device)
+        
+        pz2 = self.permutate_latents(z2)
+        Dz1 = self.discriminator(z1)
+        Dpz2 = self.discriminator(pz2)
+        # TC losses:
+        tc_l11 = 0.5*F.cross_entropy(input=Dz1, target=zeros, reduction='none')
+        # (b1, )
+        tc_l12 = 0.5*F.cross_entropy(input=Dpz2, target=ones, reduction='none')
+        # (b2, )
+        
+        zeros = torch.zeros(z2.size(0)).long().to(z2.device)
+        ones = torch.ones(z1.size(0)).long().to(z1.device)
+        
+        pz1 = self.permutate_latents(z1)
+        Dz2 = self.discriminator(z2)
+        Dpz1 = self.discriminator(pz1)
+
+        # TC losses:
+        tc_l21 = 0.5*F.cross_entropy(input=Dz2, target=zeros, reduction='none')
+        # (b1, )
+        tc_l22 = 0.5*F.cross_entropy(input=Dpz1, target=ones, reduction='none')
+        # (b2, )
+        
+        # TC loss:
+        tc_loss1 = tc_l11 + tc_l22
+        tc_loss2 = tc_l12 + tc_l21
+        
+        self.TC_loss = torch.cat([tc_loss1, tc_loss2])
+        # (b, )
+
+        if train: self.step()
+
+        # Compute discriminator accuracy:
+        Dz = torch.cat([Dz1, Dz2], dim=0)
+        Dpz = torch.cat([Dpz1, Dpz2], dim=0)
+        probDz = F.softmax(Dz.detach(), dim=1)[...,:1]
+        probDpz = F.softmax(Dpz.detach(), dim=1)[...,1:]
+        discr_acc = (torch.cat([probDz,probDpz],dim=0) >= 0.5).sum().float().div(2*probDz.size(0))
+        self.discr_acc = discr_acc.cpu().unsqueeze(0)
+
+        return self.TC_loss, self.discr_acc
+
+    def step(self):
+        self.optimizer.zero_grad()
+        self.TC_loss.mean().backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+    def permutate_latents(self, z):
+        assert(z.dim() == 2)
+        batch_size, latent_dim = z.size()
+        pz = list()
+        for lz in torch.split(z, split_size_or_sections=1, dim=1):
+            b_perm = torch.randperm(batch_size).to(z.device)
+            p_lz = lz[b_perm]
+            pz.append(p_lz)
+        pz = torch.cat(pz, dim=1)
+        return pz
+
+
 class BetaVAE(nn.Module) :
     def __init__(self, beta=1e4, 
                        latent_dim=32,
@@ -555,7 +636,8 @@ class BetaVAE(nn.Module) :
                        maxEncodingCapacity=1000,
                        nbrEpochTillMaxEncodingCapacity=4,
                        constrainedEncoding=True,
-                       observation_sigma=0.05):
+                       observation_sigma=0.05,
+                       factor_vae_gamma=0.0):
         super(BetaVAE,self).__init__()
 
         self.beta = beta
@@ -564,6 +646,16 @@ class BetaVAE(nn.Module) :
         self.nbr_attention_slot = nbr_attention_slot
         self.input_shape = input_shape
         self.NormalOutputDistribution = NormalOutputDistribution
+        self.factor_vae_gamma = factor_vae_gamma
+
+        if self.factor_vae_gamma > 0.0:
+            '''
+            self.tc_discriminator_hidden_units = tuple([2*self.latent_dim]*4+[2])
+            self.tc_discriminator = FCBody(state_dim=self.latent_dim,
+                                           hidden_units=tc_discriminator_hidden_units,
+                                           gate=F.leaky_relu)
+            '''
+            self.tc_discriminator = TotalCorrelationDiscriminator(self)
 
         self.EncodingCapacity = 0.0
         self.EncodingCapacityStep = EncodingCapacityStep
@@ -573,7 +665,7 @@ class BetaVAE(nn.Module) :
         
         self.increaseEncodingCapacity = True
         if self.constrainedEncoding:
-            nbritperepoch = 63
+            nbritperepoch = 300
             print('ITER PER EPOCH : {}'.format(nbritperepoch))
             nbrepochtillmax = self.nbrEpochTillMaxEncodingCapacity
             nbrittillmax = nbrepochtillmax * nbritperepoch
@@ -724,20 +816,37 @@ class BetaVAE(nn.Module) :
         if evaluation :
             self.VAE_output = gtx 
 
+        output_dict = dict()
         #--------------------------------------------------------------------------------------------------------------
         # VAE loss :
         #--------------------------------------------------------------------------------------------------------------
         # Reconstruction loss :
+        self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, size_average=False).div(self.batch_size)
+        
         if observation_sigma is not None:
             self.observation_sigma = observation_sigma
         if self.NormalOutputDistribution:
             #Normal :
             self.neg_log_lik = -Normal(self.VAE_output, self.observation_sigma).log_prob( gtx)
+
+            # http://ruishu.io/2018/03/14/vae/ :
+            # Since the observation model is assumed as gaussian, we should sample from it, with the dedicated fixed std:
+            '''
+            VAE_output_distr = torch.distributions.Normal(loc=self.VAE_output, scale=self.observation_sigma)
+            rsample_VAE_output = VAE_output_distr.rsample()
+            self.VAE_loss =  torch.sum( F.mse_loss(input=rsample_VAE_output, target=gtx, reduction='none').view( self.batch_size, -1), dim=1)
+            '''
+            # Makes for a sharper image, since there is no noise...
+            self.VAE_loss =  torch.sum( F.mse_loss(input=self.VAE_output, target=gtx, reduction='none').view( self.batch_size, -1), dim=1)
+            output_dict.update({'MSE_reconst_loss': self.VAE_loss})
         else:
             #Bernoulli :
-            self.neg_log_lik = -Bernoulli( self.VAE_output ).log_prob( gtx )
+            self.neg_log_lik = -torch.distributions.Bernoulli( F.sigmoid(self.VAE_output) ).log_prob( gtx )
+            #self.VAE_loss = self.reconst_loss
+            self.VAE_loss = self.binary_crossentropy
+
+        self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)        
         
-        self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)
         #--------------------------------------------------------------------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------
         # KL Divergence :
@@ -745,18 +854,49 @@ class BetaVAE(nn.Module) :
         
         if self.EncodingCapacityStep is None :
             self.kl_divergence = torch.sum(self.true_kl_divergence, dim=1)
-            self.VAE_loss = self.reconst_loss + self.beta*self.kl_divergence
+            self.VAE_loss = self.VAE_loss + self.beta*self.kl_divergence
         else:
             self.kl_divergence_regularized =  torch.abs( torch.sum(self.true_kl_divergence, dim=1) - self.EncodingCapacity ) 
             self.kl_divergence =  torch.sum( self.true_kl_divergence, dim=1 )
-            self.VAE_loss = self.reconst_loss + self.beta * self.kl_divergence_regularized
+            self.VAE_loss = self.VAE_loss + self.beta * self.kl_divergence_regularized
             
             if self.increaseEncodingCapacity and self.training:
                 self.EncodingCapacity += self.EncodingCapacityStep
             if self.EncodingCapacity >= self.maxEncodingCapacity :
                 self.increaseEncodingCapacity = False 
         #--------------------------------------------------------------------------------------------------------------
-        return self.VAE_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence
+        output_dict.update({'VAE_loss': self.VAE_loss, 
+                            'reconst_loss': self.reconst_loss,
+                            'binary_crossentropy': self.binary_crossentropy.unsqueeze(0),
+                            'neg_log_lik': self.neg_log_lik, 
+                            'kl_div_reg': self.kl_divergence_regularized, 
+                            'kl_div': self.true_kl_divergence})
+        #--------------------------------------------------------------------------------------------------------------
+        # FactorVAE losses:
+        if self.factor_vae_gamma > 0.0:
+            # VAE TC loss:
+            Dz = self.tc_discriminator(self.z)
+            self.VAE_TC_loss = (Dz[:,0] - Dz[:,1])
+            #(b, )            
+
+            self.vae_modularity = -self.VAE_TC_loss
+
+            # TC Discriminator:
+            z = self.z.detach()
+            if z.size(0) > 1:
+                self.TC_loss, self.discr_acc = self.tc_discriminator.update(z, train=self.training) 
+            else:
+                self.TC_loss = torch.zeros(1).to(z.device)
+                self.discr_acc = 0.5*torch.ones(1).to(z.device)
+
+            output_dict.update({'TC_loss': self.TC_loss,
+                                'VAE_TC_loss': self.VAE_TC_loss,
+                                'Modularity': self.vae_modularity,
+                                'DiscriminatorAccuracy': self.discr_acc,
+                                'VAE_loss': self.VAE_loss+self.factor_vae_gamma*self.VAE_TC_loss}
+                                )
+
+        return output_dict 
 
 
 class UNetBlock(nn.Module):

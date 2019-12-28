@@ -75,9 +75,15 @@ class ReferentialGame(object):
         speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
         nbr_listener = self.config['cultural_listener_substrate_size']
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
-        speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for speaker in speakers ]
-        listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], eps=self.config['adam_eps']) for listener in listeners ]
+        speakers_optimizers = [ optim.Adam(speaker.parameters(), lr=self.config['learning_rate'], betas=(0.9, 0.999), eps=self.config['adam_eps']) for speaker in speakers ]
+        listeners_optimizers = [ optim.Adam(listener.parameters(), lr=self.config['learning_rate'], betas=(0.9, 0.999), eps=self.config['adam_eps']) for listener in listeners ]
         
+        for name, param in prototype_speaker.named_parameters():
+            print(name, param.size())
+            if 'TotalCorrelationDiscriminator' in name\
+            or 'tc_discriminator' in name:
+                raise
+
         if 'meta' in self.config['cultural_reset_strategy']:
             meta_agents = dict()
             meta_agents_optimizers = dict()
@@ -168,6 +174,7 @@ class ReferentialGame(object):
                                 multi_round = False
                             
                             speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
+                                                   'latent_experiences':sample['speaker_latent_experiences'], 
                                                    'sentences_one_hot':listener_sentences_one_hot,
                                                    'sentences_widx':listener_sentences_widx, 
                                                    'graphtype':self.config['graphtype'],
@@ -175,6 +182,7 @@ class ReferentialGame(object):
                                                    'multi_round':multi_round,
                                                    'sample':sample
                                                    }
+                            
                             speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
                                                                             config=self.config,
                                                                             role='speaker',
@@ -197,6 +205,8 @@ class ReferentialGame(object):
                                     listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
 
                             listener_inputs_dict['experiences'] = sample['listener_experiences']
+                            listener_inputs_dict['latent_experiences'] = sample['listener_latent_experiences']
+                            
                             listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
                                                                                config=self.config,
                                                                                role='listener',
@@ -349,6 +359,8 @@ class ReferentialGame(object):
                         
                         if hasattr(prototype_speaker,'VAE') and idx_stimuli % 4 == 0:
                             image_save_path = logger.path 
+                            '''
+                            '''
                             query_vae_latent_space(prototype_speaker.VAE, 
                                                    sample=sample['speaker_experiences'],
                                                    path=image_save_path,
@@ -357,7 +369,6 @@ class ReferentialGame(object):
                                                    idxoffset=it_rep+idx_stimuli*self.config['nbr_experience_repetition'],
                                                    suffix='speaker',
                                                    use_cuda=True)
-                            '''
                             query_vae_latent_space(prototype_listener.VAE, 
                                                    sample=sample['listener_experiences'],
                                                    path=image_save_path,
@@ -365,7 +376,7 @@ class ReferentialGame(object):
                                                    full=('test' in mode),
                                                    idxoffset=idx_stimuli,
                                                    suffix='listener')
-                            '''
+                            
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
                     # //------------------------------------------------------------//
@@ -435,10 +446,11 @@ class ReferentialGame(object):
                             print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
                     
                     if self.config['use_curriculum_nbr_distractors'] and mode == 'train':
-                        window_count += 1
                         nbr_distractors = self.datasets['train'].getNbrDistractors()
-                        windowed_accuracy = (windowed_accuracy*window_count+acc.item())/window_count
-                        if windowed_accuracy > 60 and window_count >= self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
+                        windowed_accuracy = (windowed_accuracy*window_count+acc.item())
+                        window_count += 1
+                        windowed_accuracy /= window_count
+                        if windowed_accuracy > 60 and window_count > self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
                             windowed_accuracy = 0
                             window_count = 0
                             self.datasets['train'].setNbrDistractors(self.datasets['train'].getNbrDistractors()+1)
@@ -451,9 +463,17 @@ class ReferentialGame(object):
                     else:   
                         max_nbr_samples = int(len(total_sentences)*0.1)
 
-                    topo_sims, pvalues = logger.measure_topographic_similarity(max_nbr_samples=max_nbr_samples)
+                    topo_sims, pvalues = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                               features_key='latent_experiences',
+                                                                               #features_key='temporal_features',
+                                                                               max_nbr_samples=max_nbr_samples)
+                    feat_topo_sims, feat_pvalues = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                               features_key='temporal_features',
+                                                                               max_nbr_samples=max_nbr_samples)
                     for agent_id in topo_sims:
                         logger.add_scalar('{}/{}/Topographic Similarity (%)'.format(mode,agent_id), topo_sims[agent_id], epoch)
+                    for agent_id in feat_topo_sims:
+                        logger.add_scalar('{}/{}/Features Topographic Similarity (%)'.format(mode,agent_id), feat_topo_sims[agent_id], epoch)
                     
                     logger.switch_epoch()
 

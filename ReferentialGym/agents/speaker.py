@@ -117,6 +117,4 @@ class Speaker(Agent):
         if not multi_round:
             self._reset_rnn_states()
 
-        self._log(output_dict)
-
         return output_dict

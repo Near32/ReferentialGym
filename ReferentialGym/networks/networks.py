@@ -132,7 +132,8 @@ class ConvolutionalBody(nn.Module):
             self.convs.append( layer_init(nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=k, stride=s, padding=p), w_scale=math.sqrt(2)))
             # Update of the shape of the input-image, following Conv:
             dim = (dim-k+2*p)//s+1
-        
+            print(f"Dim: {dim}")
+            
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 

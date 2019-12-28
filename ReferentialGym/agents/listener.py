@@ -134,6 +134,4 @@ class Listener(Agent):
         if not(multi_round):
             self._reset_rnn_states()
 
-        self._log(output_dict, batch_size=batch_size)
-
         return output_dict 

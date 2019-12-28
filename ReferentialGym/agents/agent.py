@@ -82,7 +82,7 @@ class Agent(nn.Module):
             - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
             - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - `'experiences'`: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                            Make sure to shuffle the experiences so that the order does not give away the target. 
+            - `'latent_experiences'`: Tensor of shape `(batch_size, nbr_latent_dimensions)`.
             - `'multi_round'`: Boolean defining whether to utter a sentence back or not.
             - `'graphtype'`: String defining the type of symbols used in the output sentence:
                         - `'categorical'`: one-hot-encoded symbols.
@@ -106,6 +106,9 @@ class Agent(nn.Module):
                            tau0=inputs_dict['tau0'])
 
 
+        outputs_dict['latent_experiences'] = inputs_dict['latent_experiences']
+        self._log(outputs_dict, batch_size=batch_size)
+
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
@@ -124,8 +127,10 @@ class Agent(nn.Module):
 
         losses_dict = dict()
 
+        '''
         if hasattr(self, 'TC_losses'):
             losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
+        '''
         if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in inputs_dict['graphtype'])):
             losses_dict[f'{role}/VAE_loss'] = [1.0, self.VAE_losses]
 

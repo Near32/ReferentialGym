@@ -62,6 +62,7 @@ class LabeledDataset(Dataset):
                 except Exception as e:
                     print("Exception caught during removal of the target index:")
                     print(e)
+                    import ipdb; ipdb.set_trace()
                 indices.append(idx)
 
             if len(set_indices) < nbr_samples:
@@ -78,14 +79,25 @@ class LabeledDataset(Dataset):
         
         experiences = []
         exp_labels = []
+        exp_latents = []
         for idx in indices:
-            exp, tc = self.dataset[idx]
+            sample_output = self.dataset[idx]
+            if len(sample_output) == 2:
+                exp, tc = sample_output
+                latent = tc 
+            elif len(sample_output) == 3:
+                exp, tc, latent = sample_output
+            else:
+                raise NotImplemented
             experiences.append(exp.unsqueeze(0))
             exp_labels.append(tc)
+            exp_latents.append(latent.unsqueeze(0))
             if target_only: break
 
         experiences = torch.cat(experiences,dim=0)
         experiences = experiences.unsqueeze(1)
+        exp_latents = torch.cat(exp_latents, dim=0)
+        #exp_latents = exp_latents.unsqueeze(1)
         # account for the temporal dimension...
         
-        return experiences, indices, exp_labels
+        return experiences, indices, exp_labels, exp_latents

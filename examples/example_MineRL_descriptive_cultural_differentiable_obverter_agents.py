@@ -28,7 +28,7 @@ def test_example_cultural_obverter_agents():
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
       "nbr_distractors":          15,
-      "distractor_sampling":      "similarity-0.75",#"uniform",
+      "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
       # will have very high ambiguity...
@@ -50,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               10,
 
-      "agent_architecture":       'ParallelMONet', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'CNN', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -67,19 +67,19 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               16,
+      "batch_size":               128,
       "dataloader_num_worker":    4,
-      "stimulus_depth_dim":       3,
+      "stimulus_depth_dim":       1, #3,
       "stimulus_resize_dim":      32,#28,
       
       "learning_rate":            6e-4,
-      "adam_eps":                 1e-5,
+      "adam_eps":                 1e-8, #1e-5
       "dropout_prob":             0.0,
       
       "use_homoscedastic_multitasks_loss": False,
 
       "use_curriculum_nbr_distractors": True,
-      "curriculum_distractors_window_size": 100,
+      "curriculum_distractors_window_size": 25, #100,
 
       "with_gradient_clip":       False,
       "gradient_clip":            1e-1,
@@ -111,13 +111,21 @@ def test_example_cultural_obverter_agents():
 
   assert( abs(rg_config['descriptive_target_ratio']-(1-1.0/(rg_config['nbr_distractors']+2))) <= 1e-1)
 
-  vae_beta = 5e-1
+  #vae_beta = 5e-1
+  #vae_beta = 1e2
+  
+  # Factor VAE:
+  gaussian = False 
   vae_observation_sigma = 0.25 #0.11
+  
+  vae_beta = 1e2
+  factor_vae_gamma = 10 #6.4
+
   monet_gamma = 5e-1
   
-  vae_constrainedEncoding = False
+  vae_constrainedEncoding = True
   maxCap = 1e2
-  nbrepochtillmaxcap = 8
+  nbrepochtillmaxcap = 4
   skip_interval = 48
   
   #save_path = './FashionMNIST+LVAE+RDec'
@@ -128,7 +136,16 @@ def test_example_cultural_obverter_agents():
   #save_path = './MRL20-CNN-mhdpa+Det'
   
   #save_path = './MRL20-SAttCNN+CNN+D'
-  save_path = './MRL20-CNN+D'
+  #save_path = './FVAE/FashionMNIST-CNN+D+FactorVAE'
+
+  dsprites_divider = 20
+  dsprites_offset = 2
+  #save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-Det+VAE+BernBCE+repA'
+  #save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-VAE+BernBCE+repA'
+  save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-LargeCNN+BernBCE+repA'
+  
+  #save_path = './FVAE/dSprites-CNN+D+FactorVAE+RS+MSE'
+  #save_path = './FVAE/dSprites-CNN+D+FactorVAE+MEANMSE'
   
   #save_path = './MineRL-S{}+BetaVAE+BrDec'.format(skip_interval)
   
@@ -181,9 +198,9 @@ def test_example_cultural_obverter_agents():
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
     rg_config['agent_architecture'],
-    f"beta{vae_beta}MC{maxCap}over{nbrepochtillmaxcap}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
+    f"beta{vae_beta}-factor{factor_vae_gamma}-MC{maxCap}over{nbrepochtillmaxcap}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
 
-  save_path += f"beta{vae_beta}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
+  save_path += f"beta{vae_beta}-factor{factor_vae_gamma}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
   save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
   save_path += f"UnsupSeg{rg_config['unsupervised_segmentation_factor']}Rep{rg_config['nbr_experience_repetition']}" if rg_config['unsupervised_segmentation_factor'] is not None else ''
   
@@ -223,12 +240,27 @@ def test_example_cultural_obverter_agents():
   agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
   agent_config['symbol_processing_nbr_rnn_layers'] = 1
   '''
+  '''
   if 'CNN' == agent_config['architecture']:
     # CNN : 
-    agent_config['cnn_encoder_channels'] = [32,32,32,32]
-    agent_config['cnn_encoder_kernels'] = [3,3,3,3]
-    agent_config['cnn_encoder_strides'] = [1,2,2,2]
-    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
+    agent_config['cnn_encoder_channels'] = [32,32,32] #[32,32,32,32]
+    agent_config['cnn_encoder_kernels'] = [4,3,3]
+    agent_config['cnn_encoder_strides'] = [2,2,2]
+    agent_config['cnn_encoder_paddings'] = [1,1,1]
+    agent_config['cnn_encoder_feature_dim'] = 256
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#256
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  '''
+  if 'CNN' == agent_config['architecture']:
+    # CNN : 
+    agent_config['cnn_encoder_channels'] = [32,32,64] #[32,32,32,32]
+    agent_config['cnn_encoder_kernels'] = [8,4,3]
+    agent_config['cnn_encoder_strides'] = [2,2,2]
+    agent_config['cnn_encoder_paddings'] = [1,1,1]
     agent_config['cnn_encoder_feature_dim'] = 256
     agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = 64#256
@@ -244,6 +276,8 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']
     
     agent_config['vae_beta'] = vae_beta
+    agent_config['factor_vae_gamma'] = factor_vae_gamma
+    agent_config['vae_use_gaussian_observation_model'] = gaussian 
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
     agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
@@ -270,6 +304,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']*agent_config['monet_nbr_attention_slot']
     
     agent_config['vae_beta'] = vae_beta
+    agent_config['factor_vae_gamma'] = factor_vae_gamma
     agent_config['vae_constrainedEncoding'] = vae_constrainedEncoding 
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
@@ -298,6 +333,7 @@ def test_example_cultural_obverter_agents():
     agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']*agent_config['vae_nbr_attention_slot']
     
     agent_config['vae_beta'] = vae_beta
+    agent_config['factor_vae_gamma'] = factor_vae_gamma
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
     agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
@@ -414,6 +450,7 @@ def test_example_cultural_obverter_agents():
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
   
+  '''
   dataset_args = {
       "dataset_class":            None,
       "nbr_stimulus":             rg_config['nbr_stimulus'],
@@ -433,6 +470,7 @@ def test_example_cultural_obverter_agents():
   
   '''
 
+  '''
   nbrSampledQstPerImg = 1#5
   train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=True, transform=transform, generate=True, nbrSampledQstPerImg=nbrSampledQstPerImg)
   test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root='./datasets/Sort-of-CLEVR/', train=False, transform=transform, generate=True, nbrSampledQstPerImg=1)
@@ -450,6 +488,32 @@ def test_example_cultural_obverter_agents():
       "descriptive_target_ratio": rg_config['descriptive_target_ratio']
   }
   '''
+  
+  split_strategy = f"divider-{dsprites_divider}-offset-{dsprites_offset}"
+  train_dataset = ReferentialGym.datasets.dSpritesDataset(root='./datasets/dsprites-dataset/', 
+                                                          train=True, 
+                                                          transform=transform, 
+                                                          split_strategy=split_strategy)
+  test_dataset = ReferentialGym.datasets.dSpritesDataset(root='./datasets/dsprites-dataset/', 
+                                                         train=False, 
+                                                         transform=transform, 
+                                                         split_strategy=split_strategy)
+  
+  train_dataset[0]
+
+  dataset_args = {
+      "dataset_class":            "LabeledDataset",
+      "train_dataset":            train_dataset,
+      "test_dataset":             test_dataset,
+      "nbr_stimulus":             rg_config['nbr_stimulus'],
+      "distractor_sampling":      rg_config['distractor_sampling'],
+      "nbr_distractors":          rg_config['nbr_distractors'],
+      "observability":            rg_config['observability'],
+      "object_centric":           rg_config['object_centric'],
+      "descriptive":              rg_config['descriptive'],
+      "descriptive_target_ratio": rg_config['descriptive_target_ratio']
+  }
+  
   
   '''
   train_dataset = torchvision.datasets.FashionMNIST(root='./datasets/FashionMNIST/', train=True, transform=transform, download=True)
