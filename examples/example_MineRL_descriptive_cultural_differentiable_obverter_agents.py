@@ -27,7 +27,7 @@ def test_example_cultural_obverter_agents():
       "observability":            "partial", 
       "max_sentence_length":      5,
       "nbr_communication_round":  1,  
-      "nbr_distractors":          15,
+      "nbr_distractors":          7,
       "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -50,7 +50,7 @@ def test_example_cultural_obverter_agents():
       "tau0":                     0.1,
       "vocab_size":               10,
 
-      "agent_architecture":       'CNN', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'BetaVAE', #'CNN', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -68,7 +68,7 @@ def test_example_cultural_obverter_agents():
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
       "batch_size":               128,
-      "dataloader_num_worker":    4,
+      "dataloader_num_worker":    8,
       "stimulus_depth_dim":       1, #3,
       "stimulus_resize_dim":      32,#28,
       
@@ -78,7 +78,7 @@ def test_example_cultural_obverter_agents():
       
       "use_homoscedastic_multitasks_loss": False,
 
-      "use_curriculum_nbr_distractors": True,
+      "use_curriculum_nbr_distractors": False,
       "curriculum_distractors_window_size": 25, #100,
 
       "with_gradient_clip":       False,
@@ -118,14 +118,14 @@ def test_example_cultural_obverter_agents():
   gaussian = False 
   vae_observation_sigma = 0.25 #0.11
   
-  vae_beta = 1e2
-  factor_vae_gamma = 10 #6.4
+  vae_beta = 1e0
+  factor_vae_gamma = 0.0 #10 #6.4
 
   monet_gamma = 5e-1
   
-  vae_constrainedEncoding = True
-  maxCap = 1e2
-  nbrepochtillmaxcap = 4
+  vae_constrainedEncoding = False
+  maxCap = 1e3 #1e2
+  nbrepochtillmaxcap = 2
   skip_interval = 48
   
   #save_path = './FashionMNIST+LVAE+RDec'
@@ -138,11 +138,14 @@ def test_example_cultural_obverter_agents():
   #save_path = './MRL20-SAttCNN+CNN+D'
   #save_path = './FVAE/FashionMNIST-CNN+D+FactorVAE'
 
-  dsprites_divider = 20
+  dsprites_divider = 200
   dsprites_offset = 2
   #save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-Det+VAE+BernBCE+repA'
   #save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-VAE+BernBCE+repA'
-  save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-LargeCNN+BernBCE+repA'
+  #save_path = f'./FVAE/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-LargeCNN+BernBCE+repA'
+  
+  #save_path = f'./test_TCD_Topo/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-LargeCNN+repA'
+  save_path = f'./test_TCD_Topo/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-BetaVAE_CNN+repA'
   
   #save_path = './FVAE/dSprites-CNN+D+FactorVAE+RS+MSE'
   #save_path = './FVAE/dSprites-CNN+D+FactorVAE+MEANMSE'
@@ -178,10 +181,15 @@ def test_example_cultural_obverter_agents():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  save_path += '-S{}L{}-{}-Reset{}-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}{}'.format(rg_config['cultural_speaker_substrate_size'], 
-    rg_config['cultural_listener_substrate_size'],
-    rg_config['cultural_pressure_it_period'],
-    rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'],
+  if rg_config['cultural_pressure_it_period'] != 'None':  
+    save_path += '-S{}L{}-{}-Reset{}'.\
+      format(rg_config['cultural_speaker_substrate_size'], 
+      rg_config['cultural_listener_substrate_size'],
+      rg_config['cultural_pressure_it_period'],
+      rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
+  
+  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}{}'.\
+    format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
     rg_config['obverter_stop_threshold'],
@@ -198,7 +206,7 @@ def test_example_cultural_obverter_agents():
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
     rg_config['agent_architecture'],
-    f"beta{vae_beta}-factor{factor_vae_gamma}-MC{maxCap}over{nbrepochtillmaxcap}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
+    f"beta{vae_beta}-factor{factor_vae_gamma}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
 
   save_path += f"beta{vae_beta}-factor{factor_vae_gamma}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
   save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
@@ -278,6 +286,7 @@ def test_example_cultural_obverter_agents():
     agent_config['vae_beta'] = vae_beta
     agent_config['factor_vae_gamma'] = factor_vae_gamma
     agent_config['vae_use_gaussian_observation_model'] = gaussian 
+    agent_config['vae_constrainedEncoding'] = vae_constrainedEncoding 
     agent_config['vae_max_capacity'] = maxCap
     agent_config['vae_nbr_epoch_till_max_capacity'] = nbrepochtillmaxcap
     agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
@@ -537,7 +546,7 @@ def test_example_cultural_obverter_agents():
 
   # In[22]:
 
-  nbr_epoch = 200
+  nbr_epoch = 40
   refgame.train(prototype_speaker=bspeaker, 
                 prototype_listener=blistener, 
                 nbr_epoch=nbr_epoch,

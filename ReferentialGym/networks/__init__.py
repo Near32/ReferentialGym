@@ -25,13 +25,13 @@ def choose_architecture( architecture,
                          MHDPANbrMLPUnit=512,
                          MHDPAInteractionDim=128):
     if 'LSTM-RNN' in architecture:
-        return LSTMBody(input_shape[0], hidden_units=hidden_units_list, gate=F.leaky_relu)
+        return LSTMBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
     
     if 'GRU-RNN' in architecture:
-        return GRUBody(input_shape[0], hidden_units=hidden_units_list, gate=F.leaky_relu)
+        return GRUBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
     
     if architecture == 'MLP':
-        return FCBody(input_shape[0], hidden_units=hidden_units_list, gate=F.leaky_relu)
+        return FCBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
     
     if architecture == 'CNN':
         channels = [input_shape[0]] + nbr_channels_list
@@ -56,6 +56,12 @@ def choose_architecture( architecture,
                                       nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
                                       units_per_MLP_layer=MHDPANbrMLPUnit,
                                       interaction_dim=MHDPAInteractionDim)
+
+    if 'VGG16' in architecture:
+        pretrained = ('pretrained' in architecture)
+        body = ModelVGG16(input_shape=input_shape,
+                             feature_dim=feature_dim,
+                             pretrained=pretrained)
 
     if 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
@@ -97,6 +103,10 @@ def choose_architecture( architecture,
         factor_vae_gamma = 0.0
         if 'factor_vae_gamma' in kwargs:
             factor_vae_gamma = kwargs['factor_vae_gamma']
+        
+        constrainedEncoding = False
+        if 'vae_constrainedEncoding' in kwargs:
+            constrainedEncoding = kwargs['vae_constrainedEncoding'] 
         maxCap = kwargs['vae_max_capacity']
         nbrEpochTillMaxEncodingCapacity = kwargs['vae_nbr_epoch_till_max_capacity']
         nbr_attention_slot = None
@@ -124,6 +134,7 @@ def choose_architecture( architecture,
                        decoder_nbr_layer=decoder_nbr_layer,
                        decoder_conv_dim=decoder_conv_dim,
                        NormalOutputDistribution=NormalOutputDistribution,
+                       constrainedEncoding=constrainedEncoding,
                        maxEncodingCapacity=maxCap,
                        nbrEpochTillMaxEncodingCapacity=nbrEpochTillMaxEncodingCapacity,
                        factor_vae_gamma=factor_vae_gamma)

@@ -105,7 +105,6 @@ class Agent(nn.Module):
                            graphtype=inputs_dict['graphtype'],
                            tau0=inputs_dict['tau0'])
 
-
         outputs_dict['latent_experiences'] = inputs_dict['latent_experiences']
         self._log(outputs_dict, batch_size=batch_size)
 
@@ -207,49 +206,66 @@ class Agent(nn.Module):
             decision_logits = outputs_dict['decision']
             final_decision_logits = decision_logits
             # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            if config['descriptive']:  
-                decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                criterion = nn.NLLLoss(reduction='none')
-                
-                if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
-                    loss = 0.0
-                    losses4widx = []
-                    for widx in range(decision_probs.size(1)):
-                        dp = decision_probs[:,widx,...]
-                        ls = criterion( dp, sample['target_decision_idx'])
-                        loss += config['obverter_least_effort_loss_weights'][widx]*ls 
-                        losses4widx.append(ls)
-                else:
-                    decision_probs = decision_probs[:,-1,...]
-                    loss = criterion( decision_probs, sample['target_decision_idx'])
+            if config['agent_loss_type'] == 'NLL':
+                if config['descriptive']:  
+                    decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                    criterion = nn.NLLLoss(reduction='none')
+                    
+                    if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
+                        loss = 0.0
+                        losses4widx = []
+                        for widx in range(decision_probs.size(1)):
+                            dp = decision_probs[:,widx,...]
+                            ls = criterion( dp, sample['target_decision_idx'])
+                            loss += config['obverter_least_effort_loss_weights'][widx]*ls 
+                            losses4widx.append(ls)
+                    else:
+                        decision_probs = decision_probs[:,-1,...]
+                        loss = criterion( decision_probs, sample['target_decision_idx'])
+                        # (batch_size, )
+                    
+                else:   
+                    final_decision_logits = final_decision_logits[:,-1,...]
+                    # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                    decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                    criterion = nn.NLLLoss(reduction='none')
+                    loss = criterion( final_decision_logits, sample['target_decision_idx'])
                     # (batch_size, )
-                
-            else:   
+                losses_dict['referential_game_loss'] = [1.0, loss]
+            elif config['agent_loss_type'] == 'Hinge':
+                #Havrylov's Hinge loss:
                 final_decision_logits = final_decision_logits[:,-1,...]
                 # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                 decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                criterion = nn.NLLLoss(reduction='none')
-                loss = criterion( final_decision_logits, sample['target_decision_idx'])
+                
+                target_decision_idx = sample['target_decision_idx'].unsqueeze(1)
+                target_decision_logits = final_decision_logits.gather(dim=1, index=target_decision_idx)
+                # (batch_size, 1)
+
+                distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
+                    for pb_dl, tidx in zip(final_decision_logits, target_decision_idx)]
+                distractors_decision_logits = torch.cat(
+                    distractors_logits_list, 
+                    dim=0)
+                # (batch_size, nbr_distractors)
+                
+                loss_element = 1-target_decision_logits+distractors_decision_logits
+                # (batch_size, nbr_distractors)
+                maxloss_element = torch.max(torch.zeros_like(loss_element), loss_element)
+                loss = maxloss_element.sum(dim=1)
                 # (batch_size, )
-            losses_dict['referential_game_loss'] = [1.0, loss]
+                
+                losses_dict['referential_game_loss'] = [1.0, loss]    
+                '''
+                # Entropy minimization:
+                distr = torch.distributions.Categorical(probs=decision_probs)
+                entropy_loss = distr.entropy()
+                losses_dict['entropy_loss'] = [1.0, entropy_loss]
+                '''
+            else:
+                raise NotImplementedError
 
-
-            #Havrylov's Hinge loss:
-            '''
-            losses = []
-            for b in range(final_decision_logits.size(0)):
-                fd_target_l = final_decision_logits[b,sample['target_decision_idx'][b]]
-                bl = 0.0
-                for d in range(final_decision_logits.size(1)):
-                    if d == sample['target_decision_idx'][b]: continue
-                    el = 1-fd_target_l+final_decision_logits[b][d]
-                    el = torch.max(torch.zeros_like(el),el)
-                    bl = bl + el 
-                losses.append( bl.unsqueeze(0))
-            losses = torch.cat(losses,dim=0)
-            loss = losses.mean()
-            '''
-
+            
             outputs_dict['decision_probs'] = decision_probs
             
             if 'iterated_learning_scheme' in config and config['iterated_learning_scheme']:

@@ -10,11 +10,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from tensorboardX import SummaryWriter
+from tqdm import tqdm
 
 from .agents import Speaker, Listener, ObverterAgent
 from .networks import handle_nan, hasnan
 from .datasets import collate_dict_wrapper
 from .utils import cardinality, query_vae_latent_space
+
+
+VERBOSE = False 
 
 
 class ReferentialGame(object):
@@ -109,14 +113,19 @@ class ReferentialGame(object):
             self.datasets['train'].setNbrDistractors(1)
             self.datasets['test'].setNbrDistractors(1)
 
+        pbar = tqdm(total=nbr_epoch*len(self.datasets['train']))
+
         for epoch in range(nbr_epoch):
             for mode in ['train','test']:
                 data_loader = data_loaders[mode]
                 counterGames = 0
                 total_sentences = []
                 total_nbr_unique_stimulus = 0
+                
                 for idx_stimuli, sample in enumerate(data_loader):
                     it += 1
+                    if mode == 'train': pbar.update(len(sample['speaker_experiences']))
+
                     if mode == 'train':
                         if'obverter' in self.config['graphtype']:
                             # Let us decide whether to exchange the speakers and listeners:
@@ -342,14 +351,16 @@ class ReferentialGame(object):
                         
 
                         if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                            print('Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch, loss.item()))
+                            descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch, loss.item())
+                            pbar.set_description_str(descr)
                             # Show some sentences:
-                            for sidx in range(batch_size):
-                                if sidx>=10:
-                                    break
-                                print(f"{sidx} : ", sentences[sidx], \
-                                    f"\t /label: {sample['target_decision_idx'][sidx]}",\
-                                    f" /decision: {decision_idx[sidx]}")
+                            if VERBOSE:
+                                for sidx in range(batch_size):
+                                    if sidx>=10:
+                                        break
+                                    print(f"{sidx} : ", sentences[sidx], \
+                                        f"\t /label: {sample['target_decision_idx'][sidx]}",\
+                                        f" /decision: {decision_idx[sidx]}")
 
                         if self.config['use_curriculum_nbr_distractors']:
                             nbr_distractors = self.datasets[mode].getNbrDistractors()
@@ -456,24 +467,28 @@ class ReferentialGame(object):
                             self.datasets['train'].setNbrDistractors(self.datasets['train'].getNbrDistractors()+1)
                             self.datasets['test'].setNbrDistractors(self.datasets['test'].getNbrDistractors()+1)
                     # //------------------------------------------------------------//
-                        
+                                        
                 if logger is not None:
                     if mode == 'test':  
                         max_nbr_samples = None
                     else:   
                         max_nbr_samples = int(len(total_sentences)*0.1)
 
-                    topo_sims, pvalues = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                    topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key='sentences_widx',
                                                                                features_key='latent_experiences',
                                                                                #features_key='temporal_features',
-                                                                               max_nbr_samples=max_nbr_samples)
-                    feat_topo_sims, feat_pvalues = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                               max_nbr_samples=max_nbr_samples,
+                                                                               verbose=VERBOSE)
+                    feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key='sentences_widx',
                                                                                features_key='temporal_features',
-                                                                               max_nbr_samples=max_nbr_samples)
+                                                                               max_nbr_samples=max_nbr_samples,
+                                                                               verbose=VERBOSE)
+                    
                     for agent_id in topo_sims:
-                        logger.add_scalar('{}/{}/Topographic Similarity (%)'.format(mode,agent_id), topo_sims[agent_id], epoch)
+                        logger.add_scalar('{}/{}/TopographicSimilarity'.format(mode,agent_id), topo_sims[agent_id], epoch)
+                        logger.add_scalar('{}/{}/TopographicSimilarity-UniqueProduction'.format(mode,agent_id), unique_prod_ratios[agent_id], epoch)
                     for agent_id in feat_topo_sims:
-                        logger.add_scalar('{}/{}/Features Topographic Similarity (%)'.format(mode,agent_id), feat_topo_sims[agent_id], epoch)
+                        logger.add_scalar('{}/{}/FeaturesTopographicSimilarity (%)'.format(mode,agent_id), feat_topo_sims[agent_id], epoch)
                     
                     logger.switch_epoch()
 

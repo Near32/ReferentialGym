@@ -18,11 +18,11 @@ def handle_nan(layer, verbose=True):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         nan_indices = torch.isnan(layer._parameters[name].data)
-        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in {}.".format(name))
+        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in {} of {}.".format(name, layer))
         layer._parameters[name].data[nan_indices] = 0
         if param.grad is None: continue
         nan_indices = torch.isnan(layer._parameters[name].grad.data)
-        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in the GRADIENT of {}.".format(name))
+        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in the GRADIENT of {} of {}.".format(name, layer))
         layer._parameters[name].grad.data[nan_indices] = 0
         
 def layer_init(layer, w_scale=1.0):
@@ -98,7 +98,7 @@ class FCBody(nn.Module):
 
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.leaky_relu]):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.LeakyReLU]):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -126,14 +126,27 @@ class ConvolutionalBody(nn.Module):
         if isinstance(feature_dim, tuple):
             self.feature_dim = feature_dim[-1]
 
-        self.convs = nn.ModuleList()
+        self.features = []
         dim = input_shape[1] # height
-        for in_ch, out_ch, k, s, p in zip(channels, channels[1:], kernel_sizes, strides, paddings):
-            self.convs.append( layer_init(nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=k, stride=s, padding=p), w_scale=math.sqrt(2)))
-            # Update of the shape of the input-image, following Conv:
-            dim = (dim-k+2*p)//s+1
-            print(f"Dim: {dim}")
-            
+        in_ch = channels[0]
+        for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
+            if cfg == 'M':
+                layer = nn.MaxPool2d(kernel_size=k, stride=s)
+                self.features.append(layer)
+                # Update of the shape of the input-image, following Conv:
+                dim = (dim-k)//s+1
+                print(f"Dim: {dim}")
+            else:
+                layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
+                layer = layer_init(layer, w_scale=math.sqrt(2))
+                in_ch = cfg
+                self.features.append(layer)
+                self.features.append(self.non_linearities[idx](inplace=True))
+                # Update of the shape of the input-image, following Conv:
+                dim = (dim-k+2*p)//s+1
+                print(f"Dim: {dim}")
+        self.features = nn.Sequential(*self.features)
+
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 
@@ -145,15 +158,12 @@ class ConvolutionalBody(nn.Module):
 
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
-            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
             if self.dropout:
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
     def _compute_feat_map(self, x):
-        feat_map = x
-        for conv_layer, non_lin in zip(self.convs, self.non_linearities):
-            feat_map = non_lin(conv_layer(feat_map))
-        return feat_map
+        return self.features(x)
 
     def forward(self, x, non_lin_output=True):
         feat_map = self._compute_feat_map(x)
@@ -174,7 +184,7 @@ class ConvolutionalBody(nn.Module):
 
 
 class ConvolutionalLstmBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -221,7 +231,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
 
 
 class ConvolutionalGruBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -738,7 +748,7 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                  strides=[1], 
                  paddings=[0], 
                  dropout=0.0, 
-                 non_linearities=[F.leaky_relu],
+                 non_linearities=[nn.LeakyReLU],
                  nbrHead=4,
                  nbrRecurrentSharedLayers=1,  
                  units_per_MLP_layer=512,
@@ -818,7 +828,7 @@ class ResNet18MHDPA(ModelResNet18):
                  nbr_layer=None, 
                  pretrained=False, 
                  dropout=0.0, 
-                 non_linearities=[F.leaky_relu],
+                 non_linearities=[nn.LeakyReLU],
                  nbrHead=4,
                  nbrRecurrentSharedLayers=1,  
                  units_per_MLP_layer=512,

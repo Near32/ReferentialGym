@@ -63,30 +63,45 @@ class Speaker(Agent):
         '''
         raise NotImplementedError
 
-    def forward(self, experiences, sentences=None, graphtype='straight_through_gumbel_softmax', tau0=0.2, multi_round=False):
-        '''
+    # def forward(self, experiences, sentences=None, graphtype='straight_through_gumbel_softmax', tau0=0.2, multi_round=False):
+    #     '''
+    #     :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+    #                     `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
+    #     :param graphtype: String defining the type of symbols used in the output sentence:
+    #                 - `'categorical'`: one-hot-encoded symbols.
+    #                 - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
+    #                 - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
+    #                 - `'obverter'`: obverter training scheme...
+    #     :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
+    #     '''
+
+    #     # Add the target-boolean-channel:
+    #     st_size = experiences.size()
+    #     batch_size = st_size[0]
+    #     nbr_distractors_po = st_size[1]
+    #     nbr_stimulus = st_size[2]
+
+    #     target_channels = torch.zeros( batch_size, nbr_distractors_po, nbr_stimulus, 1, *(st_size[4:]))
+    #     target_channels[:,0,...] = 1
+    #     if experiences.is_cuda: target_channels = target_channels.cuda()
+    #     experiences_target = torch.cat([experiences, target_channels], dim=3)
+
+    #     features = self._sense(experiences=experiences_target, sentences=sentences)
+    def forward(self, experiences, sentences=None, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+        """
+        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                        `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
+                            `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
+        :param multi_round: Boolean defining whether to utter a sentence back or not.
         :param graphtype: String defining the type of symbols used in the output sentence:
                     - `'categorical'`: one-hot-encoded symbols.
-                    - `'gumbel_softmax'`: continuous relaxation of a categorical distribution, following 
+                    - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
                     - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
                     - `'obverter'`: obverter training scheme...
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
-        '''
-
-        # Add the target-boolean-channel:
-        st_size = experiences.size()
-        batch_size = st_size[0]
-        nbr_distractors_po = st_size[1]
-        nbr_stimulus = st_size[2]
-
-        target_channels = torch.zeros( batch_size, nbr_distractors_po, nbr_stimulus, 1, *(st_size[4:]))
-        target_channels[:,0,...] = 1
-        if experiences.is_cuda: target_channels = target_channels.cuda()
-        experiences_target = torch.cat([experiences, target_channels], dim=3)
-
-        features = self._sense(experiences=experiences_target, sentences=sentences)
+        """
+        batch_size = experiences.size(0)
+        features = self._sense(experiences=experiences, sentences=sentences)
         next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
         
         if self.training:

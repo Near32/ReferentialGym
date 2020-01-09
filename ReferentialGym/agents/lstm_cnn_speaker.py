@@ -5,7 +5,7 @@ from .speaker import Speaker
 from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 
 
-class BasicCNNSpeaker(Speaker):
+class LSTMCNNSpeaker(Speaker):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None):
         '''
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
@@ -15,7 +15,7 @@ class BasicCNNSpeaker(Speaker):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         '''
-        super(BasicCNNSpeaker, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
+        super(LSTMCNNSpeaker, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
@@ -43,7 +43,8 @@ class BasicCNNSpeaker(Speaker):
                                           dropout=self.kwargs['dropout_prob'],
                                           bidirectional=False))
 
-        symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']+(self.kwargs['nbr_distractors']+1)*self.kwargs['temporal_encoder_nbr_hidden_units']
+        assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
+        symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
         self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
@@ -53,14 +54,8 @@ class BasicCNNSpeaker(Speaker):
 
         #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
-        
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
 
-        #self.symbol_decoder = nn.ModuleList()
-        #self.symbol_decoder.append(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size))
-        #if self.kwargs['dropout_prob']: self.symbol_decoder.append(nn.Dropout(p=self.kwargs['dropout_prob']))
-
-        #self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
         self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
         
         self.reset()
@@ -74,10 +69,6 @@ class BasicCNNSpeaker(Speaker):
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
-        if isinstance(self.cnn_encoder, BetaVAE):
-            self.VAE_losses = list()
-            self.compactness_losses.clear()
-            self.buffer_cnn_output_dict = dict()
 
     def _compute_tau(self, tau0, emb=None):
         if emb is None: emb = self.embedding_tf_final_outputs
@@ -101,39 +92,11 @@ class BasicCNNSpeaker(Speaker):
         total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
-            if isinstance(self.cnn_encoder, BetaVAE):
-                cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
-                if 'VAE_loss' in cnn_output_dict:
-                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
-                
-                if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
-                    self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
-                
-                for key in cnn_output_dict:
-                    if key not in self.buffer_cnn_output_dict:
-                        self.buffer_cnn_output_dict[key] = list()
-                    self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
-
-                #featout = self.cnn_encoder.mu 
-                featout = self.cnn_encoder.z
-
-            else:
-                featout = self.cnn_encoder(stin)
+            featout = self.cnn_encoder(stin)
             features.append(featout)
         features = torch.cat(features, dim=0)#.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
-        
-        if isinstance(self.cnn_encoder, BetaVAE):
-            self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
-            
-            for key in self.buffer_cnn_output_dict:
-                self.log_dict[key] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
-
-            self.log_dict['kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
-            if len(self.compactness_losses):
-                self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
-
         return features 
 
     def _utter(self, features, sentences=None):
@@ -165,11 +128,15 @@ class BasicCNNSpeaker(Speaker):
         outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
         # (batch_size, (nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])
         
-        embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-        # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_feature_dim'])
+        # Taking only the target features: assumes partial observations anyway...
+        # TODO: find a way to compute the sentence while attending other features in case of full observability...
+        embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
+        # (batch_size, kwargs['temporal_encoder_feature_dim'])
         self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, 1, -1)
-        # (batch_size, 1, (nbr_distractors+1) * kwargs['temporal_encoder_nbr_hidden_units'])
+        # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
         
+        #TODO : implement multi-round following below:
+        '''
         if sentences is not None:
             # Consume the sentences:
             sentences = sentences.view((batch_size, -1))
@@ -188,58 +155,24 @@ class BasicCNNSpeaker(Speaker):
             rnn_outputs, self.rnn_states = self.symbol_processing(inputs, states)          
             # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
             # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-        
-        # Utter the next sentences:
-        '''
-        next_sentences_one_hots = []
-        next_sentences_logits = []
-        next_sentences_widx = []
-        inputs = torch.zeros((batch_size, 1, self.kwargs['symbol_processing_nbr_hidden_units']))
-        if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
-        inputs = torch.cat( [self.embedding_tf_final_outputs, inputs], dim=-1)
-        # (batch_size, 1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
-        
-        # Utter the next sentences:
-        for i in range(self.max_sentence_length):
-            hiddens, self.rnn_states = self.symbol_processing(inputs, self.rnn_states)          
-            # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
-            inputs = torch.cat([self.embedding_tf_final_outputs,hiddens], dim=-1)
-            # (batch_size, 1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
-        
-            outputs = self.symbol_decoder(hiddens.squeeze(1))            
-            # (batch_size, vocab_size)
-            _, prediction = outputs.max(1)                        
-            # (batch_size)
-            next_sentences_logits.append(outputs.unsqueeze(1))
-            next_sentences_one_hot = nn.functional.one_hot(prediction, num_classes=self.vocab_size).unsqueeze(1).float()
-            # (batch_size, 1, vocab_size)
-            next_sentences_one_hots.append(next_sentences_one_hot)
-            next_sentences_widx.append( prediction.unsqueeze(1).float() )
-            # (batch_size, 1, 1)
-            
-        next_sentences_widx = torch.cat(next_sentences_widx, dim=1)
-        # (batch_size, max_sentence_length, 1)
-        next_sentences_one_hots = torch.cat(next_sentences_one_hots, dim=1)
-        # (batch_size, max_sentence_length, vocab_size)
-        next_sentences_logits = torch.cat(next_sentences_logits, dim=1)
-        # (batch_size, max_sentence_length, vocab_size)
         '''
 
         vocab_stop_idx = self.vocab_size-1
 
-        init_rnn_states = self.rnn_states
-
-        rnn_states = init_rnn_states
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
         sentences_one_hots = [list() for _ in range(batch_size)]
         for b in range(batch_size):
             bemb = self.embedding_tf_final_outputs[b].view((1, 1, -1))
-            # (batch_size=1, 1, (nbr_distractors+1), 1,kwargs['temporal_encoder_nbr_hidden_units'])
+            # (batch_size=1, 1, kwargs['temporal_encoder_nbr_hidden_units'])
+            init_rnn_state = bemb
+            # (hidden_layer*num_directions=1, batch_size=1, 
+            # kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
+            rnn_states = (init_rnn_state, torch.zeros_like(init_rnn_state))
+            
             inputs = torch.zeros((1, 1, self.kwargs['symbol_processing_nbr_hidden_units']))
             if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
-            inputs = torch.cat( [bemb, inputs], dim=-1)
-            # (batch_size=1, 1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
+            # (batch_size=1, 1, kwargs['symbol_processing_nbr_hidden_units'])
             
             continuer = True
             sentence_token_count = 0
@@ -251,7 +184,7 @@ class BasicCNNSpeaker(Speaker):
 
                 outputs = self.symbol_decoder(rnn_outputs.squeeze(1))
                 # (batch_size=1, vocab_size)
-                _, prediction = outputs.max(1)                        
+                _, prediction = torch.softmax(outputs, dim=1).max(1)                        
                 # (batch_size=1)
                 prediction = prediction.unsqueeze(1).float()
 
@@ -260,12 +193,11 @@ class BasicCNNSpeaker(Speaker):
                 sentences_one_hots[b].append( nn.functional.one_hot(prediction.squeeze().long(), num_classes=self.vocab_size).view((1,-1)))
                 
                 # next inputs:
-                inputs = torch.cat([bemb, rnn_outputs], dim=-1)
-                # (batch_size, 1, (nbr_distractors+1)*kwargs['temporal_encoder_nbr_hidden_units']+kwargs['symbol_processing_nbr_hidden_units'])
+                inputs = self.symbol_encoder(outputs).unsqueeze(1)
+                # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
                 # next rnn_states:
-                rnn_states = [st[-1,...].view((1,1,-1)) for st in next_rnn_states]
-                #states = next_rnn_states[-1, vocab_idx_argop.long()].view((1,1,-1))
-
+                rnn_states = next_rnn_states
+                
                 stop_word_condition = (prediction == vocab_stop_idx)
                 if len(sentences_widx[b]) >= self.max_sentence_length or stop_word_condition :
                     continuer = False 
@@ -281,9 +213,6 @@ class BasicCNNSpeaker(Speaker):
             # (sentence_length<=max_sentence_length, vocab_size)
             sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
             # (sentence_length<=max_sentence_length, vocab_size)
-
-            # Reset the state for the next sentence generation in the batch:
-            states = init_rnn_states
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)

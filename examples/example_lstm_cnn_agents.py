@@ -46,9 +46,10 @@ def test_example_basic_agents():
 
       "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
-      "vocab_size":               100,
+      "vocab_size":               1000,
 
-      "agent_architecture":       'CNN', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'CNN', #'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -65,12 +66,12 @@ def test_example_basic_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128,
-      "dataloader_num_worker":    8,
+      "batch_size":               32, #64
+      "dataloader_num_worker":    16,
       "stimulus_depth_dim":       1,
-      "stimulus_resize_dim":      64, #32,#28,
+      "stimulus_resize_dim":      32, #64,#28,
       
-      "learning_rate":            6e-4,
+      "learning_rate":            1e-3,
       "adam_eps":                 1e-8,
       "dropout_prob":             0.0,
       
@@ -79,8 +80,8 @@ def test_example_basic_agents():
       "use_curriculum_nbr_distractors": False,
       "curriculum_distractors_window_size": 25, #100,
 
-      "with_gradient_clip":       False,
-      "gradient_clip":            1e-1,
+      "with_gradient_clip":       True,
+      "gradient_clip":            1e-3,
       
       "unsupervised_segmentation_factor": None, #1e5
       "nbr_experience_repetition":  1,
@@ -100,14 +101,15 @@ def test_example_basic_agents():
 
       "with_weight_maxl1_loss":   False,
 
-      "with_grad_logging":        True,
+      "with_grad_logging":        False,
       "use_cuda":                 True,
   }
 
 
-  dsprites_divider = 100
+  dsprites_divider = 200
   dsprites_offset = 2
-  save_path = f"./Havrylov_et_al/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-BIGCNN_OBS{rg_config['stimulus_resize_dim']}"
+  #save_path = f"./Havrylov_et_al/SigmoidLSTMCNNMinEntr/{rg_config['agent_loss_type']}/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-OBS{rg_config['stimulus_resize_dim']}"
+  save_path = f"./Havrylov_et_al/LSTMCNN/{rg_config['agent_loss_type']}/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-OBS{rg_config['stimulus_resize_dim']}"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -189,18 +191,29 @@ def test_example_basic_agents():
     agent_config['cnn_encoder_kernels'] = [8,4,3]
     agent_config['cnn_encoder_strides'] = [2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1]
-    agent_config['cnn_encoder_feature_dim'] = 256 #32
-    agent_config['cnn_encoder_mini_batch_size'] = 128
-    agent_config['temporal_encoder_nbr_hidden_units'] = 1024#64#256
+    agent_config['cnn_encoder_feature_dim'] = 512 #256 #32
+    agent_config['cnn_encoder_mini_batch_size'] = 256
+    agent_config['temporal_encoder_nbr_hidden_units'] = 256#64#256
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 256 #32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-
-  # # Basic Agents
-  # ## Basic Speaker:
-
-  from ReferentialGym.agents import BasicCNNSpeaker
+  elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
+    # ResNet18-2:
+    agent_config['cnn_encoder_channels'] = [32, 32, 64]
+    agent_config['cnn_encoder_kernels'] = [4, 3, 3]
+    agent_config['cnn_encoder_strides'] = [4, 2, 1]
+    agent_config['cnn_encoder_paddings'] = [0, 1, 1]
+    agent_config['cnn_encoder_feature_dim'] = 512
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  
+  # # Agents
+  from ReferentialGym.agents import LSTMCNNSpeaker
 
   batch_size = 4
   nbr_distractors = agent_config['nbr_distractors']
@@ -209,18 +222,16 @@ def test_example_basic_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  bspeaker = BasicCNNSpeaker(kwargs=agent_config, 
+  speaker = LSTMCNNSpeaker(kwargs=agent_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
-                                agent_id='bs0',
+                                agent_id='s0',
                                 logger=logger)
 
-  print("Speaker:", bspeaker)
+  print("Speaker:", speaker)
 
-  # ## Basic Listener:
-
-  from ReferentialGym.agents import BasicCNNListener
+  from ReferentialGym.agents import LSTMCNNListener
   import copy
 
   listener_config = copy.deepcopy(agent_config)
@@ -233,14 +244,14 @@ def test_example_basic_agents():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  blistener = BasicCNNListener(kwargs=listener_config, 
+  listener = LSTMCNNListener(kwargs=listener_config, 
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
-                                agent_id='bl0',
+                                agent_id='l0',
                                 logger=logger)
 
-  print("Listener:",blistener)
+  print("Listener:", listener)
 
   # # Dataset:
 
@@ -274,9 +285,9 @@ def test_example_basic_agents():
 
   # In[22]:
 
-  nbr_epoch = 100
-  refgame.train(prototype_speaker=bspeaker, 
-                prototype_listener=blistener, 
+  nbr_epoch = 1000
+  refgame.train(prototype_speaker=speaker, 
+                prototype_listener=listener, 
                 nbr_epoch=nbr_epoch,
                 logger=logger,
                 verbose_period=1)

@@ -82,6 +82,7 @@ class statsLogger(SummaryWriter):
 
         rhos = dict()
         ps = dict()        
+        unique_prod_ratios = dict()
         for agent_id in cleaned_data:    
             if max_nbr_samples is None: max_nbr_samples = len(cleaned_data[agent_id][sentences_key])
 
@@ -121,8 +122,9 @@ class statsLogger(SummaryWriter):
                                                                    comprange=comprange)
             rhos[agent_id] = rho 
             ps[agent_id] = p
+            unique_prod_ratios[agent_id] = len(unique_sentences) / len(np_sentences) * 100.0
 
-        return rhos, ps
+        return rhos, ps, unique_prod_ratios
         
 
     def add_dict(self,x, rec=None, batch=False, idx=None) :

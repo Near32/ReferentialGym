@@ -201,7 +201,7 @@ class ResNetParallelAttentionEncoder(ModelResNet18) :
             attention_weights.append(attention_weights[-1] + attention_update[-1].unsqueeze(0))
 
         attention_weights = [attention_weights[i].view((batch_size, self.spatialDim, self.spatialDim, self.nbr_attention_slot)) for i in range(len(attention_weights))]
-        attention_weights = [ F.sigmoid(attention) for attention in attention_weights]
+        attention_weights = [ torch.sigmoid(attention) for attention in attention_weights]
 
         if False:
             ones = torch.ones(batch_size, self.spatialDim, self.spatialDim)
@@ -632,7 +632,6 @@ class BetaVAE(nn.Module) :
                        resnet_nbr_layer=2,
                        decoder_nbr_layer=4,
                        NormalOutputDistribution=True,
-                       EncodingCapacityStep=None,
                        maxEncodingCapacity=1000,
                        nbrEpochTillMaxEncodingCapacity=4,
                        constrainedEncoding=True,
@@ -648,7 +647,7 @@ class BetaVAE(nn.Module) :
         self.NormalOutputDistribution = NormalOutputDistribution
         self.factor_vae_gamma = factor_vae_gamma
 
-        if self.factor_vae_gamma > 0.0:
+        if self.factor_vae_gamma >= 0.0:
             '''
             self.tc_discriminator_hidden_units = tuple([2*self.latent_dim]*4+[2])
             self.tc_discriminator = FCBody(state_dim=self.latent_dim,
@@ -658,7 +657,7 @@ class BetaVAE(nn.Module) :
             self.tc_discriminator = TotalCorrelationDiscriminator(self)
 
         self.EncodingCapacity = 0.0
-        self.EncodingCapacityStep = EncodingCapacityStep
+        self.EncodingCapacityStep = None
         self.maxEncodingCapacity = maxEncodingCapacity
         self.constrainedEncoding = constrainedEncoding
         self.nbrEpochTillMaxEncodingCapacity = nbrEpochTillMaxEncodingCapacity
@@ -683,9 +682,9 @@ class BetaVAE(nn.Module) :
                 self.encoder = ConvolutionalBody(input_shape=input_shape,
                                                  feature_dim=(256, latent_dim*2), 
                                                  channels=[input_shape[0], 32, 32, 64], 
-                                                 kernel_sizes=[3, 3, 3], 
+                                                 kernel_sizes=[8, 4, 3],#[3, 3, 3], 
                                                  strides=[2, 2, 2],
-                                                 paddings=[0, 0, 0],
+                                                 paddings=[1, 1, 1],#[0, 0, 0],
                                                  dropout=0.0,
                                                  non_linearities=[F.relu])
                 '''
@@ -821,7 +820,7 @@ class BetaVAE(nn.Module) :
         # VAE loss :
         #--------------------------------------------------------------------------------------------------------------
         # Reconstruction loss :
-        self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, size_average=False).div(self.batch_size)
+        self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, reduction='sum').div(self.batch_size)
         
         if observation_sigma is not None:
             self.observation_sigma = observation_sigma
@@ -841,7 +840,7 @@ class BetaVAE(nn.Module) :
             output_dict.update({'MSE_reconst_loss': self.VAE_loss})
         else:
             #Bernoulli :
-            self.neg_log_lik = -torch.distributions.Bernoulli( F.sigmoid(self.VAE_output) ).log_prob( gtx )
+            self.neg_log_lik = -torch.distributions.Bernoulli( torch.sigmoid(self.VAE_output) ).log_prob( gtx )
             #self.VAE_loss = self.reconst_loss
             self.VAE_loss = self.binary_crossentropy
 
@@ -854,6 +853,7 @@ class BetaVAE(nn.Module) :
         
         if self.EncodingCapacityStep is None :
             self.kl_divergence = torch.sum(self.true_kl_divergence, dim=1)
+            self.kl_divergence_regularized =  torch.abs( torch.sum(self.true_kl_divergence, dim=1) - self.EncodingCapacity ) 
             self.VAE_loss = self.VAE_loss + self.beta*self.kl_divergence
         else:
             self.kl_divergence_regularized =  torch.abs( torch.sum(self.true_kl_divergence, dim=1) - self.EncodingCapacity ) 
@@ -873,13 +873,14 @@ class BetaVAE(nn.Module) :
                             'kl_div': self.true_kl_divergence})
         #--------------------------------------------------------------------------------------------------------------
         # FactorVAE losses:
-        if self.factor_vae_gamma > 0.0:
+        if self.factor_vae_gamma >= 0.0:
             # VAE TC loss:
             Dz = self.tc_discriminator(self.z)
             self.VAE_TC_loss = (Dz[:,0] - Dz[:,1])
             #(b, )            
 
-            self.vae_modularity = -self.VAE_TC_loss
+            soft_Dz = torch.softmax(Dz, dim=-1)
+            self.vae_modularity = 1-(soft_Dz[:,0]-soft_Dz[:,1])
 
             # TC Discriminator:
             z = self.z.detach()
