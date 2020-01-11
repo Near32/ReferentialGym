@@ -2,6 +2,7 @@ from .networks import FCBody, LSTMBody, GRUBody
 from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody 
 from .networks import ModelResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
+from .networks import ModelVGG16
 from .networks import layer_init, hasnan, handle_nan
 
 from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
@@ -59,9 +60,9 @@ def choose_architecture( architecture,
 
     if 'VGG16' in architecture:
         pretrained = ('pretrained' in architecture)
-        body = ModelVGG16(input_shape=input_shape,
-                             feature_dim=feature_dim,
-                             pretrained=pretrained)
+        assert(input_shape == (3, 256, 256))
+        body = ModelVGG16(feature_dim=feature_dim,
+                          pretrained=pretrained)
 
     if 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])

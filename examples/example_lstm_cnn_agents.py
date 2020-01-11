@@ -48,7 +48,7 @@ def test_example_basic_agents():
       "tau0":                     0.2,
       "vocab_size":               1000,
 
-      "agent_architecture":       'CNN', #'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretrained-VGG16', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -66,10 +66,10 @@ def test_example_basic_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               32, #64
+      "batch_size":               8, #64
       "dataloader_num_worker":    16,
       "stimulus_depth_dim":       1,
-      "stimulus_resize_dim":      32, #64,#28,
+      "stimulus_resize_dim":      256, #64,#28,
       
       "learning_rate":            1e-3,
       "adam_eps":                 1e-8,
@@ -81,7 +81,7 @@ def test_example_basic_agents():
       "curriculum_distractors_window_size": 25, #100,
 
       "with_gradient_clip":       True,
-      "gradient_clip":            1e-3,
+      "gradient_clip":            1e-2,
       
       "unsupervised_segmentation_factor": None, #1e5
       "nbr_experience_repetition":  1,
@@ -94,7 +94,7 @@ def test_example_basic_agents():
 
       "with_speaker_entropy_regularization":  False,
       "with_listener_entropy_regularization":  False,
-      "entropy_regularization_factor":    2e0,
+      "entropy_regularization_factor":    -1e-2,
 
       "with_mdl_principle":       False,
       "mdl_principle_factor":     5e-2,
@@ -186,7 +186,6 @@ def test_example_basic_agents():
   agent_config['architecture'] = rg_config['agent_architecture']
   agent_config['dropout_prob'] = rg_config['dropout_prob']
   if 'CNN' == agent_config['architecture']:
-    # CNN : 
     agent_config['cnn_encoder_channels'] = [32,32,64] #[32,32,32,32]
     agent_config['cnn_encoder_kernels'] = [8,4,3]
     agent_config['cnn_encoder_strides'] = [2,2,2]
@@ -194,6 +193,14 @@ def test_example_basic_agents():
     agent_config['cnn_encoder_feature_dim'] = 512 #256 #32
     agent_config['cnn_encoder_mini_batch_size'] = 256
     agent_config['temporal_encoder_nbr_hidden_units'] = 256#64#256
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_mini_batch_size'] = 256 #32
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+  if 'VGG16' in agent_config['architecture']:
+    agent_config['cnn_encoder_feature_dim'] = 512 #256 #32
+    agent_config['cnn_encoder_mini_batch_size'] = 256
+    agent_config['temporal_encoder_nbr_hidden_units'] = 512#64#256
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 256 #32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']

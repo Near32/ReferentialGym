@@ -116,7 +116,11 @@ class BasicCNNListener(Listener):
         """
         Reasons about the features and sentences to yield the target-prediction logits.
         
-        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+        :param sentences:   Tensor of shape `(batch_size, max_sentence_length, vocab_size)` 
+                            containing the padded sequence of (potentially one-hot-encoded) symbols.
+                            NOTE: max_sentence_length may be different from self.max_sentence_lenght 
+                            as the padding is padding by batch and only care about the maximal 
+                            sentence length of said batch.
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
         
         :returns:
@@ -143,9 +147,9 @@ class BasicCNNListener(Listener):
         
         # Consume the sentences:
         sentences = sentences.view((-1, self.vocab_size))
-        encoded_sentences = self.symbol_encoder(sentences).view((batch_size, self.max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units'])) 
+        encoded_sentences = self.symbol_encoder(sentences).view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units'])) 
         states = self.rnn_states
-        # (batch_size, kwargs['max_sentence_length'], kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         
         """
         # Since we consume the sentence, rather than generating it, we prepend the encoded_sentences with ones:
