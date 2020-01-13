@@ -29,6 +29,7 @@ setup(
     zip_safe=False,
 
     install_requires=['pip',
+                      'Cython',
                       'numpy',
                       'scipy',
                       'h5py',
@@ -37,7 +38,8 @@ setup(
                       'torchvision',
                       'tensorboardX',
                       'matplotlib',
-                      'docopt'
+                      'docopt',
+                      'pycocotools'
                       ] + test_requirements,
 
     python_requires=">=3.6",

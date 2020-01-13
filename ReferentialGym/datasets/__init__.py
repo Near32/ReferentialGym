@@ -5,5 +5,6 @@ from .CLEVR_dataset import CLEVRDataset
 from .sort_of_CLEVR_dataset import SortOfCLEVRDataset
 from .MineRL_dataset import MineRLDataset 
 from .dSprites_dataset import dSpritesDataset
+from .MSCOCO_dataset import MSCOCODataset 
 
 from .utils import collate_dict_wrapper, ResizeNormalize, RescaleNormalize
