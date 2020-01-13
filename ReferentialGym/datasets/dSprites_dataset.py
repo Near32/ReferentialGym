@@ -61,6 +61,13 @@ class dSpritesDataset(Dataset) :
 
         print(f"Split Strategy: {self.split_strategy} --> d {self.divider} / o {self.offset}")
         print(f'Number of classes: {len(set([self.targets[idx] for idx in self.indices]))} / 1024.')
+
+        self.imgs = self.imgs[self.indices]
+        self.latents_values = self.latents_values[self.indices]
+        self.latents_classes = self.latents_classes[self.indices]
+        self.targets = self.targets[self.indices]
+        del self.metadata
+
         print('Dataset loaded : OK.')
         
     def __len__(self) :
@@ -69,7 +76,7 @@ class dSpritesDataset(Dataset) :
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        idx = self.indices[idx]
+        #idx = self.indices[idx]
         #target = self.latents_classes[idx]
         target = self.targets[idx]
         return target
@@ -77,7 +84,7 @@ class dSpritesDataset(Dataset) :
     def getlatentvalue(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        idx = self.indices[idx]
+        #idx = self.indices[idx]
         latent_value = self.latents_values[idx]
         return latent_value
 
@@ -91,21 +98,19 @@ class dSpritesDataset(Dataset) :
         """
         if idx >= len(self):
             idx = idx%len(self)
-        orig_idx = idx
-        idx = self.indices[idx]
+        #orig_idx = idx
+        #idx = self.indices[idx]
 
         #img, target = self.dataset[idx]
         image = Image.fromarray((self.imgs[idx]*255).astype('uint8'))
-        target = self.getclass(orig_idx)
-        latent_value = torch.from_numpy(self.getlatentvalue(orig_idx))
-        #img = (img*255).astype('uint8').transpose((2,1,0))
-        #img = Image.fromarray(img, mode='RGB')
-
+        
+        #target = self.getclass(orig_idx)
+        #latent_value = torch.from_numpy(self.getlatentvalue(orig_idx))
+        
+        target = self.getclass(idx)
+        latent_value = torch.from_numpy(self.getlatentvalue(idx))
+        
         if self.transform is not None:
             image = self.transform(image)
 
-        '''
-        output_dict = {'sample':image, 'target': target, 'latent_values': latent_value}
-        return output_dict
-        '''
         return image, target, latent_value

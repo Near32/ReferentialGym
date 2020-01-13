@@ -191,6 +191,10 @@ class ReferentialGame(object):
                                                    'multi_round':multi_round,
                                                    'sample':sample
                                                    }
+
+                            if self.config['stimulus_depth_mult'] != 1:
+                                speaker_inputs_dict['experiences'] = speaker_inputs_dict['experiences'].repeat(1, 1, 1, self.config['stimulus_depth_mult'], 1, 1)
+                                # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                             
                             speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
                                                                             config=self.config,
@@ -215,6 +219,10 @@ class ReferentialGame(object):
 
                             listener_inputs_dict['experiences'] = sample['listener_experiences']
                             listener_inputs_dict['latent_experiences'] = sample['listener_latent_experiences']
+                            
+                            if self.config['stimulus_depth_mult'] != 1:
+                                listener_inputs_dict['experiences'] = listener_inputs_dict['experiences'].repeat(1, 1, 1, self.config['stimulus_depth_mult'], 1, 1)
+                                # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                             
                             listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
                                                                                config=self.config,

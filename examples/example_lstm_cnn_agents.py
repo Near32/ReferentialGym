@@ -12,7 +12,7 @@ import torch
 import torchvision
 import torchvision.transforms as T 
 
-def test_example_basic_agents():
+def main():
   seed = 30
   torch.manual_seed(seed)
   np.random.seed(seed)
@@ -48,7 +48,7 @@ def test_example_basic_agents():
       "tau0":                     0.2,
       "vocab_size":               1000,
 
-      "agent_architecture":       'pretrained-VGG16', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -66,12 +66,13 @@ def test_example_basic_agents():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               8, #64
-      "dataloader_num_worker":    16,
+      "batch_size":               64, #64
+      "dataloader_num_worker":    1,
       "stimulus_depth_dim":       1,
-      "stimulus_resize_dim":      256, #64,#28,
+      "stimulus_depth_mult":      1,
+      "stimulus_resize_dim":      32, #64,#28,
       
-      "learning_rate":            1e-3,
+      "learning_rate":            6e-4,
       "adam_eps":                 1e-8,
       "dropout_prob":             0.0,
       
@@ -81,7 +82,7 @@ def test_example_basic_agents():
       "curriculum_distractors_window_size": 25, #100,
 
       "with_gradient_clip":       True,
-      "gradient_clip":            1e-2,
+      "gradient_clip":            1e-1,
       
       "unsupervised_segmentation_factor": None, #1e5
       "nbr_experience_repetition":  1,
@@ -109,7 +110,7 @@ def test_example_basic_agents():
   dsprites_divider = 200
   dsprites_offset = 2
   #save_path = f"./Havrylov_et_al/SigmoidLSTMCNNMinEntr/{rg_config['agent_loss_type']}/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-OBS{rg_config['stimulus_resize_dim']}"
-  save_path = f"./Havrylov_et_al/LSTMCNN/{rg_config['agent_loss_type']}/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-OBS{rg_config['stimulus_resize_dim']}"
+  save_path = f"./Havrylov_et_al/LSTMCNN/{rg_config['agent_loss_type']}/dSprites-ttsplit{dsprites_divider}-{dsprites_offset}-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -225,7 +226,7 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = agent_config['nbr_distractors']
   nbr_stimulus = agent_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -247,7 +248,7 @@ def test_example_basic_agents():
   batch_size = 4
   nbr_distractors = listener_config['nbr_distractors']
   nbr_stimulus = listener_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -264,7 +265,7 @@ def test_example_basic_agents():
 
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
-  
+
   split_strategy = f"divider-{dsprites_divider}-offset-{dsprites_offset}"
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root='./datasets/dsprites-dataset/', 
                                                           train=True, 
@@ -274,7 +275,7 @@ def test_example_basic_agents():
                                                          train=False, 
                                                          transform=transform, 
                                                          split_strategy=split_strategy)
-
+  
   dataset_args = {
       "dataset_class":            "LabeledDataset",
       "train_dataset":            train_dataset,
@@ -300,4 +301,4 @@ def test_example_basic_agents():
                 verbose_period=1)
 
 if __name__ == '__main__':
-    test_example_basic_agents()
+    main()

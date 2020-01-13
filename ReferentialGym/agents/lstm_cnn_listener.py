@@ -35,7 +35,11 @@ class LSTMCNNListener(Listener):
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'])
-
+        elif 'VGG16' in self.kwargs['architecture']:
+            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                  input_shape=cnn_input_shape,
+                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
+            
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         self.temporal_feature_encoder = layer_init(
                                         nn.LSTM(input_size=temporal_encoder_input_dim,

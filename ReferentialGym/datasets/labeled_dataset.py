@@ -84,9 +84,10 @@ class LabeledDataset(Dataset):
             sample_output = self.dataset[idx]
             if len(sample_output) == 2:
                 exp, tc = sample_output
-                latent = tc 
+                if isinstance(tc, int): latent = torch.Tensor([tc])
             elif len(sample_output) == 3:
                 exp, tc, latent = sample_output
+                if isinstance(latent, int): latent = torch.Tensor([latent])
             else:
                 raise NotImplemented
             experiences.append(exp.unsqueeze(0))

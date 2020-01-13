@@ -60,8 +60,8 @@ def choose_architecture( architecture,
 
     if 'VGG16' in architecture:
         pretrained = ('pretrained' in architecture)
-        assert(input_shape == (3, 256, 256))
-        body = ModelVGG16(feature_dim=feature_dim,
+        body = ModelVGG16(input_shape=input_shape,
+                          feature_dim=feature_dim,
                           pretrained=pretrained)
 
     if 'ResNet18' in architecture and not("MHDPA" in architecture):
