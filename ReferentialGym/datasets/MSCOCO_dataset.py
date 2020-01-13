@@ -24,7 +24,8 @@ class MSCOCODataset(CocoDetection):
         for idx, cat in enumerate(self.cats):
             self.cats_idx[cat['id']] = idx
         
-        self.targets = np.zeros((len(self), len(self.cats_names)))
+        self.latent_values = []
+        self.targets = []
         nbr_removed_imgs = 0
         idx = 0
         while idx < len(self):
@@ -32,8 +33,11 @@ class MSCOCODataset(CocoDetection):
             ann_ids = self.coco.getAnnIds(imgIds=img_id)
             target = self.coco.loadAnns(ann_ids)
             if len(target):
+                self.latent_values.append(np.zeros(len(self.cats_names)))
                 for bb in target:
-                    self.targets[idx, self.cats_idx[bb['category_id']]] = 1 
+                    self.latent_values[-1][self.cats_idx[bb['category_id']]] = 1 
+                # The target is simply the first bounding box' category id...
+                self.targets.append(self.cats_idx[target[0]['category_id']])
                 idx += 1
             else:
                 del self.ids[idx]
@@ -47,16 +51,16 @@ class MSCOCODataset(CocoDetection):
         return len(self.ids)
 
     def getclass(self, idx):
-        target = self.targets[idx]
-        return target
+        return self.targets[idx]
 
     def getlatentvalue(self, idx):
-        return self.getclass(idx)
+        return self.latent_values[idx]
         
     def __getitem__(self, index):
         img_id = self.ids[index]
         
-        target = torch.from_numpy(self.getclass(index))
+        target = self.getclass(index)
+        latent_value = torch.from_numpy(self.getlatentvalue(index))
         
         path = self.coco.loadImgs(img_id)[0]['file_name']
 
@@ -65,4 +69,4 @@ class MSCOCODataset(CocoDetection):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target, target
+        return img, target, latent_value

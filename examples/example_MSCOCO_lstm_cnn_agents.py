@@ -268,14 +268,14 @@ def main():
   dataType = 'train'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  train_dataset = RG.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
+  train_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
 
   dataDir = '.'
   dataYear = '2014'
   dataType = 'val'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  test_dataset = RG.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
+  test_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
 
   dataset_args = {
       "dataset_class":            "LabeledDataset",
