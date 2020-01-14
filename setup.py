@@ -7,7 +7,7 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as readme:
     long_description = readme.read()
 
-test_requirements = ['tqdm', 'pytest']
+test_requirements = ['pytest']
 
 setup(
     name='ReferentialGym',
@@ -29,10 +29,12 @@ setup(
     zip_safe=False,
 
     install_requires=['pip',
-                      'Cython',
+                      'tqdm',
+		      'Cython',
                       'numpy',
                       'scipy',
-                      'h5py',
+                      'scikit-image',
+		      'h5py',
                       'opencv-python',
                       'torch>=1.1',
                       'torchvision',
