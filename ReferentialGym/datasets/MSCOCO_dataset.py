@@ -4,6 +4,7 @@ import torchvision
 from torchvision.datasets import CocoDetection
 from PIL import Image 
 import numpy as np
+from tqdm import tqdm
 
 VERBOSE = False
 
@@ -15,7 +16,7 @@ class MSCOCODataset(CocoDetection):
             and returns a transformed version. E.g, ``transforms.ToTensor``
     """
 
-    def __init__(self, root, annFile, transform=None):
+    def __init__(self, root, annFile, transform=None, preloading=False):
         super(MSCOCODataset, self).__init__(root=root, annFile=annFile, transform=transform)
         self.cats = self.coco.loadCats(self.coco.getCatIds())
         self.cats_names = [cat['name'] for cat in self.cats]
@@ -36,8 +37,9 @@ class MSCOCODataset(CocoDetection):
                 self.latent_values.append(np.zeros(len(self.cats_names)))
                 for bb in target:
                     self.latent_values[-1][self.cats_idx[bb['category_id']]] = 1 
-                # The target is simply the first bounding box' category id...
-                self.targets.append(self.cats_idx[target[0]['category_id']])
+                # The target is simply choosen randomly from all the bounding box' category id...
+                rnd_bbox = np.random.randint(0, len(target))
+                self.targets.append(self.cats_idx[target[rnd_bbox]['category_id']])
                 idx += 1
             else:
                 del self.ids[idx]
@@ -46,6 +48,16 @@ class MSCOCODataset(CocoDetection):
 
         print('Dataset loaded : OK.')
         print(f'Nbr removed image: {nbr_removed_imgs}.')
+
+        self.outputs = [None]*len(self.targets)
+        self.img2preloading = [False]*len(self.targets)
+        if preloading:
+            self.preloading()
+            
+    def preloading(self):
+        for idx in tqdm(range(len(self))):
+            self.outputs[idx] = self.__getitem__(idx)
+            self.img2preloading[idx] = True
 
     def __len__(self):
         return len(self.ids)
@@ -57,6 +69,9 @@ class MSCOCODataset(CocoDetection):
         return self.latent_values[idx]
         
     def __getitem__(self, index):
+        if self.img2preloading[index]:
+            return self.outputs[index]
+
         img_id = self.ids[index]
         
         target = self.getclass(index)
@@ -68,5 +83,8 @@ class MSCOCODataset(CocoDetection):
         
         if self.transforms is not None:
             img, target = self.transforms(img, target)
+
+        self.outputs[index] = [img, target, latent_value]
+        self.img2preloading[index] = True 
 
         return img, target, latent_value

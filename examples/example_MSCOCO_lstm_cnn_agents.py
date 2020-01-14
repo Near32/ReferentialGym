@@ -26,7 +26,7 @@ def main():
       "observability":            "partial",
       "max_sentence_length":      14,
       "nbr_communication_round":  1,
-      "nbr_distractors":          1,
+      "nbr_distractors":          127,
       "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -66,8 +66,8 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               2, #64
-      "dataloader_num_worker":    1,
+      "batch_size":               128, #64
+      "dataloader_num_worker":    8,
       "stimulus_depth_dim":       3,
       "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      256, #64,#28,
@@ -268,14 +268,14 @@ def main():
   dataType = 'train'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  train_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
+  train_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform, preloading=False)
 
   dataDir = '.'
   dataYear = '2014'
   dataType = 'val'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  test_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
+  test_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform, preloading=False)
 
   dataset_args = {
       "dataset_class":            "LabeledDataset",

@@ -68,7 +68,7 @@ class Dataset(torchDataset):
         '''
         raise NotImplementedError
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         '''
         Samples target experience and distractor experiences according to the distractor sampling scheme.
         
