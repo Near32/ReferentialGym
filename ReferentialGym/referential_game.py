@@ -57,6 +57,8 @@ class ReferentialGame(object):
 
         print("Create dataloader: ...")
         
+        '''
+        '''        
         data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
                                                             batch_size=self.config['batch_size'],
                                                             shuffle=True,
@@ -70,6 +72,35 @@ class ReferentialGame(object):
                                                            pin_memory=True,
                                                            num_workers=self.config['dataloader_num_worker'])
                         }
+        '''
+        '''
+
+        '''
+        data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
+                                                    batch_size=self.config['batch_size'],
+                                                    shuffle=True,
+                                                    #collate_fn=collate_dict_wrapper,
+                                                    pin_memory=True,
+                                                    num_workers=self.config['dataloader_num_worker']),
+                'test':torch.utils.data.DataLoader(self.datasets['test'],
+                                                   batch_size=self.config['batch_size'],
+                                                   shuffle=True,
+                                                   #collate_fn=collate_dict_wrapper,
+                                                   pin_memory=True,
+                                                   num_workers=self.config['dataloader_num_worker'])
+                }
+
+        nbr_it_per_epoch = len(data_loaders['train'])
+        #for epoch in tqdm(range(100)):
+        for epoch in range(100):
+            #print(epoch, len(data_loaders['train']))
+            for i, item in tqdm(enumerate(data_loaders['train'])):
+            #for i, item in enumerate(data_loaders['train']):
+                #print(epoch, i)
+                #print(len(item))
+                pass 
+        raise 
+        '''
 
         print("Create dataloader: OK.")
         print("Create Agents: ...")

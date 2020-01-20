@@ -14,9 +14,12 @@ class MSCOCODataset(CocoDetection):
         annFile (string): Path to json annotation file.
         transform (callable, optional): A function/transform that  takes in an PIL image
             and returns a transformed version. E.g, ``transforms.ToTensor``
+        transfer_learning (bool):  Bool that defines whether we use the transfer learning version of the dataset.
+        extract_features:   Function that takes only one argument, i.e. the image tensor from
+                            feature extraction is attempted.
     """
 
-    def __init__(self, root, annFile, transform=None, preloading=False):
+    def __init__(self, root, annFile, transform=None, transfer_learning=False, extract_features=None, data_suffix='TL.npy'):
         super(MSCOCODataset, self).__init__(root=root, annFile=annFile, transform=transform)
         self.cats = self.coco.loadCats(self.coco.getCatIds())
         self.cats_names = [cat['name'] for cat in self.cats]
@@ -39,6 +42,7 @@ class MSCOCODataset(CocoDetection):
                     self.latent_values[-1][self.cats_idx[bb['category_id']]] = 1 
                 # The target is simply choosen randomly from all the bounding box' category id...
                 rnd_bbox = np.random.randint(0, len(target))
+                #self.targets.append(np.array([self.cats_idx[target[rnd_bbox]['category_id']]]))
                 self.targets.append(self.cats_idx[target[rnd_bbox]['category_id']])
                 idx += 1
             else:
@@ -49,18 +53,33 @@ class MSCOCODataset(CocoDetection):
         print('Dataset loaded : OK.')
         print(f'Nbr removed image: {nbr_removed_imgs}.')
 
-        self.outputs = [None]*len(self.targets)
-        self.img2preloading = [False]*len(self.targets)
-        if preloading:
-            self.preloading()
+        self.data_suffix = data_suffix
+        self.extract_features = extract_features
+        
+        self.transfer_learning = transfer_learning
+        if self.extract_features is not None:
+            self.make_tl_dataset()
             
-    def preloading(self):
+    def make_tl_dataset(self):
+        print("Building Transfer Learning Dataset: ...")
         for idx in tqdm(range(len(self))):
-            self.outputs[idx] = self.__getitem__(idx)
-            self.img2preloading[idx] = True
+            img_id = self.ids[idx]
+
+            path = self.coco.loadImgs(img_id)[0]['file_name']
+            tl_path = path+self.data_suffix
+            
+            target = self.getclass(idx)
+            
+            img = Image.open(os.path.join(self.root, path)).convert('RGB')
+            if self.transforms is not None:
+                img, _ = self.transforms(img, target)
+            img = self.extract_features(img).numpy()
+            np.save(os.path.join(self.root, tl_path), img)
+            
+        self.extract_features = None 
 
     def __len__(self):
-        return len(self.ids)
+        return len(self.targets)
 
     def getclass(self, idx):
         return self.targets[idx]
@@ -69,22 +88,20 @@ class MSCOCODataset(CocoDetection):
         return self.latent_values[idx]
         
     def __getitem__(self, index):
-        if self.img2preloading[index]:
-            return self.outputs[index]
-
         img_id = self.ids[index]
-        
+
         target = self.getclass(index)
         latent_value = torch.from_numpy(self.getlatentvalue(index))
         
         path = self.coco.loadImgs(img_id)[0]['file_name']
+        tl_path = path+self.data_suffix
 
-        img = Image.open(os.path.join(self.root, path)).convert('RGB')
-        
-        if self.transforms is not None:
-            img, target = self.transforms(img, target)
-
-        self.outputs[index] = [img, target, latent_value]
-        self.img2preloading[index] = True 
+        if self.transfer_learning:
+            img = np.load(os.path.join(self.root, tl_path))
+            img = torch.from_numpy(img)  
+        else:
+            img = Image.open(os.path.join(self.root, path)).convert('RGB')
+            if self.transforms is not None:
+                img, target = self.transforms(img, target)
 
         return img, target, latent_value

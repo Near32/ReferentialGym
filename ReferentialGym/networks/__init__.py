@@ -1,8 +1,8 @@
 from .networks import FCBody, LSTMBody, GRUBody 
 from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody 
-from .networks import ModelResNet18, MHDPA_RN
+from .networks import ModelResNet18, ExtractorResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
-from .networks import ModelVGG16
+from .networks import ModelVGG16, ExtractorVGG16
 from .networks import layer_init, hasnan, handle_nan
 
 from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
