@@ -102,25 +102,36 @@ class Speaker(Agent):
         """
         batch_size = experiences.size(0)
         features = self._sense(experiences=experiences, sentences=sentences)
-        next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
+        utter_outputs = self._utter(features=features, sentences=sentences)
+        if len(utter_outputs) == 5:
+            next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
+        else:
+            next_sentences_hidden_states = None
+            next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
         
         if self.training:
             if 'gumbel_softmax' in graphtype:    
-                self.tau = self._compute_tau(tau0=tau0)
-                #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
-                tau = self.tau.view((-1))
-
+                if next_sentences_hidden_states is None: 
+                    self.tau = self._compute_tau(tau0=tau0)
+                    #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
+                    tau = self.tau.view((-1))
+                    # (batch_size)
+                else:
+                    self.tau = []
+                    for hs in next_sentences_hidden_states:
+                        self.tau.append( self._compute_tau(tau0=tau0, h=hs).view((-1)))
+                    # list of size batch_size containing Tensors of shape (sentence_length)
+                    tau = self.tau 
+                    
                 straight_through = (graphtype == 'straight_through_gumbel_softmax')
                 
                 next_sentences_stgs = []
                 for bidx in range(len(next_sentences_logits)):
                     nsl_in = next_sentences_logits[bidx]
-                    tau_in = tau[bidx]
+                    # (sentence_length<=max_sentence_length, vocab_size)
+                    tau_in = tau[bidx].view((-1,1))
+                    # (1, 1) or (sentence_length, 1)
                     stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
-                    
-                    if torch.isnan(stgs).any() or torch.isinf(stgs).any():
-                        print("WARNING: NaN or inf found in sentences...")
-                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
                     
                     next_sentences_stgs.append(stgs)
                     #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))

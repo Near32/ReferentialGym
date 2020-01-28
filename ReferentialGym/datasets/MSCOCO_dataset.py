@@ -32,7 +32,7 @@ class MSCOCODataset(CocoDetection):
         self.targets = []
         nbr_removed_imgs = 0
         idx = 0
-        while idx < 1e3:#len(self.ids):#min(1e3,len(self.ids)):#int(1e3):
+        while idx < 5e2:#len(self.ids):#min(1e3,len(self.ids)):#int(1e3):
             img_id = self.ids[idx]
             ann_ids = self.coco.getAnnIds(imgIds=img_id)
             target = self.coco.loadAnns(ann_ids)

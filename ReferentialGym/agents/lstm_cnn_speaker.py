@@ -60,7 +60,8 @@ class LSTMCNNSpeaker(Speaker):
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
 
-        self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
+        #self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
+        self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1, bias=False))
         
         self.reset()
     
@@ -74,9 +75,17 @@ class LSTMCNNSpeaker(Speaker):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
+    '''
     def _compute_tau(self, tau0, emb=None):
         if emb is None: emb = self.embedding_tf_final_outputs
         temp = torch.exp(self.tau_fc(emb))
+        temp = torch.clamp(temp, min=0.0,max=1e20)
+        temp = torch.log(1+temp).squeeze()
+        invtau = tau0 + temp
+        return 1.0/invtau
+    '''
+    def _compute_tau(self, tau0, h):
+        temp = torch.exp(self.tau_fc(h))
         temp = torch.clamp(temp, min=0.0,max=1e20)
         temp = torch.log(1+temp).squeeze()
         invtau = tau0 + temp
@@ -101,7 +110,9 @@ class LSTMCNNSpeaker(Speaker):
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             featout = self.cnn_encoder(stin)
             features.append(featout)
-        features = torch.cat(features, dim=0)#.detach()
+        features = torch.cat(features, dim=0)
+        if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+            features = features.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 
@@ -166,6 +177,7 @@ class LSTMCNNSpeaker(Speaker):
 
         vocab_stop_idx = self.vocab_size-1
 
+        sentences_hidden_states = [list() for _ in range(batch_size)]
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
         sentences_one_hots = [list() for _ in range(batch_size)]
@@ -195,6 +207,8 @@ class LSTMCNNSpeaker(Speaker):
                 # (batch_size=1)
                 prediction = prediction.unsqueeze(1).float()
 
+
+                sentences_hidden_states[b].append(rnn_outputs.view(1,-1))
                 sentences_widx[b].append( prediction)
                 sentences_logits[b].append( outputs.view((1,-1)))
                 sentences_one_hots[b].append( nn.functional.one_hot(prediction.squeeze().long(), num_classes=self.vocab_size).view((1,-1)))
@@ -214,6 +228,8 @@ class LSTMCNNSpeaker(Speaker):
             while len(sentences_widx[b]) < self.max_sentence_length:
                 sentences_widx[b].append((self.vocab_size-1)*torch.ones_like(prediction))
 
+            sentences_hidden_states[b] = torch.cat(sentences_hidden_states[b], dim=0)
+            # (sentence_length<=max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
             sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
             # (batch_size=1, sentence_length<=max_sentence_length, 1)
             sentences_logits[b] = torch.cat(sentences_logits[b], dim=0)
@@ -229,5 +245,5 @@ class LSTMCNNSpeaker(Speaker):
         if self.embedding_tf_final_outputs.is_cuda: sentences_widx = sentences_widx.cuda()
 
 
-        return sentences_widx, sentences_logits, sentences_one_hots, self.embedding_tf_final_outputs.squeeze() 
+        return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots, self.embedding_tf_final_outputs.squeeze() 
         

@@ -50,6 +50,7 @@ def main():
       "vocab_size":               1000,
 
       "agent_architecture":       'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_learning":           'transfer_learning',  #'None'
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -67,7 +68,7 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               32, #64
+      "batch_size":               64, #64
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       3,
       "stimulus_depth_mult":      1,
@@ -77,7 +78,7 @@ def main():
       "adam_eps":                 1e-8,
       "dropout_prob":             0.0,
       
-      "with_gradient_clip":       True,
+      "with_gradient_clip":       False,
       "gradient_clip":            1e0,
       
       "use_homoscedastic_multitasks_loss": False,
@@ -108,7 +109,7 @@ def main():
   }
 
 
-  save_path = f"./Havrylov_et_al/LSTMCNN/{rg_config['agent_loss_type']}/MSCOCO-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  save_path = f"./Havrylov_et_al/test/LSTMCNN/{rg_config['agent_learning']}/{rg_config['agent_loss_type']}/MSCOCO-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -181,6 +182,7 @@ def main():
   agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
   agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
+  agent_config['agent_learning'] = rg_config['agent_learning']
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']

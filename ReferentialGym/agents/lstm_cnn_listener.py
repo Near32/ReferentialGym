@@ -80,8 +80,11 @@ class LSTMCNNListener(Listener):
         self.embedding_tf_final_outputs = None
 
     def _compute_tau(self, tau0):
+        '''
         invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
         return 1.0/invtau
+        '''
+        raise NotImplementedError
         
     def _sense(self, experiences, sentences=None):
         r"""
@@ -103,6 +106,8 @@ class LSTMCNNListener(Listener):
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             features.append( self.cnn_encoder(stin))
         features = torch.cat(features, dim=0)
+        if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+            features = features.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 

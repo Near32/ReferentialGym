@@ -377,12 +377,15 @@ class ReferentialGame(object):
                             
                             if mode == 'train':
                                 if hasattr(speaker,'tau'): 
-                                    logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
-                                    logger.add_scalar( "{}/Tau/Speaker".format(mode), speaker.tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    #logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    tau = torch.cat([ t.view((-1)) for t in speaker.tau], dim=0) if isinstance(speaker.tau, list) else speaker.tau
+                                    logger.add_scalar( "{}/Tau/Speaker/Mean".format(mode), tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    logger.add_scalar( "{}/Tau/Speaker/Std".format(mode), tau.std().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
                                 if hasattr(listener,'tau'): 
-                                    logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
-                                    logger.add_scalar( "{}/Tau/Listener".format(mode), listener.tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
-                        
+                                    #logger.add_histogram( "{}/Listener/Tau".format(mode), listener.tau, it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    tau = torch.cat([ t.view((-1)) for t in listener.tau], dim=0) if isinstance(listener.tau, list) else listener.tau
+                                    logger.add_scalar( "{}/Tau/Listener/Mean".format(mode), tau.mean().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
+                                    logger.add_scalar( "{}/Tau/Listener/Std".format(mode), tau.std().item(), it_rep+idx_stimuli*self.config['nbr_experience_repetition']+self.config['nbr_experience_repetition']*len(data_loader)*epoch)
 
                         # //------------------------------------------------------------//
                         # //------------------------------------------------------------//
