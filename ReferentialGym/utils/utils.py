@@ -44,11 +44,16 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     if eps < 1e-10:
         warnings.warn("`eps` parameter is used to exclude inf to occur from the computation of -log(-log(u)) where u ~ U[0,1)+eps. Safer values are greater than 1e-10.")
 
-    u = torch.rand_like(logits)+eps
-    gumbels = -torch.log( -u.log())
-    #gumbels = -torch.empty_like(logits).exponential_().log()
-    gumbels = (logits + gumbels) / tau  # ~Gumbel(logits,tau)
-    y_soft = gumbels.softmax(dim)
+    u = torch.rand_like(logits)*(0.999-eps)+eps
+    gumbels = -torch.log( -torch.log(u))
+    
+    '''
+    # Pytorch 1.4:
+    gumbels = -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format).exponential_().log()  # ~Gumbel(0,1)
+    '''
+    
+    logits_gumbels = (logits + gumbels) / (tau+eps)  # ~Gumbel(logits,tau)
+    y_soft = logits_gumbels.softmax(dim)
 
     if hard:
         # Straight through.
@@ -58,6 +63,10 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     else:
         # Reparametrization trick.
         ret = y_soft
+    
+    if torch.isnan(ret).any():
+        import ipdb; ipdb.set_trace()
+
     return ret
 
 

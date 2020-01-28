@@ -116,7 +116,13 @@ class Speaker(Agent):
                 for bidx in range(len(next_sentences_logits)):
                     nsl_in = next_sentences_logits[bidx]
                     tau_in = tau[bidx]
-                    next_sentences_stgs.append( gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                    stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
+                    
+                    if torch.isnan(stgs).any() or torch.isinf(stgs).any():
+                        print("WARNING: NaN or inf found in sentences...")
+                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
+                    
+                    next_sentences_stgs.append(stgs)
                     #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
                 next_sentences = next_sentences_stgs
                 if isinstance(next_sentences, list): 

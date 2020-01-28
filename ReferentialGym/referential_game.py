@@ -58,7 +58,7 @@ class ReferentialGame(object):
         print("Create dataloader: ...")
         
         '''
-        '''        
+        '''
         data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
                                                             batch_size=self.config['batch_size'],
                                                             shuffle=True,
@@ -74,18 +74,18 @@ class ReferentialGame(object):
                         }
         '''
         '''
-
+        
         '''
         data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
                                                     batch_size=self.config['batch_size'],
                                                     shuffle=True,
-                                                    #collate_fn=collate_dict_wrapper,
+                                                    collate_fn=collate_dict_wrapper,
                                                     pin_memory=True,
                                                     num_workers=self.config['dataloader_num_worker']),
                 'test':torch.utils.data.DataLoader(self.datasets['test'],
                                                    batch_size=self.config['batch_size'],
                                                    shuffle=True,
-                                                   #collate_fn=collate_dict_wrapper,
+                                                   collate_fn=collate_dict_wrapper,
                                                    pin_memory=True,
                                                    num_workers=self.config['dataloader_num_worker'])
                 }

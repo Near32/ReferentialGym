@@ -76,7 +76,10 @@ class LSTMCNNSpeaker(Speaker):
 
     def _compute_tau(self, tau0, emb=None):
         if emb is None: emb = self.embedding_tf_final_outputs
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(emb))).squeeze()
+        temp = torch.exp(self.tau_fc(emb))
+        temp = torch.clamp(temp, min=0.0,max=1e20)
+        temp = torch.log(1+temp).squeeze()
+        invtau = tau0 + temp
         return 1.0/invtau
         
     def _sense(self, experiences, sentences=None):

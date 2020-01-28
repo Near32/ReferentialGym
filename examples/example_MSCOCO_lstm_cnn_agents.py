@@ -46,9 +46,10 @@ def main():
 
       "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
+      "gumbel_softmax_eps":       1e-6,
       "vocab_size":               1000,
 
-      "agent_architecture":       'pretrained-VGG16', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -66,18 +67,18 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128, #64
-      "dataloader_num_worker":    8,
+      "batch_size":               32, #64
+      "dataloader_num_worker":    4,
       "stimulus_depth_dim":       3,
       "stimulus_depth_mult":      1,
-      "stimulus_resize_dim":      256, #64,#28,
+      "stimulus_resize_dim":      32, #64,#28,
       
-      "learning_rate":            1e-3,
+      "learning_rate":            3e-4,
       "adam_eps":                 1e-8,
       "dropout_prob":             0.0,
       
-      "with_gradient_clip":       False,
-      "gradient_clip":            1e-3,
+      "with_gradient_clip":       True,
+      "gradient_clip":            1e0,
       
       "use_homoscedastic_multitasks_loss": False,
 
@@ -179,6 +180,7 @@ def main():
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
   agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
+  agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
@@ -204,14 +206,13 @@ def main():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
-    # ResNet18-2:
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
     agent_config['cnn_encoder_feature_dim'] = 512
     agent_config['cnn_encoder_mini_batch_size'] = 32
-    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
+    agent_config['temporal_encoder_nbr_hidden_units'] = 512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 1
     agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
@@ -268,14 +269,14 @@ def main():
   dataType = 'train'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  train_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform, preloading=False)
+  train_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
 
   dataDir = '.'
   dataYear = '2014'
   dataType = 'val'
   annFile = '{}/datasets/MSCOCO{}/{}_ann/annotations/instances_{}{}.json'.format(dataDir, dataYear, dataType, dataType, dataYear)  
   root = '{}/datasets/MSCOCO{}/{}_imgs/'.format(dataDir, dataYear, dataType)
-  test_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform, preloading=False)
+  test_dataset = ReferentialGym.datasets.MSCOCODataset(root=root, annFile=annFile, transform=transform)
 
   dataset_args = {
       "dataset_class":            "LabeledDataset",
@@ -294,7 +295,7 @@ def main():
 
   # In[22]:
 
-  nbr_epoch = 1000
+  nbr_epoch = 100
   refgame.train(prototype_speaker=speaker, 
                 prototype_listener=listener, 
                 nbr_epoch=nbr_epoch,
