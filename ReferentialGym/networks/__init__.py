@@ -59,10 +59,16 @@ def choose_architecture( architecture,
                                       interaction_dim=MHDPAInteractionDim)
 
     if 'VGG16' in architecture:
-        pretrained = ('pretrained' in architecture)
+        arch = architecture.copy()
+        arch = arch.remove('VGG16').remove('-')
+        pretrained = ('pretrained' in arch)
+        if pretrained:  arch = arch.remove('pretrained')
+        final_layer_idx = None 
+        final_layer_idx = abs(int(arch))
         body = ModelVGG16(input_shape=input_shape,
                           feature_dim=feature_dim,
-                          pretrained=pretrained)
+                          pretrained=pretrained,
+                          final_layer_idx=final_layer_idx)
 
     if 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])

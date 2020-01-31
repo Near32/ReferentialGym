@@ -18,6 +18,8 @@ class LabeledDataset(Dataset):
                 _, cl = self.dataset[idx]
             if cl not in self.classes: self.classes[cl] = []
             self.classes[cl].append(idx)
+
+        self.nbr_classes = len(self.classes.keys())
     
     def __len__(self) -> int:
         return len(self.dataset)
@@ -84,7 +86,10 @@ class LabeledDataset(Dataset):
             sample_output = self.dataset[idx]
             if len(sample_output) == 2:
                 exp, tc = sample_output
-                if isinstance(tc, int): latent = torch.Tensor([tc])
+                if isinstance(tc, int): 
+                    #latent = torch.Tensor([tc])
+                    latent = torch.zeros((self.nbr_classes))
+                    latent[tc] = 1.0
             elif len(sample_output) == 3:
                 exp, tc, latent = sample_output
                 if isinstance(latent, int): latent = torch.Tensor([latent])

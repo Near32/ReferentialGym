@@ -39,13 +39,21 @@ class LSTMCNNSpeaker(Speaker):
                                                   input_shape=cnn_input_shape,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'])
         
-        temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
-        self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
-                                          hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
-                                          num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
-                                          batch_first=True,
-                                          dropout=self.kwargs['dropout_prob'],
-                                          bidirectional=False))
+        self.cnn_encoder = nn.Sequential(self.cnn_encoder, nn.BatchNorm1d(num_features=self.cnn_encoder.get_feature_shape()))
+
+        temporal_encoder_input_dim = self.kwargs['cnn_encoder_feature_dim']
+        if self.kwargs['temporal_encoder_nbr_rnn_layers'] > 0:
+            self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
+                                              hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
+                                              num_layers=self.kwargs['temporal_encoder_nbr_rnn_layers'],
+                                              batch_first=True,
+                                              dropout=self.kwargs['dropout_prob'],
+                                              bidirectional=False))
+        else:
+            self.temporal_feature_encoder = None
+            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
+
+        self.batch_normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
 
         assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
         symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
@@ -58,11 +66,13 @@ class LSTMCNNSpeaker(Speaker):
 
         #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        self.symbol_encoder_dropout = nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
 
-        #self.tau_fc = layer_init(nn.Linear(self.kwargs['temporal_encoder_nbr_hidden_units'], 1 , bias=False))
-        self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1, bias=False))
-        
+
+        self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
+                                          nn.Softplus())
+
         self.reset()
     
     def reset(self):
@@ -75,22 +85,10 @@ class LSTMCNNSpeaker(Speaker):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
-    '''
-    def _compute_tau(self, tau0, emb=None):
-        if emb is None: emb = self.embedding_tf_final_outputs
-        temp = torch.exp(self.tau_fc(emb))
-        temp = torch.clamp(temp, min=0.0,max=1e20)
-        temp = torch.log(1+temp).squeeze()
-        invtau = tau0 + temp
-        return 1.0/invtau
-    '''
     def _compute_tau(self, tau0, h):
-        temp = torch.exp(self.tau_fc(h))
-        temp = torch.clamp(temp, min=0.0,max=1e20)
-        temp = torch.log(1+temp).squeeze()
-        invtau = tau0 + temp
-        return 1.0/invtau
-        
+        invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        return invtau
+
     def _sense(self, experiences, sentences=None):
         """
         Infers features from the experiences that have been provided.
@@ -133,26 +131,32 @@ class LSTMCNNSpeaker(Speaker):
         batch_size = features.size(0)
         # (batch_size, nbr_distractors+1, nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
         # Forward pass:
-        features = features.view(-1, *(features.size()[2:]))
-        # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
-        rnn_outputs = []
-        total_size = features.size(0)
-        mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
-        for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
-            outputs, _ = self.temporal_feature_encoder(featin)
-            rnn_outputs.append( outputs)
-        outputs = torch.cat(rnn_outputs, dim=0)
-        # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])
-        outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
-        # (batch_size, (nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])
-        
-        # Taking only the target features: assumes partial observations anyway...
-        # TODO: find a way to compute the sentence while attending other features in case of full observability...
-        embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
-        # (batch_size, kwargs['temporal_encoder_feature_dim'])
-        self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, 1, -1)
-        # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
-        
+        if self.temporal_feature_encoder:
+            features = features.view(-1, *(features.size()[2:]))
+            # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+            rnn_outputs = []
+            total_size = features.size(0)
+            mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
+            for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
+                outputs, _ = self.temporal_feature_encoder(featin)
+                rnn_outputs.append( outputs)
+            outputs = torch.cat(rnn_outputs, dim=0)
+            # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])
+            outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
+            # (batch_size, (nbr_distractors+1), nbr_stimulus, kwargs['temporal_encoder_feature_dim'])
+            
+            # Taking only the target features: assumes partial observations anyway...
+            # TODO: find a way to compute the sentence while attending other features in case of full observability...
+            embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
+            # (batch_size, kwargs['temporal_encoder_feature_dim'])
+            self.embedding_tf_final_outputs = self.batch_normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
+            # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
+        else:
+            self.embedding_tf_final_outputs = self.batch_normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+            # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
+
         #TODO : implement multi-round following below:
         '''
         if sentences is not None:
@@ -189,7 +193,8 @@ class LSTMCNNSpeaker(Speaker):
             # kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
             rnn_states = (init_rnn_state, torch.zeros_like(init_rnn_state))
             
-            inputs = torch.zeros((1, 1, self.kwargs['symbol_processing_nbr_hidden_units']))
+            inputs = self.symbol_encoder.weight[:, 0].reshape((1,1,self.kwargs['symbol_processing_nbr_hidden_units']))
+            #torch.zeros((1, 1, self.kwargs['symbol_processing_nbr_hidden_units']))
             if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
             # (batch_size=1, 1, kwargs['symbol_processing_nbr_hidden_units'])
             
@@ -207,15 +212,16 @@ class LSTMCNNSpeaker(Speaker):
                 # (batch_size=1)
                 prediction = prediction.unsqueeze(1).float()
 
-
                 sentences_hidden_states[b].append(rnn_outputs.view(1,-1))
                 sentences_widx[b].append( prediction)
                 sentences_logits[b].append( outputs.view((1,-1)))
                 sentences_one_hots[b].append( nn.functional.one_hot(prediction.squeeze().long(), num_classes=self.vocab_size).view((1,-1)))
                 
                 # next inputs:
-                inputs = self.symbol_encoder(outputs).unsqueeze(1)
+                #inputs = self.symbol_encoder(outputs).unsqueeze(1)
+                inputs = self.symbol_encoder.weight[:, prediction.long()].reshape((1,1,self.kwargs['symbol_processing_nbr_hidden_units']))
                 # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+                inputs = self.symbol_encoder_dropout(inputs)
                 # next rnn_states:
                 rnn_states = next_rnn_states
                 

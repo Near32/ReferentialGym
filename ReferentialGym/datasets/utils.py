@@ -37,7 +37,7 @@ def collate_dict_wrapper(batch):
 
 
 class ResizeNormalize(object):
-    def __init__(self, size, use_cuda=False, normalize_rgb_values=False, toPIL=False):
+    def __init__(self, size, use_cuda=False, normalize_rgb_values=False, toPIL=False, rgb_scaler=1.0):
         '''
         Used to resize, normalize and convert raw pixel observations.
         
@@ -55,6 +55,7 @@ class ResizeNormalize(object):
         
         self.scaling_operation = T.Compose(ts)
         self.normalize_rgb_values = normalize_rgb_values
+        self.rgb_scaler = rgb_scaler
         self.use_cuda = use_cuda
 
     def __call__(self, x):
@@ -63,6 +64,7 @@ class ResizeNormalize(object):
         # the division, otherwise the result is yielded as a uint8 (full of zeros...)
         x = x.type(torch.FloatTensor)
         x = x / 255. if self.normalize_rgb_values else x
+        x *= self.rgb_scaler
         if self.use_cuda:
             return x.cuda()
         return x

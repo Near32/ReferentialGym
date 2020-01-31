@@ -9,6 +9,12 @@ from torchvision import models
 from torchvision.models.resnet import model_urls, BasicBlock
 
 
+def retrieve_output_shape(input, model):
+    xin = input.to(model.device)
+    xout = model(xin).cpu()
+    return xout.shape
+
+
 def hasnan(tensor):
     if torch.isnan(tensor).max().item() == 1:
         return True
@@ -959,27 +965,35 @@ vgg_module.VGG = VGG
 vgg_module._vgg = _vgg
 
 class ModelVGG16(nn.Module):
-    def __init__(self, input_shape, feature_dim=512, pretrained=True):
+    def __init__(self, input_shape, feature_dim=512, pretrained=True, final_layer_idx=None):
         super(ModelVGG16, self).__init__()
         self.input_shape = input_shape
         self.feature_dim = feature_dim
-        self.features = torchvision.models.vgg.vgg16(pretrained=pretrained)
-        
-        # Re-organize the input conv layer:
-        saved_weights = getattr(self.features.features[0], "weight", None)
-        saved_bias = getattr(self.features.features[0], "bias", None)
+        self.final_layer_idx = final_layer_idx
+        self.features = torchvision.models.vgg.vgg16(pretrained=pretrained).features
 
-        if self.input_shape[0] >3:
-            self.features.features[0] = nn.Conv2d(self.input_shape[0], 64, kernel_size=3, padding=1)
-            if saved_weights is not None:   self.features.features[0].weight.data[:,0:3,...] = saved_weights.data
-            if saved_bias is not None:   self.features.features[0].bias.data = saved_bias.data
+        # Re-organize the input conv layer:
+        if self.input_shape[0]>3:
+            saved_weights = getattr(self.features[0], "weight", None)
+            saved_bias = getattr(self.features[0], "bias", None)
+            self.features[0] = nn.Conv2d(self.input_shape[0], 64, kernel_size=3, padding=1)
+            if saved_weights is not None:   self.features[0].weight.data[:,0:3,...] = saved_weights.data
+            if saved_bias is not None:   self.features[0].bias.data = saved_bias.data
         elif self.input_shape[0]<3:
-            self.features.features[0] = nn.Conv2d(self.input_shape[0], 64, kernel_size=3, padding=1)
-            if saved_weights is not None:   self.features.features[0].weight.data = saved_weights.data[:,0:self.input_shape[0],...]
-            if saved_bias is not None:  self.features.features[0].bias.data = saved_bias.data
+            saved_weights = getattr(self.features[0], "weight", None)
+            saved_bias = getattr(self.features[0], "bias", None)
+            self.features[0] = nn.Conv2d(self.input_shape[0], 64, kernel_size=3, padding=1)
+            if saved_weights is not None:   self.features[0].weight.data = saved_weights.data[:,0:self.input_shape[0],...]
+            if saved_bias is not None:  self.features[0].bias.data = saved_bias.data
         
+        if self.final_layer_idx is not None:
+            assert(isinstance(self.final_layer_idx, int) and self.final_layer_idx>0)
+            while (len(self.features)-self.final_layer_idx)>0:
+                del self.features[-1]
+
         # Output layer:
-        self.fc = nn.Linear(4096, self.feature_dim)
+        feature_shape = retrieve_output_shape(input=torch.zeros(input_shape), model=self.features)
+        self.fc = nn.Linear(feature_shape[0]*feature_shape[1]*feature_shape[0], self.feature_dim)
     
     def forward(self, x):
         x = self.features(x)
