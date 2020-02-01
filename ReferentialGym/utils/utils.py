@@ -6,6 +6,9 @@ from numpy import linalg as LA
 from scipy.stats import spearmanr
 from tqdm import tqdm 
 
+import itertools
+from concurrent.futures import ProcessPoolExecutor
+
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
@@ -114,24 +117,38 @@ def compute_cosine_sim(v1, v2):
     cos_sim = np.matmul(v1/v1_norm,(v2/v2_norm).transpose())
     return cos_sim
 
-
-def compute_topographic_similarity(sentences,features,comprange=100):
+def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprange):
     levs = []
-    for idx1 in tqdm(range(len(sentences))):
-        s1 = sentences[idx1]
-        tillidx = min(len(sentences)-1,idx1+1+comprange)
-        for idx2, s2 in enumerate(sentences[idx1+1:tillidx]): 
-            levs.append( compute_levenshtein_distance(s1,s2))
+    s1 = sentences[idx]
+    tillidx = min(len(sentences)-1,idx+1+comprange)
+    for idx2, s2 in enumerate(sentences[idx+1:tillidx]): 
+        levs.append( compute_levenshtein_distance(s1,s2))
+    return levs 
+
+def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange):
     cossims = []
-    for idx1 in tqdm(range(len(features))):
-        f1 = features[idx1]
-        tillidx = min(len(sentences)-1,idx1+1+comprange)
-        for idx2, f2 in enumerate(features[idx1+1:tillidx]): 
-            cossims.append( compute_cosine_sim(f1.squeeze(),f2.squeeze()))
+    f1 = features[idx]
+    tillidx = min(len(features)-1,idx+1+comprange)
+    for idx2, f2 in enumerate(features[idx+1:tillidx]): 
+        cossims.append( compute_cosine_sim(f1.squeeze(),f2.squeeze()))
+    return cossims
+
+def compute_topographic_similarity_parallel(sentences,features,comprange=100, max_workers=32):
+    executor = ProcessPoolExecutor(max_workers=max_workers)
+    indices = list(range(len(sentences)))
+    levs = []
+    for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+        for l in idx1_levs: 
+            levs.append(l)
+
+    indices = list(range(len(features)))
+    cossims = []
+    for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+        for c in idx1_cossims: 
+            cossims.append(c)
     
     rho, p = spearmanr(levs, cossims)
-    return -rho, p, levs, cossims  
-
+    return -rho, p, levs, cossims
 
 def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffset=None, suffix='', use_cuda=False):
   if use_cuda:

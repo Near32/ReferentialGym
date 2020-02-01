@@ -5,8 +5,7 @@ import numpy as np
 from tqdm import tqdm 
 
 from tensorboardX import SummaryWriter
-from ..utils import compute_topographic_similarity
-
+from ..utils import compute_topographic_similarity_parallel
 
 class statsLogger(SummaryWriter):
     def __init__(self,path='./',filename='logs.dict',dumpPeriod=1):
@@ -54,7 +53,8 @@ class statsLogger(SummaryWriter):
                                        features_key='temporal_features',
                                        max_nbr_samples=None,
                                        comprange=None,
-                                       verbose=True):
+                                       verbose=True,
+                                       max_workers=16):
         '''
         Accounts for a measure of the compositionality of the current epoch-like set of data,
         following the computation of topographic similarity.
@@ -116,10 +116,12 @@ class statsLogger(SummaryWriter):
                 print("Agent {} :: There are {} unique sentences out of the {} sampled sentences.".format(agent_id, len(unique_sentences), len(it_sentences)))
 
             if comprange is None: comprange = max_nbr_samples
+            
+            rho, p, levs, cossims = compute_topographic_similarity_parallel(sentences=unique_sentences, 
+                                                                            features=unique_sentences_features, 
+                                                                            comprange=comprange,
+                                                                            max_workers=max_workers)
 
-            rho, p, levs, cossims = compute_topographic_similarity(sentences=unique_sentences, 
-                                                                   features=unique_sentences_features, 
-                                                                   comprange=comprange)
             rhos[agent_id] = rho 
             ps[agent_id] = p
             unique_prod_ratios[agent_id] = len(unique_sentences) / len(np_sentences) * 100.0

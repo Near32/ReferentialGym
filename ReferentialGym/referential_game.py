@@ -28,6 +28,8 @@ class ReferentialGame(object):
         '''
         self.datasets = datasets
         self.config = config
+        if 'parallel_TS_computation_max_workers' not in self.config:
+            self.config['parallel_TS_computation_max_workers'] = 16
 
     def _select_agents(self, it, speakers, listeners, speakers_optimizers, listeners_optimizers, agents_stats):
         idx_speaker = random.randint(0,len(speakers)-1)
@@ -520,11 +522,13 @@ class ReferentialGame(object):
                                                                                features_key='latent_experiences',
                                                                                #features_key='temporal_features',
                                                                                max_nbr_samples=max_nbr_samples,
-                                                                               verbose=VERBOSE)
+                                                                               verbose=VERBOSE,
+                                                                               max_workers=self.config['parallel_TS_computation_max_workers'])
                     feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key='sentences_widx',
                                                                                features_key='temporal_features',
                                                                                max_nbr_samples=max_nbr_samples,
-                                                                               verbose=VERBOSE)
+                                                                               verbose=VERBOSE,
+                                                                               max_workers=self.config['parallel_TS_computation_max_workers'])
                     
                     for agent_id in topo_sims:
                         logger.add_scalar('{}/{}/TopographicSimilarity'.format(mode,agent_id), topo_sims[agent_id], epoch)
