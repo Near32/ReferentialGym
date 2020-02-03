@@ -75,7 +75,7 @@ class LSTMCNNListener(Listener):
         self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs['max_sentence_length'], 1)))
         self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
 
-        self.batch_normalization = nn.BatchNorm1d(num_features=self.kwargs['symbol_processing_nbr_hidden_units'])
+        #self.batch_normalization = nn.BatchNorm1d(num_features=self.kwargs['symbol_processing_nbr_hidden_units'])
 
         self.reset()
 
@@ -176,8 +176,9 @@ class LSTMCNNListener(Listener):
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
-        rnn_outputs = self.batch_normalization(rnn_outputs.reshape((-1, self.kwargs['symbol_processing_nbr_hidden_units'])))
-        rnn_outputs = rnn_outputs.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
+        # Batch Normalization:
+        #rnn_outputs = self.batch_normalization(rnn_outputs.reshape((-1, self.kwargs['symbol_processing_nbr_hidden_units'])))
+        #rnn_outputs = rnn_outputs.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
 
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_logits = []

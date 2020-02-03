@@ -53,7 +53,8 @@ class LSTMCNNSpeaker(Speaker):
             self.temporal_feature_encoder = None
             assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
 
-        self.batch_normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
+        #self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
+        self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
 
         assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
         symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
@@ -149,11 +150,11 @@ class LSTMCNNSpeaker(Speaker):
             # TODO: find a way to compute the sentence while attending other features in case of full observability...
             embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
             # (batch_size, kwargs['temporal_encoder_feature_dim'])
-            self.embedding_tf_final_outputs = self.batch_normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
             self.embedding_tf_final_outputs = embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
             # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
         else:
-            self.embedding_tf_final_outputs = self.batch_normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
             self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
             # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
 

@@ -77,7 +77,7 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128, #64
+      "batch_size":               64, #64
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       1,
       "stimulus_depth_mult":      1,
@@ -116,7 +116,7 @@ def main():
 
       "with_grad_logging":        False,
       "use_cuda":                 True,
-
+  
       "train_transform":         T.Compose([T.RandomAffine(degrees=transform_degrees, 
                                                             translate=transform_translate, 
                                                             scale=None, 
@@ -132,16 +132,16 @@ def main():
                                                             resample=False, 
                                                             fillcolor=0),
                                               transform]),
-      
-      # "train_transform":            transform,
-      # "test_transform":            transform,
+  
+      #"train_transform":            transform,
+      #"test_transform":             transform,
   }
 
 
   train_split_strategy = 'divider-100-offset-50'
   test_split_strategy = 'divider-100-offset-50'
   
-  save_path = f"./Havrylov_et_al/"
+  save_path = f"./Havrylov_et_al/test/RandomAffineTransfrom/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
   save_path += f"{rg_config['agent_loss_type']}/dSprites-{test_split_strategy}-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
@@ -322,7 +322,7 @@ def main():
 
   # In[22]:
 
-  nbr_epoch = 100
+  nbr_epoch = 200
   refgame.train(prototype_speaker=speaker, 
                 prototype_listener=listener, 
                 nbr_epoch=nbr_epoch,
