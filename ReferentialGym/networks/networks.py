@@ -403,16 +403,6 @@ class ModelResNet18(models.ResNet):
         saved_kernel = self.conv1.weight.data
         
         if input_shape[0] >3:
-            '''
-            in3depth = input_shape[0] // 3
-            concat_kernel = []
-            for i in range(in3depth):
-                concat_kernel.append( saved_kernel)
-            concat_kernel = torch.cat(concat_kernel, dim=1)
-
-            self.conv1 = nn.Conv2d(in3depth*3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.conv1.weight.data = concat_kernel
-            '''
             self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
             self.conv1.weight.data[:,0:3,...] = saved_kernel
             
@@ -515,6 +505,133 @@ class ModelResNet18(models.ResNet):
 
     def forward(self, x):
         self.features_map = self._compute_feat_map(x)
+        self.features = self._compute_features(self.features_map)
+        return self.features
+
+    def get_feature_shape(self):
+        return self.feature_dim
+
+class ModelResNet18AvgPooled(models.ResNet):
+    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False, detach_conv_maps=False):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param nbr_layer: int, number of convolutional residual layer to use.
+        :param pretrained: bool, specifies whether to load a pretrained model.
+        '''
+        super(ModelResNet18AvgPooled, self).__init__(BasicBlock, [2, 2, 2, 2])
+        if pretrained:
+            self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        
+        self.input_shape = input_shape
+        self.nbr_layer = nbr_layer
+        self.detach_conv_maps = detach_conv_maps
+        
+        # Re-organize the input conv layer:
+        saved_kernel = self.conv1.weight.data
+        
+        if input_shape[0] >3:
+            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1.weight.data[:,0:3,...] = saved_kernel
+            
+        elif input_shape[0] <3:
+            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1.weight.data = saved_kernel[:,0:input_shape[0],...]
+
+        # Compute the number of features:
+        self.feat_map_dim, self.feat_map_depth = self._compute_feature_shape(input_shape[-1], self.nbr_layer)
+        self.avgpool_ksize = self.feat_map_dim
+        self.avgpool = nn.AvgPool2d(self.avgpool_ksize, stride=1, padding=0)
+        
+        # Avg Pool:
+        num_ftrs = self.feat_map_depth
+        
+        # Add the fully-connected layers at the top:
+        self.feature_dim = feature_dim
+        if isinstance(feature_dim, tuple):
+            self.feature_dim = feature_dim[-1]
+
+        self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
+    
+    def _compute_feature_shape(self, input_dim, nbr_layer):
+        if nbr_layer is None: return self.fc.in_features
+
+        layers_depths = [64,128,256,512]
+        layers_divisions = [1,2,2,2]
+
+        # Conv1:
+        dim = input_dim // 2
+        # MaxPool1:
+        dim = dim // 2
+
+        depth = 64
+        for idx_layer in range(nbr_layer):
+            dim = math.ceil(float(dim) / layers_divisions[idx_layer])
+            depth = layers_depths[idx_layer]
+            print(dim, depth)
+
+        return dim, depth
+
+    def _compute_feat_map(self, x):
+        #xsize = x.size()
+        #print('input:',xsize)
+        x = self.conv1(x)
+        #xsize = x.size()
+        #print('cv0:',xsize)
+        x = self.bn1(x)
+        x = self.relu(x)
+        
+        self.x0 = self.maxpool(x)
+        
+        #xsize = self.x0.size()
+        #print('mxp0:',xsize)
+
+        if self.nbr_layer >= 1:
+            self.x1 = self.layer1(self.x0)
+            #xsize = self.x1.size()
+            #print('1:',xsize)
+            if self.nbr_layer >= 2:
+                self.x2 = self.layer2(self.x1)
+                #xsize = self.x2.size()
+                #print('2:',xsize)
+                if self.nbr_layer >= 3:
+                    self.x3 = self.layer3(self.x2)
+                    #xsize = self.x3.size()
+                    #print('3:',xsize)
+                    if self.nbr_layer >= 4:
+                        self.x4 = self.layer4(self.x3)
+                        #xsize = self.x4.size()
+                        #print('4:',xsize)
+                        
+                        self.features_map = self.x4
+                    else:
+                        self.features_map = self.x3
+                else:
+                    self.features_map = self.x2
+            else:
+                self.features_map = self.x1
+        else:
+            self.features_map = self.x0
+        
+        return self.features_map
+
+    def _compute_features(self, features_map):
+        avgx = self.avgpool(features_map)
+        #xsize = avgx.size()
+        #print('avg: x:',xsize)
+        fcx = avgx.view(avgx.size(0), -1)
+        #xsize = fcx.size()
+        #print('reg avg: x:',xsize)
+        fcx = self.fc(fcx)
+        #xsize = fcx.size()
+        #print('fc output: x:',xsize)
+        return fcx
+
+    def forward(self, x):
+        self.features_map = self._compute_feat_map(x)
+        if self.detach_conv_maps:   self.features_map = self.features_map.detach()
         self.features = self._compute_features(self.features_map)
         return self.features
 

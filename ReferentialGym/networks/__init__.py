@@ -1,6 +1,6 @@
 from .networks import FCBody, LSTMBody, GRUBody 
 from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody 
-from .networks import ModelResNet18, ExtractorResNet18, MHDPA_RN
+from .networks import ModelResNet18, ModelResNet18AvgPooled, ExtractorResNet18, MHDPA_RN
 from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
 from .networks import ModelVGG16, ExtractorVGG16
 from .networks import layer_init, hasnan, handle_nan
@@ -70,7 +70,14 @@ def choose_architecture( architecture,
                           pretrained=pretrained,
                           final_layer_idx=final_layer_idx)
 
-    if 'ResNet18' in architecture and not("MHDPA" in architecture):
+    if 'ResNet18AvgPooled' in architecture and not("MHDPA" in architecture):
+        nbr_layer = int(architecture[-1])
+        pretrained = ('pretrained' in architecture)
+        body = ModelResNet18AvgPooled(input_shape=input_shape,
+                                      feature_dim=feature_dim,
+                                      nbr_layer=nbr_layer,
+                                      pretrained=pretrained)
+    elif 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture)
         body = ModelResNet18(input_shape=input_shape,

@@ -30,15 +30,13 @@ class LSTMCNNSpeaker(Speaker):
                                                   strides=self.kwargs['cnn_encoder_strides'],
                                                   paddings=self.kwargs['cnn_encoder_paddings'],
                                                   dropout=self.kwargs['dropout_prob'])
-        elif 'ResNet18' in self.kwargs['architecture']:
+        else:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'])
-        elif 'VGG16' in self.kwargs['architecture']:
-            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
-        
+            if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+                self.cnn_encoder.detach_conv_maps = True
+
         self.cnn_encoder = nn.Sequential(self.cnn_encoder, nn.BatchNorm1d(num_features=self.cnn_encoder.get_feature_shape()))
 
         temporal_encoder_input_dim = self.kwargs['cnn_encoder_feature_dim']
@@ -53,11 +51,13 @@ class LSTMCNNSpeaker(Speaker):
             self.temporal_feature_encoder = None
             assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
 
-        #self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
-        self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
+        self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
+        #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
 
-        assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
-        symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
+        #assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
+        #symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
+        
+        symbol_decoder_input_dim = self.kwargs['symbol_embedding_size']
         self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
@@ -65,8 +65,9 @@ class LSTMCNNSpeaker(Speaker):
                                       dropout=self.kwargs['dropout_prob'],
                                       bidirectional=False)
 
-        #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
-        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
+        
         self.symbol_encoder_dropout = nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
 
@@ -110,8 +111,8 @@ class LSTMCNNSpeaker(Speaker):
             featout = self.cnn_encoder(stin)
             features.append(featout)
         features = torch.cat(features, dim=0)
-        if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
-            features = features.detach()
+        #if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+        #    features = features.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 
@@ -151,7 +152,7 @@ class LSTMCNNSpeaker(Speaker):
             embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
             # (batch_size, kwargs['temporal_encoder_feature_dim'])
             self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-            self.embedding_tf_final_outputs = embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
             # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
         else:
             self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
@@ -180,7 +181,8 @@ class LSTMCNNSpeaker(Speaker):
             # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         '''
 
-        vocab_stop_idx = self.vocab_size-1
+        vocab_stop_idx = 0
+        #vocab_stop_idx = self.vocab_size-1
 
         sentences_hidden_states = [list() for _ in range(batch_size)]
         sentences_widx = [list() for _ in range(batch_size)]
@@ -194,10 +196,10 @@ class LSTMCNNSpeaker(Speaker):
             # kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
             rnn_states = (init_rnn_state, torch.zeros_like(init_rnn_state))
             
-            inputs = self.symbol_encoder.weight[:, 0].reshape((1,1,self.kwargs['symbol_processing_nbr_hidden_units']))
-            #torch.zeros((1, 1, self.kwargs['symbol_processing_nbr_hidden_units']))
+            inputs = self.symbol_encoder.weight[:, 0].reshape((1,1,-1))
+            #torch.zeros((1, 1, self.kwargs['symbol_embedding_size']))
             if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
-            # (batch_size=1, 1, kwargs['symbol_processing_nbr_hidden_units'])
+            # (batch_size=1, 1, kwargs['symbol_embedding_size'])
             
             continuer = True
             sentence_token_count = 0
@@ -220,8 +222,8 @@ class LSTMCNNSpeaker(Speaker):
                 
                 # next inputs:
                 #inputs = self.symbol_encoder(outputs).unsqueeze(1)
-                inputs = self.symbol_encoder.weight[:, prediction.long()].reshape((1,1,self.kwargs['symbol_processing_nbr_hidden_units']))
-                # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+                inputs = self.symbol_encoder.weight[:, prediction.long()].reshape((1,1,-1))
+                # (batch_size, 1, kwargs['symbol_embedding_size'])
                 inputs = self.symbol_encoder_dropout(inputs)
                 # next rnn_states:
                 rnn_states = next_rnn_states

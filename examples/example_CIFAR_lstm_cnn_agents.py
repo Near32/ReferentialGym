@@ -13,18 +13,28 @@ import torchvision
 import torchvision.transforms as T 
 
 def main():
-  seed = 30
+  seed = 40
   torch.manual_seed(seed)
   np.random.seed(seed)
   random.seed(seed)
   # # Hyperparameters:
 
   # In[23]:
+  nbr_epoch = 200
+  stimulus_resize_dim = 64 #32 #28
+  normalize_rgb_values = False 
+  rgb_scaler = 1.0 #255.0
+  from ReferentialGym.datasets.utils import ResizeNormalize
+  transform = ResizeNormalize(size=stimulus_resize_dim, 
+                              normalize_rgb_values=normalize_rgb_values,
+                              rgb_scaler=rgb_scaler)
 
+  transform_degrees = 45
+  transform_translate = (0.25, 0.25)
 
   rg_config = {
       "observability":            "partial",
-      "max_sentence_length":      14,
+      "max_sentence_length":      5,
       "nbr_communication_round":  1,
       "nbr_distractors":          127,
       "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
@@ -46,9 +56,12 @@ def main():
 
       "graphtype":                'straight_through_gumbel_softmax', #'reinforce'/'gumbel_softmax'/'straight_through_gumbel_softmax' 
       "tau0":                     0.2,
-      "vocab_size":               1000,
+      "gumbel_softmax_eps":       1e-6,
+      "vocab_size":               100,
+      "symbol_embedding_size":    256,
 
-      "agent_architecture":       'pretrained-VGG16', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_learning":           'transfer_learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -67,23 +80,24 @@ def main():
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
       "batch_size":               128, #64
-      "dataloader_num_worker":    1,
+      "dataloader_num_worker":    4,
       "stimulus_depth_dim":       3,
       "stimulus_depth_mult":      1,
-      "stimulus_resize_dim":      256, #64,#28,
+      "stimulus_resize_dim":      stimulus_resize_dim, 
       
-      "learning_rate":            1e-4,
+      "learning_rate":            1e-3,
       "adam_eps":                 1e-8,
-      "dropout_prob":             0.0,
+      "dropout_prob":             0.5,
+      "embedding_dropout_prob":   0.8,
+      
+      "with_gradient_clip":       False,
+      "gradient_clip":            1e0,
       
       "use_homoscedastic_multitasks_loss": False,
 
       "use_curriculum_nbr_distractors": False,
       "curriculum_distractors_window_size": 25, #100,
 
-      "with_gradient_clip":       False,
-      "gradient_clip":            1e-3,
-      
       "unsupervised_segmentation_factor": None, #1e5
       "nbr_experience_repetition":  1,
 
@@ -104,10 +118,35 @@ def main():
 
       "with_grad_logging":        False,
       "use_cuda":                 True,
+  
+      # "train_transform":          T.Compose([T.RandomAffine(degrees=transform_degrees, 
+      #                                                       translate=transform_translate, 
+      #                                                       scale=None, 
+      #                                                       shear=None, 
+      #                                                       resample=False, 
+      #                                                       fillcolor=0),
+      #                                         transform]),
+
+      # "test_transform":           T.Compose([T.RandomAffine(degrees=transform_degrees, 
+      #                                                      translate=transform_translate, 
+      #                                                      scale=None, 
+      #                                                      shear=None, 
+      #                                                      resample=False, 
+      #                                                      fillcolor=0),
+      #                                         transform]),
+  
+      "train_transform":            transform,
+      "test_transform":             transform,
   }
 
-
-  save_path = f"./Havrylov_et_al/LSTMCNN/{rg_config['agent_loss_type']}/CIFAR10-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
+  save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
+  save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
+  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
+  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
+  save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
+  save_path += f"_BN_{rg_config['agent_learning']}/"
+  save_path += f"{rg_config['agent_loss_type']}/CIFAR10-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -179,10 +218,15 @@ def main():
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
   agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
+  agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
+  agent_config['agent_learning'] = rg_config['agent_learning']
+
+  agent_config['symbol_embedding_size'] = rg_config['symbol_embedding_size']
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
   agent_config['dropout_prob'] = rg_config['dropout_prob']
+  agent_config['embedding_dropout_prob'] = rg_config['embedding_dropout_prob']
   if 'CNN' == agent_config['architecture']:
     agent_config['cnn_encoder_channels'] = [32,32,64] #[32,32,32,32]
     agent_config['cnn_encoder_kernels'] = [8,4,3]
@@ -204,15 +248,14 @@ def main():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
-    # ResNet18-2:
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
     agent_config['cnn_encoder_feature_dim'] = 512
     agent_config['cnn_encoder_mini_batch_size'] = 32
-    agent_config['temporal_encoder_nbr_hidden_units'] = 64#512
-    agent_config['temporal_encoder_nbr_rnn_layers'] = 1
+    agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*agent_config['cnn_encoder_feature_dim'] #512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
     agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
@@ -221,7 +264,7 @@ def main():
   from ReferentialGym.agents import LSTMCNNSpeaker
 
   batch_size = 4
-  nbr_distractors = agent_config['nbr_distractors']
+  nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']
   nbr_stimulus = agent_config['nbr_stimulus']
   obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
@@ -260,11 +303,8 @@ def main():
 
   # # Dataset:
 
-  from ReferentialGym.datasets.utils import ResizeNormalize
-  transform = ResizeNormalize(size=rg_config['stimulus_resize_dim'], normalize_rgb_values=False)
-
-  train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=transform, download=True)
-  test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=transform, download=True)
+  train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=rg_config['train_transform'], download=True)
+  test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=rg_config['test_transform'], download=True)
   
   dataset_args = {
       "dataset_class":            "LabeledDataset",
@@ -283,7 +323,6 @@ def main():
 
   # In[22]:
 
-  nbr_epoch = 1000
   refgame.train(prototype_speaker=speaker, 
                 prototype_listener=listener, 
                 nbr_epoch=nbr_epoch,

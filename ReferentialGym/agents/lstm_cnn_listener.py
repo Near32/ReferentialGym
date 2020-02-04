@@ -31,15 +31,13 @@ class LSTMCNNListener(Listener):
                                                   strides=self.kwargs['cnn_encoder_strides'],
                                                   paddings=self.kwargs['cnn_encoder_paddings'],
                                                   dropout=self.kwargs['dropout_prob'])
-        elif 'ResNet18' in self.kwargs['architecture']:
+        else:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
                                                   input_shape=cnn_input_shape,
                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'])
-        elif 'VGG16' in self.kwargs['architecture']:
-            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
-            
+            if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+                self.cnn_encoder.detach_conv_maps = True
+
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         if self.kwargs['temporal_encoder_nbr_rnn_layers'] > 0:
             self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
@@ -51,9 +49,13 @@ class LSTMCNNListener(Listener):
         else:
             self.temporal_feature_encoder = None
             assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
-            
-        assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
-        symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']
+        
+        self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
+        #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
+    
+        #assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
+        #symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']
+        symbol_decoder_input_dim = self.kwargs['symbol_embedding_size']
         self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
@@ -63,10 +65,18 @@ class LSTMCNNListener(Listener):
 
         #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
+        
+        '''
         self.symbol_encoder = nn.Sequential(
             nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False),
             nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
             )
+        '''
+        self.symbol_encoder = nn.Sequential(
+            nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False),
+            nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
+            )
+        
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
@@ -75,7 +85,7 @@ class LSTMCNNListener(Listener):
         self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs['max_sentence_length'], 1)))
         self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
 
-        #self.batch_normalization = nn.BatchNorm1d(num_features=self.kwargs['symbol_processing_nbr_hidden_units'])
+        self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
 
         self.reset()
 
@@ -116,8 +126,8 @@ class LSTMCNNListener(Listener):
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             features.append( self.cnn_encoder(stin))
         features = torch.cat(features, dim=0)
-        if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
-            features = features.detach()
+        #if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
+        #    features = features.detach()
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         return features 
@@ -155,19 +165,21 @@ class LSTMCNNListener(Listener):
             # Caring only about the final output:
             embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
-            self.embedding_tf_final_outputs = embedding_tf_final_outputs
+            self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
             #self.embedding_tf_final_outputs = torch.sigmoid(embedding_tf_final_outputs)
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
         else:
-            self.embedding_tf_final_outputs = features.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+            self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
 
         # Consume the sentences:
         # (batch_size, max_sentence_length, self.vocab_size)
         sentences = sentences.view((-1, self.vocab_size))
         encoded_symbols = self.symbol_encoder(sentences) 
-        # (batch_size*max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units'])
-        encoded_sentences = encoded_symbols.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
-        # (batch_size, max_sentence_length, self.kwargs['symbol_processing_nbr_hidden_units'])
+        # (batch_size*max_sentence_length, self.kwargs['symbol_embedding_size'])
+        encoded_sentences = encoded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))
+        # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
         
         # We initialize the rnn_states to either None, if it is not multi-round, or:
         # TODO: find a strategy for multiround...
@@ -177,8 +189,9 @@ class LSTMCNNListener(Listener):
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
         # Batch Normalization:
-        #rnn_outputs = self.batch_normalization(rnn_outputs.reshape((-1, self.kwargs['symbol_processing_nbr_hidden_units'])))
-        #rnn_outputs = rnn_outputs.view((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
+        if self.projection_normalization is not None:
+            rnn_outputs = self.projection_normalization(rnn_outputs.reshape((batch_size, -1)))
+            rnn_outputs = rnn_outputs.reshape((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
 
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_logits = []

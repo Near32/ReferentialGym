@@ -20,7 +20,8 @@ def main():
   # # Hyperparameters:
 
   # In[23]:
-  stimulus_resize_dim = 32 #64,#28
+  nbr_epoch = 50
+  stimulus_resize_dim = 64 #32 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -33,7 +34,7 @@ def main():
 
   rg_config = {
       "observability":            "partial",
-      "max_sentence_length":      14,
+      "max_sentence_length":      5,
       "nbr_communication_round":  1,
       "nbr_distractors":          127,
       "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
@@ -57,9 +58,10 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               100,
+      "symbol_embedding_size":    256,
 
-      "agent_architecture":       'pretrained-ResNet18-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
-      "agent_learning":           'learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
+      "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_learning":           'transfer_learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -77,7 +79,7 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               64, #64
+      "batch_size":               128, #64
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       1,
       "stimulus_depth_mult":      1,
@@ -85,8 +87,8 @@ def main():
       
       "learning_rate":            1e-3,
       "adam_eps":                 1e-8,
-      "dropout_prob":             0.0,
-      "embedding_dropout_prob":   0.0,
+      "dropout_prob":             0.5,
+      "embedding_dropout_prob":   0.8,
       
       "with_gradient_clip":       False,
       "gradient_clip":            1e0,
@@ -117,31 +119,35 @@ def main():
       "with_grad_logging":        False,
       "use_cuda":                 True,
   
-      "train_transform":         T.Compose([T.RandomAffine(degrees=transform_degrees, 
-                                                            translate=transform_translate, 
-                                                            scale=None, 
-                                                            shear=None, 
-                                                            resample=False, 
-                                                            fillcolor=0),
-                                              transform]),
+      # "train_transform":          T.Compose([T.RandomAffine(degrees=transform_degrees, 
+      #                                                       translate=transform_translate, 
+      #                                                       scale=None, 
+      #                                                       shear=None, 
+      #                                                       resample=False, 
+      #                                                       fillcolor=0),
+      #                                         transform]),
 
-      "test_transform":         T.Compose([T.RandomAffine(degrees=transform_degrees, 
-                                                            translate=transform_translate, 
-                                                            scale=None, 
-                                                            shear=None, 
-                                                            resample=False, 
-                                                            fillcolor=0),
-                                              transform]),
+      # "test_transform":           T.Compose([T.RandomAffine(degrees=transform_degrees, 
+      #                                                      translate=transform_translate, 
+      #                                                      scale=None, 
+      #                                                      shear=None, 
+      #                                                      resample=False, 
+      #                                                      fillcolor=0),
+      #                                         transform]),
   
-      #"train_transform":            transform,
-      #"test_transform":             transform,
+      "train_transform":            transform,
+      "test_transform":             transform,
   }
 
 
-  train_split_strategy = 'divider-100-offset-50'
-  test_split_strategy = 'divider-100-offset-50'
+  train_split_strategy = 'divider-300-offset-0'
+  test_split_strategy = 'divider-300-offset-25'
   
-  save_path = f"./Havrylov_et_al/test/RandomAffineTransfrom/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
+  #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
+  save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
+  save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
+  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
+  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
   save_path += f"{rg_config['agent_loss_type']}/dSprites-{test_split_strategy}-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
@@ -218,6 +224,8 @@ def main():
   agent_config['descriptive'] = rg_config['descriptive']
   agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
   agent_config['agent_learning'] = rg_config['agent_learning']
+
+  agent_config['symbol_embedding_size'] = rg_config['symbol_embedding_size']
 
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
@@ -322,7 +330,6 @@ def main():
 
   # In[22]:
 
-  nbr_epoch = 200
   refgame.train(prototype_speaker=speaker, 
                 prototype_listener=listener, 
                 nbr_epoch=nbr_epoch,
