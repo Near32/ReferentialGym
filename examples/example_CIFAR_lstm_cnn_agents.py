@@ -21,7 +21,8 @@ def main():
 
   # In[23]:
   nbr_epoch = 200
-  stimulus_resize_dim = 64 #32 #28
+  cnn_feature_size = 512 # 128 512
+  stimulus_resize_dim = 32 #64 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -58,7 +59,7 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               100,
-      "symbol_embedding_size":    256,
+      "symbol_embedding_size":    64,
 
       "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           'transfer_learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
@@ -140,7 +141,7 @@ def main():
   }
 
   #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
-  save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
+  save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
   save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
@@ -247,12 +248,12 @@ def main():
     agent_config['temporal_encoder_mini_batch_size'] = 256 #32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
+  elif 'ResNet' in agent_config['architecture']:
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-    agent_config['cnn_encoder_feature_dim'] = 512
+    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size #128 #512
     agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*agent_config['cnn_encoder_feature_dim'] #512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 0
