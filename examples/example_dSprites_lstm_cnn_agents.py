@@ -20,8 +20,8 @@ def main():
   # # Hyperparameters:
 
   # In[23]:
-  nbr_epoch = 50
-  stimulus_resize_dim = 64 #32 #28
+  nbr_epoch = 200
+  stimulus_resize_dim = 32 #64 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -58,7 +58,7 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               100,
-      "symbol_embedding_size":    256,
+      "symbol_embedding_size":    64, #256,
 
       "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           'transfer_learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
@@ -140,8 +140,12 @@ def main():
   }
 
 
+  '''
   train_split_strategy = 'divider-300-offset-0'
   test_split_strategy = 'divider-300-offset-25'
+  '''
+  train_split_strategy = 'divider-60-offset-0'
+  test_split_strategy = 'divider-60-offset-25'
   
   #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
   save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
@@ -251,12 +255,12 @@ def main():
     agent_config['temporal_encoder_mini_batch_size'] = 256 #32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  elif 'ResNet' in agent_config['architecture'] and not('MHDPA' in agent_config['architecture']):
+  elif 'ResNet' in agent_config['architecture']:
     agent_config['cnn_encoder_channels'] = [32, 32, 64]
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-    agent_config['cnn_encoder_feature_dim'] = 512
+    agent_config['cnn_encoder_feature_dim'] = 128 #512
     agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*agent_config['cnn_encoder_feature_dim'] #512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 0
@@ -307,8 +311,6 @@ def main():
 
   # # Dataset:
 
-  #train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=rg_config['train_transform'], download=True)
-  #test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=rg_config['test_transform'], download=True)
   root = './datasets/dsprites-dataset'
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
   test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
