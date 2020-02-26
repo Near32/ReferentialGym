@@ -1,5 +1,6 @@
 from .dataset import Dataset
 from .labeled_dataset import LabeledDataset
+from .dual_labeled_dataset import DualLabeledDataset
 
 from .CLEVR_dataset import CLEVRDataset
 from .sort_of_CLEVR_dataset import SortOfCLEVRDataset

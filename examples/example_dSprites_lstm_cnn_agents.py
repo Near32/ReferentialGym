@@ -13,14 +13,15 @@ import torchvision
 import torchvision.transforms as T 
 
 def main():
-  seed = 30
+  seed = 20 #30
   torch.manual_seed(seed)
   np.random.seed(seed)
   random.seed(seed)
   # # Hyperparameters:
 
   # In[23]:
-  nbr_epoch = 200
+  nbr_epoch = 20 #100
+  cnn_feature_size = 512 # 128 512 #1024
   stimulus_resize_dim = 32 #64 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
@@ -34,7 +35,7 @@ def main():
 
   rg_config = {
       "observability":            "partial",
-      "max_sentence_length":      5,
+      "max_sentence_length":      10, #5,
       "nbr_communication_round":  1,
       "nbr_distractors":          127,
       "distractor_sampling":      "uniform",#"similarity-0.98",#"similarity-0.75",
@@ -58,10 +59,10 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               100,
-      "symbol_embedding_size":    64, #256,
+      "symbol_embedding_size":    256, #64
 
       "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
-      "agent_learning":           'transfer_learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
+      "agent_learning":           'learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
       "agent_loss_type":          'Hinge', #'NLL'
 
       "cultural_pressure_it_period": None,
@@ -79,13 +80,13 @@ def main():
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
-      "batch_size":               128, #64
+      "batch_size":               32, #128, #64
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       1,
       "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
-      "learning_rate":            1e-3,
+      "learning_rate":            3e-4, #1e-3,
       "adam_eps":                 1e-8,
       "dropout_prob":             0.5,
       "embedding_dropout_prob":   0.8,
@@ -139,22 +140,35 @@ def main():
       "test_transform":             transform,
   }
 
-
+  # Normal:
+  #train_split_strategy = 'combinatorial-Y-1-5-X-1-5-Orientation-1-5-Scale-1-6-Shape-1-3'
+  # Aggressive:
+  #train_split_strategy = 'combinatorial-Y-8-4-X-8-4-Orientation-4-5-Scale-1-5-Shape-1-3'
+  train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-0FP_Shape-1-N'
+  test_split_strategy = train_split_strategy
+  
+  '''
+  train_split_strategy = 'divider-600-offset-0'
+  test_split_strategy = 'divider-600-offset-50'
+  '''
   '''
   train_split_strategy = 'divider-300-offset-0'
   test_split_strategy = 'divider-300-offset-25'
   '''
+  '''
   train_split_strategy = 'divider-60-offset-0'
   test_split_strategy = 'divider-60-offset-25'
+  '''
   
   #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
-  save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
+  #save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
+  save_path = f"./Havrylov_et_al/test_Stop0Start0/PAPER/dSPrites/TestForLatentIndices/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
   save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
-  save_path += f"{rg_config['agent_loss_type']}/dSprites-{test_split_strategy}-OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  save_path += f"{rg_config['agent_loss_type']}/dSprites-{test_split_strategy}/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -186,7 +200,7 @@ def main():
       rg_config['cultural_pressure_it_period'],
       rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
   
-  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-S{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}Distr{}-stim{}-vocab{}over{}_{}{}'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -260,7 +274,7 @@ def main():
     agent_config['cnn_encoder_kernels'] = [4, 3, 3]
     agent_config['cnn_encoder_strides'] = [4, 2, 1]
     agent_config['cnn_encoder_paddings'] = [0, 1, 1]
-    agent_config['cnn_encoder_feature_dim'] = 128 #512
+    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size #128 #512
     agent_config['cnn_encoder_mini_batch_size'] = 32
     agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*agent_config['cnn_encoder_feature_dim'] #512
     agent_config['temporal_encoder_nbr_rnn_layers'] = 0

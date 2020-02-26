@@ -12,12 +12,23 @@ def make(config, dataset_args):
     test_dataset = dataset_args.pop('test_dataset')
 
     if dataset_args['dataset_class'] is not None:
-        Dataset = getattr(datasets, dataset_args.pop('dataset_class'))
-        dataset_args['dataset'] = train_dataset
-        rg_train_dataset = Dataset(kwargs=dataset_args)
+        dataset_class = dataset_args.pop('dataset_class')
+        Dataset = getattr(datasets, dataset_class)
+        
+        if dataset_class == 'LabeledDataset': 
+            dataset_args['dataset'] = train_dataset
+            rg_train_dataset = Dataset(kwargs=dataset_args)
 
-        dataset_args['dataset'] = test_dataset
-        rg_test_dataset = Dataset(kwargs=dataset_args)
+            dataset_args['dataset'] = test_dataset
+            rg_test_dataset = Dataset(kwargs=dataset_args)
+        elif dataset_class == 'DualLabeledDataset':
+            dataset_args['train_dataset'] = train_dataset
+            dataset_args['test_dataset'] = test_dataset
+            dataset_args['mode'] = 'train'
+            rg_train_dataset = Dataset(kwargs=dataset_args)
+
+            dataset_args['mode'] = 'test'
+            rg_test_dataset = Dataset(kwargs=dataset_args)
     else:
         rg_train_dataset = train_dataset
         rg_test_dataset = test_dataset
