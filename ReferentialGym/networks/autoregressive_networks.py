@@ -5,8 +5,6 @@ import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
 import torchvision
-from torchvision import models
-from torchvision.models.resnet import model_urls, BasicBlock
 
 import copy
 import math
@@ -17,7 +15,8 @@ import numpy as np
 from skimage import segmentation
 import cv2
 
-from .networks import FCBody, ConvolutionalBody, ModelResNet18, MHDPA_RN, layer_init, ConvolutionalMHDPABody
+from .networks import FCBody, ConvolutionalBody, MHDPA_RN, layer_init, ConvolutionalMHDPABody
+from .residual_networks import ModelResNet18
 
 
 class Distribution(object) :
@@ -56,74 +55,8 @@ class Normal(Distribution) :
         return -( (value-self.mean) ** 2 ) / ( 2 * var) - 0.5*log_var - 0.5*math.log( 2*math.pi )
 
 
-class addXYfeatures(nn.Module) :
-    def __init__(self) :
-        super(addXYfeatures,self).__init__() 
-        self.fXY = None
+from .networks import addXYfeatures, conv, deconv, coordconv, coorddeconv
 
-    def forward(self,x) :
-        xsize = x.size()
-        batch = xsize[0]
-        if self.fXY is None:
-            # batch x depth x X x Y
-            depth = xsize[1]
-            sizeX = xsize[2]
-            sizeY = xsize[3]
-            stepX = 2.0/sizeX
-            stepY = 2.0/sizeY
-
-            fx = torch.zeros((1,1,sizeX,1))
-            fy = torch.zeros((1,1,1,sizeY))
-            
-            vx = -1+0.5*stepX
-            for i in range(sizeX):
-                fx[:,:,i,:] = vx 
-                vx += stepX
-            vy = -1+0.5*stepY
-            for i in range(sizeY):
-                fy[:,:,:,i] = vy 
-                vy += stepY
-            fxy = fx.repeat(1,1,1,sizeY)
-            fyx = fy.repeat(1,1,sizeX,1)
-            self.fXY = torch.cat( [fxy,fyx], dim=1)
-        
-        fXY = self.fXY.repeat(batch,1,1,1)
-        if x.is_cuda : fXY = fXY.cuda()
-            
-        out = torch.cat( [x,fXY], dim=1)
-
-        return out 
-
-def conv( sin, sout,k,stride=2,pad=1,batchNorm=True) :
-    layers = []
-    layers.append( nn.Conv2d( sin,sout, k, stride,pad,bias=not(batchNorm)) )
-    if batchNorm :
-        layers.append( nn.BatchNorm2d( sout) )
-    return nn.Sequential( *layers )
-
-
-def deconv( sin, sout,k,stride=2,pad=1,batchNorm=True) :
-    layers = []
-    layers.append( nn.ConvTranspose2d( sin,sout, k, stride,pad,bias=not(batchNorm)) )
-    if batchNorm :
-        layers.append( nn.BatchNorm2d( sout) )
-    return nn.Sequential( *layers )
-
-def coordconv( sin, sout,kernel_size,stride=2,pad=1,batchNorm=False,bias=False) :
-    layers = []
-    layers.append( addXYfeatures() )
-    layers.append( nn.Conv2d( sin+2,sout, kernel_size, stride,pad,bias=(True if bias else not(batchNorm) ) ) )
-    if batchNorm :
-        layers.append( nn.BatchNorm2d( sout) )
-    return nn.Sequential( *layers )
-
-def coorddeconv( sin, sout,kernel_size,stride=2,pad=1,batchNorm=True,bias=False) :
-    layers = []
-    layers.append( addXYfeatures() )
-    layers.append( nn.ConvTranspose2d( sin+2,sout, kernel_size, stride,pad,bias=(True if bias else not(batchNorm) ) ) )
-    if batchNorm :
-        layers.append( nn.BatchNorm2d( sout) )
-    return nn.Sequential( *layers )
 
 class ResNetEncoder(ModelResNet18) :
     def __init__(self, input_shape, latent_dim=32, pretrained=False, nbr_layer=4 ) :

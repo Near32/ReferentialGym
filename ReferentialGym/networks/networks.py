@@ -84,6 +84,107 @@ def layer_init(layer, w_scale=1.0):
     return layer
 
 
+class addXYfeatures(nn.Module) :
+    def __init__(self) :
+        super(addXYfeatures,self).__init__() 
+        self.fXY = None
+
+    def forward(self,x) :
+        xsize = x.size()
+        batch = xsize[0]
+        if self.fXY is None:
+            # batch x depth x X x Y
+            depth = xsize[1]
+            sizeX = xsize[2]
+            sizeY = xsize[3]
+            stepX = 2.0/sizeX
+            stepY = 2.0/sizeY
+
+            fx = torch.zeros((1,1,sizeX,1))
+            fy = torch.zeros((1,1,1,sizeY))
+            
+            vx = -1+0.5*stepX
+            for i in range(sizeX):
+                fx[:,:,i,:] = vx 
+                vx += stepX
+            vy = -1+0.5*stepY
+            for i in range(sizeY):
+                fy[:,:,:,i] = vy 
+                vy += stepY
+            fxy = fx.repeat(1,1,1,sizeY)
+            fyx = fy.repeat(1,1,sizeX,1)
+            self.fXY = torch.cat( [fxy,fyx], dim=1)
+        
+        fXY = self.fXY.repeat(batch,1,1,1)
+        if x.is_cuda : fXY = fXY.cuda()
+            
+        out = torch.cat( [x,fXY], dim=1)
+
+        return out 
+
+def conv( sin, sout,k,stride=1,padding=0,batchNorm=True) :
+    layers = []
+    layers.append( nn.Conv2d( sin,sout, k, stride,padding,bias=not(batchNorm)) )
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+# From torchvision.models.resnet:
+def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3 convolution with padding"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+
+# From torchvision.models.resnet:
+def conv1x1(in_planes, out_planes, stride=1):
+    """1x1 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+
+def deconv( sin, sout,k,stride=1,padding=0,batchNorm=True) :
+    layers = []
+    layers.append( nn.ConvTranspose2d( sin,sout, k, stride,padding,bias=not(batchNorm)) )
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+def coordconv( sin, sout,kernel_size,stride=1,padding=0,batchNorm=False,bias=True, groups=1, dilation=1) :
+    layers = []
+    layers.append( addXYfeatures() )
+    layers.append( nn.Conv2d( sin+2,
+                            sout, 
+                            kernel_size, 
+                            stride,
+                            padding, 
+                            groups=groups, 
+                            bias=(True if bias else not(batchNorm)),
+                            dilation=dilation))
+
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+# Adapted from conv3x3 in torchvision.models.resnet:
+def coordconv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3 coord convolution with padding"""
+    return coordconv(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+    
+# Adapted from conv1x1 in torchvision.models.resnet:
+def coordconv1x1(in_planes, out_planes, stride=1):
+    """1x1 coord convolution"""
+    return coordconv(in_planes, out_planes, kernel_size=1, stride=stride, 
+        padding=0, bias=False)
+
+def coorddeconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=False) :
+    layers = []
+    layers.append( addXYfeatures() )
+    layers.append( nn.ConvTranspose2d( sin+2,sout, kernel_size, stride,padding,bias=(True if bias else not(batchNorm) ) ) )
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+
 class FCBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
         super(FCBody, self).__init__()
@@ -555,8 +656,10 @@ class ModelResNet18AvgPooled(models.ResNet):
 
         self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
     
-    def _compute_feature_shape(self, input_dim, nbr_layer):
-        if nbr_layer is None: return self.fc.in_features
+    def _compute_feature_shape(self, input_dim=None, nbr_layer=None):
+        if input_dim is None: input_dim = self.input_shape[-1]
+        #if nbr_layer is None: return self.fc.in_features
+        if nbr_layer is None: nbr_layer = self.nbr_layer
 
         layers_depths = [64,128,256,512]
         layers_divisions = [1,2,2,2]
@@ -631,10 +734,17 @@ class ModelResNet18AvgPooled(models.ResNet):
 
     def forward(self, x):
         self.features_map = self._compute_feat_map(x)
-        if self.detach_conv_maps:   self.features_map = self.features_map.detach()
-        self.features = self._compute_features(self.features_map)
+        self.features_comp_input = self.features_map.clone()
+        if self.detach_conv_maps:   self.features_comp_input = self.features_comp_input.detach()
+        self.features = self._compute_features(self.features_comp_input)
         return self.features
 
+    def get_feat_map(self):
+        return self.features_map
+
+    def get_conv_map_shpae(self):
+        shape = torch.prod(torch.tensor(x.shape[1:])).item()
+        return shape
     def get_feature_shape(self):
         return self.feature_dim
 

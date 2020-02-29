@@ -3,27 +3,121 @@
 
 # In[1]:
 
-
+import sys
 import random
 import numpy as np 
+import argparse 
+
 import ReferentialGym
 
 import torch
+import torch.nn as nn 
 import torchvision
 import torchvision.transforms as T 
 
+
+class MultiHeadHookSpeaker(nn.Module):
+  def __init__(self, 
+                agent, 
+                config_attr_name='config',
+                input_attr_name='multi_head_input',
+                heads_attr_name='heads',
+                final_fn=nn.Softmax(dim=-1)):
+    super(MultiHeadHookSpeaker, self).__init__()
+    self.agent = agent 
+    self.config = getattr(self.agent, config_attr_name)
+    self.input_attr_name = input_attr_name
+    self.heads_attr_name = heads_attr_name
+    self.final_fn = final_fn
+
+  @property
+  def input(self):
+    return getattr(self.agent, self.input_attr_name)
+  
+  @property
+  def heads(self):
+    return getattr(self.agent, self.heads_attr_name)
+  
+  def __call__(self, 
+                losses_dict,
+                log_dict,
+                inputs_dict,
+                outputs_dict,
+                mode=True,
+                role='Speaker',
+                ):
+    if self.input is None: 
+      return
+    if role.lower() != 'speaker': 
+      return 
+
+    shape_input = self.input.shape
+    batch_size = shape_input[0]
+    flatten_input = self.input.view(batch_size, -1)
+    if self.config['detach_feat_map']:
+      flatten_input = flatten_input.detach()
+
+    losses = []
+    accuracies = []
+    for ih, head in enumerate(self.heads):
+      if isinstance(self.config['heads_output_sizes'][ih], int):
+          head_output = head(flatten_input)
+          final_output = self.final_fn(head_output)
+
+          # Loss:
+          target_idx = inputs_dict['latent_experiences'][..., ih].squeeze()
+          criterion = nn.NLLLoss(reduction='none')
+          loss = criterion( final_output, target_idx)
+          
+          # Accuracy:
+          argmax_final_output = final_output.argmax(dim=-1)
+          accuracy = 100.0*(target_idx==argmax_final_output).float().mean()
+      else:
+          loss = torch.zeros(batch_size).to(flatten_input.device)
+          accuracy = torch.zeros(1)
+    
+      losses.append(loss)
+      accuracies.append(accuracy)
+
+    # MultiHead Losses:
+    for idx, loss in enumerate(losses):
+      losses_dict[f'{self.agent.agent_id}/multi_head_{idx}_loss'] = [1.0, loss]
+
+    # MultiHead Accuracy:
+    for idx, acc in enumerate(accuracies):
+      log_dict[f'{self.agent.agent_id}/multi_head_{idx}_accuracy'] = acc
+
+
 def main():
-  seed = 30 #20
+  parser = argparse.ArgumentParser(description='Experiment 1: Interpolation with Splitted Set.')
+  parser.add_argument('--seed', type=int, default=0)
+  parser.add_argument('--arch', type=str, 
+    choices=['ResNet18AvgPooled-2',
+             'pretrianed-ResNet18AvgPooled-2', 
+             'CoordResNet18AvgPooled-2'], 
+    help='model architecture to train')
+  parser.add_argument('--lr', type=float, default=3e-4)
+  parser.add_argument('--epoch', type=int, default=20)
+  parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
+  
+  args = parser.parse_args()
+  print(args)
+
+  seed = args.seed 
+
   torch.manual_seed(seed)
   np.random.seed(seed)
   random.seed(seed)
   # # Hyperparameters:
 
-  # In[23]:
-  nbr_epoch = 100
+  nbr_epoch = args.epoch
+  
   cnn_feature_size = 512 # 128 512 #1024
-  stimulus_resize_dim = 32 #64 #28
+  
+  stimulus_resize_dim = args.resizeDim #64 #28
+  
   normalize_rgb_values = False 
+  
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(size=stimulus_resize_dim, 
@@ -32,6 +126,8 @@ def main():
 
   transform_degrees = 45
   transform_translate = (0.25, 0.25)
+
+  multi_head_detached = True 
 
   rg_config = {
       "observability":            "partial",
@@ -61,7 +157,7 @@ def main():
       "vocab_size":               100,
       "symbol_embedding_size":    256, #64
 
-      "agent_architecture":       'pretrained-ResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           'learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
       "agent_loss_type":          'Hinge', #'NLL'
 
@@ -86,7 +182,7 @@ def main():
       "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
-      "learning_rate":            3e-4, #1e-3,
+      "learning_rate":            args.lr, #1e-3,
       "adam_eps":                 1e-8,
       "dropout_prob":             0.5,
       "embedding_dropout_prob":   0.8,
@@ -140,6 +236,8 @@ def main():
       "test_transform":             transform,
   }
 
+  ## Train set:
+
   # Normal:
   #train_split_strategy = 'combinatorial-Y-1-5-X-1-5-Orientation-1-5-Scale-1-6-Shape-1-3'
   # Aggressive:
@@ -152,9 +250,39 @@ def main():
   # Not enough test samples: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
   #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
   
+
   # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Experiment 1: interweaved
+  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Experiment 1: splitted
+  train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  # Experiment 2: mistake?
+  #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Experiment 2: correct one? Most likely
+  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  #train_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
+  
+
+  ## Test set:
+
+  # Experiment 1:
   test_split_strategy = train_split_strategy
+  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  # Experiment 2: definitively splitted with extrapolation when assuming 4-s4
+  #test_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
+  '''
+  The issue with a train and test split with different density level is that some test values 
+  on some latent axises may not appear in the train set (with different combinations than that
+  of the test set), and so the system cannot get familiar to it... It is becomes a benchmark
+  for both zero-shot composition learning and zero-shot components embedding (which could be
+  a needed task in terms of analogy making: being able to understand that each latent axis
+  can have unfamiliar values, i.e. associate the new values to the familiar latent axises...)
+  '''
   
   '''
   train_split_strategy = 'divider-600-offset-0'
@@ -171,13 +299,17 @@ def main():
   
   #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
-  save_path = f"./Havrylov_et_al/test_Stop0Start0/PAPER/dSPrites/DualLabeled/TestForLatentIndices/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
+  save_path = f"./Havrylov_et_al/test_Stop0Start0/PAPER/EXP1/dSPrites/DualLabeled/MultiHead_{'Not' if not(multi_head_detached) else ''}Detached"
+  save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
   save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
   #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
-  save_path += f"{rg_config['agent_loss_type']}/dSprites-{test_split_strategy}/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  train_test_strategy = f"-{test_split_strategy}"
+  if test_split_strategy != train_split_strategy:
+    train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
+  save_path += f"{rg_config['agent_loss_type']}/dSprites{train_test_strategy}/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -292,7 +424,7 @@ def main():
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
   
   # # Agents
-  from ReferentialGym.agents import LSTMCNNSpeaker
+  from ReferentialGym.agents import MultiHeadLSTMCNNSpeaker
 
   batch_size = 4
   nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']
@@ -301,12 +433,26 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  speaker = LSTMCNNSpeaker(kwargs=agent_config, 
+  multi_head_config = {'heads_output_sizes':['N', 3, 6, 40, 32, 32],
+                        'heads_archs':[
+                                        [512],
+                                        ],
+                       'detach_feat_map': multi_head_detached,
+                       }
+
+  speaker = MultiHeadLSTMCNNSpeaker(kwargs=agent_config, 
+                                multi_head_config=multi_head_config,
                                 obs_shape=obs_shape, 
                                 vocab_size=vocab_size, 
                                 max_sentence_length=max_sentence_length,
                                 agent_id='s0',
-                                logger=logger)
+                                logger=logger)      
+    
+  speaker_hook = MultiHeadHookSpeaker(agent=speaker, 
+                       config_attr_name='multi_head_config',
+                       input_attr_name='feat_maps',
+                       heads_attr_name='heads')
+  speaker.register_hook(speaker_hook)
 
   print("Speaker:", speaker)
 
@@ -361,5 +507,7 @@ def main():
                 logger=logger,
                 verbose_period=1)
 
+  logger.flush()
+  
 if __name__ == '__main__':
     main()

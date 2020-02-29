@@ -150,14 +150,33 @@ def main():
   #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
   # Agressive: idem + test values on each axis: 'primitive around right' 0-filler context
   #Not enough test data: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
-  train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
+  #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
+  
+  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  #train_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
   
   # Very Aggressively Undensified:
   #train_split_strategy = 'combinatorial3-Y-8-4-X-8-4-Orientation-10-N-Scale-2-N-1FP_Shape-1-N'
     
 
   test_split_strategy = train_split_strategy
-  
+  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # --> the test and train set are not alternating sampling but rather completely distinct.
+  #test_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
+  '''
+  The issue with a train and test split with different density level is that some test values 
+  on some latent axises may not appear in the train set (with different combinations than that
+  of the test set), and so the system cannot get familiar to it... It is becomes a benchmark
+  for both zero-shot composition learning and zero-shot components embedding (which could be
+  a needed task in terms of analogy making: being able to understand that each latent axis
+  can have unfamiliar values, i.e. associate the new values to the familiar latent axises...)
+  '''
   # # Dataset:
 
   root = './datasets/dsprites-dataset'

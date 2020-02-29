@@ -91,7 +91,11 @@ class dSpritesDataset(Dataset) :
                 if 'N' in strategy[3]:
                     self.latent_dims['Y']['untested'] = True
                     self.latent_dims['Y']['test_set_divider'] = (self.latent_dims['Y']['size']//self.latent_dims['Y']['divider'])+10
-                else:  
+                elif 'E' in strategy[3]:  
+                    self.latent_dims['Y']['test_set_size_sample_from_end'] = int(strategy[3][1:])
+                elif 'S' in strategy[3]:  
+                    self.latent_dims['Y']['test_set_size_sample_from_start'] = int(strategy[3][1:])
+                else:
                     self.latent_dims['Y']['test_set_divider'] = int(strategy[3])
 
                 # 4: X
@@ -113,6 +117,10 @@ class dSpritesDataset(Dataset) :
                 if 'N' in strategy[6]:
                     self.latent_dims['X']['untested'] = True
                     self.latent_dims['X']['test_set_divider'] = (self.latent_dims['X']['size']//self.latent_dims['X']['divider'])+10
+                elif 'E' in strategy[6]:  
+                    self.latent_dims['X']['test_set_size_sample_from_end'] = int(strategy[6][1:])
+                elif 'S' in strategy[6]:  
+                    self.latent_dims['X']['test_set_size_sample_from_start'] = int(strategy[6][1:])
                 else:  
                     self.latent_dims['X']['test_set_divider'] = int(strategy[6])
                 # 7: Orientation
@@ -226,8 +234,16 @@ class dSpritesDataset(Dataset) :
                         if ordinal > dim_dict['nbr_fillers']:
                             effective_test_threshold -= 1
 
-                    if quotient%dim_dict['test_set_divider']==0:
+                    if 'test_set_divider' in dim_dict and quotient%dim_dict['test_set_divider']==0:
                         counter_test[dim_name] = 1
+                    elif 'test_set_size_sample_from_end' in dim_dict:
+                        max_quotient = dim_dict['size']//dim_dict['divider']
+                        if quotient > max_quotient-dim_dict['test_set_size_sample_from_end']:
+                            counter_test[dim_name] = 1
+                    elif 'test_set_size_sample_from_start' in dim_dict:
+                        max_quotient = dim_dict['size']//dim_dict['divider']
+                        if quotient <= dim_dict['test_set_size_sample_from_start']:
+                            counter_test[dim_name] = 1
 
                 if skip_it: continue
 
@@ -275,6 +291,13 @@ class dSpritesDataset(Dataset) :
         latent_value = self.latents_values[idx]
         return latent_value
 
+    def getlatentclass(self, idx):
+        if idx >= len(self):
+            idx = idx%len(self)
+        #idx = self.indices[idx]
+        latent_class = self.latents_classes[idx]
+        return latent_class
+
     def __getitem__(self, idx):
         """
         Args:
@@ -296,8 +319,10 @@ class dSpritesDataset(Dataset) :
         
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
+        latent_class = torch.from_numpy(self.getlatentclass(idx))
         
         if self.transform is not None:
             image = self.transform(image)
 
-        return image, target, latent_value
+        #return image, target, latent_value
+        return image, target, latent_class

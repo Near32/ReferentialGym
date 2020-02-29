@@ -27,6 +27,8 @@ class Agent(nn.Module):
             self.homoscedastic_speaker_loss = HomoscedasticMultiTasksLoss()
             self.homoscedastic_listener_loss = HomoscedasticMultiTasksLoss()
 
+        self.hooks = []
+
     def clone(self, clone_id='a0'):
         logger = self.logger
         self.logger = None 
@@ -58,6 +60,9 @@ class Agent(nn.Module):
         self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
         
         self.log_idx += 1
+
+    def register_hook(self, hook):
+        self.hooks.append(hook)
 
     def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
         """
@@ -112,19 +117,27 @@ class Agent(nn.Module):
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
         
+        losses_dict = dict()        
 
         weight_maxl1_loss = 0.0
         for p in self.parameters() :
             weight_maxl1_loss += torch.max( torch.abs(p) )
         outputs_dict['maxl1_loss'] = weight_maxl1_loss        
 
+        for hook in self.hooks:
+            hook(losses_dict=losses_dict,
+                    log_dict=self.log_dict,
+                    inputs_dict=inputs_dict,
+                    outputs_dict=outputs_dict,
+                    mode=mode,
+                    role=role
+                    )
 
         for logname, value in self.log_dict.items():
-            self.logger.add_scalar('{}/{}/{}'.format(mode,role, logname), value.item(), it)    
+            self.logger.add_scalar('{}/{}/{}'.format(mode, role, logname), value.item(), it)    
         self.log_dict = {}
 
 
-        losses_dict = dict()
 
         '''
         if hasattr(self, 'TC_losses'):

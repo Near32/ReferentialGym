@@ -1,8 +1,8 @@
-from .networks import FCBody, LSTMBody, GRUBody 
-from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody 
-from .networks import ModelResNet18, ModelResNet18AvgPooled, ExtractorResNet18, MHDPA_RN
-from .networks import ConvolutionalMHDPABody, ResNet18MHDPA
+from .networks import FCBody, LSTMBody, GRUBody, MHDPA_RN 
+from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
+from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
+
 from .networks import layer_init, hasnan, handle_nan
 
 from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
@@ -72,25 +72,33 @@ def choose_architecture( architecture,
 
     if 'ResNet18AvgPooled' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
-        pretrained = ('pretrained' in architecture)
+        pretrained = ('pretrained' in architecture.lower())
+        use_coordconv = ('coord' in architecture.lower())
         body = ModelResNet18AvgPooled(input_shape=input_shape,
                                       feature_dim=feature_dim,
                                       nbr_layer=nbr_layer,
-                                      pretrained=pretrained)
+                                      pretrained=pretrained,
+                                      use_coordconv=use_coordconv)
+
     elif 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
-        pretrained = ('pretrained' in architecture)
+        pretrained = ('pretrained' in architecture.lower())
+        use_coordconv = ('coord' in architecture.lower())
         body = ModelResNet18(input_shape=input_shape,
                              feature_dim=feature_dim,
                              nbr_layer=nbr_layer,
-                             pretrained=pretrained)
+                             pretrained=pretrained,
+                             use_coordconv=use_coordconv)
+        
     elif 'ResNet18' in architecture and "MHDPA" in architecture:
         nbr_layer = int(architecture[-1])
-        pretrained = ('pretrained' in architecture)
+        pretrained = ('pretrained' in architecture.lower())
+        use_coordconv = ('coord' in architecture.lower())
         body = ResNet18MHDPA(input_shape=input_shape,
                              feature_dim=feature_dim,
                              nbr_layer=nbr_layer,
                              pretrained=pretrained,
+                             use_coordconv=use_coordconv,
                              dropout=dropout,
                              nbrHead=MHDPANbrHead,
                              nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
