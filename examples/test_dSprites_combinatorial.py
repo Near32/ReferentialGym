@@ -152,22 +152,55 @@ def main():
   #Not enough test data: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
   #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
   
+  # Normal:
+  #train_split_strategy = 'combinatorial-Y-1-5-X-1-5-Orientation-1-5-Scale-1-6-Shape-1-3'
+  # Aggressive:
+  #train_split_strategy = 'combinatorial-Y-8-4-X-8-4-Orientation-4-5-Scale-1-5-Shape-1-3'
+  
+  # Agressive: 0-filler primitive(shape) condition testing compositional extrapolation on 16 positions.
+  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-0FP_Shape-1-N'
+  
+  # Agressive: idem + test values on each axis: 'primitive around right' 0-filler context
+  # Not enough test samples: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
+  #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
+  
+
   # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
+  # Experiment 1: interweaved
   #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Exp1 : interweaved split simple X Y
+  #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  # Denser: x4
+  #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  # Jump Around sparse = splitted - normal:
+  #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-E4-Orientation-40-N-Scale-6-N-Shape-1-3' 
+
+  # Experiment 1: splitted
+  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
   # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
   # --> the test and train set are not alternating sampling but rather completely distinct.
-  train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  
+  # Exp1 : splitted split simple X Y
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  # Denser: x4
+  train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  
+  # Experiment 2: mistake?
+  #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
+  # Experiment 2: correct one? Most likely
+  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
   # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
   # --> the test and train set are not alternating sampling but rather completely distinct.
   #train_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
   
-  # Very Aggressively Undensified:
-  #train_split_strategy = 'combinatorial3-Y-8-4-X-8-4-Orientation-10-N-Scale-2-N-1FP_Shape-1-N'
-    
 
+  ## Test set:
+
+  # Experiment 1:
   test_split_strategy = train_split_strategy
   # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
   # --> the test and train set are not alternating sampling but rather completely distinct.
+  # Experiment 2: definitively splitted with extrapolation when assuming 4-s4
   #test_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
   '''
   The issue with a train and test split with different density level is that some test values 

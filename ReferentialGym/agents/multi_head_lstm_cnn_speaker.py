@@ -35,26 +35,69 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
-        if self.kwargs['architecture'] == 'CNN':
-            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  hidden_units_list=None,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'],
-                                                  nbr_channels_list=self.kwargs['cnn_encoder_channels'],
-                                                  kernels=self.kwargs['cnn_encoder_kernels'],
-                                                  strides=self.kwargs['cnn_encoder_strides'],
-                                                  paddings=self.kwargs['cnn_encoder_paddings'],
-                                                  dropout=self.kwargs['dropout_prob'])
+        MHDPANbrHead=4
+        MHDPANbrRecUpdate=1
+        MHDPANbrMLPUnit=512
+        MHDPAInteractionDim=128
+        if 'mhdpa_nbr_head' in self.kwargs: MHDPANbrHead = self.kwargs['mhdpa_nbr_head']
+        if 'mhdpa_nbr_rec_update' in self.kwargs: MHDPANbrRecUpdate = self.kwargs['mhdpa_nbr_rec_update']
+        if 'mhdpa_nbr_mlp_unit' in self.kwargs: MHDPANbrMLPUnit = self.kwargs['mhdpa_nbr_mlp_unit']
+        if 'mhdpa_interaction_dim' in self.kwargs: MHDPAInteractionDim = self.kwargs['mhdpa_interaction_dim']
+        
+        self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                               kwargs=self.kwargs,
+                                               input_shape=cnn_input_shape,
+                                               feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                               nbr_channels_list=self.kwargs['cnn_encoder_channels'],
+                                               kernels=self.kwargs['cnn_encoder_kernels'],
+                                               strides=self.kwargs['cnn_encoder_strides'],
+                                               paddings=self.kwargs['cnn_encoder_paddings'],
+                                               fc_hidden_units_list=self.kwargs['cnn_encoder_fc_hidden_units'],
+                                               dropout=self.kwargs['dropout_prob'],
+                                               MHDPANbrHead=MHDPANbrHead,
+                                               MHDPANbrRecUpdate=MHDPANbrRecUpdate,
+                                               MHDPANbrMLPUnit=MHDPANbrMLPUnit,
+                                               MHDPAInteractionDim=MHDPAInteractionDim)
+        
+        self.use_feat_converter = self.kwargs['use_feat_converter'] if 'use_feat_converter' in self.kwargs else False 
+        if self.use_feat_converter:
+            self.feat_converter_input = self.cnn_encoder.get_feature_shape()
+
+
+        if 'BetaVAE' in self.kwargs['architecture'] or 'MONet' in self.kwargs['architecture']:
+            self.VAE_losses = list()
+            self.compactness_losses = list()
+            self.buffer_cnn_output_dict = dict()
+            
+            # N.B: with a VAE, we want to learn the weights in any case:
+            if 'agent_learning' in self.kwargs:
+                assert('transfer_learning' not in self.kwargs['agent_learning'])
+            
+            self.vae_detached_featout = False
+            if self.kwargs['vae_detached_featout']:
+                self.vae_detached_featout = True
+
+            self.VAE = self.cnn_encoder
+
+            self.use_feat_converter = True
+            self.feat_converter_input = self.cnn_encoder.latent_dim
         else:
-            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
             if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
                 self.cnn_encoder.detach_conv_maps = True
 
-        self.cnn_encoder = nn.Sequential(self.cnn_encoder, nn.BatchNorm1d(num_features=self.cnn_encoder.get_feature_shape()))
+        self.encoder_feature_shape = self.cnn_encoder.get_feature_shape()
+        if self.use_feat_converter:
+            self.featout_converter = []
+            self.featout_converter.append(nn.Linear(self.feat_converter_input, self.kwargs['cnn_encoder_feature_dim']*2))
+            self.featout_converter.append(nn.ReLU())
+            self.featout_converter.append(nn.Linear(self.kwargs['cnn_encoder_feature_dim']*2, self.kwargs['feat_converter_output_size'])) 
+            self.featout_converter.append(nn.ReLU())
+            self.featout_converter =  nn.Sequential(*self.featout_converter)
+            self.encoder_feature_shape = self.kwargs['feat_converter_output_size']
+        
+        self.cnn_encoder_normalization = nn.BatchNorm1d(num_features=self.encoder_feature_shape)
 
-        temporal_encoder_input_dim = self.kwargs['cnn_encoder_feature_dim']
+        temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         if self.kwargs['temporal_encoder_nbr_rnn_layers'] > 0:
             self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
                                               hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
@@ -64,7 +107,7 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
                                               bidirectional=False))
         else:
             self.temporal_feature_encoder = None
-            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
+            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.encoder_feature_shape)
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
@@ -90,9 +133,12 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
+        # Multi Heads : Classification and Regression:
+
         self.multi_head_config = multi_head_config
         # Add the feature map size as input to the architectures:
-        feat_map_dim, feat_map_depth = self.cnn_encoder[0]._compute_feature_shape()
+        feat_map_dim, feat_map_depth = self.cnn_encoder._compute_feature_shape()
+        #flattened_feat_map_shape = 2 #feat_map_depth*feat_map_dim*feat_map_dim
         flattened_feat_map_shape = feat_map_depth*feat_map_dim*feat_map_dim
         for idx in range(len(self.multi_head_config['heads_archs'])):
             self.multi_head_config['heads_archs'][idx] = [flattened_feat_map_shape]+self.multi_head_config['heads_archs'][idx]
@@ -108,18 +154,27 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
 
 
         self.heads = nn.ModuleList()
+        self.reg_heads = nn.ModuleList()
         for idx, arch in enumerate(self.multi_head_config['heads_archs']):
             if isinstance(self.multi_head_config['heads_output_sizes'][idx], int):
                 arch = self.multi_head_config['heads_archs'][idx]
                 sequence = []
+                reg_sequence = []
                 for i_l, (input_size, output_size) in enumerate(zip(arch,arch[1:])):
                     sequence.append(nn.Linear(input_size, output_size))
+                    reg_output_size = output_size
+                    if i_l == len(arch)-2:  reg_output_size = 1
+                    reg_sequence.append(nn.Linear(input_size, reg_output_size))
                     if i_l != len(arch)-2:
                         sequence.append(nn.ReLU())
+                        reg_sequence.append(nn.ReLU())
                 layer = nn.Sequential(*sequence)
+                reg_layer = nn.Sequential(*reg_sequence)
             else:
                 layer = None 
+                reg_layer = None
             self.heads.append(layer)
+            self.reg_heads.append(reg_layer)
 
         # Set up the feat_maps as input to the heads...
         self.feat_maps = None
@@ -135,6 +190,11 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
+
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
 
     def _compute_tau(self, tau0, h):
         invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
@@ -158,17 +218,56 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
         total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
-            featout = self.cnn_encoder(stin)
+            if isinstance(self.cnn_encoder, BetaVAE):
+                cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
+                if 'VAE_loss' in cnn_output_dict:
+                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
+                
+                if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
+                    self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
+                
+                for key in cnn_output_dict:
+                    if key not in self.buffer_cnn_output_dict:
+                        self.buffer_cnn_output_dict[key] = list()
+                    self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
+
+                if self.kwargs['vae_use_mu_value']:
+                    featout = self.cnn_encoder.mu 
+                else:
+                    featout = self.cnn_encoder.z
+
+                if self.vae_detached_featout:
+                    featout = featout.detach()
+
+                featout = self.featout_converter(featout)
+
+                feat_map = self.cnn_encoder.get_feat_map()
+            else:
+                featout = self.cnn_encoder(stin)
+                if self.use_feat_converter:
+                    featout = self.featout_converter(featout)
+
+                feat_map = self.cnn_encoder.get_feat_map()
+            
             features.append(featout)
-            feat_map = self.cnn_encoder[0].get_feat_map()
             feat_maps.append(feat_map)
 
-        features = torch.cat(features, dim=0)
+        features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         self.feat_maps = torch.cat(feat_maps, dim=0)
-        #if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
-        #    features = features.detach()
+        
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
+        
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
+            
+            for key in self.buffer_cnn_output_dict:
+                self.log_dict[key] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
+
+            self.log_dict['kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
+            if len(self.compactness_losses):
+                self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
+            
         return features 
 
     def _utter(self, features, sentences=None):

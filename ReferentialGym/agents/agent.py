@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..networks import HomoscedasticMultiTasksLoss
 import copy
 
 
@@ -21,11 +20,6 @@ class Agent(nn.Module):
         self.log_dict = dict()
 
         self.use_sentences_one_hot_vectors = False
-
-        self.homoscedastic = self.kwargs['homoscedastic_multitasks_loss']
-        if self.homoscedastic:
-            self.homoscedastic_speaker_loss = HomoscedasticMultiTasksLoss()
-            self.homoscedastic_listener_loss = HomoscedasticMultiTasksLoss()
 
         self.hooks = []
 
@@ -111,6 +105,7 @@ class Agent(nn.Module):
                            tau0=inputs_dict['tau0'])
 
         outputs_dict['latent_experiences'] = inputs_dict['latent_experiences']
+        outputs_dict['latent_experiences_values'] = inputs_dict['latent_experiences_values']
         self._log(outputs_dict, batch_size=batch_size)
 
         # //------------------------------------------------------------//
@@ -144,7 +139,7 @@ class Agent(nn.Module):
             losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
         '''
         if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in inputs_dict['graphtype'])):
-            losses_dict[f'{role}/VAE_loss'] = [1.0, self.VAE_losses]
+            losses_dict[f'{role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
 
         if 'speaker' in role:
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
@@ -299,10 +294,6 @@ class Agent(nn.Module):
             if config['with_weight_maxl1_loss']:
                 losses_dict['listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
         
-        if len(losses_dict) and self.homoscedastic:
-            if 'speaker' in role:   losses_dict = self.homoscedastic_speaker_loss(losses_dict)
-            if 'listener' in role:   losses_dict = self.homoscedastic_listener_loss(losses_dict)
-
         self._tidyup()
         
         return outputs_dict, losses_dict    

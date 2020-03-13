@@ -1,10 +1,11 @@
 from .networks import FCBody, LSTMBody, GRUBody, MHDPA_RN 
 from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
-from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ExtractorResNet18
+from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
 
 from .networks import layer_init, hasnan, handle_nan
 
+from .autoregressive_networks import ResNetEncoder, ResNetAvgPooledEncoder, BroadcastingDecoder, ResNetParallelAttentionEncoder, ParallelAttentionBroadcastingDeconvDecoder
 from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
 
 from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
@@ -13,7 +14,8 @@ import torch.nn.functional as F
 
 def choose_architecture( architecture, 
                          kwargs=None,
-                         hidden_units_list=None,
+                         fc_hidden_units_list=None,
+                         rnn_hidden_units_list=None,
                          input_shape=None,
                          feature_dim=None, 
                          nbr_channels_list=None, 
@@ -26,38 +28,42 @@ def choose_architecture( architecture,
                          MHDPANbrMLPUnit=512,
                          MHDPAInteractionDim=128):
     if 'LSTM-RNN' in architecture:
-        return LSTMBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
+        return LSTMBody(input_shape[0], hidden_units=rnn_hidden_units_list, gate=nn.LeakyReLU)
     
     if 'GRU-RNN' in architecture:
-        return GRUBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
+        return GRUBody(input_shape[0], hidden_units=rnn_hidden_units_list, gate=nn.LeakyReLU)
     
     if architecture == 'MLP':
-        return FCBody(input_shape[0], hidden_units=hidden_units_list, gate=nn.LeakyReLU)
+        return FCBody(input_shape[0], hidden_units=fc_hidden_units_list, gate=nn.LeakyReLU)
     
-    if architecture == 'CNN':
+    if 'CNN' in architecture:
+        use_coordconv = ('Coord' in architecture)
         channels = [input_shape[0]] + nbr_channels_list
-        body = ConvolutionalBody(input_shape=input_shape,
+        if 'MHDPA' in architecture:
+            body = ConvolutionalMHDPABody(input_shape=input_shape,
+                                          feature_dim=feature_dim,
+                                          channels=channels,
+                                          kernel_sizes=kernels,
+                                          strides=strides,
+                                          paddings=paddings,
+                                          fc_hidden_units=fc_hidden_units_list,
+                                          dropout=dropout,
+                                          nbrHead=MHDPANbrHead,
+                                          nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
+                                          units_per_MLP_layer=MHDPANbrMLPUnit,
+                                          interaction_dim=MHDPAInteractionDim)
+        else:    
+            body = ConvolutionalBody(input_shape=input_shape,
                                      feature_dim=feature_dim,
                                      channels=channels,
                                      kernel_sizes=kernels,
                                      strides=strides,
                                      paddings=paddings,
+                                     fc_hidden_units=fc_hidden_units_list,
+                                     use_coordconv=use_coordconv,
                                      dropout=dropout)
 
-    if architecture == 'CNN-MHDPA':
-        channels = [input_shape[0]] + nbr_channels_list
-        body = ConvolutionalMHDPABody(input_shape=input_shape,
-                                      feature_dim=feature_dim,
-                                      channels=channels,
-                                      kernel_sizes=kernels,
-                                      strides=strides,
-                                      paddings=paddings,
-                                      dropout=dropout,
-                                      nbrHead=MHDPANbrHead,
-                                      nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
-                                      units_per_MLP_layer=MHDPANbrMLPUnit,
-                                      interaction_dim=MHDPAInteractionDim)
-
+        
     if 'VGG16' in architecture:
         arch = architecture.copy()
         arch = arch.remove('VGG16').remove('-')
@@ -79,6 +85,20 @@ def choose_architecture( architecture,
                                       nbr_layer=nbr_layer,
                                       pretrained=pretrained,
                                       use_coordconv=use_coordconv)
+    elif 'ResNet18AvgPooled' in architecture and "MHDPA" in architecture:
+        nbr_layer = int(architecture[-1])
+        pretrained = ('pretrained' in architecture.lower())
+        use_coordconv = ('coord' in architecture.lower())
+        body = ResNet18AvgPooledMHDPA(input_shape=input_shape,
+                                     feature_dim=feature_dim,
+                                     nbr_layer=nbr_layer,
+                                     pretrained=pretrained,
+                                     use_coordconv=use_coordconv,
+                                     dropout=dropout,
+                                     nbrHead=MHDPANbrHead,
+                                     nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
+                                     units_per_MLP_layer=MHDPANbrMLPUnit,
+                                     interaction_dim=MHDPAInteractionDim)
 
     elif 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
@@ -105,7 +125,7 @@ def choose_architecture( architecture,
                              units_per_MLP_layer=MHDPANbrMLPUnit,
                              interaction_dim=MHDPAInteractionDim)
 
-    if architecture == 'CNN-RNN':
+    elif architecture == 'CNN-RNN':
         channels = [input_shape[0]] + nbr_channels_list
         body = ConvolutionalLstmBody(input_shape=input_shape,
                                      feature_dim=feature_dim,
@@ -113,13 +133,16 @@ def choose_architecture( architecture,
                                      kernel_sizes=kernels,
                                      strides=strides,
                                      paddings=paddings,
-                                     hidden_units=hidden_units_list,
+                                     fc_hidden_units=fc_hidden_units_list,
+                                     rnn_hidden_units=rnn_hidden_units_list,
                                      dropout=dropout)
     if 'BetaVAE' in architecture:
-        nbr_layer = None
+        use_coordconv = ('Coord' in architecture)
         resnet_encoder = ('ResNet' in architecture)
+        resnet_nbr_layer = None
+        use_avg_pooled = ('AvgPooled' in architecture)
         if resnet_encoder:
-            nbr_layer = int(architecture[-1])
+            resnet_nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture)
         beta = kwargs['vae_beta']
         factor_vae_gamma = 0.0
@@ -146,15 +169,100 @@ def choose_architecture( architecture,
         if 'vae_use_gaussian_observation_model' in kwargs:
             NormalOutputDistribution = kwargs['vae_use_gaussian_observation_model']
         
+
+        if nbr_attention_slot is None:
+            if resnet_encoder:
+                if use_avg_pooled:
+                    encoder = ResNetAvgPooledEncoder(input_shape=input_shape, 
+                                            latent_dim=latent_dim,
+                                            nbr_layer=resnet_nbr_layer,
+                                            pretrained=pretrained,
+                                            use_coordconv=use_coordconv)
+                else:
+                    encoder = ResNetEncoder(input_shape=input_shape, 
+                                            latent_dim=latent_dim,
+                                            nbr_layer=resnet_nbr_layer,
+                                            pretrained=pretrained,
+                                            use_coordconv=use_coordconv)
+            else:
+                channels = [input_shape[0]] + nbr_channels_list
+                encoder = ConvolutionalBody(input_shape=input_shape,
+                                            feature_dim=[feature_dim, latent_dim*2],
+                                            channels=channels,
+                                            kernel_sizes=kernels,
+                                            strides=strides,
+                                            paddings=paddings,
+                                            fc_hidden_units=fc_hidden_units_list,
+                                            use_coordconv=use_coordconv,
+                                            dropout=dropout)
+                '''
+                encoder = ConvolutionalBody(input_shape=input_shape,
+                                            feature_dim=(256, latent_dim*2), 
+                                            channels=[input_shape[0], 32, 32, 64], 
+                                            kernel_sizes=[8, 4, 3],#[3, 3, 3], 
+                                            strides=[2, 2, 2],
+                                            paddings=[1, 1, 1],#[0, 0, 0],
+                                            dropout=0.0,
+                                            non_linearities=[F.relu],
+                                            use_coordconv=use_coordconv)
+                '''
+                '''
+                encoder = ConvolutionalMHDPABody(input_shape=input_shape,
+                                                feature_dim=(256, latent_dim*2),
+                                                channels=[input_shape[0], 32, 32, 64],
+                                                kernel_sizes=[3, 3, 3],
+                                                strides=[2, 2, 2],
+                                                paddings=[0, 0, 0],
+                                                dropout=0.0,
+                                                nbrHead=4,
+                                                nbrRecurrentSharedLayers=1,
+                                                units_per_MLP_layer=256,
+                                                interaction_dim=128,
+                                                non_linearities=[F.relu],
+                                                use_coordconv=use_coordconv)
+                '''
+            decoder = BroadcastingDecoder(output_shape=input_shape,
+                                           net_depth=decoder_nbr_layer, 
+                                           kernel_size=3, 
+                                           stride=1, 
+                                           padding=1, 
+                                           latent_dim=latent_dim, 
+                                           conv_dim=decoder_conv_dim)
+            '''
+            decoder = BroadcastingDeconvDecoder(output_shape=input_shape,
+                                               net_depth=decoder_nbr_layer, 
+                                               latent_dim=latent_dim, 
+                                               conv_dim=decoder_conv_dim)
+            '''
+        else:
+            encoder_latent_dim = latent_dim
+            latent_dim *= nbr_attention_slot
+            encoder = ResNetParallelAttentionEncoder(input_shape=input_shape, 
+                                                     latent_dim=encoder_latent_dim,
+                                                     nbr_attention_slot=nbr_attention_slot,
+                                                     nbr_layer=resnet_nbr_layer,
+                                                     pretrained=pretrained,
+                                                     use_coordconv=use_coordconv)
+            '''
+            encoder = ResNetPHDPAEncoder(input_shape=input_shape, 
+                                        latent_dim=encoder_latent_dim,
+                                        nbr_attention_slot=nbr_attention_slot,
+                                        nbr_layer=resnet_nbr_layer,
+                                        pretrained=pretrained,
+                                        use_coordconv=use_coordconv)
+            '''
+            decoder = ParallelAttentionBroadcastingDeconvDecoder(output_shape=input_shape,
+                                                                latent_dim=encoder_latent_dim, 
+                                                                nbr_attention_slot=nbr_attention_slot,
+                                                                net_depth=decoder_nbr_layer,
+                                                                conv_dim=decoder_conv_dim)
+
         body = BetaVAE(beta=beta,
+                       encoder=encoder,
+                       decoder=decoder,
                        input_shape=input_shape,
                        latent_dim=latent_dim,
                        nbr_attention_slot=nbr_attention_slot,
-                       resnet_encoder=resnet_encoder,
-                       resnet_nbr_layer=nbr_layer,
-                       pretrained=pretrained,
-                       decoder_nbr_layer=decoder_nbr_layer,
-                       decoder_conv_dim=decoder_conv_dim,
                        NormalOutputDistribution=NormalOutputDistribution,
                        constrainedEncoding=constrainedEncoding,
                        maxEncodingCapacity=maxCap,

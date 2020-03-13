@@ -93,12 +93,64 @@ def main():
   parser.add_argument('--seed', type=int, default=0)
   parser.add_argument('--arch', type=str, 
     choices=['ResNet18AvgPooled-2',
-             'pretrianed-ResNet18AvgPooled-2', 
-             'CoordResNet18AvgPooled-2'], 
+             'pretrained-ResNet18AvgPooled-2', 
+             'CoordResNet18AvgPooled-2',
+             'BetaVAE',
+             'CoordBetaVAE',
+             'ResNet18AvgPooledBetaVAE-2',
+             'pretrained-ResNet18AvgPooledBetaVAE-2',
+             'CoordResNet18AvgPooledBetaVAE-2'], 
     help='model architecture to train')
   parser.add_argument('--lr', type=float, default=3e-4)
   parser.add_argument('--epoch', type=int, default=20)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
+  
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  # VAE Hyperparameters:
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  parser.add_argument('--vae_nbr_latent_dim', type=int, default=32)
+  parser.add_argument('--vae_decoder_nbr_layer', type=int, default=3)
+  parser.add_argument('--vae_decoder_conv_dim', type=int, default=32)
+  
+  parser.add_argument('--vae_gaussian', action='store_true', default=False)
+  parser.add_argument('--vae_gaussian_sigma', type=float, default=0.25)
+  
+  parser.add_argument('--vae_beta', type=float, default=1.0)
+  parser.add_argument('--vae_factor_gamma', type=float, default=0.0)
+  
+  parser.add_argument('--vae_constrained_encoding', action='store_true', default=False)
+  parser.add_argument('--vae_max_capacity', type=float, default=1e3)
+  parser.add_argument('--vae_nbr_epoch_till_max_capacity', type=int, default=10)
+
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  
+  
+  args = parser.parse_args()
+  print(args)
+
+
+  gaussian = args.vae_gaussian 
+  vae_observation_sigma = args.vae_gaussian_sigma
+  
+  vae_beta = args.vae_beta 
+  factor_vae_gamma = args.vae_factor_gamma
+  
+  vae_constrainedEncoding = args.vae_constrained_encoding
+  maxCap = args.vae_max_capacity #1e2
+  nbrepochtillmaxcap = args.vae_nbr_epoch_till_max_capacity
+
+  monet_gamma = 5e-1
+  
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  #--------------------------------------------------------------------------
+  
   
   args = parser.parse_args()
   print(args)
@@ -422,7 +474,29 @@ def main():
     agent_config['temporal_encoder_mini_batch_size'] = 32
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
-  
+  elif 'BetaVAE' in agent_config['architecture']:
+    agent_config['vae_nbr_latent_dim'] = args.vae_nbr_latent_dim
+    agent_config['vae_decoder_nbr_layer'] = args.vae_decoder_nbr_layer
+    agent_config['vae_decoder_conv_dim'] = args.vae_decoder_conv_dim
+    
+    agent_config['cnn_encoder_feature_dim'] = agent_config['vae_nbr_latent_dim']
+    
+    agent_config['vae_beta'] = args.vae_beta
+    agent_config['factor_vae_gamma'] = args.vae_factor_gamma
+    agent_config['vae_use_gaussian_observation_model'] = args.vae_gaussian 
+    agent_config['vae_constrainedEncoding'] = args.vae_constrained_encoding
+    agent_config['vae_max_capacity'] = args.vae_max_capacity
+    agent_config['vae_nbr_epoch_till_max_capacity'] = args.vae_nbr_epoch_till_max_capacity
+    agent_config['vae_tc_discriminator_hidden_units'] = tuple([2*agent_config['cnn_encoder_feature_dim']]*4+[2])
+    
+    agent_config['cnn_encoder_mini_batch_size'] = 32
+    agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*agent_config['cnn_encoder_feature_dim'] #512
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
+    agent_config['temporal_encoder_mini_batch_size'] = 32
+    
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+
   # # Agents
   from ReferentialGym.agents import MultiHeadLSTMCNNSpeaker
 

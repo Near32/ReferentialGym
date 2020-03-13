@@ -347,6 +347,9 @@ class ModelResNet18(models.ResNet):
         
         return self.features_map
 
+    def get_feat_map(self):
+        return self.features_map
+    
     def _compute_features(self, features_map):
         avgx = self.avgpool(features_map)
         #xsize = avgx.size()
@@ -522,9 +525,6 @@ class ModelResNet18AvgPooled(models.ResNet):
     def get_feat_map(self):
         return self.features_map
 
-    def get_conv_map_shpae(self):
-        shape = torch.prod(torch.tensor(x.shape[1:])).item()
-        return shape
     def get_feature_shape(self):
         return self.feature_dim
 
@@ -604,6 +604,101 @@ class ResNet18MHDPA(ModelResNet18):
             features = F.leaky_relu(features)
 
         return features
+
+
+class ResNet18AvgPooledMHDPA(ModelResNet18AvgPooled):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 nbr_layer=None, 
+                 pretrained=False,
+                 detach_conv_maps=False, 
+                 use_coordconv=False,
+                 dropout=0.0, 
+                 non_linearities=[nn.LeakyReLU],
+                 nbrHead=4,
+                 nbrRecurrentSharedLayers=1,  
+                 units_per_MLP_layer=512,
+                 interaction_dim=128):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param nbr_layer: int, number of convolutional residual layer to use.
+        :param pretrained: bool, specifies whether to load a pretrained model.
+        :param dropout: dropout probability to use.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                                after each convolutional layer.
+        :param nbrHead: Int, number of Scaled Dot-Product Attention head.
+        :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
+        :param units_per_MLP_layer: Int, number of neurons in the transformation from the
+                                    concatenated head outputs to the entity embedding space.
+        :param interaction_dim: Int, number of dimensions in the interaction space.
+        '''
+        super(ResNet18AvgPooledMHDPA, self).__init__(input_shape=input_shape,
+                                            feature_dim=feature_dim,
+                                            nbr_layer=nbr_layer,
+                                            pretrained=pretrained,
+                                            detach_conv_maps=detach_conv_maps,
+                                            use_coordconv=use_coordconv)       
+        self.dropout = dropout
+        self.relationModule = MHDPA_RN(output_dim=None,
+                                       #depth_dim=self.feat_map_depth+2,
+                                       depth_dim=self.feat_map_depth,
+                                       nbrHead=nbrHead, 
+                                       nbrRecurrentSharedLayers=nbrRecurrentSharedLayers, 
+                                       nbrEntity=self.feat_map_dim*self.feat_map_dim,  
+                                       units_per_MLP_layer=units_per_MLP_layer,
+                                       interactions_dim=interaction_dim,
+                                       dropout_prob=self.dropout)
+        
+        #hidden_units = (self.feat_map_dim * self.feat_map_dim * (self.feat_map_depth+2),)
+        hidden_units = (self.feat_map_depth, )
+        if isinstance(feature_dim, tuple):
+            hidden_units = hidden_units + feature_dim
+        else:
+            hidden_units = hidden_units + (self.feature_dim,)
+
+        self.fcs = nn.ModuleList()
+        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
+            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            if self.dropout:
+                self.fcs.append( nn.Dropout(p=self.dropout))
+
+    def _compute_feature_shape(self, input_dim=None, nbr_layer=None):
+        dim, depth = super(ResNet18AvgPooledMHDPA, self)._compute_feature_shape(input_dim=input_dim, nbr_layer=nbr_layer)
+        return dim, depth+2
+
+    def forward(self, x):
+        self.features_map = self._compute_feat_map(x)
+        self.features_comp_input = self.features_map.clone()
+        if self.detach_conv_maps:   self.features_comp_input = self.features_comp_input.detach()
+        self.features = self._compute_features(self.features_comp_input)
+        return self.features
+
+    def forward(self, x):
+        x = self._compute_feat_map(x) 
+
+        xsize = x.size()
+        batchsize = xsize[0]
+        depthsize = xsize[1]
+        spatialSize = xsize[2]
+        featuresize = spatialSize*spatialSize
+
+        self.features_map = self.relationModule(x)
+
+        self.features_comp_input = self.features_map.clone()
+        if self.detach_conv_maps:   self.features_comp_input = self.features_comp_input.detach()
+        
+        avgx = self.avgpool(self.features_comp_input)
+        features = avgx.view(avgx.size(0), -1)
+        for idx, fc in enumerate(self.fcs):
+            features = fc(features)
+            features = F.leaky_relu(features)
+        self.features = features 
+
+        return self.features
 
 
 class ExtractorResNet18(ModelResNet18):

@@ -73,6 +73,8 @@ class DualLabeledDataset(Dataset):
             - experiences: Tensor of the sampled experiences.
             - indices: List[int] of the indices of the sampled experiences.
             - exp_labels: List[int] consisting of the indices of the label to which the experiences belong.
+            - exp_latents: 
+            - exp_latents_values: 
         '''
         assert(idx is not None)
 
@@ -95,7 +97,7 @@ class DualLabeledDataset(Dataset):
                 set_indices = set_indices.difference(excepts)
                 
             indices = []
-            nbr_samples = self.nbr_distractors
+            nbr_samples = self.nbr_distractors[self.mode]
             try:
                 set_indices.remove(idx)
             except Exception as e:
@@ -119,6 +121,7 @@ class DualLabeledDataset(Dataset):
         experiences = []
         exp_labels = []
         exp_latents = []
+        exp_latents_values = []
         for idx in indices:
             dataset = self.datasets['train']
             if idx>=len(self.datasets['train']):
@@ -135,17 +138,27 @@ class DualLabeledDataset(Dataset):
             elif len(sample_output) == 3:
                 exp, tc, latent = sample_output
                 if isinstance(latent, int): latent = torch.Tensor([latent])
+                if isinstance(tc, int): 
+                    #latent = torch.Tensor([tc])
+                    latent_values = torch.zeros((self.nbr_classes))
+                    latent_values[tc] = 1.0
+            elif len(sample_output) == 4:
+                exp, tc, latent, latent_values = sample_output
+                if isinstance(latent, int): latent = torch.Tensor([latent])
+                if isinstance(latent_values, int): latent_values = torch.Tensor([latent_values])
             else:
                 raise NotImplemented
             experiences.append(exp.unsqueeze(0))
             exp_labels.append(tc)
             exp_latents.append(latent.unsqueeze(0))
+            exp_latents_values.append(latent_values.unsqueeze(0))
             if target_only: break
 
         experiences = torch.cat(experiences,dim=0)
         experiences = experiences.unsqueeze(1)
         exp_latents = torch.cat(exp_latents, dim=0)
+        exp_latents_values = torch.cat(exp_latents_values, dim=0)
         #exp_latents = exp_latents.unsqueeze(1)
         # account for the temporal dimension...
         
-        return experiences, indices, exp_labels, exp_latents
+        return experiences, indices, exp_labels, exp_latents, exp_latents_values

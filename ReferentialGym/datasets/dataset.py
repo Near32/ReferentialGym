@@ -110,50 +110,66 @@ class Dataset(torchDataset):
                 from_class = exp_labels
 
         if self.kwargs['descriptive']:
-            experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
+            #experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
+            experiences, indices, exp_labels, exp_latents, exp_latents_values = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
             latent_experiences = exp_latents.unsqueeze(0)
+            latent_experiences_values = exp_latents_values.unsqueeze(0)
             # In descriptive mode, the speaker observability is always partial:
             speaker_experiences = experiences[:,0].unsqueeze(1)
             speaker_latent_experiences = latent_experiences[:,0].unsqueeze(1)
+            speaker_latent_experiences_values = latent_experiences_values[:,0].unsqueeze(1)
             
             if torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']:
                 # Target experience remain in the experiences yielded to the listener:
                 listener_experiences = experiences 
                 listener_latent_experiences = latent_experiences 
+                listener_latent_experiences_values = latent_experiences_values 
                 if self.kwargs['object_centric']:
-                    lexp, _, _, lexp_latent = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
+                    #lexp, _, _, lexp_latent = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
+                    lexp, _, _, lexp_latent, lexp_latent_values = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
                     listener_experiences[:,0] = lexp.unsqueeze(0)
                     listener_latent_experiences[:,0] = lexp_latent.unsqueeze(0)
+                    listener_latent_experiences_values[:,0] = lexp_latent_values.unsqueeze(0)
                 listener_experiences, target_decision_idx, orders = shuffle(listener_experiences)
                 listener_latent_experiences, _, _ = shuffle(listener_latent_experiences, orders=orders)
+                listener_latent_experiences_values, _, _ = shuffle(listener_latent_experiences_values, orders=orders)
             else:
                 # Target experience is excluded from the experiences yielded to the listener:
-                lexp, _, _, lexp_latent = self.sample(idx=None, from_class=from_class, excepts=[idx])
+                #lexp, _, _, lexp_latent = self.sample(idx=None, from_class=from_class, excepts=[idx])
+                lexp, _, _, lexp_latent, lexp_latent_values = self.sample(idx=None, from_class=from_class, excepts=[idx])
                 listener_experiences = lexp.unsqueeze(0)
                 listener_latent_experiences = lexp_latent.unsqueeze(0)
+                listener_latent_experiences_values = lexp_latent_values.unsqueeze(0)
                 #listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
                 # The target_decision_idx is set to `nbr_experiences`:
                 target_decision_idx = (self.nbr_distractors+1)*torch.ones(1).long()
         else:
-            experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
+            #experiences, indices, exp_labels, exp_latents = self.sample(idx=idx, from_class=from_class)
+            experiences, indices, exp_labels, exp_latents, exp_latents_values = self.sample(idx=idx, from_class=from_class)
             experiences = experiences.unsqueeze(0)
             exp_latents = exp_latents.unsqueeze(0)
+            exp_latents_values = exp_latents_values.unsqueeze(0)
             
             listener_experiences, target_decision_idx, orders = shuffle(experiences)
             listener_latent_experiences, _, _ = shuffle(exp_latents, orders=orders)
+            listener_latent_experiences_values, _, _ = shuffle(exp_latents_values, orders=orders)
             
             speaker_experiences = experiences 
             speaker_latent_experiences = exp_latents
+            speaker_latent_experiences_values = exp_latents_values
             
             if self.kwargs['observability'] == "partial":
                 speaker_experiences = speaker_experiences[:,0].unsqueeze(1)
                 speaker_latent_experiences = speaker_latent_experiences[:,0].unsqueeze(1)
+                speaker_latent_experiences_values = speaker_latent_experiences_values[:,0].unsqueeze(1)
         
         output_dict = {'speaker_experiences':speaker_experiences,
                        'listener_experiences':listener_experiences,
                        'speaker_latent_experiences':speaker_latent_experiences,
                        'listener_latent_experiences':listener_latent_experiences,
+                       'speaker_latent_experiences_values':speaker_latent_experiences_values,
+                       'listener_latent_experiences_values':listener_latent_experiences_values,
                        'target_decision_idx':target_decision_idx}
 
         return output_dict

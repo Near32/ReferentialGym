@@ -205,7 +205,17 @@ class FCBody(nn.Module):
 
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.LeakyReLU]):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 channels=[3, 3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0], 
+                 fc_hidden_units=None,
+                 dropout=0.0, 
+                 non_linearities=[nn.LeakyReLU],
+                 use_coordconv=False):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -216,11 +226,18 @@ class ConvolutionalBody(nn.Module):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
+        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
         '''
         super(ConvolutionalBody, self).__init__()
+        original_conv_fn = nn.Conv2d
+        if use_coordconv:
+            original_conv_fn = coordconv
+
         self.dropout = dropout
         self.non_linearities = non_linearities
         if not isinstance(non_linearities, list):
@@ -230,25 +247,52 @@ class ConvolutionalBody(nn.Module):
                 self.non_linearities.append(self.non_linearities[0])
 
         self.feature_dim = feature_dim
-        if isinstance(feature_dim, tuple):
+        if not(isinstance(self.feature_dim, int)):
             self.feature_dim = feature_dim[-1]
 
         self.features = []
         dim = input_shape[1] # height
         in_ch = channels[0]
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
-            if cfg == 'M':
+            conv_fn = original_conv_fn
+            if isinstance(cfg, str) and cfg == 'MP':
+                if isinstance(k, str):
+                    assert(k=="Full")
+                    k = dim
+                    channels[idx+1] = in_ch
                 layer = nn.MaxPool2d(kernel_size=k, stride=s)
                 self.features.append(layer)
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k)//s+1
                 print(f"Dim: {dim}")
             else:
-                layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
+                add_non_lin = True
+                add_bn = False
+                if isinstance(cfg, str) and 'NoNonLin' in cfg:
+                    add_non_lin = False
+                    cfg = cfg.replace('NoNonLin', '') 
+                if isinstance(cfg, str) and 'Coord' in cfg:
+                    conv_fn = coordconv
+                    cfg = cfg.replace('Coord', '') 
+                
+                if isinstance(cfg, str) and 'BN' in cfg:
+                    add_bn = True
+                    cfg = int(cfg[2:])
+                    channels[idx+1] = cfg
+                    # Assumes 'BNX' where X is an integer...
+                
+                if isinstance(cfg, str):
+                    cfg = int(cfg)
+                    channels[idx+1] = cfg
+                    
+                layer = conv_fn(in_ch, cfg, kernel_size=k, stride=s, padding=p, bias=not(add_bn)) 
                 layer = layer_init(layer, w_scale=math.sqrt(2))
                 in_ch = cfg
                 self.features.append(layer)
-                self.features.append(self.non_linearities[idx](inplace=True))
+                if add_bn:
+                    self.features.append(nn.BatchNorm2d(in_ch))
+                if add_non_lin:
+                    self.features.append(self.non_linearities[idx](inplace=True))
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k+2*p)//s+1
                 print(f"Dim: {dim}")
@@ -257,11 +301,16 @@ class ConvolutionalBody(nn.Module):
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 
-        hidden_units = (dim * dim * channels[-1],)
-        if isinstance(feature_dim, tuple):
-            hidden_units = hidden_units + feature_dim
+        hidden_units = fc_hidden_units
+        if hidden_units is None:
+            hidden_units = [dim * dim * channels[-1]]
         else:
-            hidden_units = hidden_units + (self.feature_dim,)
+            hidden_units = [dim * dim * channels[-1]]+hidden_units
+
+        if isinstance(feature_dim, int):
+            hidden_units = hidden_units + [feature_dim]
+        else:
+            hidden_units = hidden_units + feature_dim
 
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
@@ -272,10 +321,13 @@ class ConvolutionalBody(nn.Module):
     def _compute_feat_map(self, x):
         return self.features(x)
 
+    def get_feat_map(self):
+        return self.features_map
+    
     def forward(self, x, non_lin_output=True):
-        feat_map = self._compute_feat_map(x)
+        self.features_map = self._compute_feat_map(x)
 
-        features = feat_map.view(feat_map.size(0), -1)
+        features = self.features_map.view(self.features_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
             if idx != len(self.fcs)-1 or non_lin_output:
@@ -289,9 +341,24 @@ class ConvolutionalBody(nn.Module):
     def get_feature_shape(self):
         return self.feature_dim
 
+    def _compute_feature_shape(self, input_dim=None, nbr_layer=None):
+        return self.feat_map_dim, self.feat_map_depth
+
 
 class ConvolutionalLstmBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 channels=[3, 3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0], 
+                 fc_hidden_units=None,
+                 rnn_hidden_units=(256,), 
+                 dropout=0.0, 
+                 non_linearities=[nn.ReLU], 
+                 gate=F.relu,
+                 use_coordconv=False):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -302,9 +369,14 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
+        :param rnn_hidden_units: list of number of neurons per rnn 
+                hidden layer following the convolutional and fully-connected layers.
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
+        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
         '''
         super(ConvolutionalLstmBody, self).__init__(input_shape=input_shape,
                                                 feature_dim=feature_dim,
@@ -312,10 +384,12 @@ class ConvolutionalLstmBody(ConvolutionalBody):
                                                 kernel_sizes=kernel_sizes,
                                                 strides=strides,
                                                 paddings=paddings,
+                                                fc_hidden_units=fc_hidden_units,
                                                 dropout=dropout,
-                                                non_linearities=non_linearities)
+                                                non_linearities=non_linearities,
+                                                use_coordconv=use_coordconv)
 
-        self.lstm_body = LSTMBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
+        self.lstm_body = LSTMBody( state_dim=self.feature_dim, rnn_hidden_units=rnn_hidden_units, gate=gate)
 
     def forward(self, inputs):
         '''
@@ -338,10 +412,22 @@ class ConvolutionalLstmBody(ConvolutionalBody):
 
 
 class ConvolutionalGruBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 channels=[3, 3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0], 
+                 fc_hidden_units=None,
+                 rnn_hidden_units=(256,), 
+                 dropout=0.0, 
+                 non_linearities=[nn.ReLU], 
+                 gate=F.relu,
+                 use_coordconv=False):
         '''
         Default input channels assume a RGB image (3 channels).
-
+        
         :param input_shape: dimensions of the input.
         :param feature_dim: integer size of the output.
         :param channels: list of number of channels for each convolutional layer,
@@ -349,9 +435,14 @@ class ConvolutionalGruBody(ConvolutionalBody):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
+        :param rnn_hidden_units: list of number of neurons per rnn 
+                hidden layer following the convolutional and fully-connected layers.
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
+        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
         '''
         super(ConvolutionalGruBody, self).__init__(input_shape=input_shape,
                                                 feature_dim=feature_dim,
@@ -359,10 +450,12 @@ class ConvolutionalGruBody(ConvolutionalBody):
                                                 kernel_sizes=kernel_sizes,
                                                 strides=strides,
                                                 paddings=paddings,
+                                                fc_hidden_units=fc_hidden_units,
                                                 dropout=dropout,
-                                                non_linearities=non_linearities)
+                                                non_linearities=non_linearities,
+                                                use_coordconv=use_coordconv)
 
-        self.gru_body = GRUBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
+        self.gru_body = GRUBody( state_dim=self.feature_dim, rnn_hidden_units=rnn_hidden_units, gate=gate)
 
     def forward(self, inputs):
         '''
@@ -385,9 +478,9 @@ class ConvolutionalGruBody(ConvolutionalBody):
 
 
 class LSTMBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
+    def __init__(self, state_dim, rnn_hidden_units=(256), gate=F.relu):
         super(LSTMBody, self).__init__()
-        dims = (state_dim, ) + hidden_units
+        dims = (state_dim, ) + rnn_hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
         self.layers = nn.ModuleList([layer_init(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
@@ -435,9 +528,9 @@ class LSTMBody(nn.Module):
 
 
 class GRUBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
+    def __init__(self, state_dim, rnn_hidden_units=(256), gate=F.relu):
         super(GRUBody, self).__init__()
-        dims = (state_dim, ) + hidden_units
+        dims = (state_dim, ) + rnn_hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
         self.layers = nn.ModuleList([layer_init(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
@@ -480,271 +573,6 @@ class GRUBody(nn.Module):
             cell_states.append(h)
         return {'hidden': hidden_states, 'cell': cell_states}
 
-    def get_feature_shape(self):
-        return self.feature_dim
-
-class ModelResNet18(models.ResNet):
-    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False):
-        '''
-        Default input channels assume a RGB image (3 channels).
-
-        :param input_shape: dimensions of the input.
-        :param feature_dim: integer size of the output.
-        :param nbr_layer: int, number of convolutional residual layer to use.
-        :param pretrained: bool, specifies whether to load a pretrained model.
-        '''
-        super(ModelResNet18, self).__init__(BasicBlock, [2, 2, 2, 2])
-        if pretrained:
-            self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-        
-        self.input_shape = input_shape
-        self.nbr_layer = nbr_layer
-        
-        # Re-organize the input conv layer:
-        saved_kernel = self.conv1.weight.data
-        
-        if input_shape[0] >3:
-            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.conv1.weight.data[:,0:3,...] = saved_kernel
-            
-        elif input_shape[0] <3:
-            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.conv1.weight.data = saved_kernel[:,0:input_shape[0],...]
-
-        # 64:
-        self.avgpool_ksize = 2
-        # 224:
-        #self.avgpool_ksize = 7
-        self.avgpool = nn.AvgPool2d(self.avgpool_ksize, stride=1)
-        
-        # Add the fully-connected layers at the top:
-        self.feature_dim = feature_dim
-        if isinstance(feature_dim, tuple):
-            self.feature_dim = feature_dim[-1]
-
-        # Compute the number of features:
-        self.feat_map_dim, self.feat_map_depth = self._compute_feature_shape(input_shape[-1], self.nbr_layer)
-        # Avg Pool:
-        feat_dim = self.feat_map_dim-1
-        num_ftrs = self.feat_map_depth * feat_dim * feat_dim
-        
-        self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
-    
-    def _compute_feature_shape(self, input_dim, nbr_layer):
-        if nbr_layer is None: return self.fc.in_features
-
-        layers_depths = [64,128,256,512]
-        layers_divisions = [1,2,2,2]
-
-        # Conv1:
-        dim = input_dim // 2
-        # MaxPool1:
-        dim = dim // 2
-
-        depth = 64
-        for idx_layer in range(nbr_layer):
-            dim = math.ceil(float(dim) / layers_divisions[idx_layer])
-            depth = layers_depths[idx_layer]
-            print(dim, depth)
-
-        return dim, depth
-
-    def _compute_feat_map(self, x):
-        #xsize = x.size()
-        #print('input:',xsize)
-        x = self.conv1(x)
-        #xsize = x.size()
-        #print('cv0:',xsize)
-        x = self.bn1(x)
-        x = self.relu(x)
-        
-        self.x0 = self.maxpool(x)
-        
-        #xsize = self.x0.size()
-        #print('mxp0:',xsize)
-
-        if self.nbr_layer >= 1:
-            self.x1 = self.layer1(self.x0)
-            #xsize = self.x1.size()
-            #print('1:',xsize)
-            if self.nbr_layer >= 2:
-                self.x2 = self.layer2(self.x1)
-                #xsize = self.x2.size()
-                #print('2:',xsize)
-                if self.nbr_layer >= 3:
-                    self.x3 = self.layer3(self.x2)
-                    #xsize = self.x3.size()
-                    #print('3:',xsize)
-                    if self.nbr_layer >= 4:
-                        self.x4 = self.layer4(self.x3)
-                        #xsize = self.x4.size()
-                        #print('4:',xsize)
-                        
-                        self.features_map = self.x4
-                    else:
-                        self.features_map = self.x3
-                else:
-                    self.features_map = self.x2
-            else:
-                self.features_map = self.x1
-        else:
-            self.features_map = self.x0
-        
-        return self.features_map
-
-    def _compute_features(self, features_map):
-        avgx = self.avgpool(features_map)
-        #xsize = avgx.size()
-        #print('avg: x:',xsize)
-        fcx = avgx.view(avgx.size(0), -1)
-        #xsize = fcx.size()
-        #print('reg avg: x:',xsize)
-        fcx = self.fc(fcx)
-        #xsize = fcx.size()
-        #print('fc output: x:',xsize)
-        return fcx
-
-    def forward(self, x):
-        self.features_map = self._compute_feat_map(x)
-        self.features = self._compute_features(self.features_map)
-        return self.features
-
-    def get_feature_shape(self):
-        return self.feature_dim
-
-class ModelResNet18AvgPooled(models.ResNet):
-    def __init__(self, input_shape, feature_dim=256, nbr_layer=None, pretrained=False, detach_conv_maps=False):
-        '''
-        Default input channels assume a RGB image (3 channels).
-
-        :param input_shape: dimensions of the input.
-        :param feature_dim: integer size of the output.
-        :param nbr_layer: int, number of convolutional residual layer to use.
-        :param pretrained: bool, specifies whether to load a pretrained model.
-        '''
-        super(ModelResNet18AvgPooled, self).__init__(BasicBlock, [2, 2, 2, 2])
-        if pretrained:
-            self.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-        
-        self.input_shape = input_shape
-        self.nbr_layer = nbr_layer
-        self.detach_conv_maps = detach_conv_maps
-        
-        # Re-organize the input conv layer:
-        saved_kernel = self.conv1.weight.data
-        
-        if input_shape[0] >3:
-            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.conv1.weight.data[:,0:3,...] = saved_kernel
-            
-        elif input_shape[0] <3:
-            self.conv1 = nn.Conv2d(input_shape[0], 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.conv1.weight.data = saved_kernel[:,0:input_shape[0],...]
-
-        # Compute the number of features:
-        self.feat_map_dim, self.feat_map_depth = self._compute_feature_shape(input_shape[-1], self.nbr_layer)
-        self.avgpool_ksize = self.feat_map_dim
-        self.avgpool = nn.AvgPool2d(self.avgpool_ksize, stride=1, padding=0)
-        
-        # Avg Pool:
-        num_ftrs = self.feat_map_depth
-        
-        # Add the fully-connected layers at the top:
-        self.feature_dim = feature_dim
-        if isinstance(feature_dim, tuple):
-            self.feature_dim = feature_dim[-1]
-
-        self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
-    
-    def _compute_feature_shape(self, input_dim=None, nbr_layer=None):
-        if input_dim is None: input_dim = self.input_shape[-1]
-        #if nbr_layer is None: return self.fc.in_features
-        if nbr_layer is None: nbr_layer = self.nbr_layer
-
-        layers_depths = [64,128,256,512]
-        layers_divisions = [1,2,2,2]
-
-        # Conv1:
-        dim = input_dim // 2
-        # MaxPool1:
-        dim = dim // 2
-
-        depth = 64
-        for idx_layer in range(nbr_layer):
-            dim = math.ceil(float(dim) / layers_divisions[idx_layer])
-            depth = layers_depths[idx_layer]
-            print(dim, depth)
-
-        return dim, depth
-
-    def _compute_feat_map(self, x):
-        #xsize = x.size()
-        #print('input:',xsize)
-        x = self.conv1(x)
-        #xsize = x.size()
-        #print('cv0:',xsize)
-        x = self.bn1(x)
-        x = self.relu(x)
-        
-        self.x0 = self.maxpool(x)
-        
-        #xsize = self.x0.size()
-        #print('mxp0:',xsize)
-
-        if self.nbr_layer >= 1:
-            self.x1 = self.layer1(self.x0)
-            #xsize = self.x1.size()
-            #print('1:',xsize)
-            if self.nbr_layer >= 2:
-                self.x2 = self.layer2(self.x1)
-                #xsize = self.x2.size()
-                #print('2:',xsize)
-                if self.nbr_layer >= 3:
-                    self.x3 = self.layer3(self.x2)
-                    #xsize = self.x3.size()
-                    #print('3:',xsize)
-                    if self.nbr_layer >= 4:
-                        self.x4 = self.layer4(self.x3)
-                        #xsize = self.x4.size()
-                        #print('4:',xsize)
-                        
-                        self.features_map = self.x4
-                    else:
-                        self.features_map = self.x3
-                else:
-                    self.features_map = self.x2
-            else:
-                self.features_map = self.x1
-        else:
-            self.features_map = self.x0
-        
-        return self.features_map
-
-    def _compute_features(self, features_map):
-        avgx = self.avgpool(features_map)
-        #xsize = avgx.size()
-        #print('avg: x:',xsize)
-        fcx = avgx.view(avgx.size(0), -1)
-        #xsize = fcx.size()
-        #print('reg avg: x:',xsize)
-        fcx = self.fc(fcx)
-        #xsize = fcx.size()
-        #print('fc output: x:',xsize)
-        return fcx
-
-    def forward(self, x):
-        self.features_map = self._compute_feat_map(x)
-        self.features_comp_input = self.features_map.clone()
-        if self.detach_conv_maps:   self.features_comp_input = self.features_comp_input.detach()
-        self.features = self._compute_features(self.features_comp_input)
-        return self.features
-
-    def get_feat_map(self):
-        return self.features_map
-
-    def get_conv_map_shpae(self):
-        shape = torch.prod(torch.tensor(x.shape[1:])).item()
-        return shape
     def get_feature_shape(self):
         return self.feature_dim
 
@@ -980,25 +808,33 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                  kernel_sizes=[1], 
                  strides=[1], 
                  paddings=[0], 
+                 fc_hidden_units=None,
                  dropout=0.0, 
                  non_linearities=[nn.LeakyReLU],
+                 use_coordconv=False,
                  nbrHead=4,
                  nbrRecurrentSharedLayers=1,  
                  units_per_MLP_layer=512,
                  interaction_dim=128):
         '''
         Default input channels assume a RGB image (3 channels).
-
+        
         :param input_shape: dimensions of the input.
         :param feature_dim: integer size of the output.
         :param channels: list of number of channels for each convolutional layer,
-                         with the initial value being the number of channels of the input.
+                with the initial value being the number of channels of the input.
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
+        :param rnn_hidden_units: list of number of neurons per rnn 
+                hidden layer following the convolutional and fully-connected layers.
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
-                                after each convolutional layer.
+                after each convolutional layer.
+        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        
         :param nbrHead: Int, number of Scaled Dot-Product Attention head.
         :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
         :param units_per_MLP_layer: Int, number of neurons in the transformation from the
@@ -1011,8 +847,10 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                                                      kernel_sizes=kernel_sizes,
                                                      strides=strides,
                                                      paddings=paddings,
+                                                     fc_hidden_units=fc_hidden_units,
                                                      dropout=dropout,
-                                                     non_linearities=non_linearities)       
+                                                     non_linearities=non_linearities,
+                                                     use_coordconv=use_coordconv)       
         
         self.relationModule = MHDPA_RN(output_dim=None,
                                        depth_dim=channels[-1]+2,
@@ -1024,79 +862,6 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                                        dropout_prob=dropout)
         
         hidden_units = (self.feat_map_dim * self.feat_map_dim * (channels[-1]+2),)
-        if isinstance(feature_dim, tuple):
-            hidden_units = hidden_units + feature_dim
-        else:
-            hidden_units = hidden_units + (self.feature_dim,)
-
-        self.fcs = nn.ModuleList()
-        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
-            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
-            if self.dropout:
-                self.fcs.append( nn.Dropout(p=self.dropout))
-
-    def forward(self, x):
-        x = self._compute_feat_map(x) 
-
-        xsize = x.size()
-        batchsize = xsize[0]
-        depthsize = xsize[1]
-        spatialSize = xsize[2]
-        featuresize = spatialSize*spatialSize
-
-        feat_map = self.relationModule(x)
-
-        features = feat_map.view(feat_map.size(0), -1)
-        for idx, fc in enumerate(self.fcs):
-            features = fc(features)
-            features = F.leaky_relu(features)
-
-        return features
-
-
-class ResNet18MHDPA(ModelResNet18):
-    def __init__(self, 
-                 input_shape, 
-                 feature_dim=256, 
-                 nbr_layer=None, 
-                 pretrained=False, 
-                 dropout=0.0, 
-                 non_linearities=[nn.LeakyReLU],
-                 nbrHead=4,
-                 nbrRecurrentSharedLayers=1,  
-                 units_per_MLP_layer=512,
-                 interaction_dim=128):
-        '''
-        Default input channels assume a RGB image (3 channels).
-
-        :param input_shape: dimensions of the input.
-        :param feature_dim: integer size of the output.
-        :param nbr_layer: int, number of convolutional residual layer to use.
-        :param pretrained: bool, specifies whether to load a pretrained model.
-        :param dropout: dropout probability to use.
-        :param non_linearities: list of non-linear nn.Functional functions to use
-                                after each convolutional layer.
-        :param nbrHead: Int, number of Scaled Dot-Product Attention head.
-        :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
-        :param units_per_MLP_layer: Int, number of neurons in the transformation from the
-                                    concatenated head outputs to the entity embedding space.
-        :param interaction_dim: Int, number of dimensions in the interaction space.
-        '''
-        super(ResNet18MHDPA, self).__init__(input_shape=input_shape,
-                                            feature_dim=feature_dim,
-                                            nbr_layer=nbr_layer,
-                                            pretrained=pretrained)       
-        self.dropout = dropout
-        self.relationModule = MHDPA_RN(output_dim=None,
-                                       depth_dim=self.feat_map_depth+2,
-                                       nbrHead=nbrHead, 
-                                       nbrRecurrentSharedLayers=nbrRecurrentSharedLayers, 
-                                       nbrEntity=self.feat_map_dim*self.feat_map_dim,  
-                                       units_per_MLP_layer=units_per_MLP_layer,
-                                       interactions_dim=interaction_dim,
-                                       dropout_prob=self.dropout)
-        
-        hidden_units = (self.feat_map_dim * self.feat_map_dim * (self.feat_map_depth+2),)
         if isinstance(feature_dim, tuple):
             hidden_units = hidden_units + feature_dim
         else:
@@ -1259,14 +1024,3 @@ class ExtractorVGG16(nn.Module):
 
     def forward(self, x):
         return self.features(x)
-
-
-class ExtractorResNet18(ModelResNet18):
-    def __init__(self, input_shape, final_layer_idx=None, pretrained=True):
-        super(ExtractorResNet18, self).__init__(input_shape=input_shape, feature_dim=1, nbr_layer=final_layer_idx, pretrained=pretrained)
-        self.input_shape = input_shape
-        self.final_layer_idx = final_layer_idx
-        
-    def forward(self, x):
-        return self._compute_feat_map(x)
-        

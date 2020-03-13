@@ -16,7 +16,7 @@ from skimage import segmentation
 import cv2
 
 from .networks import FCBody, ConvolutionalBody, MHDPA_RN, layer_init, ConvolutionalMHDPABody
-from .residual_networks import ModelResNet18
+from .residual_networks import ModelResNet18, ModelResNet18AvgPooled
 
 
 class Distribution(object) :
@@ -59,11 +59,12 @@ from .networks import addXYfeatures, conv, deconv, coordconv, coorddeconv
 
 
 class ResNetEncoder(ModelResNet18) :
-    def __init__(self, input_shape, latent_dim=32, pretrained=False, nbr_layer=4 ) :
+    def __init__(self, input_shape, latent_dim=32, pretrained=False, nbr_layer=4, use_coordconv=False ) :
         super(ResNetEncoder,self).__init__(input_shape=input_shape, 
                                            feature_dim=2*latent_dim, 
                                            nbr_layer=nbr_layer, 
-                                           pretrained=pretrained)
+                                           pretrained=pretrained,
+                                           use_coordconv=use_coordconv)
         
         self.input_shape = input_shape 
         self.latent_dim = latent_dim
@@ -80,12 +81,36 @@ class ResNetEncoder(ModelResNet18) :
         return self.encode(x)
 
 
+class ResNetAvgPooledEncoder(ModelResNet18AvgPooled) :
+    def __init__(self, input_shape, latent_dim=32, pretrained=False, nbr_layer=4, use_coordconv=False ) :
+        super(ResNetAvgPooledEncoder,self).__init__(input_shape=input_shape, 
+                                           feature_dim=2*latent_dim, 
+                                           nbr_layer=nbr_layer, 
+                                           pretrained=pretrained,
+                                           use_coordconv=use_coordconv)
+        
+        self.input_shape = input_shape 
+        self.latent_dim = latent_dim
+        self.nbr_layer = nbr_layer
+
+    def get_feature_shape(self):
+        return self.latent_dim
+
+    def encode(self, x) :
+        out = super(ResNetAvgPooledEncoder,self).forward(x)
+        return out
+
+    def forward(self,x) :
+        return self.encode(x)
+
+
 class ResNetParallelAttentionEncoder(ModelResNet18) :
-    def __init__(self, input_shape, latent_dim=10, nbr_attention_slot=10, pretrained=False, nbr_layer=4 ) :
+    def __init__(self, input_shape, latent_dim=10, nbr_attention_slot=10, pretrained=False, nbr_layer=4, use_coordconv=False) :
         super(ResNetParallelAttentionEncoder,self).__init__(input_shape=input_shape, 
                                            feature_dim=2*latent_dim, 
                                            nbr_layer=nbr_layer, 
-                                           pretrained=pretrained)
+                                           pretrained=pretrained,
+                                           use_coordconv=use_coordconv)
         
         self.input_shape = input_shape 
         self.nbr_attention_slot = nbr_attention_slot
@@ -122,7 +147,7 @@ class ResNetParallelAttentionEncoder(ModelResNet18) :
 
     def encode(self, x) :
         batch_size = x.size(0)
-        features_map = super(ResNetParallelAttentionEncoder,self)._compute_feat_map(x)
+        self.features_map = super(ResNetParallelAttentionEncoder,self)._compute_feat_map(x)
         # batch x depth x dim x dim 
         augmented_features_map = self.feat_augmenter(features_map)
         recInput = augmented_features_map.transpose(1,3).contiguous().view((batch_size, -1, self.depthDim+2)).transpose(0,1)
@@ -209,11 +234,12 @@ class addXYSfeatures(nn.Module) :
 
 
 class ResNetPHDPAEncoder(ModelResNet18) :
-    def __init__(self, input_shape, latent_dim=10, nbr_attention_slot=10, pretrained=False, nbr_layer=4 ) :
+    def __init__(self, input_shape, latent_dim=10, nbr_attention_slot=10, pretrained=False, nbr_layer=4, use_coordconv=False) :
         super(ResNetPHDPAEncoder,self).__init__(input_shape=input_shape, 
                                            feature_dim=2*latent_dim, 
                                            nbr_layer=nbr_layer, 
-                                           pretrained=pretrained)
+                                           pretrained=pretrained,
+                                           use_coordconv=use_coordconv)
         
         self.input_shape = input_shape 
         self.nbr_attention_slot = nbr_attention_slot
@@ -239,7 +265,7 @@ class ResNetPHDPAEncoder(ModelResNet18) :
 
     def encode(self, x) :
         batch_size = x.size(0)
-        features_map = super(ResNetPHDPAEncoder,self)._compute_feat_map(x)
+        self.features_map = super(ResNetPHDPAEncoder,self)._compute_feat_map(x)
         # batch x depth x dim x dim 
         augmented_features_map = self.feat_augmenter(features_map).view((batch_size, -1, self.spatialDim**2))
         # batch x depth+x+y+nbr_attention_slot (depht+2+nbr_attention_slot) x dim*dim 
@@ -280,12 +306,12 @@ class Decoder(nn.Module) :
         dim = k
         pad = 1
         stride = 2
-        self.fc = coorddeconv( ind, outd, k, stride=1, pad=0, batchNorm=False)
+        self.fc = coorddeconv( ind, outd, k, stride=1, padding=0, batchNorm=False)
         
         for i in reversed(range(self.net_depth)) :
             ind = outd
             outd = self.conv_dim*(2**i)
-            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
+            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,padding=pad) )
             self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('Decoder: layer {} : dim {}.'.format(i, dim))
@@ -299,7 +325,7 @@ class Decoder(nn.Module) :
         pad = 0
         stride = 1
         k = outdim +2*pad -stride*(indim-1)
-        self.dcout = coorddeconv( ind, outd, k, stride=stride, pad=pad, batchNorm=False)
+        self.dcout = coorddeconv( ind, outd, k, stride=stride, padding=pad, batchNorm=False)
         
     def decode(self, z) :
         z = z.view( z.size(0), z.size(1), 1, 1)
@@ -340,7 +366,7 @@ class BroadcastingDecoder(nn.Module) :
                 outd = self.output_shape[0]
 
             if i == 0: 
-                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=1e-3)
+                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, padding=padding), w_scale=1e-3)
             else:
                 layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=1e-3)
             
@@ -390,7 +416,7 @@ class BroadcastingDeconvDecoder(nn.Module) :
         for i in reversed(range(self.net_depth)) :
             ind = outd
             outd = self.conv_dim*(2**i)
-            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
+            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,padding=pad) )
             self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('BroadcastingDeconvDecoder: layer {} : dim {}.'.format(i, dim))
@@ -404,7 +430,7 @@ class BroadcastingDeconvDecoder(nn.Module) :
         pad = 0
         stride = 1
         k = outdim +2*pad -stride*(indim-1)
-        self.dcout = coorddeconv( ind, outd, k, stride=stride, pad=pad, batchNorm=False)
+        self.dcout = coorddeconv( ind, outd, k, stride=stride, padding=pad, batchNorm=False)
         
     def decode(self, z) :
         z = z.view( z.size(0), z.size(1), 1, 1)
@@ -441,7 +467,7 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
         for i in reversed(range(self.net_depth)) :
             ind = outd
             outd = self.conv_dim*(2**i)
-            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,pad=pad) )
+            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,padding=pad) )
             self.dcs.append( nn.ReLU() )
             dim = k-2*pad + stride*(dim-1)
             print('ParallelAttentionBroadcastingDeconvDecoder: layer {} : dim {}.'.format(i, dim))
@@ -455,7 +481,7 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
         pad = 0
         stride = 1
         k = outdim +2*pad -stride*(indim-1)
-        self.dcout = coorddeconv( ind, outd, k, stride=stride, pad=pad, batchNorm=False)
+        self.dcout = coorddeconv( ind, outd, k, stride=stride, padding=pad, batchNorm=False)
         
     def decode(self, z) :
         zs = torch.chunk(z, self.nbr_attention_slot, dim=1)
@@ -556,14 +582,11 @@ class TotalCorrelationDiscriminator(object):
 
 class BetaVAE(nn.Module) :
     def __init__(self, beta=1e4, 
+                       encoder=None,
+                       decoder=None,
                        latent_dim=32,
                        nbr_attention_slot=None,
                        input_shape=[3, 64, 64], 
-                       decoder_conv_dim=32, 
-                       pretrained=False, 
-                       resnet_encoder=False,
-                       resnet_nbr_layer=2,
-                       decoder_nbr_layer=4,
                        NormalOutputDistribution=True,
                        maxEncodingCapacity=1000,
                        nbrEpochTillMaxEncodingCapacity=4,
@@ -573,6 +596,8 @@ class BetaVAE(nn.Module) :
         super(BetaVAE,self).__init__()
 
         self.beta = beta
+        self.encoder = encoder
+        self.decoder = decoder
         self.observation_sigma = observation_sigma
         self.latent_dim = latent_dim
         self.nbr_attention_slot = nbr_attention_slot
@@ -604,73 +629,11 @@ class BetaVAE(nn.Module) :
             print('ITER TILL MAX ENCODING CAPACITY : {}'.format(nbrittillmax))
             self.EncodingCapacityStep = self.maxEncodingCapacity / nbrittillmax        
 
-        if self.nbr_attention_slot is None:
-            if resnet_encoder:
-                self.encoder = ResNetEncoder(input_shape=input_shape, 
-                                             latent_dim=latent_dim,
-                                             nbr_layer=resnet_nbr_layer,
-                                             pretrained=pretrained)
-            else:
-                
-                self.encoder = ConvolutionalBody(input_shape=input_shape,
-                                                 feature_dim=(256, latent_dim*2), 
-                                                 channels=[input_shape[0], 32, 32, 64], 
-                                                 kernel_sizes=[8, 4, 3],#[3, 3, 3], 
-                                                 strides=[2, 2, 2],
-                                                 paddings=[1, 1, 1],#[0, 0, 0],
-                                                 dropout=0.0,
-                                                 non_linearities=[F.relu])
-                '''
-                self.encoder = ConvolutionalMHDPABody(input_shape=input_shape,
-                                      feature_dim=(256, latent_dim*2),
-                                      channels=[input_shape[0], 32, 32, 64],
-                                      kernel_sizes=[3, 3, 3],
-                                      strides=[2, 2, 2],
-                                      paddings=[0, 0, 0],
-                                      dropout=0.0,
-                                      nbrHead=4,
-                                      nbrRecurrentSharedLayers=1,
-                                      units_per_MLP_layer=256,
-                                      interaction_dim=128,
-                                      non_linearities=[F.relu])
-                '''
-
-            self.decoder = BroadcastingDecoder(output_shape=input_shape,
-                                               net_depth=decoder_nbr_layer, 
-                                               kernel_size=3, 
-                                               stride=1, 
-                                               padding=1, 
-                                               latent_dim=latent_dim, 
-                                               conv_dim=decoder_conv_dim)
-            '''
-            self.decoder = BroadcastingDeconvDecoder(output_shape=input_shape,
-                                               net_depth=decoder_nbr_layer, 
-                                               latent_dim=latent_dim, 
-                                               conv_dim=decoder_conv_dim)
-            '''
-            
-        else:
-            self.latent_dim *= self.nbr_attention_slot
-            self.encoder = ResNetParallelAttentionEncoder(input_shape=input_shape, 
-                                                          latent_dim=latent_dim,
-                                                          nbr_attention_slot=self.nbr_attention_slot,
-                                                          nbr_layer=resnet_nbr_layer,
-                                                          pretrained=pretrained)
-            '''
-            self.encoder = ResNetPHDPAEncoder(input_shape=input_shape, 
-                                              latent_dim=latent_dim,
-                                              nbr_attention_slot=self.nbr_attention_slot,
-                                              nbr_layer=resnet_nbr_layer,
-                                              pretrained=pretrained)
-            '''
-            self.decoder = ParallelAttentionBroadcastingDeconvDecoder(output_shape=input_shape,
-                                                                      latent_dim=latent_dim, 
-                                                                      nbr_attention_slot=self.nbr_attention_slot,
-                                                                      net_depth=decoder_nbr_layer,
-                                                                      conv_dim=decoder_conv_dim)
-
     def get_feature_shape(self):
         return self.latent_dim
+    
+    def _compute_feature_shape(self, input_dim=None, nbr_layer=None):
+        return self.encoder._compute_feature_shape(input_dim=input_dim, nbr_layer=nbr_layer)
         
     def reparameterize(self, mu,log_var) :
         eps = torch.randn( (mu.size()[0], mu.size()[1]) )
@@ -727,6 +690,9 @@ class BetaVAE(nn.Module) :
             self.z = self.reparameterize(self.mu,self.log_var)
             
         return self.mu, self.log_var, self.VAE_output  
+
+    def get_feat_map(self):
+        return self.encoder.get_feat_map()
 
     def compute_loss(self,x=None,
                         fixed_latent=None,

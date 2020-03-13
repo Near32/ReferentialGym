@@ -9,7 +9,8 @@ class LabeledDataset(Dataset):
         super(LabeledDataset, self).__init__(kwargs)
         self.kwargs = kwargs
         self.dataset = kwargs['dataset']
-        
+        self.mode = kwargs['mode']
+
         self.classes = {}
         for idx in range(len(self.dataset)):
             if hasattr(self.dataset, 'getclass'):
@@ -21,6 +22,9 @@ class LabeledDataset(Dataset):
 
         self.nbr_classes = len(self.classes.keys())
     
+    def set_mode(self, newmode='train'):
+        self.mode = newmode
+        
     def __len__(self) -> int:
         return len(self.dataset)
     
@@ -55,7 +59,7 @@ class LabeledDataset(Dataset):
                 set_indices = set_indices.difference(excepts)
                 
             indices = []
-            nbr_samples = self.nbr_distractors
+            nbr_samples = self.nbr_distractors[self.mode]
             if idx is None: 
                 nbr_samples += 1
             else: 

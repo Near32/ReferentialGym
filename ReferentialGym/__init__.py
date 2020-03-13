@@ -17,9 +17,11 @@ def make(config, dataset_args):
         
         if dataset_class == 'LabeledDataset': 
             dataset_args['dataset'] = train_dataset
+            dataset_args['mode'] = 'train'
             rg_train_dataset = Dataset(kwargs=dataset_args)
 
             dataset_args['dataset'] = test_dataset
+            dataset_args['mode'] = 'test'
             rg_test_dataset = Dataset(kwargs=dataset_args)
         elif dataset_class == 'DualLabeledDataset':
             dataset_args['train_dataset'] = train_dataset

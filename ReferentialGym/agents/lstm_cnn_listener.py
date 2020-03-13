@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .listener import Listener
-from ..networks import choose_architecture, layer_init
+from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 
 
 class LSTMCNNListener(Listener):
@@ -21,23 +21,77 @@ class LSTMCNNListener(Listener):
         self.kwargs = kwargs 
 
         cnn_input_shape = self.obs_shape[2:]
-        if self.kwargs['architecture'] == 'CNN':
-            self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  hidden_units_list=None,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'],
-                                                  nbr_channels_list=self.kwargs['cnn_encoder_channels'],
-                                                  kernels=self.kwargs['cnn_encoder_kernels'],
-                                                  strides=self.kwargs['cnn_encoder_strides'],
-                                                  paddings=self.kwargs['cnn_encoder_paddings'],
-                                                  dropout=self.kwargs['dropout_prob'])
+        MHDPANbrHead=4
+        MHDPANbrRecUpdate=1
+        MHDPANbrMLPUnit=512
+        MHDPAInteractionDim=128
+        if 'mhdpa_nbr_head' in self.kwargs: MHDPANbrHead = self.kwargs['mhdpa_nbr_head']
+        if 'mhdpa_nbr_rec_update' in self.kwargs: MHDPANbrRecUpdate = self.kwargs['mhdpa_nbr_rec_update']
+        if 'mhdpa_nbr_mlp_unit' in self.kwargs: MHDPANbrMLPUnit = self.kwargs['mhdpa_nbr_mlp_unit']
+        if 'mhdpa_interaction_dim' in self.kwargs: MHDPAInteractionDim = self.kwargs['mhdpa_interaction_dim']
+
+        if 'cnn_encoder' in self.kwargs:
+            self.cnn_encoder = self.kwargs['cnn_encoder']
         else:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
-                                                  input_shape=cnn_input_shape,
-                                                  feature_dim=self.kwargs['cnn_encoder_feature_dim'])
+                                                   kwargs=self.kwargs,
+                                                   input_shape=cnn_input_shape,
+                                                   feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                   nbr_channels_list=self.kwargs['cnn_encoder_channels'],
+                                                   kernels=self.kwargs['cnn_encoder_kernels'],
+                                                   strides=self.kwargs['cnn_encoder_strides'],
+                                                   paddings=self.kwargs['cnn_encoder_paddings'],
+                                                   fc_hidden_units_list=self.kwargs['cnn_encoder_fc_hidden_units'],
+                                                   dropout=self.kwargs['dropout_prob'],
+                                                   MHDPANbrHead=MHDPANbrHead,
+                                                   MHDPANbrRecUpdate=MHDPANbrRecUpdate,
+                                                   MHDPANbrMLPUnit=MHDPANbrMLPUnit,
+                                                   MHDPAInteractionDim=MHDPAInteractionDim)
+
+        self.use_feat_converter = self.kwargs['use_feat_converter'] if 'use_feat_converter' in self.kwargs else False 
+        if self.use_feat_converter:
+            self.feat_converter_input = self.cnn_encoder.get_feature_shape()
+
+
+        if 'BetaVAE' in self.kwargs['architecture'] or 'MONet' in self.kwargs['architecture']:
+            self.VAE_losses = list()
+            self.compactness_losses = list()
+            self.buffer_cnn_output_dict = dict()
+            
+            if not('cnn_encoder' in self.kwargs):
+                self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
+                                                       kwargs=self.kwargs,
+                                                       input_shape=cnn_input_shape,
+                                                       feature_dim=self.kwargs['cnn_encoder_feature_dim'],
+                                                       dropout=self.kwargs['dropout_prob'])
+            # N.B: with a VAE, we want to learn the weights in any case:
+            if 'agent_learning' in self.kwargs:
+                assert('transfer_learning' not in self.kwargs['agent_learning'])
+            
+            self.vae_detached_featout = False
+            if self.kwargs['vae_detached_featout']:
+                self.vae_detached_featout = True
+
+            self.VAE = self.cnn_encoder
+
+            self.use_feat_converter = True
+            self.feat_converter_input = self.cnn_encoder.latent_dim
+        else:
             if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
                 self.cnn_encoder.detach_conv_maps = True
 
+        self.encoder_feature_shape = self.cnn_encoder.get_feature_shape()
+        if self.use_feat_converter:
+            self.featout_converter = []
+            self.featout_converter.append(nn.Linear(self.feat_converter_input, self.kwargs['cnn_encoder_feature_dim']*2))
+            self.featout_converter.append(nn.ReLU())
+            self.featout_converter.append(nn.Linear(self.kwargs['cnn_encoder_feature_dim']*2, self.kwargs['feat_converter_output_size'])) 
+            self.featout_converter.append(nn.ReLU())
+            self.featout_converter =  nn.Sequential(*self.featout_converter)
+            self.encoder_feature_shape = self.kwargs['feat_converter_output_size']
+        
+        self.cnn_encoder_normalization = nn.BatchNorm1d(num_features=self.encoder_feature_shape)
+        
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
         if self.kwargs['temporal_encoder_nbr_rnn_layers'] > 0:
             self.temporal_feature_encoder = layer_init(nn.LSTM(input_size=temporal_encoder_input_dim,
@@ -48,8 +102,8 @@ class LSTMCNNListener(Listener):
                                               bidirectional=False))
         else:
             self.temporal_feature_encoder = None
-            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim'])
-        
+            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.encoder_feature_shape)
+
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
     
@@ -99,6 +153,11 @@ class LSTMCNNListener(Listener):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
+
     def _compute_tau(self, tau0, h):
         '''
         invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
@@ -124,12 +183,50 @@ class LSTMCNNListener(Listener):
         total_size = experiences.size(0)
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
-            features.append( self.cnn_encoder(stin))
-        features = torch.cat(features, dim=0)
-        #if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
-        #    features = features.detach()
+            if isinstance(self.cnn_encoder, BetaVAE):
+                cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
+                if 'VAE_loss' in cnn_output_dict:
+                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
+                
+                if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
+                    self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
+                
+                for key in cnn_output_dict:
+                    if key not in self.buffer_cnn_output_dict:
+                        self.buffer_cnn_output_dict[key] = list()
+                    self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
+
+                if self.kwargs['vae_use_mu_value']:
+                    featout = self.cnn_encoder.mu 
+                else:
+                    featout = self.cnn_encoder.z
+
+                if self.vae_detached_featout:
+                    featout = featout.detach()
+
+                featout = self.featout_converter(featout)
+            else:
+                featout = self.cnn_encoder(stin)
+                if self.use_feat_converter:
+                    featout = self.featout_converter(featout)
+
+            features.append(featout)
+        
+        #features = torch.cat(features, dim=0)
+        features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
+        
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
+            
+            for key in self.buffer_cnn_output_dict:
+                self.log_dict[key] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
+
+            self.log_dict['kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
+            if len(self.compactness_losses):
+                self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
+
         return features 
 
     def _reason(self, sentences, features):
