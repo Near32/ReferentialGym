@@ -794,10 +794,17 @@ def main():
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
   test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
 
-  dataset_args = {
-      "dataset_class":            "DualLabeledDataset",
+  
+  '''
       "train_dataset":            train_dataset,
       "test_dataset":             test_dataset,
+  '''
+  
+  dataset_args = {
+      "dataset_class":            "DualLabeledDataset",
+      "modes": {"train": train_dataset,
+                "test": test_dataset,
+                },
       "nbr_stimulus":             rg_config['nbr_stimulus'],
       "distractor_sampling":      rg_config['distractor_sampling'],
       "nbr_distractors":          rg_config['nbr_distractors'],

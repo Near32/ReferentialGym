@@ -4,6 +4,120 @@ import torch.nn.functional as F
 
 import copy
 
+def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, multi_round=False):
+    '''
+    Computes the reward and done boolean of the current timestep.
+    Episode ends if the decisions are correct 
+    (or if the max number of round is achieved, but this is handled outside of this function).
+    '''
+    done = (sampled_decision_idx == target_decision_idx)
+    r = done.float()*torch.ones_like(target_decision_idx)
+    if multi_round:
+        r -= 0.1
+    return r, done
+
+import numpy as np 
+import random 
+
+class ExperienceBuffer(object):
+    def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
+        '''
+        Use a different circular offset['succ_s']=n to implement truncated n-step return...
+        '''
+        if keys is None:    keys = ['s', 'a', 'r', 'non_terminal', 'rnn_state']
+        self.keys = keys
+        self.circular_keys = circular_keys
+        self.circular_offsets = circular_offsets
+        self.capacity = capacity
+        self.position = dict()
+        self.current_size = dict()
+        self.reset()
+
+    def add_key(self, key):
+        self.keys += [key]
+        setattr(self, key, np.zeros(self.capacity+1, dtype=object))
+        self.position[key] = 0
+        self.current_size[key] = 0
+
+    def add(self, data):
+        for k, v in data.items():
+            if not(k in self.keys or k in self.circular_keys):  continue
+            if k in self.circular_keys: continue
+            getattr(self, k)[self.position[k]] = v
+            self.position[k] = int((self.position[k]+1) % self.capacity)
+            self.current_size[k] = min(self.capacity, self.current_size[k]+1)
+
+    def pop(self):
+        '''
+        Output a data dict of the latest 'complete' data experience.
+        '''
+        all_keys = self.keys+list(self.circular_keys.keys())
+        max_offset = 0
+        if len(self.circular_offsets):
+            max_offset = max([offset for offset in self.circular_offsets.values()])
+        data = {k:None for k in self.keys}
+        for k in all_keys:
+            fetch_k = k
+            offset = 0
+            if k in self.circular_keys: 
+                fetch_k = self.circular_keys[k]
+                offset = self.circular_offsets[k]
+            next_position_write = self.position[fetch_k] 
+            position_complete_read_possible = (next_position_write-1)-max_offset
+            k_read_position = position_complete_read_possible+offset 
+            data[k] = getattr(self, fetch_k)[k_read_position]
+        return data 
+
+    def reset(self):
+        for k in self.keys:
+            if k in self.circular_keys: continue
+            setattr(self, k, np.zeros(self.capacity+1, dtype=object))
+            self.position[k] = 0
+            self.current_size[k] = 0
+
+    def cat(self, keys, indices=None):
+        data = []
+        for k in keys:
+            assert k in self.keys or k in self.circular_keys, f"Tried to get value from key {k}, but {k} is not registered."
+            indices_ = indices
+            cidx=0
+            if k in self.circular_keys: 
+                cidx=self.circular_offsets[k]
+                k = self.circular_keys[k]
+            v = getattr(self, k)
+            if indices_ is None: indices_ = np.arange(self.current_size[k]-1-cidx)
+            else:
+                # Check that all indices are in range:
+                for idx in range(len(indices_)):
+                    if self.current_size[k]>0 and indices_[idx]>=self.current_size[k]-1-cidx:
+                        indices_[idx] = np.random.randint(self.current_size[k]-1-cidx)
+                        # propagate to argument:
+                        indices[idx] = indices_[idx]
+            '''
+            '''
+            indices_ = cidx+indices_
+            values = v[indices_]
+            data.append(values)
+        return data 
+
+    def __len__(self):
+        return self.current_size[self.keys.keys()[0]]
+
+    def sample(self, batch_size, keys=None):
+        if keys is None:    keys = self.keys + self.circular_keys.keys()
+        min_current_size = self.capacity
+        for idx_key in reversed(range(len(keys))):
+            key = keys[idx_key]
+            if key in self.circular_keys:   key = self.circular_keys[key]
+            if self.current_size[key] == 0:
+                continue
+            if self.current_size[key] < min_current_size:
+                min_current_size = self.current_size[key]
+
+        indices = np.random.choice(np.arange(min_current_size-1), batch_size)
+        data = self.cat(keys=keys, indices=indices)
+        return data
+
 
 class Agent(nn.Module):
     def __init__(self, agent_id='l0', logger=None, kwargs=None):
@@ -22,6 +136,18 @@ class Agent(nn.Module):
         self.use_sentences_one_hot_vectors = False
 
         self.hooks = []
+
+        # REINFORCE algorithm:
+        self.gamma = 0.99
+        self.reward_fn = penalize_multi_round_binary_reward_fn
+        self.exp_buffer = ExperienceBuffer(capacity=self.kwargs['nbr_communication_rounds']*2, 
+                                           keys={'speaker_sentences_log_probs',
+                                                 'listener_sentences_log_probs',
+                                                 'decision_log_probs',
+                                                 'r',
+                                                 'done'}, 
+                                           circular_keys={}, 
+                                           circular_offsets={})
 
     def clone(self, clone_id='a0'):
         logger = self.logger
@@ -78,6 +204,7 @@ class Agent(nn.Module):
         Compute the losses and return them along with the produced outputs.
 
         :param inputs_dict: Dict that should contain, at least, the following keys and values:
+            - `'sentences_logits'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits over symbols.
             - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
             - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - `'experiences'`: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -127,11 +254,6 @@ class Agent(nn.Module):
                     mode=mode,
                     role=role
                     )
-
-        for logname, value in self.log_dict.items():
-            self.logger.add_scalar('{}/{}/{}'.format(mode, role, logname), value.item(), it)    
-        self.log_dict = {}
-
 
 
         '''
@@ -214,7 +336,7 @@ class Agent(nn.Module):
             decision_logits = outputs_dict['decision']
             final_decision_logits = decision_logits
             # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            if config['agent_loss_type'] == 'NLL':
+            if config['agent_loss_type'].lower() == 'nll':
                 if config['descriptive']:  
                     decision_probs = F.log_softmax( final_decision_logits, dim=-1)
                     criterion = nn.NLLLoss(reduction='none')
@@ -240,7 +362,7 @@ class Agent(nn.Module):
                     loss = criterion( final_decision_logits, sample['target_decision_idx'])
                     # (batch_size, )
                 losses_dict['referential_game_loss'] = [1.0, loss]
-            elif config['agent_loss_type'] == 'Hinge':
+            elif config['agent_loss_type'].lower() == 'hinge':
                 #Havrylov's Hinge loss:
                 final_decision_logits = final_decision_logits[:,-1,...]
                 # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
@@ -270,6 +392,133 @@ class Agent(nn.Module):
                 entropy_loss = distr.entropy()
                 losses_dict['entropy_loss'] = [1.0, entropy_loss]
                 '''
+            elif 'reinforce' in config['agent_loss_type'].lower():
+                #REINFORCE Policy-gradient algorithm:
+
+                #Compute data:
+                final_decision_logits = final_decision_logits[:,-1,...]
+                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                decision_distrs = Categorical(logits=final_decision_logits) 
+                decision_entrs = decision_distrs.entropy()
+                if 'argmax' in config['agent_loss_type'].lower() and not(self.training):
+                    sampled_decision_idx = final_decision_logits.argmax(dim=-1)
+                else:
+                    sampled_decision_idx = decision_distrs.sample()
+                decision_log_probs = decision_distrs.log_prob(sampled_decision_idx).unsqueeze(-1)
+                # (batch_size, 1)
+                import ipdb; ipdb.set_trace()
+                # shapes
+
+                target_decision_idx = sample['target_decision_idx'].unsqueeze(1)
+                # (batch_size, 1)
+                
+                r, done = self.reward_fn(sampled_decision_idx=sampled_decision_idx,
+                                         target_decision_idx=target_decision_idx,
+                                         multi_round=inputs_dict['multi_round'])
+                
+                # Compute sentences log_probs:
+                speaker_sentences_log_probs = F.log_softmax(inputs_dict['sentences_logits'], dim=-1)
+                # (batch_size, max_sentence_length, vocab_size)
+                
+                speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
+                    index=inputs_dict['sentences_widx']).unsqueeze(-1)
+                # (batch_size, max_sentence_length, 1)
+                speaker_sentences_log_probs = speaker_sentences_log_probs.sum(dim=1)
+                # (batch_size, 1)
+
+                # Entropy:
+                speaker_sentences_entrs = -(torch.pow(2, speaker_sentences_log_probs) * speaker_sentences_log_probs)
+                
+                listener_sentences_log_probs = None
+                listener_sentences_entrs = None 
+                if inputs_dict['multi_round']:  
+                    listener_sentences_log_probs = F.log_softmax(outputs_dict['sentences_logits'], dim=-1)
+                    # (batch_size, max_sentence_length, vocab_size)
+                    listener_sentences_log_probs = listener_sentences_log_probs.gather(dim=-1, 
+                        index=outputs_dict['sentences_widx']).unsqueeze(-1)
+                    # (batch_size, max_sentence_length, 1)
+                    listener_sentences_log_probs = listener_sentences_log_probs.sum(dim=1)
+                    # (batch_size, 1)
+                    
+                    # Entropy:
+                    listener_sentences_entrs = -(torch.pow(2, listener_sentences_log_probs) * listener_sentences_log_probs)
+                        
+                # Record data:
+                data = {'speaker_sentences_entrs':speaker_sentences_entrs,
+                        'speaker_sentences_log_probs':speaker_sentences_log_probs,
+                        'listener_sentences_entrs':listener_sentences_entrs,
+                        'listener_sentences_log_probs':listener_sentences_log_probs,
+                        'decision_entrs':decision_entrs,
+                        'decision_log_probs':decision_log_probs,
+                        'r':r,
+                        'done':done}
+
+                self.exp_buffer.add(data)
+
+                # Compute losses:
+                if not(inputs_dict['multi_round']):
+                    # then it is the last round, we can compute the loss:
+                    exp_size = len(self.exp_buffer)
+                    R = torch.zeros_like(r)
+                    speaker_loss = []
+                    listener_loss = []
+                    returns = []
+                    for r in self.exp_buffer.r[:exp_size:-1]:
+                        R = r + self.gamma * R
+                        # (batch_size, 1)
+                        returns.insert(0, R.view(-1,1))
+                    returns = torch.cat(returns, dim=1)
+                    # (batch_size, nbr_communication_round)
+                    learning_signal = (returns - returns.mean(dim=0)) / (returns.std(dim=0) + 1e-8)
+                    # (batch_size, nbr_communication_round)
+                    import ipdb; idpb.set_trace()
+                    # verify the shape of learning_signal
+                    
+                    for it_round in range(learning_signal.shape[1]):
+                        self.log_dict[f'{self.agent_id}/learning_signal_{it_round}'] = learning_signal[:,it_round].mean()
+                    
+                    decision_probs = torch.cat(self.exp_buffer.decision_probs[:exp_size], dim=-1)
+                    decision_log_probs = torch.cat(self.exp_buffer.decision_log_probs[:exp_size], dim=-1)
+                    # (batch_size, nbr_communication_round)
+                    listener_decision_loss = (-decision_log_prob * learning_signal).sum(dim=-1)
+                    # (batch_size, )
+                    
+                    # Decision Entropy loss:
+                    decision_entropy = torch.cat(self.exp_buffer.decision_entrs[:exp_size], dim=-1).mean(dim=-1)
+                    # (batch_size, )
+                    self.log_dict[f'{self.agent_id}/decision_entropy'] = decision_entropy.mean()
+                    #losses_dict['decision_entropy'] = [1.0, speaker_entropy_loss]    
+                    
+
+                    speaker_sentences_log_probs = torch.cat(self.exp_buffer.speaker_sentences_log_probs[:exp_size], dim=-1)
+                    # (batch_size, nbr_communication_round)
+                    speaker_policy_loss = (-speaker_sentences_log_probs * learning_signal).sum(dim=-1)
+                    # (batch_size, )
+                    losses_dict['speaker_policy_loss'] = [1.0, speaker_policy_loss]    
+                    
+                    # Speaker Entropy loss:
+                    speaker_entropy_loss = torch.cat(self.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).mean(dim=-1)
+                    # (batch_size, )
+                    losses_dict['speaker_entropy_loss'] = [1.0, speaker_entropy_loss]    
+                    
+                    if exp_size > 1:
+                        # Align and reinforce on the listener sentences output:
+                        # Each listener sentences contribute to the reward of the next round.
+                        # The last listener sentence does not contribute to anything 
+                        # (and should not even be computed, as seen by th guard on multi_round above).
+                        listener_sentences_log_probs = torch.cat(self.exp_buffer.listener_sentences_log_probs[:exp_size-1], dim=-1)
+                        # (batch_size, nbr_communication_round-1)
+                        listener_policy_loss = (-listener_sentences_log_probs * learning_signal[1:]).sum(dim=-1)
+                        # (batch_size, )
+                        losses_dict['listener_policy_loss'] = [1.0, listener_policy_loss]    
+                    
+                        # Listener Entropy loss:
+                        listener_entropy_loss = torch.cat(self.exp_buffer.listener_sentences_entrs[:exp_size], dim=-1).mean(dim=-1)
+                        # (batch_size, )
+                        losses_dict['listener_entropy_loss'] = [1.0, listener_entropy_loss]    
+                    
+
+                    self.exp_buffer.reset()
             else:
                 raise NotImplementedError
 
@@ -294,6 +543,11 @@ class Agent(nn.Module):
             if config['with_weight_maxl1_loss']:
                 losses_dict['listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
         
+        # Logging:        
+        for logname, value in self.log_dict.items():
+            self.logger.add_scalar('{}/{}/{}'.format(mode, role, logname), value.item(), it)    
+        self.log_dict = {}
+
         self._tidyup()
         
         return outputs_dict, losses_dict    

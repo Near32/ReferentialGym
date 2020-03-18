@@ -65,7 +65,6 @@ class ReferentialGame(object):
         print("Create dataloader: ...")
         
         '''
-        '''
         data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
                                                             batch_size=self.config['batch_size'],
                                                             shuffle=True,
@@ -80,35 +79,16 @@ class ReferentialGame(object):
                                                            num_workers=self.config['dataloader_num_worker'])
                         }
         '''
-        '''
         
-        '''
-        data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
-                                                    batch_size=self.config['batch_size'],
-                                                    shuffle=True,
-                                                    collate_fn=collate_dict_wrapper,
-                                                    pin_memory=True,
-                                                    num_workers=self.config['dataloader_num_worker']),
-                'test':torch.utils.data.DataLoader(self.datasets['test'],
-                                                   batch_size=self.config['batch_size'],
-                                                   shuffle=True,
-                                                   collate_fn=collate_dict_wrapper,
-                                                   pin_memory=True,
-                                                   num_workers=self.config['dataloader_num_worker'])
-                }
-
-        nbr_it_per_epoch = len(data_loaders['train'])
-        #for epoch in tqdm(range(100)):
-        for epoch in range(100):
-            #print(epoch, len(data_loaders['train']))
-            for i, item in tqdm(enumerate(data_loaders['train'])):
-            #for i, item in enumerate(data_loaders['train']):
-                #print(epoch, i)
-                #print(len(item))
-                pass 
-        raise 
-        '''
-
+        data_loaders = {mode:torch.utils.data.DataLoader(dataset,
+                                                            batch_size=self.config['batch_size'],
+                                                            shuffle=True,
+                                                            collate_fn=collate_dict_wrapper,
+                                                            pin_memory=True,
+                                                            num_workers=self.config['dataloader_num_worker'])
+                        for mode, dataset in self.datasets.items()
+                        }
+        
         print("Create dataloader: OK.")
         print("Create Agents: ...")
         
@@ -148,20 +128,26 @@ class ReferentialGame(object):
         print("Launching training: ...")
 
         it = 0
+        '''
         it_datasamples = {'train':0, 'test':0} # counting the number of data sampled from dataloaders
         it_samples = {'train':0, 'test':0} # counting the number of multi-round
         it_steps = {'train':0, 'test':0} # taking into account multi round... counting the number of sample shown to the agents.
+        '''
+        it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
+        it_samples = {mode:0 for mode in self.datasets} # counting the number of multi-round
+        it_steps = {mode:0 for mode in self.datasets} # taking into account multi round... counting the number of sample shown to the agents.
+        
         if self.config['use_curriculum_nbr_distractors']:
             windowed_accuracy = 0.0
             window_count = 0
-            self.datasets['train'].setNbrDistractors(1)
-            self.datasets['test'].setNbrDistractors(1)
-
-        pbar = tqdm(total=nbr_epoch*len(self.datasets['train']))
-
+            for mode in self.datasets:
+                self.datasets[mode].setNbrDistractors(1)
+            
+        #pbar = tqdm(total=nbr_epoch*len(self.datasets['train']))
+        pbar = tqdm(total=nbr_epoch*sum([len(dataset) for dataset in self.datasets]))
+        
         for epoch in range(nbr_epoch):
-            for mode in ['train','test']:
-                data_loader = data_loaders[mode]
+            for mode, data_loader in data_loaders:
                 counterGames = 0
                 total_sentences = []
                 total_nbr_unique_stimulus = 0
@@ -174,7 +160,8 @@ class ReferentialGame(object):
                         it_datasamples[mode] += 1
                         it_datasample = it_datasamples[mode]
                         it = it_datasample
-                        if mode == 'train': pbar.update(len(sample['speaker_experiences']))
+                        
+                        pbar.update(len(sample['speaker_experiences']))
 
                         if mode == 'train':
                             if'obverter' in self.config['graphtype']:
@@ -208,7 +195,7 @@ class ReferentialGame(object):
                                                                  speakers_optimizers,
                                                                  listeners_optimizers,
                                                                  agents_stats)
-                        if mode == 'train': 
+                        if 'train' in mode: 
                             speaker.train()
                             listener.train()
                         else:
@@ -227,7 +214,7 @@ class ReferentialGame(object):
                             it_sample = it_samples[mode]
                             end_of_epoch_sample = end_of_epoch_datasample and (it_rep==self.config['nbr_experience_repetition']-1)
                         
-
+                            lsitener_sentences_logits = None
                             listener_sentences_one_hot = None
                             listener_sentences_widx = None 
                             batch_size = len(sample['speaker_experiences'])
@@ -243,6 +230,7 @@ class ReferentialGame(object):
                                 speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
                                                        'latent_experiences':sample['speaker_latent_experiences'], 
                                                        'latent_experiences_values':sample['speaker_latent_experiences_values'], 
+                                                       'sentences_logits':lsitener_sentences_logits,
                                                        'sentences_one_hot':listener_sentences_one_hot,
                                                        'sentences_widx':listener_sentences_widx, 
                                                        'graphtype':self.config['graphtype'],
@@ -272,6 +260,8 @@ class ReferentialGame(object):
                                     listener_inputs_dict[k] = speaker_outputs[k] 
 
                                 if self.config['graphtype'] == 'obverter':
+                                    if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
+                                        listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
                                         listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
                                     if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
@@ -292,11 +282,14 @@ class ReferentialGame(object):
                                                                                    it=it_step)
 
                                 if self.config['graphtype'] == 'obverter':
+                                    if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
+                                        listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
                                         listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
                                     if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
                                         listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
 
+                                listener_sentences_logits = listener_outputs['sentences_logits']
                                 listener_sentences_one_hot = listener_outputs['sentences_one_hot']
                                 listener_sentences_widx = listener_outputs['sentences_widx']
 
@@ -321,7 +314,7 @@ class ReferentialGame(object):
                                 losses[k][idx_loss] = v[0]*v[idx_loss].mean()
                             loss = sum( [l[idx_loss] for l in losses.values()])
 
-                            if mode == 'train':
+                            if 'train' in mode:
                                 speaker_optimizer.zero_grad()
                                 listener_optimizer.zero_grad()
                                 loss.backward()
@@ -417,7 +410,7 @@ class ReferentialGame(object):
                                 #logger.add_histogram( "{}/LossesPerStimulus".format(mode), losses, it_step)
                                 logger.add_scalar( "{}/Stimulus/Mean".format(mode), sample['listener_experiences'].mean(), it_step)
                                 
-                                if mode == 'train':
+                                if 'train' in mode:
                                     if hasattr(speaker,'tau'): 
                                         #logger.add_histogram( "{}/Speaker/Tau".format(mode), speaker.tau, it_step)
                                         tau = torch.cat([ t.view((-1)) for t in speaker.tau], dim=0) if isinstance(speaker.tau, list) else speaker.tau
@@ -481,7 +474,7 @@ class ReferentialGame(object):
                             speaker = speaker.cpu()
                             listener = listener.cpu()
                         
-                        if mode == 'train' and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
+                        if 'train' in mode and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
                             if 'oldest' in self.config['cultural_reset_strategy']:
                                 if 'S' in self.config['cultural_reset_strategy']:
                                     weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ] 
@@ -541,20 +534,20 @@ class ReferentialGame(object):
                                     agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
                                 print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
                         
-                        if self.config['use_curriculum_nbr_distractors'] and mode == 'train':
-                            nbr_distractors = self.datasets['train'].getNbrDistractors()
+                        if self.config['use_curriculum_nbr_distractors'] and 'train' in mode:
+                            nbr_distractors = self.datasets[mode].getNbrDistractors()
                             windowed_accuracy = (windowed_accuracy*window_count+acc.item())
                             window_count += 1
                             windowed_accuracy /= window_count
                             if windowed_accuracy > 60 and window_count > self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
                                 windowed_accuracy = 0
                                 window_count = 0
-                                self.datasets['train'].setNbrDistractors(self.datasets['train'].getNbrDistractors()+1)
-                                self.datasets['test'].setNbrDistractors(self.datasets['test'].getNbrDistractors()+1)
+                                for mode in self.dataset:
+                                    self.datasets[mode].setNbrDistractors(self.datasets[mode].getNbrDistractors()+1)
                         # //------------------------------------------------------------//
                                             
                 if logger is not None:
-                    if mode == 'test':  
+                    if 'test' in mode:  
                         max_nbr_samples = None
                     else:   
                         max_nbr_samples = int(len(total_sentences)*0.1)
