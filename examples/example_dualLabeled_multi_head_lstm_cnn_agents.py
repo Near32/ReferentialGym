@@ -138,6 +138,12 @@ class MultiHeadHookSpeaker(nn.Module):
 def main():
   parser = argparse.ArgumentParser(description='Experiment 1: Interpolation with Interweaved Set.')
   parser.add_argument('--seed', type=int, default=0)
+  parser.add_argument('--dataset', type=str, 
+    choices=['dSprites',
+             'CIFAR10',
+             'CIFAR100'], 
+    help='dataset to train on.',
+    default='dSprites')
   parser.add_argument('--arch', type=str, 
     choices=['CNN',
              'CoordCNN',
@@ -165,7 +171,6 @@ def main():
              'baseline_reduced_normalized_reinforce',
              'max_entr_reinforce',
              'baseline_reduced_normalized_max_entr_reinforce',
-             'baseline_reduced_max_entr_reinforce',
              'argmax_reinforce',
              'obverter'],
     help='type of graph to use during training of the speaker and listener.',
@@ -327,7 +332,7 @@ def main():
 
       "batch_size":               args.batch_size,
       "dataloader_num_worker":    4,
-      "stimulus_depth_dim":       1,
+      "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
       "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
@@ -713,7 +718,7 @@ def main():
       rg_config['cultural_pressure_it_period'],
       rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
   
-  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}/stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -740,12 +745,12 @@ def main():
     save_path += f"LossVAECoeff{args.vae_lambda}_{'UseMu' if args.vae_use_mu_value else ''}"
 
   if rg_config['use_feat_converter']:
-    save_path += f"/+FEATCONV/"
+    save_path += f"+FEATCONV"
   
   if rg_config['use_homoscedastic_multitasks_loss']:
     save_path += '+Homo'
   
-  save_path += '+not_splitted_conv_map/ListenerBN/EntropyCoeffPos1e3/NegPG/CompEntr1'
+  save_path += f'+not_splitted_conv_map/ListenerBN/EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/{args.dataset}'
 
   save_path += f'+DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
@@ -768,7 +773,6 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  #multi_head_config = {'heads_output_sizes':['N', 3, 6, 40, 32, 32],
   multi_head_config = {'heads_output_sizes':[2, 3, 6, 40, 32, 32],
                         'heads_archs':[
                                         [512],
@@ -784,12 +788,13 @@ def main():
                                 agent_id='s0',
                                 logger=logger)      
 
-  speaker_hook = MultiHeadHookSpeaker(agent=speaker, 
-                       config_attr_name='multi_head_config',
-                       input_attr_name='feat_maps',
-                       heads_attr_name='heads')
-  speaker.register_hook(speaker_hook)
-
+  if 'dSprites' in args.dataset:
+    speaker_hook = MultiHeadHookSpeaker(agent=speaker, 
+                         config_attr_name='multi_head_config',
+                         input_attr_name='feat_maps',
+                         heads_attr_name='heads')
+    speaker.register_hook(speaker_hook)
+  
   print("Speaker:", speaker)
 
   from ReferentialGym.agents import LSTMCNNListener
@@ -819,10 +824,13 @@ def main():
   print("Listener:", listener)
 
   # # Dataset:
-
-  root = './datasets/dsprites-dataset'
-  train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
-  test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  if 'dSprites' in args.dataset:
+    root = './datasets/dsprites-dataset'
+    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
+    test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  elif 'CIFAR10' in args.dataset:
+    train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=rg_config['train_transform'], download=True)
+    test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=rg_config['test_transform'], download=True)
 
   
   '''

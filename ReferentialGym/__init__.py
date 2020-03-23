@@ -3,6 +3,9 @@ from . import agents
 from . import networks
 from .referential_game import ReferentialGame
 
+import copy 
+
+
 def make(config, dataset_args):
     """
     Create a ReferentialGame with all the different evalutation modes,

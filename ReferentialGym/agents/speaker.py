@@ -7,7 +7,7 @@ from .agent import Agent
 
 
 class Speaker(Agent):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None, kwargs=None):
+    def __init__(self, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None, kwargs=None):
         '''
         :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
                           where, by default, `nbr_experiences=1` (partial observability), and `sequence_length=1` (static stimuli). 
@@ -17,10 +17,12 @@ class Speaker(Agent):
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         :param kwargs: Dict of kwargs...
         '''
-        super(Speaker, self).__init__(agent_id=agent_id, logger=logger, kwargs=kwargs)
-        self.obs_shape = obs_shape
-        self.vocab_size = vocab_size
-        self.max_sentence_length = max_sentence_length
+        super(Speaker, self).__init__(agent_id=agent_id, 
+                                      obs_shape=obs_shape,
+                                      vocab_size=vocab_size,
+                                      max_sentence_length=max_sentence_length,
+                                      logger=logger, 
+                                      kwargs=kwargs)
         
         # Multi-round:
         self._reset_rnn_states()

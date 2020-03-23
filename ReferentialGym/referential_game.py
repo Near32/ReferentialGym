@@ -147,7 +147,7 @@ class ReferentialGame(object):
         pbar = tqdm(total=nbr_epoch*sum([len(dataset) for dataset in self.datasets]))
         
         for epoch in range(nbr_epoch):
-            for mode, data_loader in data_loaders:
+            for mode, data_loader in data_loaders.items():
                 counterGames = 0
                 total_sentences = []
                 total_nbr_unique_stimulus = 0
@@ -374,7 +374,10 @@ class ReferentialGame(object):
                                 total_nbr_unique_stimulus += batch_size
                                 logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, it_step)
                                 
-                                entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                                #entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
+                                sentences_log_probs = [s_logits.reshape(-1,self.config['vocab_size']).log_softmax(dim=-1) for s_logits in speaker_outputs['sentences_logits']]
+                                speaker_sentences_log_probs = torch.cat([s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) for s_log_probs, s_widx in zip(sentences_log_probs, speaker_outputs['sentences_widx'])], dim=0)
+                                entropies_per_sentence = -(speaker_sentences_log_probs.exp() * speaker_sentences_log_probs)
                                 # (batch_size, )
                                 logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), it_step)
                                 
@@ -428,7 +431,6 @@ class ReferentialGame(object):
                             
 
                             if verbose_period is not None and idx_stimuli % verbose_period == 0:
-                                #descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), it_step, loss.item())
                                 descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimuli, len(data_loader), it, loss.item())
                                 pbar.set_description_str(descr)
                                 # Show some sentences:

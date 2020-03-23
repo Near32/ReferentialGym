@@ -1,10 +1,37 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Categorical
+
+import numpy as np 
+import random 
 
 import copy
 
-def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, multi_round=False):
+
+def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
+    target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
+    # (batch_size, 1)
+
+    distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
+        for pb_dl, tidx in zip(decision_logits, target_decision_idx)]
+    distractors_decision_logits = torch.cat(
+        distractors_logits_list, 
+        dim=0)
+    # (batch_size, nbr_distractors)
+    
+    loss_element = 1-target_decision_logits+distractors_decision_logits
+    # (batch_size, nbr_distractors)
+    maxloss_element = torch.max(torch.zeros_like(loss_element), loss_element)
+    loss = maxloss_element.sum(dim=1)
+    # (batch_size, )
+
+    done = (target_decision_idx == decision_logits.argmax(dim=-1))
+    
+    return loss, done
+
+
+def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, decision_logits=None, multi_round=False):
     '''
     Computes the reward and done boolean of the current timestep.
     Episode ends if the decisions are correct 
@@ -14,10 +41,8 @@ def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_
     r = done.float()*torch.ones_like(target_decision_idx)
     if multi_round:
         r -= 0.1
-    return r, done
+    return -r, done
 
-import numpy as np 
-import random 
 
 class ExperienceBuffer(object):
     def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
@@ -35,7 +60,8 @@ class ExperienceBuffer(object):
 
     def add_key(self, key):
         self.keys += [key]
-        setattr(self, key, np.zeros(self.capacity+1, dtype=object))
+        #setattr(self, key, np.zeros(self.capacity+1, dtype=object))
+        setattr(self, key, [None]*(self.capacity+1))
         self.position[key] = 0
         self.current_size[key] = 0
 
@@ -71,7 +97,8 @@ class ExperienceBuffer(object):
     def reset(self):
         for k in self.keys:
             if k in self.circular_keys: continue
-            setattr(self, k, np.zeros(self.capacity+1, dtype=object))
+            #setattr(self, k, np.zeros(self.capacity+1, dtype=object))
+            setattr(self, k, [None]*(self.capacity+1))
             self.position[k] = 0
             self.current_size[k] = 0
 
@@ -101,7 +128,7 @@ class ExperienceBuffer(object):
         return data 
 
     def __len__(self):
-        return self.current_size[self.keys.keys()[0]]
+        return self.current_size[self.keys[0]]
 
     def sample(self, batch_size, keys=None):
         if keys is None:    keys = self.keys + self.circular_keys.keys()
@@ -120,34 +147,57 @@ class ExperienceBuffer(object):
 
 
 class Agent(nn.Module):
-    def __init__(self, agent_id='l0', logger=None, kwargs=None):
+    def __init__(self, agent_id='l0', obs_shape=[1,1,1,32,32], vocab_size=100, max_sentence_length=10, logger=None, kwargs=None):
         """
         :param agent_id: str defining the ID of the agent over the population.
+        :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
+                          where, by default, `nbr_experiences=1` (partial observability), and `sequence_length=1` (static stimuli). 
+        :param vocab_size: int defining the size of the vocabulary of the language.
+        :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         :param kwargs: Dict of kwargs...
         """
         super(Agent, self).__init__()
         self.agent_id = agent_id
+        
+        self.obs_shape = obs_shape
+        self.vocab_size = vocab_size
+        self.max_sentence_length = max_sentence_length
+        
         self.logger = logger 
         self.kwargs = kwargs
+
         self.log_idx = 0
         self.log_dict = dict()
 
         self.use_sentences_one_hot_vectors = False
 
+        self.vocab_start_idx = 0
+        self.vocab_stop_idx = 1
+        self.vocab_pad_idx = self.vocab_size-1       
+        
         self.hooks = []
 
         # REINFORCE algorithm:
         self.gamma = 0.99
-        self.reward_fn = penalize_multi_round_binary_reward_fn
-        self.exp_buffer = ExperienceBuffer(capacity=self.kwargs['nbr_communication_rounds']*2, 
-                                           keys={'speaker_sentences_log_probs',
+        #self.learning_signal_pred_fn = penalize_multi_round_binary_loss_fn
+        self.learning_signal_pred_fn = havrylov_hinge_learning_signal
+        self.exp_buffer = ExperienceBuffer(capacity=self.kwargs['nbr_communication_round']*2,
+                                           keys=['speaker_sentences_entrs',
+                                                 'speaker_sentences_token_bool',
+                                                 'speaker_sentences_log_probs',
+                                                 'listener_sentences_entrs',
                                                  'listener_sentences_log_probs',
+                                                 'decision_entrs',
                                                  'decision_log_probs',
                                                  'r',
-                                                 'done'}, 
+                                                 'done'],
                                            circular_keys={}, 
                                            circular_offsets={})
+
+        self.learning_signal_baseline = 0.0
+        self.learning_signal_baseline_counter = 0
+
 
     def clone(self, clone_id='a0'):
         logger = self.logger
@@ -336,117 +386,152 @@ class Agent(nn.Module):
             decision_logits = outputs_dict['decision']
             final_decision_logits = decision_logits
             # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            if config['agent_loss_type'].lower() == 'nll':
-                if config['descriptive']:  
-                    decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                    criterion = nn.NLLLoss(reduction='none')
-                    
-                    if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
-                        loss = 0.0
-                        losses4widx = []
-                        for widx in range(decision_probs.size(1)):
-                            dp = decision_probs[:,widx,...]
-                            ls = criterion( dp, sample['target_decision_idx'])
-                            loss += config['obverter_least_effort_loss_weights'][widx]*ls 
-                            losses4widx.append(ls)
-                    else:
-                        decision_probs = decision_probs[:,-1,...]
-                        loss = criterion( decision_probs, sample['target_decision_idx'])
+            if 'straight_through_gumbel_softmax' in config['graphtype'].lower() or 'obverter' in config['graphtype'].lower():
+                if config['agent_loss_type'].lower() == 'nll':
+                    if config['descriptive']:  
+                        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                        criterion = nn.NLLLoss(reduction='none')
+                        
+                        if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
+                            loss = 0.0
+                            losses4widx = []
+                            for widx in range(decision_probs.size(1)):
+                                dp = decision_probs[:,widx,...]
+                                ls = criterion( dp, sample['target_decision_idx'])
+                                loss += config['obverter_least_effort_loss_weights'][widx]*ls 
+                                losses4widx.append(ls)
+                        else:
+                            decision_probs = decision_probs[:,-1,...]
+                            loss = criterion( decision_probs, sample['target_decision_idx'])
+                            # (batch_size, )
+                        
+                    else:   
+                        final_decision_logits = final_decision_logits[:,-1,...]
+                        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+                        criterion = nn.NLLLoss(reduction='none')
+                        loss = criterion( final_decision_logits, sample['target_decision_idx'])
                         # (batch_size, )
-                    
-                else:   
+                    losses_dict['referential_game_loss'] = [1.0, loss]
+                elif config['agent_loss_type'].lower() == 'hinge':
+                    #Havrylov's Hinge loss:
                     final_decision_logits = final_decision_logits[:,-1,...]
                     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                     decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                    criterion = nn.NLLLoss(reduction='none')
-                    loss = criterion( final_decision_logits, sample['target_decision_idx'])
+                    
+                    loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
+                                                          target_decision_idx=sample['target_decision_idx'].unsqueeze(1),
+                                                          multi_round=inputs_dict['multi_round'])
                     # (batch_size, )
-                losses_dict['referential_game_loss'] = [1.0, loss]
-            elif config['agent_loss_type'].lower() == 'hinge':
-                #Havrylov's Hinge loss:
-                final_decision_logits = final_decision_logits[:,-1,...]
-                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-                decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-                
-                target_decision_idx = sample['target_decision_idx'].unsqueeze(1)
-                target_decision_logits = final_decision_logits.gather(dim=1, index=target_decision_idx)
-                # (batch_size, 1)
+                    
+                    losses_dict['referential_game_loss'] = [1.0, loss]    
+                    '''
+                    # Entropy minimization:
+                    distr = torch.distributions.Categorical(probs=decision_probs)
+                    entropy_loss = distr.entropy()
+                    losses_dict['entropy_loss'] = [1.0, entropy_loss]
+                    '''
+                else:
+                    raise NotImplementedError
 
-                distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
-                    for pb_dl, tidx in zip(final_decision_logits, target_decision_idx)]
-                distractors_decision_logits = torch.cat(
-                    distractors_logits_list, 
-                    dim=0)
-                # (batch_size, nbr_distractors)
-                
-                loss_element = 1-target_decision_logits+distractors_decision_logits
-                # (batch_size, nbr_distractors)
-                maxloss_element = torch.max(torch.zeros_like(loss_element), loss_element)
-                loss = maxloss_element.sum(dim=1)
-                # (batch_size, )
-                
-                losses_dict['referential_game_loss'] = [1.0, loss]    
-                '''
-                # Entropy minimization:
-                distr = torch.distributions.Categorical(probs=decision_probs)
-                entropy_loss = distr.entropy()
-                losses_dict['entropy_loss'] = [1.0, entropy_loss]
-                '''
-            elif 'reinforce' in config['agent_loss_type'].lower():
+            elif 'reinforce' in config['graphtype'].lower():
                 #REINFORCE Policy-gradient algorithm:
 
                 #Compute data:
                 final_decision_logits = final_decision_logits[:,-1,...]
                 # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-                decision_distrs = Categorical(logits=final_decision_logits) 
+                decision_probs = final_decision_logits.softmax(dim=-1)
+                decision_distrs = Categorical(probs=decision_probs) 
                 decision_entrs = decision_distrs.entropy()
-                if 'argmax' in config['agent_loss_type'].lower() and not(self.training):
-                    sampled_decision_idx = final_decision_logits.argmax(dim=-1)
+                if 'argmax' in config['graphtype'].lower() and not(self.training):
+                    sampled_decision_idx = final_decision_logits.argmax(dim=-1).unsqueeze(-1)
                 else:
-                    sampled_decision_idx = decision_distrs.sample()
-                decision_log_probs = decision_distrs.log_prob(sampled_decision_idx).unsqueeze(-1)
+                    sampled_decision_idx = decision_distrs.sample().unsqueeze(-1)
                 # (batch_size, 1)
-                import ipdb; ipdb.set_trace()
-                # shapes
-
+                # It is very important to squeeze the sampled indices vector before computing log_prob,
+                # otherwise the shape is broadcasted...
+                decision_log_probs = decision_distrs.log_prob(sampled_decision_idx.squeeze()).unsqueeze(-1)
+                # (batch_size, 1)
+                
                 target_decision_idx = sample['target_decision_idx'].unsqueeze(1)
                 # (batch_size, 1)
                 
-                r, done = self.reward_fn(sampled_decision_idx=sampled_decision_idx,
-                                         target_decision_idx=target_decision_idx,
-                                         multi_round=inputs_dict['multi_round'])
+                learning_signal, done = self.learning_signal_pred_fn(sampled_decision_idx=sampled_decision_idx,
+                                                       decision_logits=final_decision_logits,
+                                                       target_decision_idx=target_decision_idx,
+                                                       multi_round=inputs_dict['multi_round'])
+                r = -learning_signal
+
+                # Where are the actual token (different from padding):
+                speaker_sentences_token_bool = (inputs_dict['sentences_widx'] != self.vocab_pad_idx)
+                # (batch_size, max_sentence_length, 1)
                 
                 # Compute sentences log_probs:
-                speaker_sentences_log_probs = F.log_softmax(inputs_dict['sentences_logits'], dim=-1)
+                speaker_sentences_logits = inputs_dict['sentences_logits']
                 # (batch_size, max_sentence_length, vocab_size)
-                
-                speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
-                    index=inputs_dict['sentences_widx']).unsqueeze(-1)
-                # (batch_size, max_sentence_length, 1)
-                speaker_sentences_log_probs = speaker_sentences_log_probs.sum(dim=1)
-                # (batch_size, 1)
+                pad_token_logit = torch.zeros_like(speaker_sentences_logits[0][0]).unsqueeze(0)
+                pad_token_logit[:, self.vocab_pad_idx] = 1.0
+                # (1, vocab_size,)
 
+                for b in range(len(speaker_sentences_logits)):
+                    remainder = self.kwargs['max_sentence_length'] - len(speaker_sentences_logits[b])
+                    if remainder > 0:
+                        speaker_sentences_logits[b] = torch.cat([speaker_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
+                    speaker_sentences_logits[b] = speaker_sentences_logits[b].unsqueeze(0)
+                speaker_sentences_logits = torch.cat(speaker_sentences_logits, dim=0)
+
+                speaker_sentences_log_probs = F.log_softmax(speaker_sentences_logits, dim=-1)
+                # (batch_size, max_sentence_length, vocab_size)
+                speaker_sentences_probs = speaker_sentences_log_probs.softmax(dim=-1)
+                # (batch_size, max_sentence_length, vocab_size)
+                speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
+                    index=inputs_dict['sentences_widx'].long())
+                # (batch_size, max_sentence_length, 1)
+                speaker_sentences_probs = speaker_sentences_probs.gather(dim=-1, 
+                    index=inputs_dict['sentences_widx'].long())
+                # (batch_size, max_sentence_length, 1)
+                
                 # Entropy:
-                speaker_sentences_entrs = -(torch.pow(2, speaker_sentences_log_probs) * speaker_sentences_log_probs)
+                speaker_sentences_entrs = -(speaker_sentences_probs * speaker_sentences_log_probs)
+                # (batch_size, max_sentence_length, 1)
                 
                 listener_sentences_log_probs = None
-                listener_sentences_entrs = None 
+                listener_sentences_entrs = None
+                listener_sentences_token_bool = None 
                 if inputs_dict['multi_round']:  
-                    listener_sentences_log_probs = F.log_softmax(outputs_dict['sentences_logits'], dim=-1)
+                    # Where are the actual token (different from padding):
+                    listener_sentences_token_bool = (outputs_dict['sentences_widx'] != self.vocab_pad_idx)
+                    # (batch_size, max_sentence_length, 1)
+                    
+                    listener_sentences_logits = outputs_dict['sentences_logits']
+                    # (batch_size, max_sentence_length, vocab_size)
+                    for b in range(len(listener_sentences_logits)):
+                        remainder = self.kwargs['max_sentence_length'] - len(listener_sentences_logits[b])
+                        if remainder > 0:
+                            listener_sentences_logits[b] = torch.cat([listener_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
+                        listener_sentences_logits[b] = listener_sentences_logits[b].unsqueeze(0)
+                    listener_sentences_logits = torch.cat(listener_sentences_logits, dim=0)
+                    listener_sentences_log_probs = F.log_softmax(listener_sentences_logits, dim=-1)
+                    # (batch_size, max_sentence_length, vocab_size)
+                    listener_sentences_probs = listener_sentences_log_probs.softmax(dim=-11)
                     # (batch_size, max_sentence_length, vocab_size)
                     listener_sentences_log_probs = listener_sentences_log_probs.gather(dim=-1, 
-                        index=outputs_dict['sentences_widx']).unsqueeze(-1)
+                        index=outputs_dict['sentences_widx'].long())
                     # (batch_size, max_sentence_length, 1)
-                    listener_sentences_log_probs = listener_sentences_log_probs.sum(dim=1)
-                    # (batch_size, 1)
+                    listener_sentences_probs = listener_sentences_probs.gather(dim=-1, 
+                        index=inputs_dict['sentences_widx'].long())
+                    # (batch_size, max_sentence_length, 1)
                     
                     # Entropy:
-                    listener_sentences_entrs = -(torch.pow(2, listener_sentences_log_probs) * listener_sentences_log_probs)
+                    listener_sentences_entrs = -(listener_sentences_probs * listener_sentences_log_probs)
+                    # (batch_size, max_sentence_length, 1)
                         
                 # Record data:
                 data = {'speaker_sentences_entrs':speaker_sentences_entrs,
+                        'speaker_sentences_token_bool':speaker_sentences_token_bool,
                         'speaker_sentences_log_probs':speaker_sentences_log_probs,
                         'listener_sentences_entrs':listener_sentences_entrs,
+                        'listener_sentences_token_bool':listener_sentences_token_bool,
                         'listener_sentences_log_probs':listener_sentences_log_probs,
                         'decision_entrs':decision_entrs,
                         'decision_log_probs':decision_log_probs,
@@ -460,28 +545,50 @@ class Agent(nn.Module):
                     # then it is the last round, we can compute the loss:
                     exp_size = len(self.exp_buffer)
                     R = torch.zeros_like(r)
-                    speaker_loss = []
-                    listener_loss = []
                     returns = []
-                    for r in self.exp_buffer.r[:exp_size:-1]:
+                    for r in reversed(self.exp_buffer.r[:exp_size]):
                         R = r + self.gamma * R
-                        # (batch_size, 1)
                         returns.insert(0, R.view(-1,1))
-                    returns = torch.cat(returns, dim=1)
+                        # (batch_size, 1)
+                    returns = torch.cat(returns, dim=-1)
                     # (batch_size, nbr_communication_round)
-                    learning_signal = (returns - returns.mean(dim=0)) / (returns.std(dim=0) + 1e-8)
+                    # Normalized:
+                    normalized_learning_signal = (returns - returns.mean(dim=0)) / (returns.std(dim=0) + 1e-8)
+                    # Unnormalized:
+                    learning_signal = returns #(returns - returns.mean(dim=0)) / (returns.std(dim=0) + 1e-8)
                     # (batch_size, nbr_communication_round)
-                    import ipdb; idpb.set_trace()
-                    # verify the shape of learning_signal
                     
+                    ls = learning_signal
+                    if 'normalized' in config['graphtype'].lower():
+                        ls = normalized_learning_signal
+
                     for it_round in range(learning_signal.shape[1]):
                         self.log_dict[f'{self.agent_id}/learning_signal_{it_round}'] = learning_signal[:,it_round].mean()
                     
-                    decision_probs = torch.cat(self.exp_buffer.decision_probs[:exp_size], dim=-1)
-                    decision_log_probs = torch.cat(self.exp_buffer.decision_log_probs[:exp_size], dim=-1)
-                    # (batch_size, nbr_communication_round)
-                    listener_decision_loss = (-decision_log_prob * learning_signal).sum(dim=-1)
+                    formatted_baseline = 0.0
+                    if 'baseline_reduced' in config['graphtype'].lower():
+                        if self.training:
+                            self.learning_signal_baseline = (self.learning_signal_baseline*self.learning_signal_baseline_counter+ls.detach().mean(dim=0))/(self.learning_signal_baseline_counter+1)
+                            self.learning_signal_baseline_counter += 1
+                        formatted_baseline = self.learning_signal_baseline.reshape(1,-1).repeat(batch_size,1).to(learning_signal.device)
+                    
+                        for it_round in range(learning_signal.shape[1]):
+                            self.log_dict[f'{self.agent_id}/learning_signal_baseline_{it_round}'] = self.learning_signal_baseline[it_round].mean()    
+                    
+                    # Deterministic:
+                    listener_decision_loss_deterministic = -learning_signal.sum(dim=-1)
                     # (batch_size, )
+                    listener_decision_loss = listener_decision_loss_deterministic
+                    
+                    if 'stochastic' in config['graphtype'].lower():
+                        # Stochastic:
+                        decision_log_probs = torch.cat(self.exp_buffer.decision_log_probs[:exp_size], dim=-1)
+                        # (batch_size, nbr_communication_round)
+                        listener_decision_loss_stochastic = -(decision_log_probs * (ls.detach()-formatted_baseline)).sum(dim=-1)
+                        # (batch_size, )
+                        listener_decision_loss = listener_decision_loss_deterministic+listener_decision_loss_stochastic
+                        
+                    losses_dict['referential_game_loss'] = [1.0, listener_decision_loss]    
                     
                     # Decision Entropy loss:
                     decision_entropy = torch.cat(self.exp_buffer.decision_entrs[:exp_size], dim=-1).mean(dim=-1)
@@ -491,31 +598,57 @@ class Agent(nn.Module):
                     
 
                     speaker_sentences_log_probs = torch.cat(self.exp_buffer.speaker_sentences_log_probs[:exp_size], dim=-1)
+                    # (batch_size, max_sentence_length, nbr_communication_round)
+                    # The log likelihood of each sentences is the sum (in log space) over each next token prediction:
+                    speaker_sentences_log_probs = speaker_sentences_log_probs.sum(1)
                     # (batch_size, nbr_communication_round)
-                    speaker_policy_loss = (-speaker_sentences_log_probs * learning_signal).sum(dim=-1)
+                    speaker_policy_loss = -(speaker_sentences_log_probs * (ls.detach()-formatted_baseline)).sum(dim=-1)
                     # (batch_size, )
-                    losses_dict['speaker_policy_loss'] = [1.0, speaker_policy_loss]    
+                    losses_dict['speaker_policy_loss'] = [-1.0, speaker_policy_loss]    
                     
                     # Speaker Entropy loss:
-                    speaker_entropy_loss = torch.cat(self.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).mean(dim=-1)
+                    speaker_entropy_loss = -torch.cat(self.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
+                    # (batch_size, nbr_communication_round, max_sentence_length)
+                    speaker_sentences_token_bool = torch.cat(self.exp_buffer.speaker_sentences_token_bool[:exp_size], dim=-1).permute(0,2,1)
+                    # (batch_size, nbr_communication_round, max_sentence_length)
+                    # Sum on the entropy at each token that are not padding: and average over communication round...
+                    speaker_entropy_loss = (speaker_entropy_loss*speaker_sentences_token_bool).sum(-1).mean(-1)
                     # (batch_size, )
-                    losses_dict['speaker_entropy_loss'] = [1.0, speaker_entropy_loss]    
+                    
+                    speaker_entropy_loss_coeff = 0.0
+                    if 'max_entr' in config['graphtype']:
+                        speaker_entropy_loss_coeff = 1e3
+                    losses_dict['speaker_entropy_loss'] = [speaker_entropy_loss_coeff, speaker_entropy_loss]    
                     
                     if exp_size > 1:
+                        #TODO: propagate from speaker to listener!!!
+
                         # Align and reinforce on the listener sentences output:
                         # Each listener sentences contribute to the reward of the next round.
                         # The last listener sentence does not contribute to anything 
                         # (and should not even be computed, as seen by th guard on multi_round above).
                         listener_sentences_log_probs = torch.cat(self.exp_buffer.listener_sentences_log_probs[:exp_size-1], dim=-1)
+                        # (batch_size, max_sentence_length, nbr_communication_round-1)
+                        # The log likelihood of each sentences is the sum (in log space) over each next token prediction:
+                        listener_sentences_log_probs = listener_sentences_log_probs.sum(1)
                         # (batch_size, nbr_communication_round-1)
-                        listener_policy_loss = (-listener_sentences_log_probs * learning_signal[1:]).sum(dim=-1)
+                        listener_policy_loss = -(listener_sentences_log_probs * (ls[:,1:].detach()-formatted_baseline[:,1:])).sum(dim=-1)
                         # (batch_size, )
                         losses_dict['listener_policy_loss'] = [1.0, listener_policy_loss]    
                     
                         # Listener Entropy loss:
-                        listener_entropy_loss = torch.cat(self.exp_buffer.listener_sentences_entrs[:exp_size], dim=-1).mean(dim=-1)
+                        listener_entropy_loss = -torch.cat(self.exp_buffer.listener_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
+                        # (batch_size, nbr_communication_round, max_sentence_length)
+                        listener_sentences_token_bool = torch.cat(self.exp_buffer.listener_sentences_token_bool[:exp_size], dim=-1).permute(0,2,1)
+                        # (batch_size, nbr_communication_round, max_sentence_length)
+                        # Sum on the entropy at each token that are not padding: and average over communication round...
+                        listener_entropy_loss = (lsitener_entropy_loss*listener_sentences_token_bool).sum(-1).mean(-1)
                         # (batch_size, )
-                        losses_dict['listener_entropy_loss'] = [1.0, listener_entropy_loss]    
+                        
+                        listener_entropy_loss_coeff = 0.0
+                        if 'max_entr' in config['graphtype']:
+                            listener_entropy_loss_coeff = -1e0
+                        losses_dict['listener_entropy_loss'] = [listener_entropy_loss_coeff, listener_entropy_loss]    
                     
 
                     self.exp_buffer.reset()

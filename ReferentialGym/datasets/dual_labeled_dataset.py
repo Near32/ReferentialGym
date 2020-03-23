@@ -135,6 +135,7 @@ class DualLabeledDataset(Dataset):
                     #latent = torch.Tensor([tc])
                     latent = torch.zeros((self.nbr_classes))
                     latent[tc] = 1.0
+                    latent_values = latent
             elif len(sample_output) == 3:
                 exp, tc, latent = sample_output
                 if isinstance(latent, int): latent = torch.Tensor([latent])

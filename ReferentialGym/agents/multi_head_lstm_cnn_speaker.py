@@ -334,9 +334,6 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
             # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         '''
 
-        vocab_stop_idx = 0
-        #vocab_stop_idx = self.vocab_size-1
-
         sentences_hidden_states = [list() for _ in range(batch_size)]
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
@@ -349,7 +346,8 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
             # kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
             rnn_states = (init_rnn_state, torch.zeros_like(init_rnn_state))
             
-            inputs = self.symbol_encoder.weight[:, 0].reshape((1,1,-1))
+            # START token is given as initial input:
+            inputs = self.symbol_encoder.weight[:, self.vocab_start_idx].reshape((1,1,-1))
             #torch.zeros((1, 1, self.kwargs['symbol_embedding_size']))
             if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
             # (batch_size=1, 1, kwargs['symbol_embedding_size'])
@@ -381,14 +379,25 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
                 # next rnn_states:
                 rnn_states = next_rnn_states
                 
-                stop_word_condition = (prediction == vocab_stop_idx)
+                stop_word_condition = (prediction == self.vocab_stop_idx)
                 if len(sentences_widx[b]) >= self.max_sentence_length or stop_word_condition :
                     continuer = False 
 
             # Embed the sentence:
             # Padding token:
+            '''
+            # Assumes that the padding idx is (self.vocab_size-1):
             while len(sentences_widx[b]) < self.max_sentence_length:
                 sentences_widx[b].append((self.vocab_size-1)*torch.ones_like(prediction))
+            '''
+            '''
+            # Assumes that the sentences are padded with STOP token:
+            while len(sentences_widx[b]) < self.max_sentence_length:
+                sentences_widx[b].append((self.vocab_stop_idx)*torch.ones_like(prediction))
+            '''
+            # Assumes that the sentences are padded with PAD token:
+            while len(sentences_widx[b]) < self.max_sentence_length:
+                sentences_widx[b].append((self.vocab_pad_idx)*torch.ones_like(prediction))
 
             sentences_hidden_states[b] = torch.cat(sentences_hidden_states[b], dim=0)
             # (sentence_length<=max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
