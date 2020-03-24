@@ -141,7 +141,8 @@ def main():
   parser.add_argument('--dataset', type=str, 
     choices=['dSprites',
              'CIFAR10',
-             'CIFAR100'], 
+             'CIFAR100',
+             'Sort-of-CLEVR'], 
     help='dataset to train on.',
     default='dSprites')
   parser.add_argument('--arch', type=str, 
@@ -831,7 +832,43 @@ def main():
   elif 'CIFAR10' in args.dataset:
     train_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=True, transform=rg_config['train_transform'], download=True)
     test_dataset = torchvision.datasets.CIFAR10(root='./datasets/CIFAR10/', train=False, transform=rg_config['test_transform'], download=True)
+  elif 'Sort-of-CLEVR' in args.dataset:
+    generate=True 
+    nbrSampledQstPerImg=1
+    train_size=800
+    test_size=200
+    img_size=32
+    object_size=5
+    nb_questions=2
+    nb_objects=3
 
+    root = './datasets/sort-of-CLEVR-dataset'
+    root += f'-train{train_size}-test{test_size}'
+    root += f'-imgS{img_size}-objS{object_size}-obj{nb_objects}-q{nb_questions}'
+    
+    train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
+      train=True, 
+      transform=rg_config['train_transform'],
+      generate=generate,
+      nbrSampledQstPerImg=nbrSampledQstPerImg,
+      train_size=train_size,
+      test_size=test_size,
+      img_size=img_size,
+      object_size=object_size,
+      nb_objects=nb_objects,
+      nb_questions=nb_questions)
+    
+    test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
+      train=False, 
+      transform=rg_config['test_transform'],
+      generate=False,
+      nbrSampledQstPerImg=nbrSampledQstPerImg,
+      train_size=train_size,
+      test_size=test_size,
+      img_size=img_size,
+      object_size=object_size,
+      nb_objects=nb_objects,
+      nb_questions=nb_questions)
   
   '''
       "train_dataset":            train_dataset,

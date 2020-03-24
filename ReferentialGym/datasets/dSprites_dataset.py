@@ -323,7 +323,5 @@ class dSpritesDataset(Dataset) :
         
         if self.transform is not None:
             image = self.transform(image)
-
-        #return image, target, latent_value
-        #return image, target, latent_class
+        
         return image, target, latent_class, latent_value
