@@ -1,6 +1,8 @@
+from . import modules
 from . import datasets
 from . import agents
 from . import networks
+
 from .referential_game import ReferentialGame
 
 import copy 
@@ -21,12 +23,14 @@ def make(config, dataset_args):
     if dataset_class is not None:
         Dataset = getattr(datasets, dataset_class)
     
-    modes = dataset_args.pop('modes')
-    train_dataset = modes['train']
-    test_dataset = modes['test']
-
+    mode2dataset = dataset_args.pop('modes')
+    need_dict_wrapping = dataset_args.pop('need_dict_wrapping')
+    
+    for key in need_dict_wrapping:
+        mode2dataset[key] = DictDatasetWrapper(mode2dataset[key])
+        
     rg_datasets = {}
-    for mode, dataset in modes.items():
+    for mode, dataset in mode2dataset.items():
         if Dataset is None:
             rg_datasets[mode] = dataset
         else:
@@ -36,44 +40,15 @@ def make(config, dataset_args):
                 inner_dataset_args['mode'] = mode
                 rg_datasets[mode] = Dataset(kwargs=inner_dataset_args)
             elif dataset_class == 'DualLabeledDataset':
-                inner_dataset_args['train_dataset'] = train_dataset
+                inner_dataset_args['train_dataset'] = mode2dataset["train"]
                 inner_dataset_args['test_dataset'] = dataset
                 inner_dataset_args['mode'] = mode
                 rg_datasets[mode] = Dataset(kwargs=inner_dataset_args)
 
-    rg_instance = ReferentialGame(datasets=rg_datasets, config=config)
+    modules = config.pop("modules")
+    pipelines = config.pop("pipelines")
+    rg_instance = ReferentialGame(datasets=rg_datasets, 
+                                  config=config,
+                                  modules=modules,
+                                  pipelines=pipelines)
     return rg_instance
-
-    '''
-    train_dataset = dataset_args.pop('train_dataset')
-    test_dataset = dataset_args.pop('test_dataset')
-
-    if dataset_args['dataset_class'] is not None:
-        dataset_class = dataset_args.pop('dataset_class')
-        Dataset = getattr(datasets, dataset_class)
-        
-        if dataset_class == 'LabeledDataset': 
-            dataset_args['dataset'] = train_dataset
-            dataset_args['mode'] = 'train'
-            rg_train_dataset = Dataset(kwargs=dataset_args)
-
-            dataset_args['dataset'] = test_dataset
-            dataset_args['mode'] = 'test'
-            rg_test_dataset = Dataset(kwargs=dataset_args)
-        elif dataset_class == 'DualLabeledDataset':
-            dataset_args['train_dataset'] = train_dataset
-            dataset_args['test_dataset'] = test_dataset
-            dataset_args['mode'] = 'train'
-            rg_train_dataset = Dataset(kwargs=dataset_args)
-
-            dataset_args['mode'] = 'test'
-            rg_test_dataset = Dataset(kwargs=dataset_args)
-    else:
-        rg_train_dataset = train_dataset
-        rg_test_dataset = test_dataset
-        
-    rg_datasets = {'train':rg_train_dataset, 'test':rg_test_dataset}
-    rg_instance = ReferentialGame(datasets=rg_datasets, config=config)
-
-    return rg_instance
-    '''

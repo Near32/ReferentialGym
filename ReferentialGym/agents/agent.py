@@ -8,6 +8,7 @@ import random
 
 import copy
 
+from ..modules import Module
 
 def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
     target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
@@ -105,7 +106,7 @@ class ExperienceBuffer(object):
     def cat(self, keys, indices=None):
         data = []
         for k in keys:
-            assert k in self.keys or k in self.circular_keys, f"Tried to get value from key {k}, but {k} is not registered."
+            assert k in self.keys or k in self.circular_keys, f'Tried to get value from key {k}, but {k} is not registered.'
             indices_ = indices
             cidx=0
             if k in self.circular_keys: 
@@ -146,8 +147,15 @@ class ExperienceBuffer(object):
         return data
 
 
-class Agent(nn.Module):
-    def __init__(self, agent_id='l0', obs_shape=[1,1,1,32,32], vocab_size=100, max_sentence_length=10, logger=None, kwargs=None):
+class Agent(Module):
+    def __init__(self, 
+                 agent_id='l0', 
+                 obs_shape=[1,1,1,32,32], 
+                 vocab_size=100, 
+                 max_sentence_length=10, 
+                 logger=None, 
+                 kwargs=None,
+                 role=None):
         """
         :param agent_id: str defining the ID of the agent over the population.
         :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
@@ -156,8 +164,74 @@ class Agent(nn.Module):
         :param max_sentence_length: int defining the maximal length of each sentence the speaker can utter.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         :param kwargs: Dict of kwargs...
+        :param role: str defining the role of the agent, e.g. "speaker"/"listener".
         """
-        super(Agent, self).__init__()
+
+        input_stream_keys = {'speaker':list(), 'listener':list()}
+        input_stream_ids = {'speaker':list(), 'listener':list()}
+        
+        input_stream_keys['speaker'] = [
+            'current_dataloader:sample:speaker_experiences', 
+            'current_dataloader:sample:speaker_exp_latents', 
+            'current_dataloader:sample:speaker_exp_latents_values', 
+            'current_listener:sentences_logits',
+            'current_listener:sentences_one_hot',
+            'current_listener:sentences_widx', 
+            'config:graphtype',
+            'config:tau0',
+            'signal:multi_round',
+            'signal:end_of_epoch_sample',
+            'current_dataloader:sample'
+        ]
+
+        input_stream_keys['listener'] = [
+            'current_dataloader:sample:listener_experiences', 
+            'current_dataloader:sample:listener_exp_latents', 
+            'current_dataloader:sample:listener_exp_latents_values', 
+            'current_speaker:sentences_logits',
+            'current_speaker:sentences_one_hot',
+            'current_speaker:sentences_widx', 
+            'config:graphtype',
+            'config:tau0',
+            'signal:multi_round',
+            'signal:end_of_epoch_sample',
+            'current_dataloader:sample'
+        ]
+
+        
+        input_stream_ids['speaker'] = {
+            'current_dataloader:sample:speaker_experiences':'experiences', 
+            'current_dataloader:sample:speaker_exp_latents':'exp_latents', 
+            'current_dataloader:sample:speaker_exp_latents_values':'exp_latents_values', 
+            'current_listener:sentences_logits':'sentences_logits',
+            'current_listener:sentences_one_hot':'sentences_one_hot',
+            'current_listener:sentences_widx':'sentences_widx', 
+            'config:graphtype':'graphtype',
+            'config:tau0':'tau0',
+            'signal:multi_round':'multi_round',
+            'signal:end_of_epoch_sample':'end_of_epoch_sample',
+            'current_dataloader:sample':'sample'
+        }
+
+        input_stream_ids['listener'] = {
+            'current_dataloader:sample:listener_experiences':'experiences', 
+            'current_dataloader:sample:listener_exp_latents':'exp_latents', 
+            'current_dataloader:sample:listener_exp_latents_values':'exp_latents_values', 
+            'current_speaker:sentences_logits':'sentences_logits',
+            'current_speaker:sentences_one_hot':'sentences_one_hot',
+            'current_speaker:sentences_widx':'sentences_widx', 
+            'config:graphtype':'graphtype',
+            'config:tau0':'tau0',
+            'signal:multi_round':'multi_round',
+            'signal:end_of_epoch_sample':'end_of_epoch_sample',
+            'current_dataloader:sample':'sample'
+        }
+        
+        super(Agent, self).__init__(id=f"Agent_{agent_id}", 
+                                    config=kwargs,
+                                    input_stream_keys=input_stream_keys,
+                                    input_stream_ids=input_stream_ids)
+        
         self.agent_id = agent_id
         
         self.obs_shape = obs_shape
@@ -198,6 +272,13 @@ class Agent(nn.Module):
         self.learning_signal_baseline = 0.0
         self.learning_signal_baseline_counter = 0
 
+        self.role = role        
+    
+    def get_input_stream_keys(self):
+        return self.input_stream_keys[self.role]
+
+    def get_input_stream_ids(self):
+        return self.input_stream_ids[self.role]
 
     def clone(self, clone_id='a0'):
         logger = self.logger
@@ -221,11 +302,11 @@ class Agent(nn.Module):
         if self.logger is None: 
             return 
 
-        agent_log_dict = {f"{self.agent_id}": dict()}
+        agent_log_dict = {f'{self.agent_id}': dict()}
         for key, data in log_dict.items():
             if data is None:
                 data = [None]*batch_size
-            agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
+            agent_log_dict[f'{self.agent_id}'].update({f'{key}':data})
         
         self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
         
@@ -258,7 +339,7 @@ class Agent(nn.Module):
             - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
             - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - `'experiences'`: Tensor of shape `(batch_size, *self.obs_shape)`. 
-            - `'latent_experiences'`: Tensor of shape `(batch_size, nbr_latent_dimensions)`.
+            - `'exp_latents'`: Tensor of shape `(batch_size, nbr_latent_dimensions)`.
             - `'multi_round'`: Boolean defining whether to utter a sentence back or not.
             - `'graphtype'`: String defining the type of symbols used in the output sentence:
                         - `'categorical'`: one-hot-encoded symbols.
@@ -268,7 +349,7 @@ class Agent(nn.Module):
             - `'tau0'`: Float, temperature with which to apply gumbel-softmax estimator. 
             - `'sample'`: Dict that contains the speaker and listener experiences as well as the target index.
         """
-        
+        self.role = role
         batch_size = len(inputs_dict['experiences'])
 
         input_sentence = inputs_dict['sentences_widx']
@@ -281,8 +362,8 @@ class Agent(nn.Module):
                            graphtype=inputs_dict['graphtype'],
                            tau0=inputs_dict['tau0'])
 
-        outputs_dict['latent_experiences'] = inputs_dict['latent_experiences']
-        outputs_dict['latent_experiences_values'] = inputs_dict['latent_experiences_values']
+        outputs_dict['exp_latents'] = inputs_dict['exp_latents']
+        outputs_dict['exp_latents_values'] = inputs_dict['exp_latents_values']
         self._log(outputs_dict, batch_size=batch_size)
 
         # //------------------------------------------------------------//

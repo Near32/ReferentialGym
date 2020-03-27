@@ -23,7 +23,8 @@ class Listener(Agent):
                                        vocab_size=vocab_size,
                                        max_sentence_length=max_sentence_length,
                                        logger=logger, 
-                                       kwargs=kwargs)
+                                       kwargs=kwargs,
+                                       role="listener")
         
         # Multi-round:
         self._reset_rnn_states()

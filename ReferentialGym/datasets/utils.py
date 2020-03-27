@@ -3,7 +3,7 @@ import torchvision.transforms as T
 import numpy as np
 import cv2
 
-class DictBatch:
+class DictBatch(object):
     def __init__(self, data):
         """
         :param data: list of Dict of Tensors.
@@ -25,6 +25,9 @@ class DictBatch:
             attr = getattr(self, key).cuda()
             setattr(self, key, attr)
         return self
+
+    def keys(self):
+        return self.keys
 
     def __getitem__(self, key):
         """

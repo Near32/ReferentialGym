@@ -83,7 +83,7 @@ class MultiHeadHookSpeaker(nn.Module):
           final_output = self.final_fn(head_output)
 
           # Loss:
-          target_idx = inputs_dict['latent_experiences'][..., ih].squeeze()
+          target_idx = inputs_dict['exp_latents'][..., ih].squeeze()
           #criterion = nn.NLLLoss(reduction='none')
           criterion = nn.CrossEntropyLoss(reduction='none')
           loss = criterion( final_output, target_idx)
@@ -99,9 +99,9 @@ class MultiHeadHookSpeaker(nn.Module):
           final_reg_output = reg_head_output
 
           # Loss:
-          reg_target = inputs_dict['latent_experiences_values'][..., ih].float()
+          reg_target = inputs_dict['exp_latents_values'][..., ih].float()
           reg_criterion = nn.SmoothL1Loss(reduction='none')
-          reg_loss = reg_criterion( final_reg_output, reg_target)
+          reg_loss = reg_criterion( final_reg_output, reg_target).squeeze()
           
           # Distance:
           distance = F.mse_loss(final_reg_output, reg_target).mean()
@@ -138,11 +138,14 @@ class MultiHeadHookSpeaker(nn.Module):
 def main():
   parser = argparse.ArgumentParser(description='Experiment 1: Interpolation with Interweaved Set.')
   parser.add_argument('--seed', type=int, default=0)
+  parser.add_argument('--use_cuda', action='store_true', default=False)
   parser.add_argument('--dataset', type=str, 
     choices=['dSprites',
              'CIFAR10',
              'CIFAR100',
-             'Sort-of-CLEVR'], 
+             'Sort-of-CLEVR',
+             'tiny-Sort-of-CLEVR',
+             ], 
     help='dataset to train on.',
     default='dSprites')
   parser.add_argument('--arch', type=str, 
@@ -163,7 +166,8 @@ def main():
              'ResNet18AvgPooledBetaVAE-2',
              'pretrained-ResNet18AvgPooledBetaVAE-2',
              'CoordResNet18AvgPooledBetaVAE-2'], 
-    help='model architecture to train')
+    help='model architecture to train',
+    default="ResNet18AvgPooled-2")
   parser.add_argument('--graphtype', type=str,
     choices=['straight_through_gumbel_softmax',
              'reinforce',
@@ -176,10 +180,10 @@ def main():
              'obverter'],
     help='type of graph to use during training of the speaker and listener.',
     default='straight_through_gumbel_softmax')
-  parser.add_argument('--max_sentence_length', type=int, default=10)
-  parser.add_argument('--vocab_size', type=int, default=100)
+  parser.add_argument('--max_sentence_length', type=int, default=15)
+  parser.add_argument('--vocab_size', type=int, default=25)
   parser.add_argument('--lr', type=float, default=3e-4)
-  parser.add_argument('--epoch', type=int, default=20)
+  parser.add_argument('--epoch', type=int, default=100)
   parser.add_argument('--batch_size', type=int, default=32)
   parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_dataset_repetition', type=int, default=1)
@@ -200,7 +204,8 @@ def main():
              'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise splitted split simple XY normal
              'combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise interweaved split simple XY normal             
             ],
-    help='train/test split strategy')
+    help='train/test split strategy',
+    default="combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N")
   
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
@@ -372,7 +377,7 @@ def main():
       "with_weight_maxl1_loss":   False,
 
       "with_grad_logging":        False,
-      "use_cuda":                 True,
+      "use_cuda":                 args.use_cuda,
   
       # "train_transform":          T.Compose([T.RandomAffine(degrees=transform_degrees, 
       #                                                       translate=transform_translate, 
@@ -395,71 +400,10 @@ def main():
   }
 
   ## Train set:
-
-  # Normal:
-  #train_split_strategy = 'combinatorial-Y-1-5-X-1-5-Orientation-1-5-Scale-1-6-Shape-1-3'
-  # Aggressive:
-  #train_split_strategy = 'combinatorial-Y-8-4-X-8-4-Orientation-4-5-Scale-1-5-Shape-1-3'
-  
-  # Agressive: 0-filler primitive(shape) condition testing compositional extrapolation on 16 positions.
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-0FP_Shape-1-N'
-  
-  # Agressive: idem + test values on each axis: 'primitive around right' 0-filler context
-  # Not enough test samples: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
-  #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
-  
-
-  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # Experiment 1: interweaved
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
   train_split_strategy = args.train_test_split_strategy
-  # Experiment 1: splitted
-  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # --> the test and train set are not alternating sampling but rather completely distinct.
-  # Experiment 2: mistake?
-  #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Experiment 2: correct one? Most likely
-  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # --> the test and train set are not alternating sampling but rather completely distinct.
-  #train_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
-  
-
-  ## Test set:
-
-  # Experiment 1:
   test_split_strategy = train_split_strategy
-  # Not too Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # --> the test and train set are not alternating sampling but rather completely distinct.
-  # Experiment 2: definitively splitted with extrapolation when assuming 4-s4
-  #test_split_strategy = 'combinatorial3-Y-2-S8-X-2-S8-Orientation-10-N-Scale-2-N-Shape-1-3'
-  '''
-  The issue with a train and test split with different density level is that some test values 
-  on some latent axises may not appear in the train set (with different combinations than that
-  of the test set), and so the system cannot get familiar to it... It is becomes a benchmark
-  for both zero-shot composition learning and zero-shot components embedding (which could be
-  a needed task in terms of analogy making: being able to understand that each latent axis
-  can have unfamiliar values, i.e. associate the new values to the familiar latent axises...)
-  '''
   
-  '''
-  train_split_strategy = 'divider-600-offset-0'
-  test_split_strategy = 'divider-600-offset-50'
-  '''
-  '''
-  train_split_strategy = 'divider-300-offset-0'
-  test_split_strategy = 'divider-300-offset-25'
-  '''
-  '''
-  train_split_strategy = 'divider-60-offset-0'
-  test_split_strategy = 'divider-60-offset-25'
-  '''
-  
-
-
-  # # Agent Configuration:
-
+  ## Agent Configuration:
   agent_config = dict()
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['homoscedastic_multitasks_loss'] = rg_config['use_homoscedastic_multitasks_loss']
@@ -751,7 +695,7 @@ def main():
   if rg_config['use_homoscedastic_multitasks_loss']:
     save_path += '+Homo'
   
-  save_path += f'+not_splitted_conv_map/ListenerBN/EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/{args.dataset}'
+  save_path += f'+not_splitted_conv_map/ListenerBN/EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/{args.dataset}/testMHCM'
 
   save_path += f'+DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
@@ -837,18 +781,30 @@ def main():
     need_dict_wrapping["train"] = True
     need_dict_wrapping["test"] = True
   elif 'Sort-of-CLEVR' in args.dataset:
-    generate=True 
-    nbrSampledQstPerImg=1
-    train_size=800
-    test_size=200
-    img_size=32
-    object_size=5
-    nb_questions=2
-    nb_objects=3
+    if 'tiny' in args.dataset:
+      generate = True 
+      nbrSampledQstPerImg = 1
+      train_size = 80
+      test_size = 80
+      img_size = 64
+      object_size = 5
+      nb_questions = 10
+      nb_objects = 6
+      n_answers = 4+nb_objects
+    else:
+      generate = True 
+      nbrSampledQstPerImg = 1
+      train_size = 800
+      test_size = 200
+      img_size = 32
+      object_size = 5
+      nb_questions = 2
+      nb_objects = 3
+      n_answers = 4+nb_objects
 
     root = './datasets/sort-of-CLEVR-dataset'
     root += f'-train{train_size}-test{test_size}'
-    root += f'-imgS{img_size}-objS{object_size}-obj{nb_objects}-q{nb_questions}'
+    root += f'-imgS{img_size}-objS{object_size}-objN{nb_objects}-qN{nb_questions}'
     
     train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
       train=True, 
@@ -879,6 +835,249 @@ def main():
       "test_dataset":             test_dataset,
   '''
   
+  ## Modules:
+  modules = {}
+
+  from ReferentialGym import modules as rg_modules
+
+  # MHCM:
+  if 'dSprites' in args.dataset:
+    mhcm_ffm_id = "mhcm0"
+    mhcm_ffm_config = {
+      'loss_id': mhcm_ffm_id,
+      'heads_output_sizes':[2, 3, 6, 40, 32, 32],
+      'heads_archs':[
+        [512],
+      ],
+      'input_stream_module': speaker.cnn_encoder,
+      'detach_input': multi_head_detached,
+      "use_cuda":args.use_cuda,
+    }
+
+    mhcm_ffm_input_stream_keys = [
+      "current_speaker:ref:feat_maps",
+      "current_dataloader:sample:speaker_exp_latents",
+      "losses_dict",
+      "logs_dict",
+    ]
+
+    mhcm_ffm_input_stream_ids = {
+      "current_speaker:ref:feat_maps":"inputs",
+      "current_dataloader:sample:speaker_exp_latents":"targets",
+      "losses_dict":"losses_dict",
+      "logs_dict":"logs_dict",
+    }
+  elif 'Sort-of-CLEVR' in args.dataset:
+    fm_id = "flatten0"
+    fm_input_stream_keys = [
+      "current_speaker:ref:feat_maps",
+    ]
+
+    rrm_id = "reshaperepeat0"
+    rrm_config = {
+      'new_shape': [(1,-1)],
+      'repetition': [(nb_questions,1)]
+    }
+    rrm_input_stream_keys = [
+      "modules:FlattenModule_flatten0:output_0",
+    ]
+
+    sqm_id = "squeeze_qas"
+    sqm_config = {
+      'dim': [None],
+      #'inplace': True,
+    }
+    sqm_input_stream_keys = [
+      "current_dataloader:sample:speaker_relational_questions",
+      "current_dataloader:sample:speaker_non_relational_questions",
+      "current_dataloader:sample:speaker_relational_answers",
+      "current_dataloader:sample:speaker_non_relational_answers",
+    ]
+
+    cm_r_id = "concat_relational"
+    cm_r_config = {
+      'dim': -1,
+    }
+    cm_r_input_stream_keys = [
+      "modules:BatchReshapeRepeatModule_reshaperepeat0:output_0",
+      #"current_dataloader:sample:speaker_relational_questions",
+      "modules:SqueezeModule_squeeze_qas:output_0",
+    ]
+
+    cm_nr_id = "concat_non_relational"
+    cm_nr_config = {
+      'dim': -1,
+    }
+    cm_nr_input_stream_keys = [
+      "modules:BatchReshapeRepeatModule_reshaperepeat0:output_0",
+      #"current_dataloader:sample:speaker_non_relational_questions",
+      "modules:SqueezeModule_squeeze_qas:output_1",
+    ]
+
+    mhcm_r_id = "mhcm_relational"
+    mhcm_r_config = {
+      'loss_id': mhcm_r_id,
+      'heads_output_sizes':[n_answers],
+      'heads_archs':[
+        [512],
+      ],
+      'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
+      'detach_input': multi_head_detached,
+      "use_cuda":args.use_cuda,
+    }
+    mhcm_r_input_stream_keys = [
+      "modules:ConcatModule_concat_relational:output_0",
+      #"current_dataloader:sample:speaker_relational_answers",
+      "modules:SqueezeModule_squeeze_qas:output_2",
+      "losses_dict",
+      "logs_dict",
+    ]
+    mhcm_r_input_stream_ids = {
+      "modules:ConcatModule_concat_relational:output_0":"inputs",
+      #"current_dataloader:sample:speaker_relational_answers":"targets",
+      "modules:SqueezeModule_squeeze_qas:output_2":"targets",
+      "losses_dict":"losses_dict",
+      "logs_dict":"logs_dict",
+    }
+
+    mhcm_nr_id = "mhcm_non_relational"
+    mhcm_nr_config = {
+      'loss_id': mhcm_nr_id,
+      'heads_output_sizes':[n_answers],
+      'heads_archs':[
+        [512],
+      ],
+      'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
+      'detach_input': multi_head_detached,
+      "use_cuda":args.use_cuda,
+    }
+    mhcm_nr_input_stream_keys = [
+      "modules:ConcatModule_concat_non_relational:output_0",
+      #"current_dataloader:sample:speaker_non_relational_answers",
+      "modules:SqueezeModule_squeeze_qas:output_3",
+      "losses_dict",
+      "logs_dict",
+    ]
+    mhcm_nr_input_stream_ids = {
+      "modules:ConcatModule_concat_non_relational:output_0":"inputs",
+      #"current_dataloader:sample:speaker_non_relational_answers":"targets",
+      "modules:SqueezeModule_squeeze_qas:output_3":"targets",
+      "losses_dict":"losses_dict",
+      "logs_dict":"logs_dict",
+    }
+
+  # TODO:
+  '''
+  -1) Implement Network nn.Modules as Modules...
+  ''' 
+  '''
+  0)  Implemente output_stream definition to Modules...
+  '''
+  '''
+  1)  When Agents will be redefined as Pipeline relying on Network Modules,
+      make sure the stream name are specified with respect to the defined output of those Network Modules.
+  '''
+
+  if 'dSprites' in args.dataset:
+    modules[mhcm_ffm_id] = rg_modules.build_MultiHeadClassificationFromFeatureMapModule(
+      id=mhcm_ffm_id, 
+      config=mhcm_ffm_config,
+      input_stream_keys=mhcm_ffm_input_stream_keys,
+      input_stream_ids=mhcm_ffm_input_stream_ids)
+  elif 'Sort-of-CLEVR' in args.dataset:
+    modules[fm_id] = rg_modules.build_FlattenModule(
+      id=fm_id,
+      input_stream_keys=fm_input_stream_keys)
+    modules[rrm_id] = rg_modules.build_BatchReshapeRepeatModule(
+      id=rrm_id,
+      config=rrm_config,
+      input_stream_keys=rrm_input_stream_keys)
+    modules[sqm_id] = rg_modules.build_SqueezeModule(
+      id=sqm_id,
+      config=sqm_config,
+      input_stream_keys=sqm_input_stream_keys)
+
+    modules[cm_r_id] = rg_modules.build_ConcatModule(
+      id=cm_r_id,
+      config=cm_r_config,
+      input_stream_keys=cm_r_input_stream_keys)
+    modules[cm_nr_id] = rg_modules.build_ConcatModule(
+      id=cm_nr_id,
+      config=cm_nr_config,
+      input_stream_keys=cm_nr_input_stream_keys)
+
+    modules[mhcm_r_id] = rg_modules.build_MultiHeadClassificationModule(
+      id=mhcm_r_id, 
+      config=mhcm_r_config,
+      input_stream_keys=mhcm_r_input_stream_keys,
+      input_stream_ids=mhcm_r_input_stream_ids)
+
+    modules[mhcm_nr_id] = rg_modules.build_MultiHeadClassificationModule(
+      id=mhcm_nr_id, 
+      config=mhcm_nr_config,
+      input_stream_keys=mhcm_nr_input_stream_keys,
+      input_stream_ids=mhcm_nr_input_stream_ids)
+
+  homo_id = "homo0"
+  homo_config = {"use_cuda":args.use_cuda}
+  if args.homoscedastic_multitasks_loss:
+    modules[homo_id] = rg_modules.build_HomoscedasticMultiTasksLossModule(
+      id=homo_id,
+      config=homo_config,
+    )
+  
+  ## Pipelines:
+  pipelines = {}
+
+  # 0) Now that all the modules are known, let us build the optimization module:
+  optim_id = "global_optim"
+  optim_config = {
+    "modules":modules,
+    "learning_rate":args.lr,
+    "with_gradient_clip":rg_config["with_gradient_clip"],
+    "adam_eps":rg_config["adam_eps"],
+  }
+
+  optim_module = rg_modules.build_OptimizationModule(
+    id=optim_id,
+    config=optim_config,
+  )
+  modules[optim_id] = optim_module
+
+  if 'dSprites' in args.dataset:
+    pipelines[mhcm_id] = [
+      modules[mhcm_id]
+    ]
+
+  if 'Sort-of-CLEVR' in args.dataset:
+    # Flatten and Reshape+Repeat:
+    pipelines[rrm_id+"+"+sqm_id] = [
+      modules[fm_id],
+      modules[rrm_id],
+      modules[sqm_id]
+    ]
+
+    # Compute relational items:
+    pipelines[mhcm_r_id] = [
+      modules[cm_r_id],
+      modules[mhcm_r_id]
+    ]
+
+    # Compute non-relational items:
+    pipelines[mhcm_nr_id] = [
+    modules[cm_nr_id],
+      modules[mhcm_nr_id]
+    ]
+  
+  pipelines[optim_id] = []
+  if args.homoscedastic_multitasks_loss:
+    pipelines[optim_id].append(modules[homo_id])
+  pipelines[optim_id].append(modules[optim_id])
+
+  rg_config["modules"] = modules
+  rg_config["pipelines"] = pipelines
+
+
   dataset_args = {
       "dataset_class":            "DualLabeledDataset",
       "modes": {"train": train_dataset,
@@ -891,7 +1090,7 @@ def main():
       "observability":            rg_config['observability'],
       "object_centric":           rg_config['object_centric'],
       "descriptive":              rg_config['descriptive'],
-      "descriptive_target_ratio": rg_config['descriptive_target_ratio']
+      "descriptive_target_ratio": rg_config['descriptive_target_ratio'],
   }
 
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)

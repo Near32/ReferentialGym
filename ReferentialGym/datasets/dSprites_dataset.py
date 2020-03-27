@@ -298,13 +298,16 @@ class dSpritesDataset(Dataset) :
         latent_class = self.latents_classes[idx]
         return latent_class
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx:int) -> Dict[str,torch.Tensor]:
         """
-        Args:
-            idx (int): Index
+        :param idx: Integer index.
 
-        Returns:
-            tuple: (image, target) where target is index of the target class.
+        :returns:
+            sampled_d: Dict of:
+                - `"experiences"`: Tensor of the sampled experiences.
+                - `"exp_labels"`: List[int] consisting of the indices of the label to which the experiences belong.
+                - `"exp_latents"`: Tensor representatin the latent of the experience in one-hot-encoded vector form.
+                - `"exp_latents_values"`: Tensor representatin the latent of the experience in value form.
         """
         if idx >= len(self):
             idx = idx%len(self)
@@ -324,4 +327,11 @@ class dSpritesDataset(Dataset) :
         if self.transform is not None:
             image = self.transform(image)
         
-        return image, target, latent_class, latent_value
+        sampled_d = {
+            "experiences":image, 
+            "exp_labels":target, 
+            "exp_latents":latent_class, 
+            "exp_latents_values":latent_value
+        }
+
+        return sampled_d

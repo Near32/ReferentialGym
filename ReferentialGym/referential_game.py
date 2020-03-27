@@ -19,12 +19,13 @@ from .networks import HomoscedasticMultiTasksLoss
 from .datasets import collate_dict_wrapper
 from .utils import cardinality, query_vae_latent_space
 
+from .utils import StreamHandler
 
 VERBOSE = False 
 
 
 class ReferentialGame(object):
-    def __init__(self, datasets, config):
+    def __init__(self, datasets, config, modules, pipelines):
         '''
 
         '''
@@ -36,6 +37,24 @@ class ReferentialGame(object):
         if self.config['use_homoscedastic_multitasks_loss']:
             self.homoscedastic_mlt_loss = HomoscedasticMultiTasksLoss(use_cuda=self.config['use_cuda'])
 
+        self.stream_handler = StreamHandler()
+        self.stream_handler.register("current_listener")
+        self.stream_handler.register("current_speaker")
+        
+        self.stream_handler.register("losses_dict")
+        self.stream_handler.register("logs_dict")
+        
+        # Register hyperparameters:
+        for k,v in self.config.items():
+            self.stream_handler.update(f"config:{k}", v)
+        # Register modules:
+        self.modules = modules
+        for k,m in self.modules.items():
+            self.stream_handler.update(f"modules:{m.get_id()}:ref", m)
+
+        # Register pipelines:
+        self.pipelines = pipelines
+        
     def _select_agents(self, it, speakers, listeners, speakers_optimizers, listeners_optimizers, agents_stats):
         idx_speaker = random.randint(0,len(speakers)-1)
         idx_listener = random.randint(0,len(listeners)-1)
@@ -64,28 +83,12 @@ class ReferentialGame(object):
 
         print("Create dataloader: ...")
         
-        '''
-        data_loaders = {'train':torch.utils.data.DataLoader(self.datasets['train'],
-                                                            batch_size=self.config['batch_size'],
-                                                            shuffle=True,
-                                                            collate_fn=collate_dict_wrapper,
-                                                            pin_memory=True,
-                                                            num_workers=self.config['dataloader_num_worker']),
-                        'test':torch.utils.data.DataLoader(self.datasets['test'],
-                                                           batch_size=self.config['batch_size'],
-                                                           shuffle=True,
-                                                           collate_fn=collate_dict_wrapper,
-                                                           pin_memory=True,
-                                                           num_workers=self.config['dataloader_num_worker'])
-                        }
-        '''
-        
         data_loaders = {mode:torch.utils.data.DataLoader(dataset,
                                                             batch_size=self.config['batch_size'],
                                                             shuffle=True,
                                                             collate_fn=collate_dict_wrapper,
                                                             pin_memory=True,
-                                                            num_workers=self.config['dataloader_num_worker'])
+                                                            )#num_workers=self.config['dataloader_num_worker'])
                         for mode, dataset in self.datasets.items()
                         }
         
@@ -103,12 +106,14 @@ class ReferentialGame(object):
         speakers_optimizers = [ optim.Adam(list(speaker.parameters())+homoscedastic_params, lr=self.config['learning_rate'], betas=(0.9, 0.999), eps=self.config['adam_eps']) for speaker in speakers ]
         listeners_optimizers = [ optim.Adam(list(listener.parameters())+homoscedastic_params, lr=self.config['learning_rate'], betas=(0.9, 0.999), eps=self.config['adam_eps']) for listener in listeners ]
         
+        self.stream_handler.update("population_speaker:ref", speakers)
+        self.stream_handler.update("population_speaker_optimizer:ref", speakers_optimizers)
+        self.stream_handler.update("population_listener:ref", listeners)
+        self.stream_handler.update("population_listener_optimizer:ref", listeners_optimizers)
+        
         for name, param in prototype_speaker.named_parameters():
             print(name, param.size())
-            if 'TotalCorrelationDiscriminator' in name\
-            or 'tc_discriminator' in name:
-                raise
-
+            
         if 'meta' in self.config['cultural_reset_strategy']:
             meta_agents = dict()
             meta_agents_optimizers = dict()
@@ -128,11 +133,6 @@ class ReferentialGame(object):
         print("Launching training: ...")
 
         it = 0
-        '''
-        it_datasamples = {'train':0, 'test':0} # counting the number of data sampled from dataloaders
-        it_samples = {'train':0, 'test':0} # counting the number of multi-round
-        it_steps = {'train':0, 'test':0} # taking into account multi round... counting the number of sample shown to the agents.
-        '''
         it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
         it_samples = {mode:0 for mode in self.datasets} # counting the number of multi-round
         it_steps = {mode:0 for mode in self.datasets} # taking into account multi round... counting the number of sample shown to the agents.
@@ -148,6 +148,7 @@ class ReferentialGame(object):
         
         for epoch in range(nbr_epoch):
             for mode, data_loader in data_loaders.items():
+                self.stream_handler.update("signal:mode", mode)
                 counterGames = 0
                 total_sentences = []
                 total_nbr_unique_stimulus = 0
@@ -155,8 +156,10 @@ class ReferentialGame(object):
 
                 for it_dataset in range(self.config['nbr_dataset_repetition'][mode]):
                     end_of_epoch_dataset = (it_dataset==self.config['nbr_dataset_repetition'][mode]-1)
+                    self.stream_handler.update("signal:end_of_epoch_dataset", end_of_epoch_dataset)
                     for idx_stimuli, sample in enumerate(data_loader):
                         end_of_epoch_datasample = end_of_epoch_dataset and (idx_stimuli==len(data_loader)-1)
+                        self.stream_handler.update("signal:end_of_epoch_datasample", end_of_epoch_datasample)
                         it_datasamples[mode] += 1
                         it_datasample = it_datasamples[mode]
                         it = it_datasample
@@ -202,6 +205,11 @@ class ReferentialGame(object):
                             speaker.eval()
                             listener.eval()
 
+                        self.stream_handler.update("current_speaker:ref", speaker)
+                        self.stream_handler.update("current_speaker_optimizer:ref", speaker_optimizer)
+                        self.stream_handler.update("current_listener:ref", listener)
+                        self.stream_handler.update("current_listener_optimizer:ref", listener_optimizer)
+
                         if self.config['use_cuda']:
                             sample = sample.cuda()
 
@@ -213,10 +221,14 @@ class ReferentialGame(object):
                             it_samples[mode] += 1
                             it_sample = it_samples[mode]
                             end_of_epoch_sample = end_of_epoch_datasample and (it_rep==self.config['nbr_experience_repetition']-1)
-                        
-                            lsitener_sentences_logits = None
+                            self.stream_handler.update("signal:end_of_epoch_sample", end_of_epoch_sample)
+
+                            #TODO: serving should handle default values with None maybe?
+                            '''
+                            listener_sentences_logits = None
                             listener_sentences_one_hot = None
                             listener_sentences_widx = None 
+                            '''
                             batch_size = len(sample['speaker_experiences'])
                                 
                             for idx_round in range(self.config['nbr_communication_round']):
@@ -226,11 +238,13 @@ class ReferentialGame(object):
                                 multi_round = True
                                 if idx_round == self.config['nbr_communication_round']-1:
                                     multi_round = False
-                                
+                                self.stream_handler.update("signal:multi_round", multi_round)
+
+                                '''
                                 speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
                                                        'latent_experiences':sample['speaker_latent_experiences'], 
                                                        'latent_experiences_values':sample['speaker_latent_experiences_values'], 
-                                                       'sentences_logits':lsitener_sentences_logits,
+                                                       'sentences_logits':listener_sentences_logits,
                                                        'sentences_one_hot':listener_sentences_one_hot,
                                                        'sentences_widx':listener_sentences_widx, 
                                                        'graphtype':self.config['graphtype'],
@@ -239,27 +253,48 @@ class ReferentialGame(object):
                                                        'sample':sample,
                                                        'end_of_epoch_sample': end_of_epoch_sample
                                                        }
+                                '''
+                                self.stream_handler.update('current_dataloader:sample', sample)
 
+                                # TODO: make sure the speaker demands data from the current listener placeholder (multi roung...)
+                                # TODO: also think about the config placeholder...
+                                # TODO: build a signal placeholder for the 'end_of_epoch_sample' boolean etc...
+                                speaker_input_stream_dict = self.stream_handler._serve_module(speaker)
+                                
                                 if self.config['stimulus_depth_mult'] != 1:
+                                    import ipdb; ipdb.set_trace()
                                     speaker_inputs_dict['experiences'] = speaker_inputs_dict['experiences'].repeat(1, 1, 1, self.config['stimulus_depth_mult'], 1, 1)
                                     # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                                 
-                                speaker_outputs, speaker_losses = speaker.compute(inputs_dict=speaker_inputs_dict,
-                                                                                config=self.config,
-                                                                                role='speaker',
-                                                                                mode=mode,
-                                                                                it=it_step)
+                                speaker_output_stream_dict, \
+                                speaker_losses = speaker.compute(inputs_dict=speaker_input_stream_dict,
+                                                                 config=self.config,
+                                                                 role='speaker',
+                                                                 mode=mode,
+                                                                 it=it_step)
 
-                                
+                                # TODO: make sure the listener demands data from the current speaker placeholder.
+                                self.stream_handler.update("current_speaker", speaker_output_stream_dict)
+
+                                '''
                                 listener_inputs_dict = {'graphtype':self.config['graphtype'],
                                                         'tau0':self.config['tau0'],
                                                         'multi_round':multi_round,
                                                         'sample':sample}
-
                                 for k in speaker_outputs:
                                     listener_inputs_dict[k] = speaker_outputs[k] 
-
+                                '''
+                                
+                                '''
+                                listener_inputs_dict['experiences'] = sample['listener_experiences']
+                                listener_inputs_dict['latent_experiences'] = sample['listener_latent_experiences']
+                                listener_inputs_dict['latent_experiences_values'] = sample['listener_latent_experiences_values']
+                                '''
+                                
+                                listener_input_stream_dict = self.stream_handler._serve_module(listener)
+                                
                                 if self.config['graphtype'] == 'obverter':
+                                    import ipdb; ipdb.set_trace()
                                     if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
                                         listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
@@ -267,21 +302,23 @@ class ReferentialGame(object):
                                     if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
                                         listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
 
-                                listener_inputs_dict['experiences'] = sample['listener_experiences']
-                                listener_inputs_dict['latent_experiences'] = sample['listener_latent_experiences']
-                                listener_inputs_dict['latent_experiences_values'] = sample['listener_latent_experiences_values']
-                                
                                 if self.config['stimulus_depth_mult'] != 1:
+                                    import ipdb; ipdb.set_trace()
                                     listener_inputs_dict['experiences'] = listener_inputs_dict['experiences'].repeat(1, 1, 1, self.config['stimulus_depth_mult'], 1, 1)
                                     # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                                 
-                                listener_outputs, listener_losses = listener.compute(inputs_dict=listener_inputs_dict,
-                                                                                   config=self.config,
-                                                                                   role='listener',
-                                                                                   mode=mode,
-                                                                                   it=it_step)
+                                listener_output_stream_dict, \
+                                listener_losses = listener.compute(inputs_dict=listener_input_stream_dict,
+                                                                   config=self.config,
+                                                                   role='listener',
+                                                                   mode=mode,
+                                                                   it=it_step)
+
+                                # TODO: make sure the listener demands data from the current speaker placeholder.
+                                self.stream_handler.update("current_listener", listener_output_stream_dict)
 
                                 if self.config['graphtype'] == 'obverter':
+                                    import ipdb; ipdb.set_trace()
                                     if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
                                         listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
@@ -289,35 +326,61 @@ class ReferentialGame(object):
                                     if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
                                         listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
 
+                                #TODO: remove once serving is validated...
+                                '''
                                 listener_sentences_logits = listener_outputs['sentences_logits']
                                 listener_sentences_one_hot = listener_outputs['sentences_one_hot']
                                 listener_sentences_widx = listener_outputs['sentences_widx']
+                                '''
 
                             # //------------------------------------------------------------//
                             # //------------------------------------------------------------//
                             # //------------------------------------------------------------//
                             
-                            final_decision_logits = listener_outputs['decision']
+                            #final_decision_logits = listener_output_stream_dict['decision']
+                            final_decision_logits = self.stream_handler['current_listener:decision']
                             
-                            losses = dict()
+                            '''
                             losses.update(speaker_losses)
                             losses.update(listener_losses)
+                            '''
+                            self.stream_handler.update("losses_dict", speaker_losses)
+                            self.stream_handler.update("losses_dict", listener_losses)
+                            
+                            for pipeline in self.pipelines.values():
+                                self.stream_handler.serve(pipeline)
+                            
+                            # Logging:        
+                            logs_dict = self.stream_handler["logs_dict"]
+                            for logname, value in logs_dict.items():
+                                logger.add_scalar('{}/{}'.format(mode, logname), value.item(), it_step)    
+                            
+                            #TODO: transform all of this below into modules:
+                            # maybe make the population a whole module in itself...?
+
+                            losses = self.stream_handler["losses_dict"]
+                            
                             idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
 
+                            # TODO:
+                            '''
+                            1) Logging as a pipeline? or a module into each pipeline?
+                            '''
                             if self.config['use_homoscedastic_multitasks_loss']:
+                                '''
                                 losses = self.homoscedastic_mlt_loss(losses)
                                 if logger is not None:
                                     for (lossname, lossvalues), logvar  in zip(losses.items(), self.homoscedastic_mlt_loss.homoscedastic_log_vars):
                                         logger.add_scalar('{}/HomoscedasticLogVar/{}'.format(mode, lossname), logvar.item(), it)    
-                            
-                            for k, v in losses.items():
-                                losses[k][idx_loss] = v[0]*v[idx_loss].mean()
+                                '''
+                                if logger is not None:
+                                    for (lossname, lossvalues), logvar  in zip(losses.items(), self.modules["homo0"].homoscedastic_log_vars):
+                                        logger.add_scalar('{}/HomoscedasticLogVar/{}'.format(mode, lossname), logvar.item(), it)    
+                                
                             loss = sum( [l[idx_loss] for l in losses.values()])
 
                             if 'train' in mode:
-                                speaker_optimizer.zero_grad()
-                                listener_optimizer.zero_grad()
-                                loss.backward()
+                                #loss.backward()
                                 
                                 speaker.apply(handle_nan)
                                 listener.apply(handle_nan)
@@ -327,7 +390,9 @@ class ReferentialGame(object):
                                 
                                 speaker_optimizer.step()
                                 listener_optimizer.step()
-                            
+
+                                speaker_optimizer.zero_grad()
+                                listener_optimizer.zero_grad()
 
                             # //------------------------------------------------------------//
                             # //------------------------------------------------------------//
@@ -335,8 +400,10 @@ class ReferentialGame(object):
                             
                             # Compute sentences:
                             sentences = []
+                            speaker_sentences_widx = self.stream_handler["current_speaker:sentences_widx"]
                             for sidx in range(batch_size):
-                                sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
+                                #sentences.append(''.join([chr(97+int(s.item())) for s in speaker_outputs['sentences_widx'][sidx] ]))
+                                sentences.append(''.join([chr(97+int(s.item())) for s in speaker_sentences_widx[sidx] ]))
                             
                             if logger is not None:
                                 if self.config['with_grad_logging'] and mode == 'train':
@@ -358,6 +425,7 @@ class ReferentialGame(object):
                                     logger.add_scalar( "{}/ListenerMaxGrad".format(mode), maxgrad, it_step)                    
                                 
                                 if self.config['with_utterance_penalization'] or self.config['with_utterance_promotion']:
+                                    import ipdb; ipdb.set_trace()
                                     for widx in range(self.config['vocab_size']+1):
                                         logger.add_scalar("{}/Word{}Counts".format(mode,widx), speaker_outputs['speaker_utterances_count'][widx], it_step)
                                     logger.add_scalar("{}/OOVLoss".format(mode), speaker_losses['oov_loss'][idx_loss].mean().item(), it_step)
@@ -365,8 +433,7 @@ class ReferentialGame(object):
                                 if 'with_mdl_principle' in self.config and self.config['with_mdl_principle']:
                                     logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][idx_loss].mean().item(), it_step)
                                 
-                                #sentence_length = sum([ float(s.size(1)) for s in speaker_outputs['sentences_widx']])/len(speaker_outputs['sentences_widx'])
-                                sentence_length = (speaker_outputs['sentences_widx']< (self.config['vocab_size']-1)).sum().float()/batch_size
+                                sentence_length = (speaker_sentences_widx< (self.config['vocab_size']-1)).sum().float()/batch_size
                                 logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], it_step)
                                 
                                 for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
@@ -374,9 +441,14 @@ class ReferentialGame(object):
                                 total_nbr_unique_stimulus += batch_size
                                 logger.add_scalar('{}/Ambiguity (%)'.format(mode), float(total_nbr_unique_stimulus-total_nbr_unique_sentences)/total_nbr_unique_stimulus*100.0, it_step)
                                 
-                                #entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in speaker_outputs['sentences_logits']], dim=0)
-                                sentences_log_probs = [s_logits.reshape(-1,self.config['vocab_size']).log_softmax(dim=-1) for s_logits in speaker_outputs['sentences_logits']]
-                                speaker_sentences_log_probs = torch.cat([s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) for s_log_probs, s_widx in zip(sentences_log_probs, speaker_outputs['sentences_widx'])], dim=0)
+                                speaker_sentences_logits = self.stream_handler["current_speaker:sentences_logits"]
+                                speaker_sentences_widx = self.stream_handler["current_speaker:sentences_widx"]
+                                sentences_log_probs = [s_logits.reshape(-1,self.config['vocab_size']).log_softmax(dim=-1) 
+                                                        for s_logits in speaker_sentences_logits]
+                                speaker_sentences_log_probs = torch.cat(
+                                    [s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) 
+                                    for s_log_probs, s_widx in zip(sentences_log_probs, speaker_sentences_widx)], 
+                                    dim=0)
                                 entropies_per_sentence = -(speaker_sentences_log_probs.exp() * speaker_sentences_log_probs)
                                 # (batch_size, )
                                 logger.add_scalar('{}/Entropy'.format(mode), entropies_per_sentence.mean().item(), it_step)
@@ -386,11 +458,17 @@ class ReferentialGame(object):
                                 for l_name, l in losses.items():
                                     logger.add_scalar('{}/{}'.format(mode, l_name), l[idx_loss].item(), it_step)    
 
-                                logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_outputs['maxl1_loss'].item()+listener_outputs['maxl1_loss'].item(), it_step)
+                                speaker_maxl1_loss = self.stream_handler["current_speaker:maxl1_loss"]
+                                listener_maxl1_loss = self.stream_handler["current_listener:maxl1_loss"]
+                                logger.add_scalar('{}/WeightMaxL1Loss'.format(mode), speaker_maxl1_loss.item()+listener_maxl1_loss.item(), it_step)
                                 
-                                decision_probs = listener_outputs['decision_probs']
-
+                                
+                                # Compute ACCURACIES:
+                                #decision_probs = listener_outputs['decision_probs']
+                                decision_probs = self.stream_handler["current_listener:decision_probs"]
+                                # TODO: make it a module rather?
                                 if self.config['descriptive']:
+                                    import ipdb; ipdb.set_trace()
                                     if 'obverter_least_effort_loss' in self.config and self.config['obverter_least_effort_loss']:
                                         for widx in range(len(losses4widx)):
                                             logger.add_scalar('{}/Loss@w{}'.format(mode,widx), losses4widx[widx].item(), it_step)
@@ -403,6 +481,7 @@ class ReferentialGame(object):
                                 else:
                                     decision_idx = decision_probs.max(dim=-1)[1]
                                     acc = (decision_idx==sample['target_decision_idx']).float()#.mean()*100
+                                
                                 logger.add_scalar('{}/Accuracy'.format(mode), acc.mean().item()*100, it_step)
                                 epoch_acc.append(acc.view(-1))
                                 if end_of_epoch_sample:
@@ -442,13 +521,16 @@ class ReferentialGame(object):
                                             f"\t /label: {sample['target_decision_idx'][sidx]}",\
                                             f" /decision: {decision_idx[sidx]}")
 
+                            # TODO: CURRICULUM ON DISTRATORS....!!
                             if self.config['use_curriculum_nbr_distractors']:
                                 nbr_distractors = self.datasets[mode].getNbrDistractors()
                                 logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_step)
                                 logger.add_scalar( "{}/CurriculumWindowedAcc".format(mode), windowed_accuracy, it_step)
                             
                             
+                            # TODO: make this a logger module:
                             if hasattr(prototype_speaker,'VAE') and idx_stimuli % 4 == 0:
+                                import ipdb; ipdb.set_trace()
                                 image_save_path = logger.path 
                                 '''
                                 '''
@@ -476,7 +558,13 @@ class ReferentialGame(object):
                             speaker = speaker.cpu()
                             listener = listener.cpu()
                         
-                        if 'train' in mode and self.config["cultural_pressure_it_period"] is not None and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
+                        if 'train' in mode \
+                            and self.config["cultural_pressure_it_period"] is not None \
+                            and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
+                            # TODO: make it a module that takes as input some modules and the list of modules/stream/agents?
+                            # TODO: register modules/agents within the stream_handler 
+                            #       and make the loss computation require those module/agents maybe? 
+                            import ipdb; ipdb.set_trace()
                             if 'oldest' in self.config['cultural_reset_strategy']:
                                 if 'S' in self.config['cultural_reset_strategy']:
                                     weights = [ it-agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in speakers ] 
@@ -536,6 +624,7 @@ class ReferentialGame(object):
                                     agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
                                 print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
                         
+                        # TODO: many parts everywhere, do not forget them all : CURRICULUM ON DISTRACTORS...!!!
                         if self.config['use_curriculum_nbr_distractors'] and 'train' in mode:
                             nbr_distractors = self.datasets[mode].getNbrDistractors()
                             windowed_accuracy = (windowed_accuracy*window_count+acc.item())
@@ -547,7 +636,10 @@ class ReferentialGame(object):
                                 for mode in self.dataset:
                                     self.datasets[mode].setNbrDistractors(self.datasets[mode].getNbrDistractors()+1)
                         # //------------------------------------------------------------//
-                                            
+                
+                # COMPUTE TOPOGRAPHIC SIMILARITIES:
+                # TODO: make it a logging module...
+                #       The history of the data stream in the current epoch should be registered in a growing list/stream?
                 if logger is not None:
                     if 'test' in mode:  
                         max_nbr_samples = None
@@ -555,12 +647,12 @@ class ReferentialGame(object):
                         max_nbr_samples = int(len(total_sentences)*0.1)
 
                     topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key='sentences_widx',
-                                                                               features_key='latent_experiences',
+                                                                               features_key='exp_latents',
                                                                                max_nbr_samples=max_nbr_samples,
                                                                                verbose=VERBOSE,
                                                                                max_workers=self.config['parallel_TS_computation_max_workers'])
                     topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key='sentences_widx',
-                                                                               features_key='latent_experiences_values',
+                                                                               features_key='exp_latents_values',
                                                                                max_nbr_samples=max_nbr_samples,
                                                                                verbose=VERBOSE,
                                                                                max_workers=self.config['parallel_TS_computation_max_workers'])

@@ -185,15 +185,15 @@ def main():
     train_sample = train_dataset[train_i]
     test_sample = test_dataset[test_i]
 
-    train_img = train_sample[0].numpy().transpose( (1,2,0))
+    train_img = train_sample["experiences"].numpy().transpose( (1,2,0))
     print(train_img.shape)
-    print('Sample latents :',train_sample[2])
+    print('Sample latents :',train_sample["exp_latents"])
     
     cv2.imshow('train', train_img )
     
-    test_img = test_sample[0].numpy().transpose( (1,2,0))
+    test_img = test_sample["experiences"].numpy().transpose( (1,2,0))
     print(test_img.shape)
-    print('Sample latents :',test_sample[2])
+    print('Sample latents :',test_sample["exp_latents"])
     
     cv2.imshow('test', test_img )
     

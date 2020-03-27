@@ -332,25 +332,37 @@ class SortOfCLEVRDataset(Dataset):
         dataset = []
         nbrImage = 0
         nbrQst = 0 
-        for img, relations, norelations, latent_class, latent_value in datasets:
+        for img, relational, norelational, latent_class, latent_value in datasets:
             img = img.transpose((2,0,1))
             nbrImage += 1
 
-            bina = np.power( 2, np.arange(len(relations[0][0])))
-            relations = [ ( int( np.sum(bina*qst)), ans) for qst, ans in zip(relations[0],relations[1])]
+            bina = np.power( 2, np.arange(len(relational[0][0])))
+            relations = [ ( int( np.sum(bina*qst)), ans) for qst, ans in zip(relational[0],relational[1])]
             
+            r_qsts, r_anss = relational
+            nr_qsts, nr_anss = norelational
+             
             for _ in range(self.nbrSampledQstPerImg):
                 if len(relations) == 0:    break
                 idxsample = random.choice(range(len(relations)))
                 qst, ans = relations.pop(idxsample)
-                dataset.append((img,qst,ans,latent_class,latent_value))
+                dataset.append((img,qst,ans,latent_class,latent_value, 
+                    {"relational":(r_qsts, r_anss), "non_relational":(nr_qsts, nr_anss)} )
+                )
                 nbrQst += 1
 
         print("Sort-of-CLEVR Dataset: {} unique images.".format(nbrImage))
         print("Sort-of-CLEVR Dataset: {} questions asked.".format(nbrQst))
 
         nbr_unique_ans = max([d[2] for d in dataset])+1
-        self.dataset = [ (d[0], d[2]+nbr_unique_ans*d[1], d[3], d[4]) for d in dataset]
+        self.dataset = [ {
+            "image":d[0], 
+            "target":d[2]+nbr_unique_ans*d[1], 
+            "exp_latents":d[3], 
+            "exp_latents_values":d[4],
+            "exp_qas":d[5]} 
+            for d in dataset
+        ]
         
         self.transform = transform 
 
@@ -387,7 +399,7 @@ class SortOfCLEVRDataset(Dataset):
         if idx >= len(self):
             idx = idx%len(self)
 
-        _, target, _, _ = self.dataset[idx]
+        target= self.dataset[idx]["target"]
         return target
 
     def __getitem__(self, idx):
@@ -401,10 +413,20 @@ class SortOfCLEVRDataset(Dataset):
         if idx >= len(self):
             idx = idx%len(self)
 
-        img, target, latent_class, latent_value = self.dataset[idx]
+        sample = self.dataset[idx]
+        img = sample["image"]
+        target = sample["target"]
+        latent_class = sample["exp_latents"]
+        latent_value = sample["exp_latents_values"]
+
+        relational_questions = torch.stack([ torch.from_numpy(q) for q in sample["exp_qas"]["relational"][0]]).float()
+        non_relational_questions = torch.stack([ torch.from_numpy(q) for q in sample["exp_qas"]["non_relational"][0]]).float()
         
-        latent_class = torch.from_numpy(latent_class)
-        latent_value = torch.from_numpy(latent_value)
+        relational_answers = torch.stack([ torch.Tensor([a]) for a in sample["exp_qas"]["relational"][1]]).long()
+        non_relational_answers = torch.stack([ torch.Tensor([a]) for a in sample["exp_qas"]["non_relational"][1]]).long()
+        
+        latent_class = torch.from_numpy(latent_class).float()
+        latent_value = torch.from_numpy(latent_value).float()
 
         img = (img*255).astype('uint8').transpose((2,1,0))
         img = Image.fromarray(img, mode='RGB')
@@ -412,4 +434,17 @@ class SortOfCLEVRDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        return img, target, latent_class, latent_value
+        sampled_d = {
+            "experiences":img, 
+            "exp_labels":target, 
+            "exp_latents":latent_class, 
+            "exp_latents_values":latent_value,
+
+            "relational_questions":relational_questions,
+            "non_relational_questions":non_relational_questions,
+
+            "relational_answers":relational_answers,
+            "non_relational_answers":non_relational_answers,
+        }
+
+        return sampled_d
