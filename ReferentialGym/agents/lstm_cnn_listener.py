@@ -212,7 +212,6 @@ class LSTMCNNListener(Listener):
 
             features.append(featout)
         
-        #features = torch.cat(features, dim=0)
         features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
@@ -264,11 +263,11 @@ class LSTMCNNListener(Listener):
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
             self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
-            #self.embedding_tf_final_outputs = torch.sigmoid(embedding_tf_final_outputs)
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
         else:
             self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
             self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+            # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
 
         # Consume the sentences:
         # (batch_size, max_sentence_length, self.vocab_size)
@@ -292,8 +291,6 @@ class LSTMCNNListener(Listener):
 
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_logits = []
-
-        #rnn_outputs = torch.sigmoid(rnn_outputs)
         for widx in range(rnn_outputs.size(1)):
             decision_inputs = rnn_outputs[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
@@ -314,7 +311,7 @@ class LSTMCNNListener(Listener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
 
-        #TODO: why would this be needed already??
+        #TODO: why would this be needed already?? Apparently in case of descriptive mode, cf obverter...
         '''
         not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
         if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()

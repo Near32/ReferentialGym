@@ -112,6 +112,8 @@ def compute_levenshtein_distance(s1, s2):
 
 
 def compute_cosine_sim(v1, v2):
+    v1 = v1.reshape(-1)
+    v2 = v2.reshape(-1)
     v1_norm = LA.norm(v1)
     v2_norm = LA.norm(v2)
     cos_sim = np.matmul(v1/v1_norm,(v2/v2_norm).transpose())

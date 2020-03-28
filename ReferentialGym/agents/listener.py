@@ -95,19 +95,56 @@ class Listener(Agent):
         batch_size = experiences.size(0)
         features = self._sense(experiences=experiences, sentences=sentences)
         if sentences is not None:
-            decision_logits, temporal_features = self._reason(sentences=sentences, features=features)
+            decision_logits, listener_temporal_features = self._reason(sentences=sentences, features=features)
         else:
             decision_logits = None
-            temporal_features = None 
+            listener_temporal_features = None
         
         next_sentences_widx = None 
         next_sentences_logits = None
         next_sentences = None
-
+        temporal_features = None
+        
         if multi_round or ('obverter' in graphtype.lower() and sentences is None):
-            next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = self._utter(features=features, sentences=sentences)
-            
+            utter_outputs = self._utter(features=features, sentences=sentences)
+            if len(utter_outputs) == 5:
+                next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
+            else:
+                next_sentences_hidden_states = None
+                next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
+                        
             if self.training:
+                if 'gumbel_softmax' in graphtype:    
+                    if next_sentences_hidden_states is None: 
+                        self.tau = self._compute_tau(tau0=tau0)
+                        #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
+                        tau = self.tau.view((-1))
+                        # (batch_size)
+                    else:
+                        self.tau = []
+                        for hs in next_sentences_hidden_states:
+                            self.tau.append( self._compute_tau(tau0=tau0, h=hs).view((-1)))
+                            # list of size batch_size containing Tensors of shape (sentence_length)
+                        tau = self.tau 
+                        
+                    straight_through = (graphtype == 'straight_through_gumbel_softmax')
+                    
+                    next_sentences_stgs = []
+                    for bidx in range(len(next_sentences_logits)):
+                        nsl_in = next_sentences_logits[bidx]
+                        # (sentence_length<=max_sentence_length, vocab_size)
+                        tau_in = tau[bidx].view((-1,1))
+                        # (1, 1) or (sentence_length, 1)
+                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
+                        
+                        next_sentences_stgs.append(stgs)
+                        #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
+                    next_sentences = next_sentences_stgs
+                    if isinstance(next_sentences, list): 
+                        next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
+                        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
+
+                '''
                 if 'gumbel_softmax' in graphtype:
                     self.tau = self._compute_tau(tau0=tau0)
                     #tau = self.tau.view((-1,1,1)).repeat(1,1,self.vocab_size)
@@ -125,7 +162,8 @@ class Listener(Agent):
                     if isinstance(next_sentences, list): 
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
-        
+                '''
+
         output_dict = {'decision': decision_logits, 
                        'sentences_widx':next_sentences_widx, 
                        'sentences_logits':next_sentences_logits, 

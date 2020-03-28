@@ -98,7 +98,7 @@ class statsLogger(SummaryWriter):
                 
                 sentence_it = it_sentences[sentence_idx][0]
                 if sentence_it == it:
-                    features.append(tf)
+                    features.append(tf.reshape(-1))
                     sentence_idx += 1
 
             np_sentences = np.concatenate( sentences, axis=1).transpose(1,0)

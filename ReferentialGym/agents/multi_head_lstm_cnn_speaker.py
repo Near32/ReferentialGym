@@ -112,9 +112,6 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
 
-        #assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
-        #symbol_decoder_input_dim = self.kwargs['temporal_encoder_nbr_hidden_units']
-        
         symbol_decoder_input_dim = self.kwargs['symbol_embedding_size']
         self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
@@ -134,7 +131,6 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
                                           nn.Softplus())
 
         # Multi Heads : Classification and Regression:
-
         self.multi_head_config = multi_head_config
         # Add the feature map size as input to the architectures:
         feat_map_dim, feat_map_depth = self.cnn_encoder._compute_feature_shape()
@@ -272,6 +268,7 @@ class MultiHeadLSTMCNNSpeaker(Speaker):
 
     def _utter(self, features, sentences=None):
         '''
+        TODO: update this description...
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.

@@ -222,13 +222,6 @@ class ReferentialGame(object):
                             it_sample = it_samples[mode]
                             end_of_epoch_sample = end_of_epoch_datasample and (it_rep==self.config['nbr_experience_repetition']-1)
                             self.stream_handler.update("signal:end_of_epoch_sample", end_of_epoch_sample)
-
-                            #TODO: serving should handle default values with None maybe?
-                            '''
-                            listener_sentences_logits = None
-                            listener_sentences_one_hot = None
-                            listener_sentences_widx = None 
-                            '''
                             batch_size = len(sample['speaker_experiences'])
                                 
                             for idx_round in range(self.config['nbr_communication_round']):
@@ -239,26 +232,12 @@ class ReferentialGame(object):
                                 if idx_round == self.config['nbr_communication_round']-1:
                                     multi_round = False
                                 self.stream_handler.update("signal:multi_round", multi_round)
-
-                                '''
-                                speaker_inputs_dict = {'experiences':sample['speaker_experiences'], 
-                                                       'latent_experiences':sample['speaker_latent_experiences'], 
-                                                       'latent_experiences_values':sample['speaker_latent_experiences_values'], 
-                                                       'sentences_logits':listener_sentences_logits,
-                                                       'sentences_one_hot':listener_sentences_one_hot,
-                                                       'sentences_widx':listener_sentences_widx, 
-                                                       'graphtype':self.config['graphtype'],
-                                                       'tau0':self.config['tau0'],
-                                                       'multi_round':multi_round,
-                                                       'sample':sample,
-                                                       'end_of_epoch_sample': end_of_epoch_sample
-                                                       }
-                                '''
                                 self.stream_handler.update('current_dataloader:sample', sample)
 
                                 # TODO: make sure the speaker demands data from the current listener placeholder (multi roung...)
                                 # TODO: also think about the config placeholder...
                                 # TODO: build a signal placeholder for the 'end_of_epoch_sample' boolean etc...
+                                speaker.role = "speaker"
                                 speaker_input_stream_dict = self.stream_handler._serve_module(speaker)
                                 
                                 if self.config['stimulus_depth_mult'] != 1:
@@ -275,32 +254,21 @@ class ReferentialGame(object):
 
                                 # TODO: make sure the listener demands data from the current speaker placeholder.
                                 self.stream_handler.update("current_speaker", speaker_output_stream_dict)
-
-                                '''
-                                listener_inputs_dict = {'graphtype':self.config['graphtype'],
-                                                        'tau0':self.config['tau0'],
-                                                        'multi_round':multi_round,
-                                                        'sample':sample}
-                                for k in speaker_outputs:
-                                    listener_inputs_dict[k] = speaker_outputs[k] 
-                                '''
                                 
-                                '''
-                                listener_inputs_dict['experiences'] = sample['listener_experiences']
-                                listener_inputs_dict['latent_experiences'] = sample['listener_latent_experiences']
-                                listener_inputs_dict['latent_experiences_values'] = sample['listener_latent_experiences_values']
-                                '''
-                                
+                                listener.role = "listener"
                                 listener_input_stream_dict = self.stream_handler._serve_module(listener)
                                 
+                                # TODO: find a way to do that in the save values rather...
+                                # Currently, there is no such thing as actual obverter technique!!!
+                                '''
                                 if self.config['graphtype'] == 'obverter':
-                                    import ipdb; ipdb.set_trace()
                                     if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
                                         listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
                                         listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
                                     if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
                                         listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
+                                '''
 
                                 if self.config['stimulus_depth_mult'] != 1:
                                     import ipdb; ipdb.set_trace()
@@ -317,20 +285,16 @@ class ReferentialGame(object):
                                 # TODO: make sure the listener demands data from the current speaker placeholder.
                                 self.stream_handler.update("current_listener", listener_output_stream_dict)
 
+                                # TODO: find a way to do that in the save values rather...
+                                # Currently, there is no such thing as actual obverter technique!!!
+                                '''
                                 if self.config['graphtype'] == 'obverter':
-                                    import ipdb; ipdb.set_trace()
                                     if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
                                         listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
                                     if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
                                         listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
                                     if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
                                         listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
-
-                                #TODO: remove once serving is validated...
-                                '''
-                                listener_sentences_logits = listener_outputs['sentences_logits']
-                                listener_sentences_one_hot = listener_outputs['sentences_one_hot']
-                                listener_sentences_widx = listener_outputs['sentences_widx']
                                 '''
 
                             # //------------------------------------------------------------//
