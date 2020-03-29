@@ -213,7 +213,11 @@ class LSTMCNNListener(Listener):
             features.append(featout)
         
         features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
-        features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])
+        
+        if self.use_feat_converter:
+            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.encoder_feature_shape)
+        else:
+            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])    
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
         if isinstance(self.cnn_encoder, BetaVAE):

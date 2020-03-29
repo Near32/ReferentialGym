@@ -1,3 +1,5 @@
+from typing import Dict, List 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -170,35 +172,6 @@ class Agent(Module):
         input_stream_keys = {'speaker':list(), 'listener':list()}
         input_stream_ids = {'speaker':list(), 'listener':list()}
         
-        input_stream_keys['speaker'] = [
-            'current_dataloader:sample:speaker_experiences', 
-            'current_dataloader:sample:speaker_exp_latents', 
-            'current_dataloader:sample:speaker_exp_latents_values', 
-            'current_listener:sentences_logits',
-            'current_listener:sentences_one_hot',
-            'current_listener:sentences_widx', 
-            'config:graphtype',
-            'config:tau0',
-            'signal:multi_round',
-            'signal:end_of_epoch_sample',
-            'current_dataloader:sample'
-        ]
-
-        input_stream_keys['listener'] = [
-            'current_dataloader:sample:listener_experiences', 
-            'current_dataloader:sample:listener_exp_latents', 
-            'current_dataloader:sample:listener_exp_latents_values', 
-            'current_speaker:sentences_logits',
-            'current_speaker:sentences_one_hot',
-            'current_speaker:sentences_widx', 
-            'config:graphtype',
-            'config:tau0',
-            'signal:multi_round',
-            'signal:end_of_epoch_sample',
-            'current_dataloader:sample'
-        ]
-
-        
         input_stream_ids['speaker'] = {
             'current_dataloader:sample:speaker_experiences':'experiences', 
             'current_dataloader:sample:speaker_exp_latents':'exp_latents', 
@@ -206,11 +179,14 @@ class Agent(Module):
             'current_listener:sentences_logits':'sentences_logits',
             'current_listener:sentences_one_hot':'sentences_one_hot',
             'current_listener:sentences_widx':'sentences_widx', 
+            'config':'config',
             'config:graphtype':'graphtype',
             'config:tau0':'tau0',
             'signal:multi_round':'multi_round',
             'signal:end_of_epoch_sample':'end_of_epoch_sample',
-            'current_dataloader:sample':'sample'
+            'signal:mode':'mode',
+            'signal:it_step':'it',
+            'current_dataloader:sample':'sample',
         }
 
         input_stream_ids['listener'] = {
@@ -220,12 +196,21 @@ class Agent(Module):
             'current_speaker:sentences_logits':'sentences_logits',
             'current_speaker:sentences_one_hot':'sentences_one_hot',
             'current_speaker:sentences_widx':'sentences_widx', 
+            'config':'config',
             'config:graphtype':'graphtype',
             'config:tau0':'tau0',
             'signal:multi_round':'multi_round',
             'signal:end_of_epoch_sample':'end_of_epoch_sample',
+            'signal:mode':'mode',
+            'signal:it_step':'it',
             'current_dataloader:sample':'sample'
         }
+
+        # Dict_keys object are not pickle-able...:
+        input_stream_keys['speaker'] = list(input_stream_ids['speaker'].keys())
+        input_stream_keys['listener'] = list(input_stream_ids['listener'].keys())
+        
+        
         
         super(Agent, self).__init__(id=f"Agent_{agent_id}", 
                                     config=kwargs,
@@ -330,7 +315,7 @@ class Agent(Module):
         """
         raise NotImplementedError
 
-    def compute(self, inputs_dict, config, role='speaker', mode='train', it=0):
+    def compute(self, inputs_dict:Dict[str,object]) -> Dict[str,object] :
         """
         Compute the losses and return them along with the produced outputs.
 
@@ -348,8 +333,14 @@ class Agent(Module):
                         - `'obverter'`: obverter training scheme...
             - `'tau0'`: Float, temperature with which to apply gumbel-softmax estimator. 
             - `'sample'`: Dict that contains the speaker and listener experiences as well as the target index.
+            - `'config'`: Dict of hyperparameters to the referential game.
+            - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
+            - `'it'`: Integer specifying the iteration number of the current function call.
         """
-        self.role = role
+        config = inputs_dict['config']
+        mode = inputs_dict['mode']
+        it = inputs_dict['it']
+        
         batch_size = len(inputs_dict['experiences'])
 
         input_sentence = inputs_dict['sentences_widx']
@@ -383,18 +374,18 @@ class Agent(Module):
                     inputs_dict=inputs_dict,
                     outputs_dict=outputs_dict,
                     mode=mode,
-                    role=role
+                    role=self.role
                     )
 
 
         '''
         if hasattr(self, 'TC_losses'):
-            losses_dict[f'{role}/TC_loss'] = [1.0, self.TC_losses]
+            losses_dict[f'{self.role}/TC_loss'] = [1.0, self.TC_losses]
         '''
         if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in inputs_dict['graphtype'])):
-            losses_dict[f'{role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
+            losses_dict[f'{self.role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
 
-        if 'speaker' in role:
+        if 'speaker' in self.role:
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
                 arange_vocab = torch.arange(config['vocab_size']+1).float()
                 if config['use_cuda']: arange_vocab = arange_vocab.cuda()
@@ -454,7 +445,7 @@ class Agent(Module):
         # //------------------------------------------------------------//
         
 
-        if 'listener' in role:
+        if 'listener' in self.role:
             sample = inputs_dict['sample']
             if config['iterated_learning_scheme']:
                 listener_speaking_outputs = self(experiences=sample['speaker_experiences'], 
@@ -485,7 +476,6 @@ class Agent(Module):
                             decision_probs = decision_probs[:,-1,...]
                             loss = criterion( decision_probs, sample['target_decision_idx'])
                             # (batch_size, )
-                        
                     else:   
                         final_decision_logits = final_decision_logits[:,-1,...]
                         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
@@ -496,7 +486,22 @@ class Agent(Module):
                     losses_dict['referential_game_loss'] = [1.0, loss]
                 elif config['agent_loss_type'].lower() == 'hinge':
                     #Havrylov's Hinge loss:
-                    final_decision_logits = final_decision_logits[:,-1,...]
+                    if 'obverter' in config['graphtype'].lower():
+                        sentences_lengths = torch.sum(-(inputs_dict['sentences_widx'].squeeze(-1)-self.vocab_size).sign(), dim=-1).long()
+                        # (batch_size,) 
+                        sentences_lengths = sentences_lengths.reshape(
+                            -1,
+                            1,
+                            1
+                        ).expand(
+                            final_decision_logits.shape[0],
+                            1,
+                            final_decision_logits.shape[2]
+                        )
+                        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent)) 
+                        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
+                    else:
+                        final_decision_logits = final_decision_logits[:,-1]
                     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                     decision_probs = F.log_softmax( final_decision_logits, dim=-1)
                     
@@ -759,7 +764,7 @@ class Agent(Module):
         
         # Logging:        
         for logname, value in self.log_dict.items():
-            self.logger.add_scalar('{}/{}/{}'.format(mode, role, logname), value.item(), it)    
+            self.logger.add_scalar('{}/{}/{}'.format(mode, self.role, logname), value.item(), it)    
         self.log_dict = {}
 
         self._tidyup()

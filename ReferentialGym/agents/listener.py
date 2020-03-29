@@ -115,6 +115,7 @@ class Listener(Agent):
                         
             if self.training:
                 if 'gumbel_softmax' in graphtype:    
+                    print(f"WARNING: Listener {self.agent_id} is producing messages via a {graphtype}-based graph at the Listener class-level!")
                     if next_sentences_hidden_states is None: 
                         self.tau = self._compute_tau(tau0=tau0)
                         #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
@@ -128,7 +129,7 @@ class Listener(Agent):
                         tau = self.tau 
                         
                     straight_through = (graphtype == 'straight_through_gumbel_softmax')
-                    
+
                     next_sentences_stgs = []
                     for bidx in range(len(next_sentences_logits)):
                         nsl_in = next_sentences_logits[bidx]
@@ -143,26 +144,6 @@ class Listener(Agent):
                     if isinstance(next_sentences, list): 
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
-
-                '''
-                if 'gumbel_softmax' in graphtype:
-                    self.tau = self._compute_tau(tau0=tau0)
-                    #tau = self.tau.view((-1,1,1)).repeat(1,1,self.vocab_size)
-                    tau = self.tau.view((-1))
-
-                    straight_through = ('straight_through_gumbel_softmax' in graphtype)
-                    
-                    next_sentences_stgs = []
-                    for bidx in range(len(next_sentences_logits)):
-                        nsl_in = next_sentences_logits[bidx]
-                        tau_in = tau[bidx]
-                        next_sentences_stgs.append( gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
-                        #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
-                    next_sentences = next_sentences_stgs
-                    if isinstance(next_sentences, list): 
-                        next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
-                        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
-                '''
 
         output_dict = {'decision': decision_logits, 
                        'sentences_widx':next_sentences_widx, 

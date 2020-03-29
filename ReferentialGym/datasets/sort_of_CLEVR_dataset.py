@@ -193,40 +193,47 @@ def generate_dataset(root,
         """Non-relational questions"""
         for _ in range(nb_questions):
             question = np.zeros((question_size))
-            color = random.randint(0,nb_objects-1)
-            question[color] = 1
+            color_id = random.randint(0,nb_objects-1)
+            question[color_id] = 1
             question[nb_objects] = 1
             subtype = random.randint(0,2)
             question[subtype+2+nb_objects] = 1
             norel_questions.append(question)
-            """Answer : [yes, no, rectangle, circle, *colors]"""
+            """Answer : [yes, no, rectangle, circle, 1~nb_objects]"""
             if subtype == 0:
                 """query shape->rectangle/circle"""
-                if objects[color][2] == 'r':
+                if objects[color_id][2] == 'r':
                     answer = 2
+                    # rectangle
                 else:
                     answer = 3
+                    # circle
 
             elif subtype == 1:
                 """query horizontal position->yes/no"""
-                if objects[color][1][0] < img_size / 2:
+                if objects[color_id][1][0] < img_size / 2:
                     answer = 0
+                    # yes
                 else:
                     answer = 1
+                    # no
 
             elif subtype == 2:
                 """query vertical position->yes/no"""
-                if objects[color][1][1] < img_size / 2:
+                if objects[color_id][1][1] < img_size / 2:
                     answer = 0
+                    # yes
                 else:
                     answer = 1
+                    # no
+
             norel_answers.append(answer)
         
         """Relational questions"""
         for i in range(nb_questions):
             question = np.zeros((question_size))
-            color = random.randint(0,nb_objects-1)
-            question[color] = 1
+            color_id = random.randint(0,nb_objects-1)
+            question[color_id] = 1
             question[nb_objects+1] = 1
             subtype = random.randint(0,2)
             question[subtype+2+nb_objects] = 1
@@ -234,33 +241,44 @@ def generate_dataset(root,
 
             if subtype == 0:
                 """closest-to->rectangle/circle"""
-                my_obj = objects[color][1]
-                dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
+                my_obj_pos = objects[color_id][1]
+                dist_list = [((my_obj_pos - obj[1]) ** 2).sum() for obj in objects]
                 dist_list[dist_list.index(0)] = 999
                 closest = dist_list.index(min(dist_list))
                 if objects[closest][2] == 'r':
                     answer = 2
+                    # rectangle
                 else:
                     answer = 3
+                    # circle
                     
             elif subtype == 1:
                 """furthest-from->rectangle/circle"""
-                my_obj = objects[color][1]
-                dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
+                my_obj_pos = objects[color_id][1]
+                dist_list = [((my_obj_pos - obj[1]) ** 2).sum() for obj in objects]
                 furthest = dist_list.index(max(dist_list))
                 if objects[furthest][2] == 'r':
                     answer = 2
+                    # rectangle
                 else:
                     answer = 3
+                    # circle
 
             elif subtype == 2:
                 """count->1~nb_objects"""
-                my_obj = objects[color][2]
+                my_obj_shape = objects[color_id][2]
                 count = -1
                 for obj in objects:
-                    if obj[2] == my_obj:
+                    if obj[2] == my_obj_shape:
                         count +=1 
                 answer = count+4
+                # from idx 4 (i.e. count=0, 
+                # which is actually 1 object of the given shape, 
+                # obtained when checking that very object from 
+                # the list of objects ...)
+                # to idx 4 + (nb_objects-1) = 3 + nb_objects
+                # (i.e. count=nb_objects-1,
+                # which is actually nb_objects objects of the give shape).
 
             rel_answers.append(answer)
 

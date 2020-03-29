@@ -227,7 +227,8 @@ class ReferentialGame(object):
                             for idx_round in range(self.config['nbr_communication_round']):
                                 it_steps[mode] += 1
                                 it_step = it_steps[mode]
-
+                                self.stream_handler.update("signal:it_step", it_step)
+                            
                                 multi_round = True
                                 if idx_round == self.config['nbr_communication_round']-1:
                                     multi_round = False
@@ -246,11 +247,7 @@ class ReferentialGame(object):
                                     # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                                 
                                 speaker_output_stream_dict, \
-                                speaker_losses = speaker.compute(inputs_dict=speaker_input_stream_dict,
-                                                                 config=self.config,
-                                                                 role='speaker',
-                                                                 mode=mode,
-                                                                 it=it_step)
+                                speaker_losses = speaker.compute(inputs_dict=speaker_input_stream_dict)
 
                                 # TODO: make sure the listener demands data from the current speaker placeholder.
                                 self.stream_handler.update("current_speaker", speaker_output_stream_dict)
@@ -258,44 +255,15 @@ class ReferentialGame(object):
                                 listener.role = "listener"
                                 listener_input_stream_dict = self.stream_handler._serve_module(listener)
                                 
-                                # TODO: find a way to do that in the save values rather...
-                                # Currently, there is no such thing as actual obverter technique!!!
-                                '''
-                                if self.config['graphtype'] == 'obverter':
-                                    if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
-                                        listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
-                                    if isinstance(speaker_outputs['sentences_one_hot'], torch.Tensor):
-                                        listener_inputs_dict['sentences_one_hot'] = listener_inputs_dict['sentences_one_hot'].detach()
-                                    if isinstance(speaker_outputs['sentences_widx'], torch.Tensor):
-                                        listener_inputs_dict['sentences_widx'] = listener_inputs_dict['sentences_widx'].detach()
-                                '''
-
                                 if self.config['stimulus_depth_mult'] != 1:
                                     import ipdb; ipdb.set_trace()
                                     listener_inputs_dict['experiences'] = listener_inputs_dict['experiences'].repeat(1, 1, 1, self.config['stimulus_depth_mult'], 1, 1)
                                     # batch_size, nbr_distractors+1, nbr_stimulus, nbr_channels, width, height
                                 
                                 listener_output_stream_dict, \
-                                listener_losses = listener.compute(inputs_dict=listener_input_stream_dict,
-                                                                   config=self.config,
-                                                                   role='listener',
-                                                                   mode=mode,
-                                                                   it=it_step)
+                                listener_losses = listener.compute(inputs_dict=listener_input_stream_dict)
 
-                                # TODO: make sure the listener demands data from the current speaker placeholder.
                                 self.stream_handler.update("current_listener", listener_output_stream_dict)
-
-                                # TODO: find a way to do that in the save values rather...
-                                # Currently, there is no such thing as actual obverter technique!!!
-                                '''
-                                if self.config['graphtype'] == 'obverter':
-                                    if isinstance(speaker_outputs['sentences_logits'], torch.Tensor):
-                                        listener_inputs_dict['sentences_logits'] = listener_inputs_dict['sentences_logits'].detach()
-                                    if isinstance(listener_outputs['sentences_one_hot'], torch.Tensor):
-                                        listener_outputs['sentences_one_hot'] = listener_outputs['sentences_one_hot'].detach()
-                                    if isinstance(listener_outputs['sentences_widx'], torch.Tensor):
-                                        listener_outputs['sentences_widx'] = listener_outputs['sentences_widx'].detach()
-                                '''
 
                             # //------------------------------------------------------------//
                             # //------------------------------------------------------------//
@@ -304,10 +272,6 @@ class ReferentialGame(object):
                             #final_decision_logits = listener_output_stream_dict['decision']
                             final_decision_logits = self.stream_handler['current_listener:decision']
                             
-                            '''
-                            losses.update(speaker_losses)
-                            losses.update(listener_losses)
-                            '''
                             self.stream_handler.update("losses_dict", speaker_losses)
                             self.stream_handler.update("losses_dict", listener_losses)
                             
@@ -323,7 +287,6 @@ class ReferentialGame(object):
                             # maybe make the population a whole module in itself...?
 
                             losses = self.stream_handler["losses_dict"]
-                            
                             idx_loss = 1 if not self.config['use_homoscedastic_multitasks_loss'] else 2
 
                             # TODO:
@@ -397,7 +360,10 @@ class ReferentialGame(object):
                                 if 'with_mdl_principle' in self.config and self.config['with_mdl_principle']:
                                     logger.add_scalar("{}/MDLLoss".format(mode), speaker_losses['mdl_loss'][idx_loss].mean().item(), it_step)
                                 
-                                sentence_length = (speaker_sentences_widx< (self.config['vocab_size']-1)).sum().float()/batch_size
+                                if 'obverter' in self.config['graphtype'].lower():
+                                    sentence_length = torch.sum(-(speaker_sentences_widx.squeeze(-1)-self.config['vocab_size']).sign(), dim=-1).mean()
+                                else:
+                                    sentence_length = (speaker_sentences_widx < (self.config['vocab_size']-1)).sum().float()/batch_size
                                 logger.add_scalar('{}/SentenceLength (/{})'.format(mode, self.config['max_sentence_length']), sentence_length/self.config['max_sentence_length'], it_step)
                                 
                                 for sentence in sentences:  total_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))

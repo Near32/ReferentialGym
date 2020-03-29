@@ -3,11 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .listener import Listener
-from ..networks import choose_architecture, layer_init
+from ..networks import choose_architecture, layer_init, BetaVAE
 
 
 class ObverterAgent(Listener):
-    def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='o0', logger=None):
+    def __init__(self,
+                 kwargs, 
+                 obs_shape, 
+                 vocab_size=100, 
+                 max_sentence_length=10, 
+                 agent_id='o0', 
+                 logger=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
                           where, by default, `nbr_distractors=1` and `nbr_stimulus=1` (static stimuli). 

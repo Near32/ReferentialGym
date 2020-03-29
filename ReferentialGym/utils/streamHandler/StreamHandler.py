@@ -86,10 +86,26 @@ class StreamHandler(object):
             if ptr not in p_ptr.keys(): raise AssertionError("The required stream does not exists...")
             p_ptr = p_ptr[ptr]
 
+        # Do we need to perform some operations on the data stream?
+        operations = []
+        if '.' in stream_id[-1]:
+            operations = stream_id[-1].split(".")
+            stream_id[-1] = operations.pop(0)
+        
         if hasattr(p_ptr, stream_id[-1]):
-            return getattr(p_ptr, stream_id[-1])
+            output = getattr(p_ptr, stream_id[-1])
         elif stream_id[-1] in p_ptr:
-            return p_ptr[stream_id[-1]]
+            output = p_ptr[stream_id[-1]]
         else:
             #raise AssertionError("The required stream does not exists...")
-            return None
+            output = None
+
+        return self._operate(output, operations)
+
+    def _operate(self, data:object, operations:List[str]) -> object:
+        for operation in operations:
+            op = getattr(data, operation, None)
+            if op is not None:
+                data = op()
+
+        return data

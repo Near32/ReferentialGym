@@ -19,7 +19,7 @@ import torchvision.transforms as T
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Experiment 1: Interpolation with Interweaved Set.')
+  parser = argparse.ArgumentParser(description='LSTM CNN Agents: ST-GS Language Emergence.')
   parser.add_argument('--seed', type=int, default=0)
   parser.add_argument('--use_cuda', action='store_true', default=False)
   parser.add_argument('--dataset', type=str, 
@@ -62,7 +62,7 @@ def main():
              'argmax_reinforce',
              'obverter'],
     help='type of graph to use during training of the speaker and listener.',
-    default='obverter')
+    default='straight_through_gumbel_softmax')
   parser.add_argument('--max_sentence_length', type=int, default=15)
   parser.add_argument('--vocab_size', type=int, default=25)
   parser.add_argument('--lr', type=float, default=3e-4)
@@ -76,7 +76,7 @@ def main():
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
-  
+  parser.add_argument('--detached_heads', action='store_true', default=False)
   parser.add_argument('--train_test_split_strategy', type=str, 
     choices=['combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3', # Exp1 : interweaved split
              'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp1 : interweaved split simple X Y 
@@ -89,6 +89,8 @@ def main():
             ],
     help='train/test split strategy',
     default="combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N")
+  parser.add_argument('--fast', action='store_true', default=False, 
+    help='Disable the deterministic CuDNN. It is likely to make the computation faster.')
   
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
@@ -147,7 +149,12 @@ def main():
 
   seed = args.seed 
 
+  # Following: https://pytorch.org/docs/stable/notes/randomness.html
   torch.manual_seed(seed)
+  if hasattr(torch.backends, 'cudnn') and not(args.fast):
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
   np.random.seed(seed)
   random.seed(seed)
   # # Hyperparameters:
@@ -170,7 +177,7 @@ def main():
   transform_degrees = 45
   transform_translate = (0.25, 0.25)
 
-  multi_head_detached = True 
+  multi_head_detached = args.detached_heads 
 
   rg_config = {
       "observability":            "partial",
@@ -295,7 +302,6 @@ def main():
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']['train'] if rg_config['observability'] == 'full' else 0
   agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
   agent_config['nbr_communication_round'] = rg_config['nbr_communication_round']
-  agent_config['use_obverter_threshold_to_stop_message_generation'] = True
   agent_config['descriptive'] = rg_config['descriptive']
   agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
   agent_config['agent_learning'] = rg_config['agent_learning']
@@ -501,22 +507,22 @@ def main():
 
 
 
-  #save_path = f"./Havrylov_et_al/test/TrainNOTF_TestNOTF/SpLayerNormOnFeatures+NoLsBatchNormOnRNN"
-  #save_path = f"./Havrylov_et_al/test_Stop0Start0/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
-  save_path = f"./Havrylov_et_al/test_Stop0Start0/PAPER/EXP1/dSPrites/DualLabeled/Multi_Reg_Class_Head_{'Not' if not(multi_head_detached) else ''}Detached"
-  save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}"
+  save_path = f"./{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
-  save_path += "/CrossEntropyLoss_AllHeadsLoss"
-  save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NOLsBatchNormOnRNN"
-  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+NoLsBatchNormOnRNN"
-  #save_path = f"./Havrylov_et_al/test/{nbr_epoch}Ep/TrainNOTF_TestNOTF/SpLayerNormLsLayerNormOnFeatures+NoLsBatchNormOnRNN"
+  save_path += f"/TrainNOTF_TestNOTF/SpBatchNormLsBatchNormOnFeatures+LsBatchNormOnRNN"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
-  train_test_strategy = f"-{test_split_strategy}"
-  if test_split_strategy != train_split_strategy:
-    train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
-  save_path += f"{rg_config['agent_loss_type']}/dSprites{train_test_strategy}/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  save_path += f"{rg_config['agent_loss_type']}"
+  
+  if 'dSprites' in args.dataset: 
+    train_test_strategy = f"-{test_split_strategy}"
+    if test_split_strategy != train_split_strategy:
+      train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
+    save_path += f"/dSprites{train_test_strategy}"
+  
+  save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -578,8 +584,11 @@ def main():
   if rg_config['use_homoscedastic_multitasks_loss']:
     save_path += '+Homo'
   
-  save_path += f'+not_splitted_conv_map/ListenerBN/EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/{args.dataset}/testMHCM/Obverter'
+  if 'reinforce' in args.graphtype:
+    save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
+  save_path += f"testMHCM/STGS-LSTM-CNN-Agent/"
+  
   save_path += f'+DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
   rg_config['save_path'] = save_path
@@ -589,10 +598,8 @@ def main():
   from ReferentialGym.utils import statsLogger
   logger = statsLogger(path=save_path,dumpPeriod=100)
   
-
-
   # # Agents
-  from ReferentialGym.agents import DifferentiableObverterAgent
+  from ReferentialGym.agents import LSTMCNNSpeaker
 
   batch_size = 4
   nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
@@ -601,7 +608,7 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  speaker = DifferentiableObverterAgent(
+  speaker = LSTMCNNSpeaker(
     kwargs=agent_config, 
     obs_shape=obs_shape, 
     vocab_size=vocab_size, 
@@ -612,7 +619,7 @@ def main():
 
   print("Speaker:", speaker)
 
-  from ReferentialGym.agents import DifferentiableObverterAgent
+  from ReferentialGym.agents import LSTMCNNListener
   import copy
 
   listener_config = copy.deepcopy(agent_config)
@@ -629,14 +636,12 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  listener = DifferentiableObverterAgent(
-    kwargs=listener_config, 
-    obs_shape=obs_shape, 
-    vocab_size=vocab_size, 
-    max_sentence_length=max_sentence_length,
-    agent_id='l0',
-    logger=logger
-  )
+  listener = LSTMCNNListener(kwargs=listener_config, 
+                                obs_shape=obs_shape, 
+                                vocab_size=vocab_size, 
+                                max_sentence_length=max_sentence_length,
+                                agent_id='l0',
+                                logger=logger)
 
   print("Listener:", listener)
 
