@@ -41,13 +41,12 @@ class SqueezeModule(Module):
         
         super(SqueezeModule, self).__init__(id=f"SqueezeModule_{id}",
                                            config=config,
-                                           input_stream_keys=input_stream_keys,
                                            input_stream_ids=input_stream_ids)
         
         self.squeeze_dim = self.config["dim"]
         assert(isinstance(self.squeeze_dim, list))
         
-        self.n_input_streams = len(self.input_stream_keys)
+        self.n_input_streams = len(self.input_stream_ids)
 
         while len(self.squeeze_dim) < self.n_input_streams:
             self.squeeze_dim.append(self.squeeze_dim[-1])

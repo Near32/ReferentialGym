@@ -206,15 +206,8 @@ class Agent(Module):
             'current_dataloader:sample':'sample'
         }
 
-        # Dict_keys object are not pickle-able...:
-        input_stream_keys['speaker'] = list(input_stream_ids['speaker'].keys())
-        input_stream_keys['listener'] = list(input_stream_ids['listener'].keys())
-        
-        
-        
         super(Agent, self).__init__(id=f"Agent_{agent_id}", 
                                     config=kwargs,
-                                    input_stream_keys=input_stream_keys,
                                     input_stream_ids=input_stream_ids)
         
         self.agent_id = agent_id

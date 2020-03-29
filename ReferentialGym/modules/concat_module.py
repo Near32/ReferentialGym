@@ -32,7 +32,6 @@ class ConcatModule(Module):
         
         super(ConcatModule, self).__init__(id=f"ConcatModule_{id}",
                                            config=config,
-                                           input_stream_keys=input_stream_keys,
                                            input_stream_ids=input_stream_ids)
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :

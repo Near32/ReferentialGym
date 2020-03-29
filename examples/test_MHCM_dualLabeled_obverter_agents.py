@@ -744,13 +744,6 @@ def main():
       "use_cuda":args.use_cuda,
     }
 
-    mhcm_ffm_input_stream_keys = [
-      "current_speaker:ref:feat_maps",
-      "current_dataloader:sample:speaker_exp_latents",
-      "losses_dict",
-      "logs_dict",
-    ]
-
     mhcm_ffm_input_stream_ids = {
       "current_speaker:ref:feat_maps":"inputs",
       "current_dataloader:sample:speaker_exp_latents":"targets",
@@ -815,13 +808,6 @@ def main():
       'detach_input': multi_head_detached,
       "use_cuda":args.use_cuda,
     }
-    mhcm_r_input_stream_keys = [
-      "modules:ConcatModule_concat_relational:output_0",
-      #"current_dataloader:sample:speaker_relational_answers",
-      "modules:SqueezeModule_squeeze_qas:output_2",
-      "losses_dict",
-      "logs_dict",
-    ]
     mhcm_r_input_stream_ids = {
       "modules:ConcatModule_concat_relational:output_0":"inputs",
       #"current_dataloader:sample:speaker_relational_answers":"targets",
@@ -841,13 +827,6 @@ def main():
       'detach_input': multi_head_detached,
       "use_cuda":args.use_cuda,
     }
-    mhcm_nr_input_stream_keys = [
-      "modules:ConcatModule_concat_non_relational:output_0",
-      #"current_dataloader:sample:speaker_non_relational_answers",
-      "modules:SqueezeModule_squeeze_qas:output_3",
-      "losses_dict",
-      "logs_dict",
-    ]
     mhcm_nr_input_stream_ids = {
       "modules:ConcatModule_concat_non_relational:output_0":"inputs",
       #"current_dataloader:sample:speaker_non_relational_answers":"targets",
@@ -872,7 +851,6 @@ def main():
     modules[mhcm_ffm_id] = rg_modules.build_MultiHeadClassificationFromFeatureMapModule(
       id=mhcm_ffm_id, 
       config=mhcm_ffm_config,
-      input_stream_keys=mhcm_ffm_input_stream_keys,
       input_stream_ids=mhcm_ffm_input_stream_ids)
   elif 'Sort-of-CLEVR' in args.dataset:
     modules[fm_id] = rg_modules.build_FlattenModule(
@@ -899,13 +877,11 @@ def main():
     modules[mhcm_r_id] = rg_modules.build_MultiHeadClassificationModule(
       id=mhcm_r_id, 
       config=mhcm_r_config,
-      input_stream_keys=mhcm_r_input_stream_keys,
       input_stream_ids=mhcm_r_input_stream_ids)
 
     modules[mhcm_nr_id] = rg_modules.build_MultiHeadClassificationModule(
       id=mhcm_nr_id, 
       config=mhcm_nr_config,
-      input_stream_keys=mhcm_nr_input_stream_keys,
       input_stream_ids=mhcm_nr_input_stream_ids)
 
   homo_id = "homo0"

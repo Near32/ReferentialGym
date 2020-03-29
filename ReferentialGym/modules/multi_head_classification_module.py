@@ -10,7 +10,6 @@ from .module import Module
 
 def build_MultiHeadClassificationModule(id:str,
                                         config:Dict[str,object],
-                                        input_stream_keys:List[str],
                                         input_stream_ids:Dict[str,str]) -> Module:
     
     # Multi Heads:
@@ -46,7 +45,6 @@ def build_MultiHeadClassificationModule(id:str,
     module = MultiHeadClassificationModule(id=id,
                                            config=config,
                                            heads=heads,
-                                           input_stream_keys=input_stream_keys,
                                            input_stream_ids=input_stream_ids)
     return module
 
@@ -56,7 +54,6 @@ class MultiHeadClassificationModule(Module):
                  id:str,
                  config:Dict[str,object],
                  heads:nn.ModuleList,
-                 input_stream_keys:List[str],
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
@@ -78,7 +75,6 @@ class MultiHeadClassificationModule(Module):
 
         super(MultiHeadClassificationModule, self).__init__(id=f"MultiHeadClassificationModule_{id}",
                                                             config=config,
-                                                            input_stream_keys=input_stream_keys,
                                                             input_stream_ids=input_stream_ids)
         self.heads = heads
         self.final_fn = final_fn

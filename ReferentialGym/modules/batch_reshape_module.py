@@ -40,7 +40,6 @@ class BatchReshapeModule(Module):
 
         super(BatchReshapeModule, self).__init__(id=f"BatchReshapeModule_{id}",
                                                  config=config,
-                                                 input_stream_keys=input_stream_keys,
                                                  input_stream_ids=input_stream_ids)
         
         self.new_shape = self.config["new_shape"]

@@ -22,42 +22,30 @@ class StreamHandler(object):
         :param p_ptr: None, except when called by self in a recurrent fashion.
         '''
 
-        init = False
-        if p_ptr is None:   
-            init = True
-            p_ptr = self.placeholders
-        
-        if init and stream_data is {}:   return
+        p_ptr = self.placeholders
+        if stream_data is {}:   return
         
         previous_placeholder = {}
-        if ':' not in placeholder_id:
-            if placeholder_id not in p_ptr:
-                p_ptr[placeholder_id] = {}
-            
-            # Not possible to copy leaves tensor at the moment with PyTorch...
-            previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
 
-            if isinstance(stream_data, dict):
-                for k,v in stream_data.items():
-                    p_ptr[placeholder_id][k] = v 
-            else:
-                p_ptr[placeholder_id] = stream_data
-            return previous_placeholder
-        else:
+        while ':' in placeholder_id:
             ptr, next_placeholder_id = placeholder_id.split(":", 1)
             if ptr not in p_ptr:    p_ptr[ptr] = {}
-            previous_placeholder_data = self.update(placeholder_id=next_placeholder_id, 
-                                                   stream_data=stream_data, 
-                                                   p_ptr=p_ptr[ptr])
+            placeholder_id=next_placeholder_id
+            p_ptr=p_ptr[ptr]
 
-        # One-iteration backup...
-        # TODO: extend this class into a logging class that consumes those previous values...?
-        if init and previous_placeholder_data != {}:
-            if "current" in placeholder_id:
-                new_placeholder_id = placeholder_id.replace("current", "previous")
-                self.update(placeholder_id=new_placeholder_id, 
-                            stream_data=previous_placeholder_data,
-                            p_ptr=self.placeholders)
+        if placeholder_id not in p_ptr:
+            p_ptr[placeholder_id] = {}
+        
+        # Not possible to copy leaves tensor at the moment with PyTorch...
+        previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
+
+        if isinstance(stream_data, dict):
+            for k,v in stream_data.items():
+                p_ptr[placeholder_id][k] = v 
+        else:
+            p_ptr[placeholder_id] = stream_data
+        
+        return
 
     def serve(self, pipeline:List[object]):
         for module in pipeline:
@@ -66,11 +54,9 @@ class StreamHandler(object):
             self.update(f"modules:{module.get_id()}", module_output_stream_dict)
 
     def _serve_module(self, module:object):
-        module_input_stream_keys = module.get_input_stream_keys()
         module_input_stream_ids = module.get_input_stream_ids()
         module_input_stream_dict = {}
-        for k_in in module_input_stream_keys:
-            k_out = module_input_stream_ids[k_in]
+        for k_in, k_out in module_input_stream_ids.items():
             module_input_stream_dict[k_out] = self[k_in]
         return module_input_stream_dict
     

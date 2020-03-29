@@ -48,7 +48,6 @@ class BatchReshapeRepeatModule(Module):
 
         super(BatchReshapeRepeatModule, self).__init__(id=f"BatchReshapeRepeatModule_{id}",
                                                        config=config,
-                                                       input_stream_keys=input_stream_keys,
                                                        input_stream_ids=input_stream_ids)
                 
         self.new_shape = self.config["new_shape"]
@@ -56,7 +55,7 @@ class BatchReshapeRepeatModule(Module):
         self.repetition = self.config["repetition"]
         assert(isinstance(self.repetition, list))
         
-        self.n_input_streams = len(self.input_stream_keys)
+        self.n_input_streams = len(self.input_stream_ids)
 
         while len(self.new_shape) < self.n_input_streams:
             self.new_shape.append(self.new_shape[-1])

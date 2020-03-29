@@ -15,11 +15,9 @@ from ..networks import handle_nan
 
 def build_OptimizationModule(id:str,
                              config:Dict[str,object],
-                             input_stream_keys:List[str]=None,
                              input_stream_ids:Dict[str,str]=None) -> Module:
     return OptimizationModule(id=id,
                               config=config, 
-                              input_stream_keys=input_stream_keys,
                               input_stream_ids=input_stream_ids)
 
 
@@ -27,14 +25,7 @@ class OptimizationModule(Module):
     def __init__(self,
                  id:str,
                  config:Dict[str,object],
-                 input_stream_keys:List[str]=None,
                  input_stream_ids:Dict[str,str]=None):
-
-        if input_stream_keys is None:
-            input_stream_keys = [
-                "losses_dict",
-                "signal:mode",
-            ]
 
         if input_stream_ids is None:
             input_stream_ids = {
@@ -56,7 +47,6 @@ class OptimizationModule(Module):
         
         super(OptimizationModule, self).__init__(id=f"OptimizationModule_{id}",
                                                  config=config,
-                                                 input_stream_keys=input_stream_keys,
                                                  input_stream_ids=input_stream_ids)
         parameters = []
         for k,m in self.config["modules"].items():

@@ -60,11 +60,6 @@ class DifferentiableObverterAgent(Listener):
                 'current_speaker:sentences_one_hot.detach':'sentences_one_hot',
                 'current_speaker:sentences_widx.detach':'sentences_widx', 
             })
-
-            # Dict_keys object are not pickle-able...:
-            self.input_stream_keys['speaker'] = list(self.input_stream_ids['speaker'].keys())
-            self.input_stream_keys['listener'] = list(self.input_stream_ids['listener'].keys())
-        
         
 
         self.use_sentences_one_hot_vectors = use_sentences_one_hot_vectors

@@ -25,7 +25,6 @@ class FlattenModule(Module):
 
         super(FlattenModule, self).__init__(id=f"FlattenModule_{id}",
                                             config=None,
-                                            input_stream_keys=input_stream_keys,
                                             input_stream_ids=input_stream_ids)
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :

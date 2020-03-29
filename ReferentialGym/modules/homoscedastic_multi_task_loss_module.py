@@ -14,11 +14,9 @@ from .module import Module
 
 def build_HomoscedasticMultiTasksLossModule(id:str,
                                             config:Dict[str,object],
-                                            input_stream_keys:List[str]=None,
                                             input_stream_ids:Dict[str,str]=None) -> Module:
     return HomoscedasticMultiTasksLossModule(id=id,
                                              config=config, 
-                                             input_stream_keys=input_stream_keys,
                                              input_stream_ids=input_stream_ids)
 
 
@@ -26,12 +24,7 @@ class HomoscedasticMultiTasksLossModule(Module):
     def __init__(self,
                  id:str,
                  config:Dict[str,object],
-                 input_stream_keys:List[str]=None,
                  input_stream_ids:Dict[str,str]=None):
-
-        if input_stream_keys is None:
-            input_stream_keys = [
-                "losses_dict"]
 
         if input_stream_ids is None:
             input_stream_ids = {
@@ -44,7 +37,6 @@ class HomoscedasticMultiTasksLossModule(Module):
         
         super(HomoscedasticMultiTasksLossModule, self).__init__(id=f"HomoscedasticMultiTasksLossModule_{id}",
                                                                 config=config,
-                                                                input_stream_keys=input_stream_keys,
                                                                 input_stream_ids=input_stream_ids)
         self.nbr_tasks = 2 #self.config['nbr_tasks']
         

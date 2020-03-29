@@ -10,7 +10,6 @@ from .module import Module
 
 def build_MultiHeadClassificationFromFeatureMapModule(id:str,
                                         config:Dict[str,object],
-                                        input_stream_keys:List[str],
                                         input_stream_ids:Dict[str,str]) -> Module:
     
     # Multi Heads:
@@ -48,7 +47,6 @@ def build_MultiHeadClassificationFromFeatureMapModule(id:str,
     module = MultiHeadClassificationFromFeatureMapModule(id=id,
                                            config=config,
                                            heads=heads,
-                                           input_stream_keys=input_stream_keys,
                                            input_stream_ids=input_stream_ids)
     return module
 
@@ -58,7 +56,6 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
                  id:str,
                  config:Dict[str,object],
                  heads:nn.ModuleList,
-                 input_stream_keys:List[str],
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
@@ -80,7 +77,6 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
 
         super(MultiHeadClassificationFromFeatureMapModule, self).__init__(id=f"MultiHeadClassificationFromFeatureMapModule_{id}",
                                                             config=config,
-                                                            input_stream_keys=input_stream_keys,
                                                             input_stream_ids=input_stream_ids)
         self.heads = heads
         self.final_fn = final_fn
