@@ -151,53 +151,23 @@ class Dataset(torchDataset):
                 if not(isinstance(v, torch.Tensor)):    
                     v = torch.Tensor(v)
                 sample_d[k] = v.unsqueeze(0)
-            '''
-            experiences = experiences.unsqueeze(0)
-            exp_latents = exp_latents.unsqueeze(0)
-            exp_latents_values = exp_latents_values.unsqueeze(0)
-            '''
 
             # Creating listener's dictionnary:
             listener_sample_d = copy.deepcopy(sample_d)
             listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
             listener_sample_d["exp_latents"], _, _ = shuffle(listener_sample_d["exp_latents"], orders=orders)
             listener_sample_d["exp_latents_values"], _, _ = shuffle(listener_sample_d["exp_latents_values"], orders=orders)
-            '''
-            listener_experiences, target_decision_idx, orders = shuffle(experiences)
-            listener_latent_experiences, _, _ = shuffle(exp_latents, orders=orders)
-            listener_latent_experiences_values, _, _ = shuffle(exp_latents_values, orders=orders)
-            '''
             
             # Creating speaker's dictionnary:
             speaker_sample_d = copy.deepcopy(sample_d)
-            '''
-            speaker_experiences = experiences 
-            speaker_latent_experiences = exp_latents
-            speaker_latent_experiences_values = exp_latents_values
-            '''
             if self.kwargs['observability'] == "partial":
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = v[:,0].unsqueeze(1)
-                '''
-                speaker_experiences = speaker_experiences[:,0].unsqueeze(1)
-                speaker_latent_experiences = speaker_latent_experiences[:,0].unsqueeze(1)
-                speaker_latent_experiences_values = speaker_latent_experiences_values[:,0].unsqueeze(1)
-                '''
         
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
             output_dict[f"listener_{k}"] = v 
         for k,v in speaker_sample_d.items():
             output_dict[f"speaker_{k}"] = v 
-        
-        '''
-        output_dict = {'speaker_experiences':speaker_experiences,
-                       'listener_experiences':listener_experiences,
-                       'speaker_latent_experiences':speaker_latent_experiences,
-                       'listener_latent_experiences':listener_latent_experiences,
-                       'speaker_latent_experiences_values':speaker_latent_experiences_values,
-                       'listener_latent_experiences_values':listener_latent_experiences_values,
-                       'target_decision_idx':target_decision_idx}
-        '''
 
         return output_dict

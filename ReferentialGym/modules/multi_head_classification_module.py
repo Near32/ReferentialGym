@@ -33,10 +33,27 @@ def build_MultiHeadClassificationModule(id:str,
         if isinstance(config['heads_output_sizes'][idx], int):
             arch = config['heads_archs'][idx]
             sequence = []
-            for i_l, (input_size, output_size) in enumerate(zip(arch,arch[1:])):
+            input_size = arch[0]
+            for i_l, output_size in enumerate(arch[1:]):
+                add_DP = False
+                DP_thresh = 0.0
+                if isinstance(output_size,str):
+                    if 'DP' in output_size:
+                        # Assumes 'X-DPY' 
+                        # where Y is DP_thresh and X is nbr neurons...
+                        add_DP = True
+                        output_size = output_size.split('-')
+                        DP_thresh = float(output_size[1].replace('DP',''))
+                        output_size = int(output_size[0])
+                    else:
+                        raise NotImplementedError
                 sequence.append(nn.Linear(input_size, output_size))
                 if i_l != len(arch)-2:
                     sequence.append(nn.ReLU())
+                if add_DP:
+                    sequence.append(nn.Dropout(p=DP_thresh))
+                input_size = output_size
+
             layer = nn.Sequential(*sequence)
         else:
             layer = None 
@@ -46,6 +63,8 @@ def build_MultiHeadClassificationModule(id:str,
                                            config=config,
                                            heads=heads,
                                            input_stream_ids=input_stream_ids)
+    print(module)
+    
     return module
 
 
@@ -57,25 +76,30 @@ class MultiHeadClassificationModule(Module):
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
-        assert("inputs" in input_stream_ids.values(), 
+        assert "inputs" in input_stream_ids.values(),\
                "ClassificationModule relies on 'inputs' id to start its pipeline.\n\
-                Not found in input_stream_ids.")
-        assert("targets" in input_stream_ids.values(), 
+                Not found in input_stream_ids."
+        assert "targets" in input_stream_ids.values(),\
                "ClassificationModule relies on 'targets' id to compute its pipeline.\n\
-                Not found in input_stream_ids.")
-        assert("losses_dict" in input_stream_ids.values(), 
+                Not found in input_stream_ids."
+        assert "losses_dict" in input_stream_ids.values(),\
                "ClassificationModule relies on 'losses_dict' id to record the computated losses.\n\
-                Not found in input_stream_ids.")
-        assert("logs_dict" in input_stream_ids.values(), 
+                Not found in input_stream_ids."
+        assert "logs_dict" in input_stream_ids.values(),\
                "ClassificationModule relies on 'logs_dict' id to record the accuracies.\n\
-                Not found in input_stream_ids.")
-        assert("loss_id" in config.keys(), 
+                Not found in input_stream_ids."
+        assert "loss_id" in config.keys(),\
                "ClassificationModule relies on 'loss_id' key to record the computated losses and accuracies.\n\
-                Not found in config keys.")
+                Not found in config keys."
+        assert "mode" in input_stream_ids.values(),\
+               "ClassificationModule relies on 'mode' key to record the computated losses and accuracies.\n\
+                Not found in input_stream_ids."
 
-        super(MultiHeadClassificationModule, self).__init__(id=f"MultiHeadClassificationModule_{id}",
-                                                            config=config,
-                                                            input_stream_ids=input_stream_ids)
+        super(MultiHeadClassificationModule, self).__init__(id=id, 
+            type="MultiHeadClassificationModule", 
+            config=config, 
+            input_stream_ids=input_stream_ids)
+        
         self.heads = heads
         self.final_fn = final_fn
 
@@ -96,7 +120,9 @@ class MultiHeadClassificationModule(Module):
         '''
         outputs_stream_dict = {}
 
+        mode = input_streams_dict['mode']
         inputs = input_streams_dict['inputs']
+        
         shape_inputs = inputs.shape
         batch_size = shape_inputs[0]
         
@@ -150,11 +176,12 @@ class MultiHeadClassificationModule(Module):
         
         # MultiHead Losses:
         for idx, loss in enumerate(losses):
+            #losses_dict[f"{mode}/{self.config['loss_id']}/multi_head_{idx}_loss"] = [1.0, loss]
             losses_dict[f"{self.config['loss_id']}/multi_head_{idx}_loss"] = [1.0, loss]
 
         # MultiHead Accuracy:
         for idx, acc in enumerate(accuracies):
-            logs_dict[f"{self.config['loss_id']}/multi_head_{idx}_accuracy"] = acc
+            logs_dict[f"{mode}/{self.config['loss_id']}/multi_head_{idx}_accuracy"] = acc
 
         outputs_stream_dict['losses'] = losses
         outputs_stream_dict['accuracies'] = accuracies

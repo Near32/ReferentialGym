@@ -18,7 +18,7 @@ def main():
   # In[23]:
   nbr_epoch = 100
   cnn_feature_size = 512 # 128 512 #1024
-  stimulus_resize_dim = 64 #32
+  stimulus_resize_dim = 128 #64 #32
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -145,13 +145,13 @@ def main():
   object_size=5
   nb_objects=6
   test_id_analogy = True
-  test_id_analogy_threshold = 2
+  test_id_analogy_threshold = 3
 
-  root = './datasets/sort-of-CLEVR-dataset'
+  root = './datasets/ext-sort-of-CLEVR-dataset'
   root += f'-{dataset_size}'
   root += f'-imgS{img_size}-objS{object_size}-obj{nb_objects}'
   
-  train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
+  train_dataset = ReferentialGym.datasets.XSortOfCLEVRDataset(root=root, 
     train=True, 
     transform=rg_config['train_transform'],
     generate=generate,
@@ -163,7 +163,7 @@ def main():
     test_id_analogy=test_id_analogy,
     test_id_analogy_threshold=test_id_analogy_threshold)
   
-  test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
+  test_dataset = ReferentialGym.datasets.XSortOfCLEVRDataset(root=root, 
     train=False, 
     transform=rg_config['test_transform'],
     generate=False,
@@ -213,6 +213,9 @@ def main():
         break
       if key == ord('j') :
         test_i -= 1
+        break
+      if key == ord('e'):
+        import ipdb; ipdb.set_trace()
         break
 
 

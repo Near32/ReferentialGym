@@ -5,6 +5,8 @@ from .dual_labeled_dataset import DualLabeledDataset
 
 from .CLEVR_dataset import CLEVRDataset
 from .sort_of_CLEVR_dataset import SortOfCLEVRDataset
+from .extended_sort_of_CLEVR_dataset import XSortOfCLEVRDataset
+from .ah_so_CLEVR_dataset import AhSoCLEVRDataset
 
 try:
 	import minerl

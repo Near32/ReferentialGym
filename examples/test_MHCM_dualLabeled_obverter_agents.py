@@ -232,7 +232,6 @@ def main():
       "batch_size":               args.batch_size,
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
-      "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
       "learning_rate":            args.lr, #1e-3,

@@ -14,7 +14,9 @@ def generate_dataset(root,
                      dataset_size=10000,
                      img_size=75,
                      object_size=5,
-                     nb_objects=6
+                     nb_objects=6,
+                     nb_nr_qs=5,
+                     nb_r_qs=7,
                     ):
     '''
     Inspired by: https://github.com/kimhc6028/relational-networks/blob/master/sort_of_clevr_generator.py
@@ -22,12 +24,10 @@ def generate_dataset(root,
     
     '''
     question_size = 11 ##6 for one-hot vector of color, 2 for question type, 3 for question subtype
-    """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
     '''
-    question_size = nb_objects+5 
-    ## nb_objects(==nb_colors) for one-hot vector of color, 2 for question type, 3 for question subtype
-    """Answer : [yes, no, rectangle, circle, *colors]"""
-    
+    question_size = nb_objects+2+max(nb_nr_qs, nb_r_qs) 
+    ## nb_objects(==nb_colors) for one-hot vector of color, 2 for question type, max(nb_(n)r_qs) for question subtype
+
     dirs = root 
     
     colors = [
@@ -69,6 +69,19 @@ def generate_dataset(root,
         "pos_Y":nY,
     }
 
+    answer_size = 2+2+nb_objects+max(nX,nY)
+    """
+    Answer : [
+        yes,    0
+        no,     1
+        rectangle,  2
+        circle,     3
+        *colors/object_id/count,    4~9
+        positional_bucket_id/distance,  10~10+max(nX,nY)
+    ]
+    """
+    
+    
     one_object_latents_ones_hot_size = sum([v for k,v in latent_one_hot_repr_sizes.items()])
     
     possible_Y_values = pos_Y 
@@ -165,16 +178,17 @@ def generate_dataset(root,
         img_latent_one_hot = np.concatenate(img_latent_one_hot, axis=0)
         
         objects = [ obj_latent for obj_latent in img_latent_values.reshape((-1,4))]
-        
-        rel_questions = {st:[] for st in range(3)}
-        norel_questions = {st:[] for st in range(3)}
-        rel_answers = {st:[] for st in range(3)}
-        norel_answers = {st:[] for st in range(3)}
+        objects_class = [ obj_latent_class for obj_latent_class in img_latent_class.reshape((-1,4))]
+
+        rel_questions = {st:[] for st in range(nb_r_qs)}
+        norel_questions = {st:[] for st in range(nb_nr_qs)}
+        rel_answers = {st:[] for st in range(nb_r_qs)}
+        norel_answers = {st:[] for st in range(nb_nr_qs)}
 
         original_question = np.zeros((question_size))
 
         """Non-relational questions"""
-        for subtype_id in range(3):
+        for subtype_id in range(nb_nr_qs):
             for color_object_id in range(len(colors)):
                 question = original_question.copy()
                 # What color is the object we are considering, 
@@ -208,11 +222,18 @@ def generate_dataset(root,
                     else:
                         answer_idx = 1
                         # no
+                elif subtype_id == 3:
+                    """query horizontal (X) bucket position->yes/no"""
+                    answer_idx = 2+nb_shapes+nb_objects+ objects_class[color_object_id][2]
+                elif subtype_id == 4:
+                    """query vertical (Y) bucket position->yes/no"""
+                    answer_idx = 2+nb_shapes+nb_objects+ objects_class[color_object_id][3]
+                
                 norel_questions[subtype_id].append(question)
                 norel_answers[subtype_id].append(answer_idx)
         
         """Relational questions"""
-        for subtype_id in range(3):
+        for subtype_id in range(nb_r_qs):
             for color_object_id in range(len(colors)):
                 question = original_question.copy()
                 # What color is the object we are considering, 
@@ -266,7 +287,60 @@ def generate_dataset(root,
                     # to idx 2+nb_objects + (nb_objects-1) = 3 + nb_objects
                     # (i.e. count=nb_objects-1,
                     # which is actually nb_objects objects of the given shape).
-
+                elif subtype_id == 3:
+                    """
+                    bucket distance in X to closest-to->1~max(nX,nY) (distance)
+                    """
+                    my_obj_pos = np.asarray([objects[color_object_id][2],objects[color_object_id][3]])
+                    dist_list = [((my_obj_pos - np.asarray([obj[2],obj[3]])) ** 2).sum() 
+                                for idx, obj in enumerate(objects)]
+                    # We make sure that we are not going to sample the object we are considering:
+                    dist_list[dist_list.index(0)] = 999
+                    closest_id_in_dist_list = dist_list.index(min(dist_list))
+                    closest = objects[closest_id_in_dist_list][0]
+                    closest_Xbucket = objects_class[closest][2]
+                    bucket_distance = np.abs(closest_Xbucket - objects_class[color_object_id][2])
+                    answer_idx = 2+nb_shapes+nb_objects+bucket_distance
+                elif subtype_id == 4:
+                    """
+                    bucket distance in Y to closest-to->1~max(nX,nY) (distance)
+                    """
+                    my_obj_pos = np.asarray([objects[color_object_id][2],objects[color_object_id][3]])
+                    dist_list = [((my_obj_pos - np.asarray([obj[2],obj[3]])) ** 2).sum() 
+                                for idx, obj in enumerate(objects)]
+                    # We make sure that we are not going to sample the object we are considering:
+                    dist_list[dist_list.index(0)] = 999
+                    closest_id_in_dist_list = dist_list.index(min(dist_list))
+                    closest = objects[closest_id_in_dist_list][0]
+                    closest_Ybucket = objects_class[closest][3]
+                    bucket_distance = np.abs(closest_Ybucket - objects_class[color_object_id][3])
+                    answer_idx = 2+nb_shapes+nb_objects+bucket_distance
+                
+                elif subtype_id == 5:
+                    """
+                    bucket distance in X to furthest-from->1~max(nX,nY) (distance)
+                    """
+                    my_obj_pos = np.asarray([objects[color_object_id][2],objects[color_object_id][3]])
+                    dist_list = [((my_obj_pos - np.asarray([obj[2],obj[3]])) ** 2).sum() 
+                                for idx,obj in enumerate(objects)]
+                    furthest_id_in_dist_list = dist_list.index(max(dist_list))
+                    furthest = objects[furthest_id_in_dist_list][0]
+                    furthest_Xbucket = objects_class[furthest][2]
+                    bucket_distance = np.abs(furthest_Xbucket - objects_class[color_object_id][2])
+                    answer_idx = 2+nb_shapes+nb_objects+bucket_distance
+                elif subtype_id == 6:
+                    """
+                    bucket distance in Y to furthest-from->1~max(nX,nY) (distance)
+                    """
+                    my_obj_pos = np.asarray([objects[color_object_id][2],objects[color_object_id][3]])
+                    dist_list = [((my_obj_pos - np.asarray([obj[2],obj[3]])) ** 2).sum() 
+                                for idx,obj in enumerate(objects)]
+                    furthest_id_in_dist_list = dist_list.index(max(dist_list))
+                    furthest = objects[furthest_id_in_dist_list][0]
+                    furthest_Ybucket = objects_class[furthest][3]
+                    bucket_distance = np.abs(furthest_Ybucket - objects_class[color_object_id][3])
+                    answer_idx = 2+nb_shapes+nb_objects+bucket_distance
+                    
                 rel_questions[subtype_id].append(question)
                 rel_answers[subtype_id].append(answer_idx)
 
@@ -286,13 +360,15 @@ def generate_dataset(root,
         
         return datapoint
 
-    print('building test datasets...')
+    print('building dataset...')
     dataset = {
         "imgs":[],
         "latents_values":[],
         "latents_classes":[],
         "latents_one_hot":[],
-        "relational_qs_0":[],
+    }
+    '''
+    "relational_qs_0":[],
         "relational_qs_1":[],
         "relational_qs_2":[],
         "non_relational_qs_0":[],
@@ -304,7 +380,13 @@ def generate_dataset(root,
         "non_relational_as_0":[],
         "non_relational_as_1":[],
         "non_relational_as_2":[],
-    }
+    '''
+    for subtype_id in range(nb_r_qs):
+        dataset[f"relational_qs_{subtype_id}"] = []
+        dataset[f"relational_as_{subtype_id}"] = []
+    for subtype_id in range(nb_nr_qs):
+        dataset[f"non_relational_qs_{subtype_id}"] = []
+        dataset[f"non_relational_as_{subtype_id}"] = []
 
     pbar = tqdm(total=dataset_size)
     for _ in range(dataset_size):
@@ -317,6 +399,15 @@ def generate_dataset(root,
         dataset['latents_values'].append(datapoint[-2])
         dataset['latents_one_hot'].append(datapoint[-1])
         
+        for subtype_id in range(nb_r_qs):
+            dataset[f"relational_qs_{subtype_id}"].append(np.stack(datapoint[1][0][subtype_id]))
+            dataset[f"relational_as_{subtype_id}"].append(np.stack(datapoint[1][1][subtype_id]))
+
+        for subtype_id in range(nb_nr_qs):
+            dataset[f"non_relational_qs_{subtype_id}"].append(np.stack(datapoint[2][0][subtype_id]))
+            dataset[f"non_relational_as_{subtype_id}"].append(np.stack(datapoint[2][1][subtype_id]))
+
+        '''
         dataset['relational_qs_0'].append(np.stack(datapoint[1][0][0]))
         dataset['relational_qs_1'].append(np.stack(datapoint[1][0][1]))
         dataset['relational_qs_2'].append(np.stack(datapoint[1][0][2]))
@@ -330,17 +421,18 @@ def generate_dataset(root,
         dataset['non_relational_as_0'].append(np.asarray(datapoint[2][1][0]))
         dataset['non_relational_as_1'].append(np.asarray(datapoint[2][1][1]))
         dataset['non_relational_as_2'].append(np.asarray(datapoint[2][1][2]))
+        '''
 
     print('saving dataset...')
-    filename = os.path.join(dirs,'sort-of-clevr.pickle')
+    filename = os.path.join(dirs,'xsort-of-clevr.pickle')
     with  open(filename, 'wb') as f:
-        pickle.dump(dataset, f)
+        pickle.dump((dataset,answer_size), f)
     print('dataset saved at {}'.format(filename))
 
-    return dataset
+    return dataset, answer_size
 
 
-class SortOfCLEVRDataset(Dataset):
+class XSortOfCLEVRDataset(Dataset):
     def __init__(self, 
                  root, 
                  train=True, 
@@ -351,35 +443,44 @@ class SortOfCLEVRDataset(Dataset):
                  img_size=75,
                  object_size=5,
                  nb_objects=6,
+                 nb_nr_qs=5,
+                 nb_r_qs=7,
                  test_id_analogy=False,
                  test_id_analogy_threshold=3,
                  ):
-        super(SortOfCLEVRDataset, self).__init__()
+        super(XSortOfCLEVRDataset, self).__init__()
         
         self.root = root
-        self.file = 'sort-of-clevr.pickle'        
+        self.file = 'xsort-of-clevr.pickle'        
         self.transform = transform 
         self.nb_objects = nb_objects
+        self.nb_nr_qs = nb_nr_qs
+        self.nb_r_qs = nb_r_qs
         self.test_id_analogy = test_id_analogy
         self.test_id_analogy_threshold = test_id_analogy_threshold
+
         assert  self.test_id_analogy_threshold < self.nb_objects,\
                 "Looks like you are trying to test analogy without enough \
                 supporting evidence."
 
         if not self._check_exists():
             if generate:
-                dataset = self._generate(root=root,
+                dataset, answer_size = self._generate(root=root,
                                        dataset_size=dataset_size,
                                        img_size=img_size,
                                        object_size=object_size,
-                                       nb_objects=nb_objects)
+                                       nb_objects=nb_objects,
+                                       nb_nr_qs=self.nb_nr_qs,
+                                       nb_r_qs=self.nb_r_qs)
             else:
                 raise RuntimeError('Dataset not found. You can use download=True to download it')
         else:
             filepath = os.path.join(self.root, self.file)
             with open(filepath, 'rb') as f:
-              dataset = pickle.load(f)
-            
+              dataset, answer_size = pickle.load(f)
+        
+        self.answer_size = answer_size
+
         self.train = train 
         # TODO: handle train tes tsplit:
 
@@ -389,10 +490,10 @@ class SortOfCLEVRDataset(Dataset):
         self.latents_classes = np.asarray(dataset['latents_classes'])
         self.latents_one_hot = np.asarray(dataset['latents_one_hot'])
         
-        self.relational_qs = {idx:np.stack(dataset[f'relational_qs_{idx}']) for idx in range(3)}
-        self.non_relational_qs = {idx:np.stack(dataset[f'non_relational_qs_{idx}']) for idx in range(3)}
-        self.relational_as = {idx:np.stack(dataset[f'relational_as_{idx}']) for idx in range(3)}
-        self.non_relational_as = {idx:np.stack(dataset[f'non_relational_as_{idx}']) for idx in range(3)}
+        self.relational_qs = {idx:np.stack(dataset[f'relational_qs_{idx}']) for idx in range(self.nb_r_qs)}
+        self.non_relational_qs = {idx:np.stack(dataset[f'non_relational_qs_{idx}']) for idx in range(self.nb_nr_qs)}
+        self.relational_as = {idx:np.stack(dataset[f'relational_as_{idx}']) for idx in range(self.nb_r_qs)}
+        self.non_relational_as = {idx:np.stack(dataset[f'non_relational_as_{idx}']) for idx in range(self.nb_nr_qs)}
 
         sampling_indices = np.random.randint(len(self.imgs), size=test_size)
         if self.train:
@@ -431,7 +532,9 @@ class SortOfCLEVRDataset(Dataset):
                   dataset_size,
                   img_size,
                   object_size,
-                  nb_objects):
+                  nb_objects,
+                  nb_nr_qs,
+                  nb_r_qs):
         """
         Generate the Sort-of-CLEVR dataset if it doesn't exist already.
         """
@@ -442,7 +545,9 @@ class SortOfCLEVRDataset(Dataset):
             dataset_size=dataset_size,
             img_size=img_size,
             object_size=object_size,
-            nb_objects=nb_objects
+            nb_objects=nb_objects,
+            nb_nr_qs=nb_nr_qs,
+            nb_r_qs=nb_r_qs
             )
 
     def getclass(self, idx):

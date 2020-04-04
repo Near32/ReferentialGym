@@ -250,7 +250,7 @@ class ConvolutionalBody(nn.Module):
         if not(isinstance(self.feature_dim, int)):
             self.feature_dim = feature_dim[-1]
 
-        self.features = []
+        self.cnn = []
         dim = input_shape[1] # height
         in_ch = channels[0]
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
@@ -261,13 +261,14 @@ class ConvolutionalBody(nn.Module):
                     k = dim
                     channels[idx+1] = in_ch
                 layer = nn.MaxPool2d(kernel_size=k, stride=s)
-                self.features.append(layer)
+                self.cnn.append(layer)
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k)//s+1
                 print(f"Dim: {dim}")
             else:
                 add_non_lin = True
                 add_bn = False
+                add_ln = False
                 if isinstance(cfg, str) and 'NoNonLin' in cfg:
                     add_non_lin = False
                     cfg = cfg.replace('NoNonLin', '') 
@@ -280,6 +281,11 @@ class ConvolutionalBody(nn.Module):
                     cfg = int(cfg[2:])
                     channels[idx+1] = cfg
                     # Assumes 'BNX' where X is an integer...
+                if isinstance(cfg, str) and 'LN' in cfg:
+                    add_ln = True
+                    cfg = int(cfg[2:])
+                    channels[idx+1] = cfg
+                    # Assumes 'LNX' where X is an integer...
                 
                 if isinstance(cfg, str):
                     cfg = int(cfg)
@@ -288,38 +294,48 @@ class ConvolutionalBody(nn.Module):
                 layer = conv_fn(in_ch, cfg, kernel_size=k, stride=s, padding=p, bias=not(add_bn)) 
                 layer = layer_init(layer, w_scale=math.sqrt(2))
                 in_ch = cfg
-                self.features.append(layer)
+                self.cnn.append(layer)
                 if add_bn:
-                    self.features.append(nn.BatchNorm2d(in_ch))
+                    self.cnn.append(nn.BatchNorm2d(in_ch))
+                if add_ln:
+                    # Layer Normalization:
+                    # solely about the last dimension of the 4D tensor, i.e. channels...
+                    # TODO: It might be necessary to have the possibility to apply this 
+                    # normalization over the other dimensions, i.e. width x height...
+                    self.cnn.append(nn.LayerNorm(in_ch))
                 if add_non_lin:
-                    self.features.append(self.non_linearities[idx](inplace=True))
+                    self.cnn.append(self.non_linearities[idx](inplace=True))
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k+2*p)//s+1
                 print(f"Dim: {dim}")
-        self.features = nn.Sequential(*self.features)
+        self.cnn = nn.Sequential(*self.cnn)
 
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 
-        hidden_units = fc_hidden_units
-        if hidden_units is None:
-            hidden_units = [dim * dim * channels[-1]]
-        else:
-            hidden_units = [dim * dim * channels[-1]]+hidden_units
+        if fc_hidden_units != []:
+            hidden_units = fc_hidden_units
+            if hidden_units is None:
+                hidden_units = [dim * dim * channels[-1]]
+            else:
+                hidden_units = [dim * dim * channels[-1]]+hidden_units
 
-        if isinstance(feature_dim, int):
-            hidden_units = hidden_units + [feature_dim]
-        else:
-            hidden_units = hidden_units + feature_dim
+            if isinstance(feature_dim, int):
+                hidden_units = hidden_units + [feature_dim]
+            else:
+                hidden_units = hidden_units + feature_dim
 
-        self.fcs = nn.ModuleList()
-        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
-            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
-            if self.dropout:
-                self.fcs.append( nn.Dropout(p=self.dropout))
+            self.fcs = nn.ModuleList()
+            for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
+                self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
+                if self.dropout:
+                    self.fcs.append( nn.Dropout(p=self.dropout))
+        else:
+            self.feature_dim = self.feat_map_dim*self.feat_map_dim*self.feat_map_depth
+            self.fcs = None 
 
     def _compute_feat_map(self, x):
-        return self.features(x)
+        return self.cnn(x)
 
     def get_feat_map(self):
         return self.features_map
@@ -328,10 +344,14 @@ class ConvolutionalBody(nn.Module):
         self.features_map = self._compute_feat_map(x)
 
         features = self.features_map.view(self.features_map.size(0), -1)
-        for idx, fc in enumerate(self.fcs):
-            features = fc(features)
-            if idx != len(self.fcs)-1 or non_lin_output:
-                features = F.relu(features)
+        
+        if self.fcs is not None:
+            for idx, fc in enumerate(self.fcs):
+                features = fc(features)
+                if idx != len(self.fcs)-1 or non_lin_output:
+                    features = F.relu(features)
+
+        self.features = features 
 
         return features
 

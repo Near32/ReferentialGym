@@ -23,7 +23,8 @@ class FlattenModule(Module):
                 for idx, ik in enumerate(input_stream_keys)
             }
 
-        super(FlattenModule, self).__init__(id=f"FlattenModule_{id}",
+        super(FlattenModule, self).__init__(id=id,
+                                            type="FlattenModule",
                                             config=None,
                                             input_stream_ids=input_stream_ids)
         

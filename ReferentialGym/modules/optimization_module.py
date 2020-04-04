@@ -30,22 +30,28 @@ class OptimizationModule(Module):
         if input_stream_ids is None:
             input_stream_ids = {
                 "losses_dict":"losses_dict",
-                "signal:mode":"mode",
+                "logs_dict":"logs_dict",
+                "signals:mode":"mode",
             }
 
-        assert("modules" in config, 
+        assert "modules" in config,\
                "OptimizationModule relies on list of modules.\n\
-                Not found in config.")
+                Not found in config."
         
-        assert("mode" in input_stream_ids.values(), 
+        assert "mode" in input_stream_ids.values(),\
                "OptimizationModule relies on 'mode' id.\n\
-                Not found in input_stream_ids.")
+                Not found in input_stream_ids."
         
-        assert("losses_dict" in input_stream_ids.values(), 
+        assert "losses_dict" in input_stream_ids.values(),\
                "OptimizationModule relies on 'losses_dict' id.\n\
-                Not found in input_stream_ids.")
+                Not found in input_stream_ids."
+
+        assert "logs_dict" in input_stream_ids.values(),\
+               "OptimizationModule relies on 'logs_dict' id.\n\
+                Not found in input_stream_ids."
         
-        super(OptimizationModule, self).__init__(id=f"OptimizationModule_{id}",
+        super(OptimizationModule, self).__init__(id=id,
+                                                 type="OptimizationModule",
                                                  config=config,
                                                  input_stream_ids=input_stream_ids)
         parameters = []
@@ -72,6 +78,7 @@ class OptimizationModule(Module):
         outputs_stream_dict = {}
 
         losses_dict = input_streams_dict['losses_dict']
+        logs_dict = input_streams_dict['logs_dict']
         mode = input_streams_dict['mode']
 
         for k, v in losses_dict.items():
@@ -90,6 +97,11 @@ class OptimizationModule(Module):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
+
+        logs_dict[f"{mode}/Loss"] = loss
         
+        for l_name, l in losses_dict.items():
+            logs_dict[f"{mode}/{l_name}"] = l[-1].item()
+
         return outputs_stream_dict
         

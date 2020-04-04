@@ -9,10 +9,14 @@ class StreamHandler(object):
     def register(self, placeholder_id:str):
         self.update(placeholder_id=placeholder_id, stream_data={})
 
+    def reset(self, placeholder_id:str):
+        self.update(placeholder_id=placeholder_id, stream_data={}, reset=True)
+    
     def update(self, 
                placeholder_id:str, 
                stream_data:Dict[str,object], 
-               p_ptr:Dict[str,object]=None):
+               p_ptr:Dict[str,object]=None,
+               reset=False):
         '''
         Updates the streams of a given placeholder.
         Hierarchically explores the placeholders and their streams.
@@ -39,7 +43,7 @@ class StreamHandler(object):
         # Not possible to copy leaves tensor at the moment with PyTorch...
         previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
 
-        if isinstance(stream_data, dict):
+        if isinstance(stream_data, dict) and not(reset):
             for k,v in stream_data.items():
                 p_ptr[placeholder_id][k] = v 
         else:
@@ -48,10 +52,15 @@ class StreamHandler(object):
         return
 
     def serve(self, pipeline:List[object]):
-        for module in pipeline:
+        for module_id in pipeline:
+            module = self[f"modules:{module_id}:ref"]
             module_input_stream_dict = self._serve_module(module)    
             module_output_stream_dict = module.compute(input_streams_dict=module_input_stream_dict)
-            self.update(f"modules:{module.get_id()}", module_output_stream_dict)
+            for stream_id, stream_data in module_output_stream_dict.items():
+                if "globals:" in stream_id:
+                    self.update(stream_id, stream_data)
+                else:
+                    self.update(f"modules:{module_id}:{stream_id}", stream_data)
 
     def _serve_module(self, module:object):
         module_input_stream_ids = module.get_input_stream_ids()
@@ -69,8 +78,16 @@ class StreamHandler(object):
         stream_id = stream_id.split(":")
         p_ptr = self.placeholders
         for ptr in stream_id[:-1]:
-            if ptr not in p_ptr.keys(): raise AssertionError("The required stream does not exists...")
-            p_ptr = p_ptr[ptr]
+            if isinstance(p_ptr,dict):
+                if ptr not in p_ptr.keys():
+                    raise AssertionError("The required stream does not exists...")    
+            elif not(hasattr(p_ptr, ptr)): 
+                raise AssertionError("The required stream does not exists...")
+            
+            if isinstance(p_ptr, dict):
+                p_ptr = p_ptr[ptr]
+            else:
+                p_ptr = getattr(p_ptr, ptr)
 
         # Do we need to perform some operations on the data stream?
         operations = []

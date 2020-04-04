@@ -7,15 +7,20 @@ import torch.nn as nn
 class Module(nn.Module):
     def __init__(self,
                  id:str,
+                 type:str,
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]):
         super(Module, self).__init__()
         self.id = id
+        self.type = type
         self.config = config
         self.input_stream_ids = input_stream_ids
 
     def get_id(self) -> str:
-        return self.id 
+        return self.id
+
+    def get_type(self) -> str:
+        return self.type 
 
     def get_input_stream_ids(self) -> Dict[str,str]:
         return self.input_stream_ids

@@ -75,7 +75,8 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
                "ClassificationModule relies on 'loss_id' key to record the computated losses and accuracies.\n\
                 Not found in config keys.")
 
-        super(MultiHeadClassificationFromFeatureMapModule, self).__init__(id=f"MultiHeadClassificationFromFeatureMapModule_{id}",
+        super(MultiHeadClassificationFromFeatureMapModule, self).__init__(id=id,
+                                                            type="MultiHeadClassificationFromFeatureMapModule",
                                                             config=config,
                                                             input_stream_ids=input_stream_ids)
         self.heads = heads

@@ -106,7 +106,11 @@ class LSTMCNNSpeaker(Speaker):
                                               bidirectional=False))
         else:
             self.temporal_feature_encoder = None
-            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.encoder_feature_shape)
+            print("WARNING: Symbol processing :: the number of hidden units is being reparameterized to fit to convolutional features.")
+            self.kwargs['cnn_encoder_feature_dim'] = self.encoder_feature_shape
+            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim']
+            self.kwargs['symbol_processing_nbr_hidden_units'] = self.kwargs['temporal_encoder_nbr_hidden_units']
+
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
@@ -164,6 +168,7 @@ class LSTMCNNSpeaker(Speaker):
             features: Tensor of shape `(batch_size, -1, nbr_stimulus, feature_dim).
         """
         batch_size = experiences.size(0)
+        nbr_distractors_po = experiences.size(1)
         experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
         feat_maps = []
@@ -204,13 +209,10 @@ class LSTMCNNSpeaker(Speaker):
             features.append(featout)
             feat_maps.append(feat_map)
 
-        features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
+        self.features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         self.feat_maps = torch.cat(feat_maps, dim=0)
         
-        if self.use_feat_converter:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.encoder_feature_shape)
-        else:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])    
+        self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
         if isinstance(self.cnn_encoder, BetaVAE):
@@ -223,7 +225,7 @@ class LSTMCNNSpeaker(Speaker):
             if len(self.compactness_losses):
                 self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
             
-        return features 
+        return self.features 
 
     def _utter(self, features, sentences=None):
         '''

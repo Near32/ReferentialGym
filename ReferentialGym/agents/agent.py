@@ -176,37 +176,42 @@ class Agent(Module):
             'current_dataloader:sample:speaker_experiences':'experiences', 
             'current_dataloader:sample:speaker_exp_latents':'exp_latents', 
             'current_dataloader:sample:speaker_exp_latents_values':'exp_latents_values', 
-            'current_listener:sentences_logits':'sentences_logits',
-            'current_listener:sentences_one_hot':'sentences_one_hot',
-            'current_listener:sentences_widx':'sentences_widx', 
+            'modules:current_listener:sentences_logits':'sentences_logits',
+            'modules:current_listener:sentences_one_hot':'sentences_one_hot',
+            'modules:current_listener:sentences_widx':'sentences_widx', 
             'config':'config',
             'config:graphtype':'graphtype',
             'config:tau0':'tau0',
-            'signal:multi_round':'multi_round',
-            'signal:end_of_epoch_sample':'end_of_epoch_sample',
-            'signal:mode':'mode',
-            'signal:it_step':'it',
+            'signals:multi_round':'multi_round',
+            'signals:end_of_epoch_sample':'end_of_epoch_sample',
+            'signals:mode':'mode',
+            'signals:it_step':'it',
             'current_dataloader:sample':'sample',
+            'losses_dict':'losses_dict',
+            'logs_dict':'logs_dict',
         }
 
         input_stream_ids['listener'] = {
             'current_dataloader:sample:listener_experiences':'experiences', 
             'current_dataloader:sample:listener_exp_latents':'exp_latents', 
             'current_dataloader:sample:listener_exp_latents_values':'exp_latents_values', 
-            'current_speaker:sentences_logits':'sentences_logits',
-            'current_speaker:sentences_one_hot':'sentences_one_hot',
-            'current_speaker:sentences_widx':'sentences_widx', 
+            'modules:current_speaker:sentences_logits':'sentences_logits',
+            'modules:current_speaker:sentences_one_hot':'sentences_one_hot',
+            'modules:current_speaker:sentences_widx':'sentences_widx', 
             'config':'config',
             'config:graphtype':'graphtype',
             'config:tau0':'tau0',
-            'signal:multi_round':'multi_round',
-            'signal:end_of_epoch_sample':'end_of_epoch_sample',
-            'signal:mode':'mode',
-            'signal:it_step':'it',
-            'current_dataloader:sample':'sample'
+            'signals:multi_round':'multi_round',
+            'signals:end_of_epoch_sample':'end_of_epoch_sample',
+            'signals:mode':'mode',
+            'signals:it_step':'it',
+            'current_dataloader:sample':'sample',
+            'losses_dict':'losses_dict',
+            'logs_dict':'logs_dict',
         }
 
-        super(Agent, self).__init__(id=f"Agent_{agent_id}", 
+        super(Agent, self).__init__(id=agent_id,
+                                    type="Agent", 
                                     config=kwargs,
                                     input_stream_ids=input_stream_ids)
         
@@ -308,11 +313,11 @@ class Agent(Module):
         """
         raise NotImplementedError
 
-    def compute(self, inputs_dict:Dict[str,object]) -> Dict[str,object] :
+    def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         Compute the losses and return them along with the produced outputs.
 
-        :param inputs_dict: Dict that should contain, at least, the following keys and values:
+        :param input_streams_dict: Dict that should contain, at least, the following keys and values:
             - `'sentences_logits'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits over symbols.
             - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
             - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
@@ -330,31 +335,31 @@ class Agent(Module):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
-        config = inputs_dict['config']
-        mode = inputs_dict['mode']
-        it = inputs_dict['it']
+        config = input_streams_dict['config']
+        mode = input_streams_dict['mode']
+        it = input_streams_dict['it']
+        losses_dict = input_streams_dict['losses_dict']
+        logs_dict = input_streams_dict['logs_dict']
         
-        batch_size = len(inputs_dict['experiences'])
+        batch_size = len(input_streams_dict['experiences'])
 
-        input_sentence = inputs_dict['sentences_widx']
+        input_sentence = input_streams_dict['sentences_widx']
         if self.use_sentences_one_hot_vectors:
-            input_sentence = inputs_dict['sentences_one_hot']
+            input_sentence = input_streams_dict['sentences_one_hot']
 
         outputs_dict = self(sentences=input_sentence,
-                           experiences=inputs_dict['experiences'],
-                           multi_round=inputs_dict['multi_round'],
-                           graphtype=inputs_dict['graphtype'],
-                           tau0=inputs_dict['tau0'])
+                           experiences=input_streams_dict['experiences'],
+                           multi_round=input_streams_dict['multi_round'],
+                           graphtype=input_streams_dict['graphtype'],
+                           tau0=input_streams_dict['tau0'])
 
-        outputs_dict['exp_latents'] = inputs_dict['exp_latents']
-        outputs_dict['exp_latents_values'] = inputs_dict['exp_latents_values']
+        outputs_dict['exp_latents'] = input_streams_dict['exp_latents']
+        outputs_dict['exp_latents_values'] = input_streams_dict['exp_latents_values']
         self._log(outputs_dict, batch_size=batch_size)
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
-        
-        losses_dict = dict()        
 
         weight_maxl1_loss = 0.0
         for p in self.parameters() :
@@ -364,18 +369,23 @@ class Agent(Module):
         for hook in self.hooks:
             hook(losses_dict=losses_dict,
                     log_dict=self.log_dict,
-                    inputs_dict=inputs_dict,
+                    inputs_dict=input_streams_dict,
                     outputs_dict=outputs_dict,
                     mode=mode,
                     role=self.role
                     )
 
+        if hasattr(self,'tau'): 
+            tau = torch.cat([ t.view((-1)) for t in self.tau], dim=0) if isinstance(self.tau, list) else self.tau
+            logs_dict[f"{mode}/Tau/{self.role}/Mean"] = tau.mean().item()
+            logs_dict[f"{mode}/Tau/{self.role}/Std"] = tau.std().item()
 
+        
         '''
         if hasattr(self, 'TC_losses'):
             losses_dict[f'{self.role}/TC_loss'] = [1.0, self.TC_losses]
         '''
-        if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in inputs_dict['graphtype'])):
+        if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in input_streams_dict['graphtype'])):
             losses_dict[f'{self.role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
 
         if 'speaker' in self.role:
@@ -439,13 +449,13 @@ class Agent(Module):
         
 
         if 'listener' in self.role:
-            sample = inputs_dict['sample']
+            sample = input_streams_dict['sample']
             if config['iterated_learning_scheme']:
                 listener_speaking_outputs = self(experiences=sample['speaker_experiences'], 
                                                  sentences=None, 
-                                                 multi_round=inputs_dict['multi_round'],
-                                                 graphtype=inputs_dict['graphtype'],
-                                                 tau0=inputs_dict['tau0'])
+                                                 multi_round=input_streams_dict['multi_round'],
+                                                 graphtype=input_streams_dict['graphtype'],
+                                                 tau0=input_streams_dict['tau0'])
             
             
             decision_logits = outputs_dict['decision']
@@ -480,7 +490,7 @@ class Agent(Module):
                 elif config['agent_loss_type'].lower() == 'hinge':
                     #Havrylov's Hinge loss:
                     if 'obverter' in config['graphtype'].lower():
-                        sentences_lengths = torch.sum(-(inputs_dict['sentences_widx'].squeeze(-1)-self.vocab_size).sign(), dim=-1).long()
+                        sentences_lengths = torch.sum(-(input_streams_dict['sentences_widx'].squeeze(-1)-self.vocab_size).sign(), dim=-1).long()
                         # (batch_size,) 
                         sentences_lengths = sentences_lengths.reshape(
                             -1,
@@ -500,7 +510,7 @@ class Agent(Module):
                     
                     loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
                                                           target_decision_idx=sample['target_decision_idx'].unsqueeze(1),
-                                                          multi_round=inputs_dict['multi_round'])
+                                                          multi_round=input_streams_dict['multi_round'])
                     # (batch_size, )
                     
                     losses_dict['referential_game_loss'] = [1.0, loss]    
@@ -538,15 +548,15 @@ class Agent(Module):
                 learning_signal, done = self.learning_signal_pred_fn(sampled_decision_idx=sampled_decision_idx,
                                                        decision_logits=final_decision_logits,
                                                        target_decision_idx=target_decision_idx,
-                                                       multi_round=inputs_dict['multi_round'])
+                                                       multi_round=input_streams_dict['multi_round'])
                 r = -learning_signal
 
                 # Where are the actual token (different from padding):
-                speaker_sentences_token_bool = (inputs_dict['sentences_widx'] != self.vocab_pad_idx)
+                speaker_sentences_token_bool = (input_streams_dict['sentences_widx'] != self.vocab_pad_idx)
                 # (batch_size, max_sentence_length, 1)
                 
                 # Compute sentences log_probs:
-                speaker_sentences_logits = inputs_dict['sentences_logits']
+                speaker_sentences_logits = input_streams_dict['sentences_logits']
                 # (batch_size, max_sentence_length, vocab_size)
                 pad_token_logit = torch.zeros_like(speaker_sentences_logits[0][0]).unsqueeze(0)
                 pad_token_logit[:, self.vocab_pad_idx] = 1.0
@@ -564,10 +574,10 @@ class Agent(Module):
                 speaker_sentences_probs = speaker_sentences_log_probs.softmax(dim=-1)
                 # (batch_size, max_sentence_length, vocab_size)
                 speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
-                    index=inputs_dict['sentences_widx'].long())
+                    index=input_streams_dict['sentences_widx'].long())
                 # (batch_size, max_sentence_length, 1)
                 speaker_sentences_probs = speaker_sentences_probs.gather(dim=-1, 
-                    index=inputs_dict['sentences_widx'].long())
+                    index=input_streams_dict['sentences_widx'].long())
                 # (batch_size, max_sentence_length, 1)
                 
                 # Entropy:
@@ -577,7 +587,7 @@ class Agent(Module):
                 listener_sentences_log_probs = None
                 listener_sentences_entrs = None
                 listener_sentences_token_bool = None 
-                if inputs_dict['multi_round']:  
+                if input_streams_dict['multi_round']:  
                     # Where are the actual token (different from padding):
                     listener_sentences_token_bool = (outputs_dict['sentences_widx'] != self.vocab_pad_idx)
                     # (batch_size, max_sentence_length, 1)
@@ -598,7 +608,7 @@ class Agent(Module):
                         index=outputs_dict['sentences_widx'].long())
                     # (batch_size, max_sentence_length, 1)
                     listener_sentences_probs = listener_sentences_probs.gather(dim=-1, 
-                        index=inputs_dict['sentences_widx'].long())
+                        index=input_streams_dict['sentences_widx'].long())
                     # (batch_size, max_sentence_length, 1)
                     
                     # Entropy:
@@ -620,7 +630,7 @@ class Agent(Module):
                 self.exp_buffer.add(data)
 
                 # Compute losses:
-                if not(inputs_dict['multi_round']):
+                if not(input_streams_dict['multi_round']):
                     # then it is the last round, we can compute the loss:
                     exp_size = len(self.exp_buffer)
                     R = torch.zeros_like(r)
@@ -762,4 +772,6 @@ class Agent(Module):
 
         self._tidyup()
         
-        return outputs_dict, losses_dict    
+        outputs_dict['losses'] = losses_dict
+
+        return outputs_dict    

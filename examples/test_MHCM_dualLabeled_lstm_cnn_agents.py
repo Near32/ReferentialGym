@@ -40,6 +40,7 @@ def main():
              'UberCNN',
              'CoordUberCNN',
              'ResNet18AvgPooled-2',
+             'ResNet18AvgPooled-3',
              'ResNet18AvgPooledMHDPA-2',
              'pretrained-ResNet18AvgPooled-2', 
              'CoordResNet18AvgPooled-2',
@@ -77,6 +78,7 @@ def main():
   parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
   parser.add_argument('--detached_heads', action='store_true', default=False)
+  parser.add_argument('--test_id_analogy', action='store_true', default=False)
   parser.add_argument('--train_test_split_strategy', type=str, 
     choices=['combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3', # Exp1 : interweaved split
              'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp1 : interweaved split simple X Y 
@@ -229,7 +231,6 @@ def main():
       "batch_size":               args.batch_size,
       "dataloader_num_worker":    4,
       "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
-      "stimulus_depth_mult":      1,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
       "learning_rate":            args.lr, #1e-3,
@@ -522,7 +523,7 @@ def main():
       train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
     save_path += f"/dSprites{train_test_strategy}"
   
-  save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult']}C"
+  save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']}C"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -587,9 +588,13 @@ def main():
   if 'reinforce' in args.graphtype:
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
-  save_path += f"testMHCM/STGS-LSTM-CNN-Agent/"
+  save_path += f"withPopulationHandlerModule//STGS-LSTM-CNN-Agent/"
+  if args.test_id_analogy:
+    save_path += 'withAnalogyTest/'
+  else:
+    save_path += 'NoAnalogyTest/'
   
-  save_path += f'+DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
+  save_path += f'DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
   rg_config['save_path'] = save_path
   
@@ -604,7 +609,7 @@ def main():
   batch_size = 4
   nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
   nbr_stimulus = agent_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -632,7 +637,7 @@ def main():
   batch_size = 4
   nbr_distractors = listener_config['nbr_distractors']
   nbr_stimulus = listener_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim']*rg_config['stimulus_depth_mult'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
@@ -659,63 +664,82 @@ def main():
     need_dict_wrapping["test"] = True
   elif 'Sort-of-CLEVR' in args.dataset:
     if 'tiny' in args.dataset:
-      generate = True 
-      nbrSampledQstPerImg = 1
-      train_size = 80
-      test_size = 80
-      img_size = 64
-      object_size = 5
-      nb_questions = 10
-      nb_objects = 6
-      n_answers = 4+nb_objects
+      generate=True 
+      dataset_size=1000
+      test_size=200
+      img_size=75
+      object_size=5
+      nb_objects=6
+      test_id_analogy = args.test_id_analogy
+      test_id_analogy_threshold = 3
     else:
-      generate = True 
-      nbrSampledQstPerImg = 1
-      train_size = 800
-      test_size = 200
-      img_size = 32
-      object_size = 5
-      nb_questions = 2
-      nb_objects = 3
-      n_answers = 4+nb_objects
+      generate=True 
+      dataset_size=10000
+      test_size=2000
+      img_size=75
+      object_size=5
+      nb_objects=6
+      test_id_analogy = args.test_id_analogy
+      test_id_analogy_threshold = 3
+
+    n_answers = 4+nb_objects
+    if test_id_analogy:
+      nb_questions = 3
+    else:
+      nb_questions = 6
 
     root = './datasets/sort-of-CLEVR-dataset'
-    root += f'-train{train_size}-test{test_size}'
-    root += f'-imgS{img_size}-objS{object_size}-objN{nb_objects}-qN{nb_questions}'
+    root += f'-{dataset_size}'
+    root += f'-imgS{img_size}-objS{object_size}-obj{nb_objects}'
     
     train_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
       train=True, 
       transform=rg_config['train_transform'],
       generate=generate,
-      nbrSampledQstPerImg=nbrSampledQstPerImg,
-      train_size=train_size,
+      dataset_size=dataset_size,
       test_size=test_size,
       img_size=img_size,
       object_size=object_size,
       nb_objects=nb_objects,
-      nb_questions=nb_questions)
+      test_id_analogy=test_id_analogy,
+      test_id_analogy_threshold=test_id_analogy_threshold)
     
     test_dataset = ReferentialGym.datasets.SortOfCLEVRDataset(root=root, 
       train=False, 
       transform=rg_config['test_transform'],
       generate=False,
-      nbrSampledQstPerImg=nbrSampledQstPerImg,
-      train_size=train_size,
+      dataset_size=dataset_size,
       test_size=test_size,
       img_size=img_size,
       object_size=object_size,
       nb_objects=nb_objects,
-      nb_questions=nb_questions)
+      test_id_analogy=test_id_analogy,
+      test_id_analogy_threshold=test_id_analogy_threshold)
+
   
-  '''
-      "train_dataset":            train_dataset,
-      "test_dataset":             test_dataset,
-  '''
   
   ## Modules:
   modules = {}
 
   from ReferentialGym import modules as rg_modules
+
+  # Population:
+  population_handler_id = "population_handler_0"
+  population_handler_config = rg_config
+  population_handler_stream_ids = {
+    "modules:current_speaker":"current_speaker_streams_dict",
+    "modules:current_listener":"current_listener_streams_dict",
+    "signals:epoch":"epoch",
+    "signals:mode":"mode",
+    "signals:it_datasample":"it_datasample",
+  }
+
+  # Current Speaker:
+  current_speaker_id = "current_speaker"
+
+  # Current Listener:
+  current_listener_id = "current_listener"
+
 
   # MHCM:
   if 'dSprites' in args.dataset:
@@ -732,16 +756,21 @@ def main():
     }
 
     mhcm_ffm_input_stream_ids = {
-      "current_speaker:ref:feat_maps":"inputs",
+      "modules:current_speaker:ref_agent:feat_maps":"inputs",
       "current_dataloader:sample:speaker_exp_latents":"targets",
       "losses_dict":"losses_dict",
       "logs_dict":"logs_dict",
     }
   elif 'Sort-of-CLEVR' in args.dataset:
     fm_id = "flatten0"
-    fm_input_stream_keys = [
-      "current_speaker:ref:feat_maps",
-    ]
+    if args.detached_heads:
+      fm_input_stream_keys = [
+        "modules:current_speaker:ref_agent:feat_maps.detach",
+      ]
+    else:
+      fm_input_stream_keys = [
+        "modules:current_speaker:ref_agent:feat_maps",
+      ]
 
     rrm_id = "reshaperepeat0"
     rrm_config = {
@@ -749,7 +778,7 @@ def main():
       'repetition': [(nb_questions,1)]
     }
     rrm_input_stream_keys = [
-      "modules:FlattenModule_flatten0:output_0",
+      "modules:flatten0:output_0",
     ]
 
     sqm_id = "squeeze_qas"
@@ -758,69 +787,96 @@ def main():
       #'inplace': True,
     }
     sqm_input_stream_keys = [
-      "current_dataloader:sample:speaker_relational_questions",
-      "current_dataloader:sample:speaker_non_relational_questions",
-      "current_dataloader:sample:speaker_relational_answers",
-      "current_dataloader:sample:speaker_non_relational_answers",
+      "current_dataloader:sample:speaker_relational_questions_0", #0
+      "current_dataloader:sample:speaker_relational_questions_1", #1
+      "current_dataloader:sample:speaker_relational_questions_2", #2
+      "current_dataloader:sample:speaker_relational_answers_0",   #3
+      "current_dataloader:sample:speaker_relational_answers_1",   #4
+      "current_dataloader:sample:speaker_relational_answers_2",   #5
+      "current_dataloader:sample:speaker_non_relational_questions_0", #6
+      "current_dataloader:sample:speaker_non_relational_questions_1", #7
+      "current_dataloader:sample:speaker_non_relational_questions_2", #8
+      "current_dataloader:sample:speaker_non_relational_answers_0",   #9
+      "current_dataloader:sample:speaker_non_relational_answers_1",   #10
+      "current_dataloader:sample:speaker_non_relational_answers_2",   #11
     ]
 
-    cm_r_id = "concat_relational"
-    cm_r_config = {
-      'dim': -1,
-    }
-    cm_r_input_stream_keys = [
-      "modules:BatchReshapeRepeatModule_reshaperepeat0:output_0",
-      #"current_dataloader:sample:speaker_relational_questions",
-      "modules:SqueezeModule_squeeze_qas:output_0",
-    ]
+    cm_r_id = {}
+    cm_r_config = {}
+    cm_r_input_stream_keys = {}
 
-    cm_nr_id = "concat_non_relational"
-    cm_nr_config = {
-      'dim': -1,
-    }
-    cm_nr_input_stream_keys = [
-      "modules:BatchReshapeRepeatModule_reshaperepeat0:output_0",
-      #"current_dataloader:sample:speaker_non_relational_questions",
-      "modules:SqueezeModule_squeeze_qas:output_1",
-    ]
+    cm_nr_id = {}
+    cm_nr_config = {}
+    cm_nr_input_stream_keys = {}
 
-    mhcm_r_id = "mhcm_relational"
-    mhcm_r_config = {
-      'loss_id': mhcm_r_id,
-      'heads_output_sizes':[n_answers],
-      'heads_archs':[
-        [512],
-      ],
-      'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
-      'detach_input': multi_head_detached,
-      "use_cuda":args.use_cuda,
-    }
-    mhcm_r_input_stream_ids = {
-      "modules:ConcatModule_concat_relational:output_0":"inputs",
-      #"current_dataloader:sample:speaker_relational_answers":"targets",
-      "modules:SqueezeModule_squeeze_qas:output_2":"targets",
-      "losses_dict":"losses_dict",
-      "logs_dict":"logs_dict",
-    }
+    mhcm_r_id = {}
+    mhcm_r_config = {}
+    mhcm_r_input_stream_ids = {}
 
-    mhcm_nr_id = "mhcm_non_relational"
-    mhcm_nr_config = {
-      'loss_id': mhcm_nr_id,
-      'heads_output_sizes':[n_answers],
-      'heads_archs':[
-        [512],
-      ],
-      'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
-      'detach_input': multi_head_detached,
-      "use_cuda":args.use_cuda,
-    }
-    mhcm_nr_input_stream_ids = {
-      "modules:ConcatModule_concat_non_relational:output_0":"inputs",
-      #"current_dataloader:sample:speaker_non_relational_answers":"targets",
-      "modules:SqueezeModule_squeeze_qas:output_3":"targets",
-      "losses_dict":"losses_dict",
-      "logs_dict":"logs_dict",
-    }
+    mhcm_nr_id = {}
+    mhcm_nr_config = {}
+    mhcm_nr_input_stream_ids = {}
+    
+    feature_size = 2059 if args.resizeDim == 32 else 4107
+
+    for subtype_id in range(3):
+      cm_r_id[subtype_id] = f"concat_relational_{subtype_id}"
+      cm_r_config[subtype_id] = {
+        'dim': -1,
+      }
+      cm_r_input_stream_keys[subtype_id] = [
+        "modules:reshaperepeat0:output_0",
+        f"modules:squeeze_qas:output_{subtype_id}",
+      ]
+
+      cm_nr_id[subtype_id] = f"concat_non_relational_{subtype_id}"
+      cm_nr_config[subtype_id] = {
+        'dim': -1,
+      }
+      cm_nr_input_stream_keys[subtype_id] = [
+        "modules:reshaperepeat0:output_0",
+        f"modules:squeeze_qas:output_{6+subtype_id}",
+      ]
+
+      mhcm_r_id[subtype_id] = f"mhcm_relational_{subtype_id}"
+      mhcm_r_config[subtype_id] = {
+        'loss_id': mhcm_r_id[subtype_id],
+        'heads_output_sizes':[n_answers],
+        'heads_archs':[
+          [512],
+        ],
+        #'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
+        'input_shape': 520 if "CNN" in args.arch else (feature_size if 'tiny' in args.dataset else 2056),
+        'detach_input': multi_head_detached,
+        "use_cuda":args.use_cuda,
+      }
+      mhcm_r_input_stream_ids[subtype_id] = {
+        f"modules:concat_relational_{subtype_id}:output_0":"inputs",
+        f"modules:squeeze_qas:output_{3+subtype_id}":"targets",
+        "losses_dict":"losses_dict",
+        "logs_dict":"logs_dict",
+        "signals:mode":"mode",
+      }
+
+      mhcm_nr_id[subtype_id] = f"mhcm_non_relational_{subtype_id}"
+      mhcm_nr_config[subtype_id] = {
+        'loss_id': mhcm_nr_id[subtype_id],
+        'heads_output_sizes':[n_answers],
+        'heads_archs':[
+          [512],
+        ],
+        #'input_shape': 520 if "CNN" in args.arch else (2059 if 'tiny' in args.dataset else 2056),
+        'input_shape': 520 if "CNN" in args.arch else (feature_size if 'tiny' in args.dataset else 2056),
+        'detach_input': multi_head_detached,
+        "use_cuda":args.use_cuda,
+      }
+      mhcm_nr_input_stream_ids[subtype_id] = {
+        f"modules:concat_non_relational_{subtype_id}:output_0":"inputs",
+        f"modules:squeeze_qas:output_{9+subtype_id}":"targets",
+        "losses_dict":"losses_dict",
+        "logs_dict":"logs_dict",
+        "signals:mode":"mode",
+      }
 
   # TODO:
   '''
@@ -829,10 +885,16 @@ def main():
   '''
   0)  Implemente output_stream definition to Modules...
   '''
-  '''
-  1)  When Agents will be redefined as Pipeline relying on Network Modules,
-      make sure the stream name are specified with respect to the defined output of those Network Modules.
-  '''
+  
+  modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
+      id=population_handler_id,
+      prototype_speaker=speaker,
+      prototype_listener=listener,
+      config=population_handler_config,
+      input_stream_ids=population_handler_stream_ids)
+
+  modules[current_speaker_id] = rg_modules.CurrentAgentModule(id=current_speaker_id,role="speaker")
+  modules[current_listener_id] = rg_modules.CurrentAgentModule(id=current_listener_id,role="listener")
 
   if 'dSprites' in args.dataset:
     modules[mhcm_ffm_id] = rg_modules.build_MultiHeadClassificationFromFeatureMapModule(
@@ -852,24 +914,25 @@ def main():
       config=sqm_config,
       input_stream_keys=sqm_input_stream_keys)
 
-    modules[cm_r_id] = rg_modules.build_ConcatModule(
-      id=cm_r_id,
-      config=cm_r_config,
-      input_stream_keys=cm_r_input_stream_keys)
-    modules[cm_nr_id] = rg_modules.build_ConcatModule(
-      id=cm_nr_id,
-      config=cm_nr_config,
-      input_stream_keys=cm_nr_input_stream_keys)
+    for subtype_id in range(3):
+      modules[cm_r_id[subtype_id]] = rg_modules.build_ConcatModule(
+        id=cm_r_id[subtype_id],
+        config=cm_r_config[subtype_id],
+        input_stream_keys=cm_r_input_stream_keys[subtype_id])
+      modules[cm_nr_id[subtype_id]] = rg_modules.build_ConcatModule(
+        id=cm_nr_id[subtype_id],
+        config=cm_nr_config[subtype_id],
+        input_stream_keys=cm_nr_input_stream_keys[subtype_id])
 
-    modules[mhcm_r_id] = rg_modules.build_MultiHeadClassificationModule(
-      id=mhcm_r_id, 
-      config=mhcm_r_config,
-      input_stream_ids=mhcm_r_input_stream_ids)
+      modules[mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+        id=mhcm_r_id[subtype_id], 
+        config=mhcm_r_config[subtype_id],
+        input_stream_ids=mhcm_r_input_stream_ids[subtype_id])
 
-    modules[mhcm_nr_id] = rg_modules.build_MultiHeadClassificationModule(
-      id=mhcm_nr_id, 
-      config=mhcm_nr_config,
-      input_stream_ids=mhcm_nr_input_stream_ids)
+      modules[mhcm_nr_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+        id=mhcm_nr_id[subtype_id], 
+        config=mhcm_nr_config[subtype_id],
+        input_stream_ids=mhcm_nr_input_stream_ids[subtype_id])
 
   homo_id = "homo0"
   homo_config = {"use_cuda":args.use_cuda}
@@ -897,35 +960,42 @@ def main():
   )
   modules[optim_id] = optim_module
 
+  pipelines['referential_game'] = [
+    population_handler_id,
+    current_speaker_id,
+    current_listener_id
+  ]
+
   if 'dSprites' in args.dataset:
     pipelines[mhcm_id] = [
-      modules[mhcm_id]
+      mhcm_id
     ]
 
   if 'Sort-of-CLEVR' in args.dataset:
     # Flatten and Reshape+Repeat:
     pipelines[rrm_id+"+"+sqm_id] = [
-      modules[fm_id],
-      modules[rrm_id],
-      modules[sqm_id]
+      fm_id,
+      rrm_id,
+      sqm_id
     ]
 
     # Compute relational items:
-    pipelines[mhcm_r_id] = [
-      modules[cm_r_id],
-      modules[mhcm_r_id]
-    ]
+    for subtype_id in range(3):
+      pipelines[mhcm_r_id[subtype_id]] = [
+        cm_r_id[subtype_id],
+        mhcm_r_id[subtype_id]
+      ]
 
-    # Compute non-relational items:
-    pipelines[mhcm_nr_id] = [
-    modules[cm_nr_id],
-      modules[mhcm_nr_id]
-    ]
+      # Compute non-relational items:
+      pipelines[mhcm_nr_id[subtype_id]] = [
+        cm_nr_id[subtype_id],
+        mhcm_nr_id[subtype_id]
+      ]
   
   pipelines[optim_id] = []
   if args.homoscedastic_multitasks_loss:
-    pipelines[optim_id].append(modules[homo_id])
-  pipelines[optim_id].append(modules[optim_id])
+    pipelines[optim_id].append(homo_id)
+  pipelines[optim_id].append(optim_id)
 
   rg_config["modules"] = modules
   rg_config["pipelines"] = pipelines
@@ -950,9 +1020,7 @@ def main():
 
   # In[22]:
 
-  refgame.train(prototype_speaker=speaker, 
-                prototype_listener=listener, 
-                nbr_epoch=nbr_epoch,
+  refgame.train(nbr_epoch=nbr_epoch,
                 logger=logger,
                 verbose_period=1)
 

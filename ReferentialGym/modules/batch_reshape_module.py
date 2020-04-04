@@ -38,7 +38,8 @@ class BatchReshapeModule(Module):
                "BatchReshapeModule relies on 'new_shape' list.\n\
                 Not found in config.")
 
-        super(BatchReshapeModule, self).__init__(id=f"BatchReshapeModule_{id}",
+        super(BatchReshapeModule, self).__init__(id=id,
+                                                 type="BatchReshapeModule",
                                                  config=config,
                                                  input_stream_ids=input_stream_ids)
         

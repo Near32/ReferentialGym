@@ -102,7 +102,10 @@ class LSTMCNNListener(Listener):
                                               bidirectional=False))
         else:
             self.temporal_feature_encoder = None
-            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.encoder_feature_shape)
+            print("WARNING: Symbol processing :: the number of hidden units is being reparameterized to fit to convolutional features.")
+            self.kwargs['cnn_encoder_feature_dim'] = self.encoder_feature_shape
+            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim']
+            self.kwargs['symbol_processing_nbr_hidden_units'] = self.kwargs['temporal_encoder_nbr_hidden_units']
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
@@ -178,6 +181,7 @@ class LSTMCNNListener(Listener):
         
         """
         batch_size = experiences.size(0)
+        nbr_distractors_po = experiences.size(1)
         experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
         total_size = experiences.size(0)
@@ -212,12 +216,9 @@ class LSTMCNNListener(Listener):
 
             features.append(featout)
         
-        features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
+        self.features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         
-        if self.use_feat_converter:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.encoder_feature_shape)
-        else:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])    
+        self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
         if isinstance(self.cnn_encoder, BetaVAE):
@@ -230,7 +231,7 @@ class LSTMCNNListener(Listener):
             if len(self.compactness_losses):
                 self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
 
-        return features 
+        return self.features 
 
     def _reason(self, sentences, features):
         """

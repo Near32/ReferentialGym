@@ -12,3 +12,8 @@ from .multi_head_regression_module import build_MultiHeadRegressionModule, Multi
 
 from .homoscedastic_multi_task_loss_module import build_HomoscedasticMultiTasksLossModule, HomoscedasticMultiTasksLossModule
 from .optimization_module import build_OptimizationModule, OptimizationModule 
+
+from .current_agent_module import CurrentAgentModule 
+from .population_handler_module import build_PopulationHandlerModule, PopulationHandlerModule 
+
+from .visual_module import build_VisualModule, VisualModule

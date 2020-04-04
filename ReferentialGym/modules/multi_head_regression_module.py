@@ -75,9 +75,10 @@ class MultiHeadRegressionModule(Module):
                "MultiHeadRegressionModule relies on 'loss_id' key to record the computated losses and accuracies.\n\
                 Not found in config keys.")
 
-        super(MultiHeadRegressionModule, self).__init__(id=f"MultiHeadRegressionModule_{id}",
-                                                            config=config,
-                                                            input_stream_ids=input_stream_ids)
+        super(MultiHeadRegressionModule, self).__init__(id=id,
+                                                        type="MultiHeadRegressionModule",
+                                                        config=config,
+                                                        input_stream_ids=input_stream_ids)
         self.heads = heads
         
         if self.config["use_cuda"]:

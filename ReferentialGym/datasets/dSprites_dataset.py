@@ -273,7 +273,7 @@ class dSpritesDataset(Dataset) :
 
         print('Dataset loaded : OK.')
         
-    def __len__(self) :
+    def __len__(self) -> int:
         return len(self.indices)
 
     def getclass(self, idx):

@@ -30,7 +30,8 @@ class ConcatModule(Module):
                "ConcatModule relies on 'dim' value.\n\
                 Not found in config.")
         
-        super(ConcatModule, self).__init__(id=f"ConcatModule_{id}",
+        super(ConcatModule, self).__init__(id=id,
+                                           type="ConcatModule",
                                            config=config,
                                            input_stream_ids=input_stream_ids)
         

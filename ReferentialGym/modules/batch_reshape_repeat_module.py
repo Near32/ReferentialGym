@@ -38,22 +38,23 @@ class BatchReshapeRepeatModule(Module):
                 for idx, ik in enumerate(input_stream_keys)
             }
 
-        assert("new_shape" in config, 
+        assert "new_shape" in config,\
                "BatchReshapeRepeatModule relies on 'new_shape' list.\n\
-                Not found in config.")
+                Not found in config."
 
-        assert("repetition" in config, 
+        assert "repetition" in config,\
                "BatchReshapeRepeatModule relies on 'repetition' list.\n\
-                Not found in config.")
+                Not found in config."
 
-        super(BatchReshapeRepeatModule, self).__init__(id=f"BatchReshapeRepeatModule_{id}",
+        super(BatchReshapeRepeatModule, self).__init__(id=id,
+                                                       type="BatchReshapeRepeatModule",
                                                        config=config,
                                                        input_stream_ids=input_stream_ids)
                 
         self.new_shape = self.config["new_shape"]
-        assert(isinstance(self.new_shape, list))
+        assert isinstance(self.new_shape, list)
         self.repetition = self.config["repetition"]
-        assert(isinstance(self.repetition, list))
+        assert isinstance(self.repetition, list)
         
         self.n_input_streams = len(self.input_stream_ids)
 
@@ -86,7 +87,7 @@ class BatchReshapeRepeatModule(Module):
             repeat = self.repetition[idx]
             if repeat is not None:
                 n_inp = n_inp.repeat(1, *repeat) 
-
+            
             outputs_stream_dict[f'output_{idx}'] = n_inp
         
         return outputs_stream_dict

@@ -28,14 +28,23 @@ class HomoscedasticMultiTasksLossModule(Module):
 
         if input_stream_ids is None:
             input_stream_ids = {
-            "losses_dict":"losses_dict"
+            "losses_dict":"losses_dict",
+            "logs_dict":"logs_dict",
+            "signals:mode":"mode",
             }
 
-        assert("losses_dict" in input_stream_ids.values(), 
+        assert "losses_dict" in input_stream_ids.values(),\
                "HomoscedasticMultiTasksLossModule relies on 'losses_dict' id.\n\
-                Not found in input_stream_ids.")
-        
-        super(HomoscedasticMultiTasksLossModule, self).__init__(id=f"HomoscedasticMultiTasksLossModule_{id}",
+                Not found in input_stream_ids."
+        assert "logs_dict" in input_stream_ids.values(),\
+               "HomoscedasticMultiTasksLossModule records data on 'logs_dict' id.\n\
+                Not found in input_stream_ids."
+        assert "mode" in input_stream_ids.values(),\
+               "HomoscedasticMultiTasksLossModule relies on 'mode' key.\n\
+                Not found in input_stream_ids."
+
+        super(HomoscedasticMultiTasksLossModule, self).__init__(id=id,
+                                                                type="HomoscedasticMultiTasksLossModule",
                                                                 config=config,
                                                                 input_stream_ids=input_stream_ids)
         self.nbr_tasks = 2 #self.config['nbr_tasks']
@@ -60,7 +69,9 @@ class HomoscedasticMultiTasksLossModule(Module):
         outputs_stream_dict = {}
 
         loss_dict = input_streams_dict['losses_dict']
-
+        logs_dict = input_streams_dict['logs_dict']
+        mode = input_streams_dict['mode']
+        
         nbr_tasks_ineffect = len(loss_dict)
         k0 = list(loss_dict.keys())[0]
         batch_size = loss_dict[k0][1].size()[0]
@@ -79,5 +90,8 @@ class HomoscedasticMultiTasksLossModule(Module):
         for kn in loss_dict:
             loss_dict[kn].append( batched_multiloss[kn])
 
+        for (lossname, lossvalues), logvar  in zip(loss_dict.items(), self.homoscedastic_log_vars):
+            logs_dict[f'/{mode}/HomoscedasticLogVar/{lossname}'] = logvar.item()
+        
         return outputs_stream_dict
         

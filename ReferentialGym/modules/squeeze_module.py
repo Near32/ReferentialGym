@@ -39,9 +39,10 @@ class SqueezeModule(Module):
                "SqueezeModule relies on 'dim' value.\n\
                 Not found in config.")
         
-        super(SqueezeModule, self).__init__(id=f"SqueezeModule_{id}",
-                                           config=config,
-                                           input_stream_ids=input_stream_ids)
+        super(SqueezeModule, self).__init__(id=id,
+                                            type="SqueezeModule",
+                                            config=config,
+                                            input_stream_ids=input_stream_ids)
         
         self.squeeze_dim = self.config["dim"]
         assert(isinstance(self.squeeze_dim, list))
