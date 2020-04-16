@@ -183,6 +183,12 @@ def main():
   # Exp1 : splitted split simple X Y
   #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: x4
+  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  
+  # Exp1 : splitted split multi-shape X Y
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  # Denser: x4
+  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6RemainderToUse4-N-Shape-1-N' 
   train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
   
   # Experiment 2: mistake?

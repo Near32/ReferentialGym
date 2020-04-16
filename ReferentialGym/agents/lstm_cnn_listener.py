@@ -249,6 +249,7 @@ class LSTMCNNListener(Listener):
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.size(0)
+        nbr_distractors_po = features.size(1)        
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         # Forward pass:
         if self.temporal_feature_encoder: 
@@ -267,11 +268,11 @@ class LSTMCNNListener(Listener):
             embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
             self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, nbr_distractors_po, -1)
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
         else:
             self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
 
         # Consume the sentences:

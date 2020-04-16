@@ -226,12 +226,12 @@ class PopulationHandlerModule(Module):
             self.previous_it_datasample = it_datasample
             
             if 'train' in mode:
+                self.counterGames += 1
                 if 'obverter' in self.config['graphtype']:
                     # Let us decide whether to exchange the speakers and listeners:
                     # i.e. is the round of games finished?
                     if not('obverter_nbr_games_per_round' in self.config):
                         self.config['obverter_nbr_games_per_round'] = 1 
-                    self.counterGames += 1
                     if  self.counterGames%self.config['obverter_nbr_games_per_round']==0:
                         # Invert the roles:
                         self.speakers, self.listeners = (self.listeners, self.speakers)
@@ -239,11 +239,11 @@ class PopulationHandlerModule(Module):
                         outputs_stream_dict['speakers'] = self.speakers
                         outputs_stream_dict['listeners'] = self.listeners
 
-                    if self.config['iterated_learning_scheme'] and self.counterGames%self.config['iterated_learning_period']==0:
-                        for lidx in range(len(self.listeners)):
-                            self.listeners[lidx].reset()
-                            print("Iterated Learning Scheme: Listener {} have just been resetted.".format(self.listeners[lidx].agent_id))
-            
+                if self.config['iterated_learning_scheme'] and self.counterGames%self.config['iterated_learning_period']==0:
+                    for lidx in range(len(self.listeners)):
+                        self.listeners[lidx].reset()
+                        print("Iterated Learning Scheme: Listener {} have just been resetted.".format(self.listeners[lidx].agent_id))
+        
             new_speaker, new_listener = self._select_agents()
 
             if 'train' in mode: 

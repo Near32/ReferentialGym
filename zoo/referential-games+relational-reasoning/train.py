@@ -23,12 +23,15 @@ def main():
              'tiny-Sort-of-CLEVR',
              'XSort-of-CLEVR',
              'tiny-XSort-of-CLEVR',
+             'dSprites',
              ], 
     help='dataset to train on.',
     default='XSort-of-CLEVR')
   parser.add_argument('--arch', type=str, 
     choices=['Santoro2017-SoC-CNN',
              'Santoro2017-CLEVR-CNN',
+             'Santoro2017-CLEVR-CNN3x3',
+             'Santoro2017-CLEVR-CNN7x4x4x3',
              ], 
     help='model architecture to train',
     default="Santoro2017-CLEVR-CNN")
@@ -48,15 +51,18 @@ def main():
   parser.add_argument('--vocab_size', type=int, default=25)
   parser.add_argument('--lr', type=float, default=1e-4)
   parser.add_argument('--epoch', type=int, default=1600)
-  parser.add_argument('--batch_size', type=int, default=64)
+  parser.add_argument('--batch_size', type=int, default=32)
   parser.add_argument('--mini_batch_size', type=int, default=64)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
+  parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
+  parser.add_argument('--nbr_experience_repetition', type=int, default=1)
   parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_distractors', type=int, default=63)
   parser.add_argument('--nbr_train_distractors', type=int, default=63)
   parser.add_argument('--resizeDim', default=75, type=int,help='input image resize')
   parser.add_argument('--shared_architecture', action='store_true', default=False)
+  parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
   parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
@@ -69,11 +75,26 @@ def main():
               "similarity-0.75",
               ],
     default="similarity-0.75")
+  # Obverter Hyperparameters:
+  parser.add_argument('--use_sentences_one_hot_vectors', action='store_true', default=False)
+  parser.add_argument('--differentiable', action='store_true', default=False)
+  parser.add_argument('--obverter_threshold_to_stop_message_generation', type=float, default=0.95)
+  parser.add_argument('--obverter_nbr_games_per_round', type=int, default=4)
+  # Cultural Bottleneck:
+  parser.add_argument('--iterated_learning_scheme', action='store_true', default=False)
+  parser.add_argument('--iterated_learning_period', type=int, default=4)
+  parser.add_argument('--iterated_learning_rehearse_MDL', action='store_true', default=False)
+  parser.add_argument('--iterated_learning_rehearse_MDL_factor', type=float, default=1.0)
+  
+  # Dataset Hyperparameters:
   parser.add_argument('--train_test_split_strategy', type=str, 
     choices=['combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise interweaved split simple XY normal             
+             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-4-N-Shape-1-N',
+             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse: 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N',  # 4x Denser: 256 imgs, 192 train, 64 test,
             ],
     help='train/test split strategy',
-    default='combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N')
+    default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
   parser.add_argument('--fast', action='store_true', default=False, 
     help='Disable the deterministic CuDNN. It is likely to make the computation faster.')
   
@@ -198,11 +219,14 @@ def main():
       "cultural_reset_strategy":  "oldestL", # "uniformSL" #"meta-oldestL-SGD"
       "cultural_reset_meta_learning_rate":  1e-3,
 
-      "iterated_learning_scheme": False,
-      "iterated_learning_period": 200,
-
+      # Obverter's Cultural Bottleneck:
+      "iterated_learning_scheme": args.iterated_learning_scheme,
+      "iterated_learning_period": args.iterated_learning_period,
+      "iterated_learning_rehearse_MDL": args.iterated_learning_rehearse_MDL,
+      "iterated_learning_rehearse_MDL_factor": args.iterated_learning_rehearse_MDL_factor,
+      
       "obverter_stop_threshold":  0.95,  #0.0 if not in use.
-      "obverter_nbr_games_per_round": 2,
+      "obverter_nbr_games_per_round": args.obverter_nbr_games_per_round,
 
       "obverter_least_effort_loss": False,
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
@@ -215,7 +239,7 @@ def main():
       "learning_rate":            args.lr, #1e-3,
       "adam_eps":                 1e-8,
       "dropout_prob":             args.dropout_prob,
-      "embedding_dropout_prob":   0.8,
+      "embedding_dropout_prob":   args.emb_dropout_prob,
       
       "with_gradient_clip":       False,
       "gradient_clip":            1e0,
@@ -228,7 +252,7 @@ def main():
       "curriculum_distractors_window_size": 25, #100,
 
       "unsupervised_segmentation_factor": None, #1e5
-      "nbr_experience_repetition":  1,
+      "nbr_experience_repetition":  args.nbr_experience_repetition,
       "nbr_dataset_repetition":  {'test':args.nbr_test_dataset_repetition, 'train':args.nbr_train_dataset_repetition},
 
       "with_utterance_penalization":  False,
@@ -286,6 +310,9 @@ def main():
   agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
   agent_config['agent_learning'] = rg_config['agent_learning']
 
+  # Obverter:
+  agent_config['use_obverter_threshold_to_stop_message_generation'] = args.obverter_threshold_to_stop_message_generation
+  
   agent_config['symbol_embedding_size'] = rg_config['symbol_embedding_size']
 
   # Recurrent Convolutional Architecture:
@@ -307,7 +334,12 @@ def main():
     agent_config['use_feat_converter'] = False
     
     agent_config['cnn_encoder_channels'] = ['BN32','BN64','BN128','BN256']
-    agent_config['cnn_encoder_kernels'] = [4,4,4,4]
+    if '3x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
+    elif '7x4x4x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    else:
+      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
     agent_config['cnn_encoder_strides'] = [2,2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
     agent_config['cnn_encoder_fc_hidden_units'] = [] 
@@ -337,7 +369,7 @@ def main():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
-  if 'Santoro2017-CLEVR-CNN' in agent_config['architecture']:
+  elif 'Santoro2017-CLEVR-CNN' in agent_config['architecture']:
     # For a fair comparison between CNN an VAEs:
     # the CNN is augmented with one final FC layer reducing to the latent space shape.
     # Need to use feat converter too:
@@ -351,7 +383,12 @@ def main():
     agent_config['use_feat_converter'] = False
     
     agent_config['cnn_encoder_channels'] = ['BN24','BN24','BN24','BN24']
-    agent_config['cnn_encoder_kernels'] = [4,4,4,4]
+    if '3x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
+    elif '7x4x4x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    else:
+      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
     agent_config['cnn_encoder_strides'] = [2,2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
     agent_config['cnn_encoder_fc_hidden_units'] = [] 
@@ -381,6 +418,8 @@ def main():
     agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
+  else:
+    raise NotImplementedError
 
 
   save_path = f"./{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
@@ -392,7 +431,13 @@ def main():
   save_path += f"_BN_{rg_config['agent_learning']}/"
   save_path += f"{rg_config['agent_loss_type']}"
   
-  save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']}C"
+  if 'dSprites' in args.dataset: 
+    train_test_strategy = f"-{test_split_strategy}"
+    if test_split_strategy != train_split_strategy:
+      train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
+    save_path += f"/dSprites{train_test_strategy}"
+  
+  save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']}C-Rep{rg_config['nbr_experience_repetition']}"
   
   if rg_config['use_curriculum_nbr_distractors']:
     save_path += f"+W{rg_config['curriculum_distractors_window_size']}Curr"
@@ -410,7 +455,7 @@ def main():
     save_path += 'LSEntrReg{}'.format(rg_config['entropy_regularization_factor'])
   
   if rg_config['iterated_learning_scheme']:
-    save_path += '-ILM{}+ListEntrReg'.format(rg_config['iterated_learning_period'])
+    save_path += f"-ILM{rg_config['iterated_learning_period']}{'+RehearseMDL{}'.format(rg_config['iterated_learning_rehearse_MDL_factor']) if rg_config['iterated_learning_rehearse_MDL'] else ''}"
   
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
@@ -422,12 +467,10 @@ def main():
       rg_config['cultural_pressure_it_period'],
       rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
   
-  save_path += '-{}{}CulturalDiffObverter{}-{}GPR-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}CulturalAgent-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
-    rg_config['obverter_stop_threshold'],
-    rg_config['obverter_nbr_games_per_round'],
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
@@ -440,12 +483,13 @@ def main():
     rg_config['vocab_size'], 
     rg_config['max_sentence_length'], 
     rg_config['agent_architecture'],
-    f"/{'Detached' if args.vae_detached_featout else ''}beta{vae_beta}-factor{factor_vae_gamma}" if 'BetaVAE' in rg_config['agent_architecture'] else '')
+    f"/{'Detached' if args.vae_detached_featout else ''}beta{vae_beta}-factor{factor_vae_gamma}" if 'BetaVAE' in rg_config['agent_architecture'] else ''
+  )
 
   if 'MONet' in rg_config['agent_architecture'] or 'BetaVAE' in rg_config['agent_architecture']:
     save_path += f"beta{vae_beta}-factor{factor_vae_gamma}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
     save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
-    save_path += f"UnsupSeg{rg_config['unsupervised_segmentation_factor']}Rep{rg_config['nbr_experience_repetition']}" if rg_config['unsupervised_segmentation_factor'] is not None else ''
+    save_path += f"UnsupSeg{rg_config['unsupervised_segmentation_factor']}" if rg_config['unsupervised_segmentation_factor'] is not None else ''
     save_path += f"LossVAECoeff{args.vae_lambda}_{'UseMu' if args.vae_use_mu_value else ''}"
 
   if rg_config['use_feat_converter']:
@@ -457,7 +501,13 @@ def main():
   if 'reinforce' in args.graphtype:
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
-  save_path += f"withPopulationHandlerModule/STGS-LSTM-CNN-Agent/"
+  if 'obverter' in args.graphtype:
+    save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
+  else:
+    save_path += f"withPopulationHandlerModule/STGS-LSTM-CNN-Agent/"
+  
+  if args.same_head:
+    save_path += "same_head/"
 
   if args.test_id_analogy:
     save_path += 'withAnalogyTest/'
@@ -474,8 +524,6 @@ def main():
   logger = statsLogger(path=save_path,dumpPeriod=100)
   
   # # Agents
-  from ReferentialGym.agents import LSTMCNNSpeaker
-
   batch_size = 4
   nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
   nbr_stimulus = agent_config['nbr_stimulus']
@@ -483,26 +531,34 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  speaker = LSTMCNNSpeaker(
-    kwargs=agent_config, 
-    obs_shape=obs_shape, 
-    vocab_size=vocab_size, 
-    max_sentence_length=max_sentence_length,
-    agent_id='s0',
-    logger=logger
-  )
-
+  if 'obverter' in args.graphtype:
+    from ReferentialGym.agents import DifferentiableObverterAgent
+    speaker = DifferentiableObverterAgent(
+      kwargs=agent_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='s0',
+      logger=logger,
+      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      differentiable=args.differentiable
+    )
+  else:
+    from ReferentialGym.agents import LSTMCNNSpeaker
+    speaker = LSTMCNNSpeaker(
+      kwargs=agent_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='s0',
+      logger=logger
+    )
   print("Speaker:", speaker)
 
-  from ReferentialGym.agents import LSTMCNNListener
-
   listener_config = copy.deepcopy(agent_config)
-  
   if args.shared_architecture:
     listener_config['cnn_encoder'] = speaker.cnn_encoder 
-
   listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
-
   batch_size = 4
   nbr_distractors = listener_config['nbr_distractors']
   nbr_stimulus = listener_config['nbr_stimulus']
@@ -510,19 +566,37 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  listener = LSTMCNNListener(kwargs=listener_config, 
-                                obs_shape=obs_shape, 
-                                vocab_size=vocab_size, 
-                                max_sentence_length=max_sentence_length,
-                                agent_id='l0',
-                                logger=logger)
-
+  if 'obverter' in args.graphtype:
+    listener = DifferentiableObverterAgent(
+      kwargs=listener_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='l0',
+      logger=logger,
+      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      differentiable=args.differentiable
+    )
+  else:
+    from ReferentialGym.agents import LSTMCNNListener
+    listener = LSTMCNNListener(
+      kwargs=listener_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='l0',
+      logger=logger
+    )
   print("Listener:", listener)
 
   # # Dataset:
   need_dict_wrapping = {}
 
-  if 'XSort-of-CLEVR' in args.dataset:
+  if 'dSprites' in args.dataset:
+    root = './datasets/dsprites-dataset'
+    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
+    test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  elif 'XSort-of-CLEVR' in args.dataset:
     if 'tiny' in args.dataset:
       generate=True 
       dataset_size=1000
@@ -756,11 +830,15 @@ def main():
     mhcm_heads_arch = [2000,2000,2000,2000, 2000,1000,500,100]
     if args.resizeDim == 75 and 'Santoro2017-SoC-CNN' in args.arch:
       feature_size = 4111
-
-    if args.resizeDim == 75 and 'Santoro2017-CLEVR-CNN' in args.arch:
-      feature_size = 399
-      #mhcm_heads_arch = [256,256,256,256, 256,'256-DP0.5',]
+    elif args.resizeDim == 75 and 'Santoro2017-CLEVR-CNN' in args.arch:
+      if '3x3' in agent_config['architecture']:
+        feature_size = 615
+      #elif '7x4x4x3' in agent_config['architecture']:
+      #  feature_size = 615
+      else:
+        feature_size = 399
       mhcm_heads_arch = [256,'256-DP0.5',]
+    
     
     mhcm_input_shape = feature_size
 
@@ -775,25 +853,6 @@ def main():
           f"modules:squeeze_qas:output_{2*subtype_id}", #0~2*(nb_r_qs-1):2 (answers are interweaved...)
         ]
 
-        mhcm_r_id[subtype_id] = f"mhcm_relational_{subtype_id}"
-        mhcm_r_config[subtype_id] = {
-          'loss_id': mhcm_r_id[subtype_id],
-          'heads_output_sizes':[n_answers],
-          'heads_archs':[
-            mhcm_heads_arch,
-          ],
-          'input_shape': mhcm_input_shape,
-          'detach_input': multi_head_detached,
-          "use_cuda":args.use_cuda,
-        }
-        mhcm_r_input_stream_ids[subtype_id] = {
-          f"modules:concat_relational_{subtype_id}:output_0":"inputs",
-          f"modules:squeeze_qas:output_{2*subtype_id+1}":"targets", #1~2*nb_r_qs-1:2 (questions are interweaved...)
-          "losses_dict":"losses_dict",
-          "logs_dict":"logs_dict",
-          "signals:mode":"mode",
-        }
-
       if subtype_id < nb_nr_qs:
         cm_nr_id[subtype_id] = f"concat_non_relational_{subtype_id}"
         cm_nr_config[subtype_id] = {
@@ -804,27 +863,87 @@ def main():
           f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id}", #2*nb_r_qs~2*nb_r_qs+2*(nb_nr_qs-1):2 (answers are interweaved...)
         ]
 
-        mhcm_nr_id[subtype_id] = f"mhcm_non_relational_{subtype_id}"
-        mhcm_nr_config[subtype_id] = {
-          'loss_id': mhcm_nr_id[subtype_id],
-          'heads_output_sizes':[n_answers],
-          'heads_archs':[
-            mhcm_heads_arch,
-          ],
-          'input_shape': mhcm_input_shape,
-          'detach_input': multi_head_detached,
-          "use_cuda":args.use_cuda,
-        }
-        mhcm_nr_input_stream_ids[subtype_id] = {
-          f"modules:concat_non_relational_{subtype_id}:output_0":"inputs",
-          f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}":"targets", #2*nb_r_qs+1~2*nb_r_qs+2*nb_nr_qs-1:2 (answers are interweaved...)
-          "losses_dict":"losses_dict",
-          "logs_dict":"logs_dict",
-          "signals:mode":"mode",
-        }
 
-      # Baseline:
-      if args.with_baseline:
+    if args.same_head:
+      mhcm_r_id = f"mhcm_relational"
+      mhcm_nr_id = f"mhcm_non_relational"
+      mhcm_config = {
+        'loss_ids': {},
+        'heads_output_sizes':[],
+        'heads_archs':[],
+        'input_shapes': [],
+        'same_head': True,
+        "use_cuda":args.use_cuda,
+      }
+      mhcm_input_stream_ids = {
+        "losses_dict":"losses_dict",
+        "logs_dict":"logs_dict",
+        "signals:mode":"mode",
+      }
+
+      for subtype_id in range(nb_r_qs):
+        mhcm_config['loss_ids'][f"inputs_{subtype_id}"] = f"{mhcm_r_id}_{subtype_id}"
+        mhcm_config['heads_output_sizes'].append(n_answers)
+        mhcm_config['heads_archs'].append(mhcm_heads_arch)
+        mhcm_config['input_shapes'].append(mhcm_input_shape)
+        
+        mhcm_input_stream_ids[f"modules:concat_relational_{subtype_id}:output_0"] = f"inputs_{subtype_id}"
+        mhcm_input_stream_ids[f"modules:squeeze_qas:output_{2*subtype_id+1}"] = f"targets_{subtype_id}" #1~2*nb_r_qs-1:2 (questions are interweaved...)
+
+      for subtype_id in range(nb_nr_qs):
+        mhcm_config['loss_ids'][f"inputs_{nb_r_qs + subtype_id}"] = f"{mhcm_nr_id}_{subtype_id}"
+        mhcm_config['heads_output_sizes'].append(n_answers)
+        mhcm_config['heads_archs'].append(mhcm_heads_arch)
+        mhcm_config['input_shapes'].append(mhcm_input_shape)
+        
+        mhcm_input_stream_ids[f"modules:concat_non_relational_{subtype_id}:output_0"] = f"inputs_{nb_r_qs + subtype_id}"
+        mhcm_input_stream_ids[f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}"] = f"targets_{nb_r_qs + subtype_id}" #1~2*nb_r_qs-1:2 (questions are interweaved...)
+
+    else:
+      for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+        if subtype_id < nb_r_qs:
+          mhcm_r_id[subtype_id] = f"mhcm_relational_{subtype_id}"
+          mhcm_r_config[subtype_id] = {
+            'loss_ids': {"inputs_0":mhcm_r_id[subtype_id]},
+            'heads_output_sizes':[n_answers],
+            'heads_archs':[
+              mhcm_heads_arch,
+            ],
+            'input_shapes': [mhcm_input_shape],
+            'same_head': False,
+            "use_cuda":args.use_cuda,
+          }
+          mhcm_r_input_stream_ids[subtype_id] = {
+            f"modules:concat_relational_{subtype_id}:output_0":"inputs_0",
+            f"modules:squeeze_qas:output_{2*subtype_id+1}":"targets_0", #1~2*nb_r_qs-1:2 (questions are interweaved...)
+            "losses_dict":"losses_dict",
+            "logs_dict":"logs_dict",
+            "signals:mode":"mode",
+          }
+
+        if subtype_id < nb_nr_qs:
+          mhcm_nr_id[subtype_id] = f"mhcm_non_relational_{subtype_id}"
+          mhcm_nr_config[subtype_id] = {
+            'loss_ids': {"inputs_0":mhcm_nr_id[subtype_id]},
+            'heads_output_sizes':[n_answers],
+            'heads_archs':[
+              mhcm_heads_arch,
+            ],
+            'input_shapes': [mhcm_input_shape],
+            'same_head': False,
+            "use_cuda":args.use_cuda,
+          }
+          mhcm_nr_input_stream_ids[subtype_id] = {
+            f"modules:concat_non_relational_{subtype_id}:output_0":"inputs_0",
+            f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}":"targets_0", #2*nb_r_qs+1~2*nb_r_qs+2*nb_nr_qs-1:2 (answers are interweaved...)
+            "losses_dict":"losses_dict",
+            "logs_dict":"logs_dict",
+            "signals:mode":"mode",
+          }
+
+    # Baseline:
+    if args.with_baseline:
+      for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
         if subtype_id < nb_r_qs:
           b_cm_r_id[subtype_id] = f"baseline_concat_relational_{subtype_id}"
           b_cm_r_config[subtype_id] = {
@@ -834,25 +953,6 @@ def main():
             "modules:reshaperepeat0:output_1",  # baseline visual features
             f"modules:squeeze_qas:output_{2*subtype_id}", #0~2*(nb_r_qs-1):2 (answers are interweaved...)
           ]
-
-          b_mhcm_r_id[subtype_id] = f"baseline_mhcm_relational_{subtype_id}"
-          b_mhcm_r_config[subtype_id] = {
-            'loss_id': b_mhcm_r_id[subtype_id],
-            'heads_output_sizes':[n_answers],
-            'heads_archs':[
-              mhcm_heads_arch,
-            ],
-            'input_shape': mhcm_input_shape,
-            'detach_input': False,
-            "use_cuda":args.use_cuda,
-          }
-          b_mhcm_r_input_stream_ids[subtype_id] = {
-            f"modules:baseline_concat_relational_{subtype_id}:output_0":"inputs",
-            f"modules:squeeze_qas:output_{2*subtype_id+1}":"targets", #1~2*nb_r_qs-1:2 (questions are interweaved...)
-            "losses_dict":"losses_dict",
-            "logs_dict":"logs_dict",
-            "signals:mode":"mode",
-          }
 
         if subtype_id < nb_nr_qs:
           b_cm_nr_id[subtype_id] = f"baseline_concat_non_relational_{subtype_id}"
@@ -864,25 +964,82 @@ def main():
             f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id}", #2*nb_r_qs~2*nb_r_qs+2*(nb_nr_qs-1):2 (answers are interweaved...)
           ]
 
-          b_mhcm_nr_id[subtype_id] = f"baseline_mhcm_non_relational_{subtype_id}"
-          b_mhcm_nr_config[subtype_id] = {
-            'loss_id': b_mhcm_nr_id[subtype_id],
-            'heads_output_sizes':[n_answers],
-            'heads_archs':[
-              mhcm_heads_arch,
-            ],
-            'input_shape': mhcm_input_shape,
-            'detach_input': False,
-            "use_cuda":args.use_cuda,
-          }
-          b_mhcm_nr_input_stream_ids[subtype_id] = {
-            f"modules:baseline_concat_non_relational_{subtype_id}:output_0":"inputs",
-            f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}":"targets", #2*nb_r_qs+1~2*nb_r_qs+2*nb_nr_qs-1:2 (answers are interweaved...)
-            "losses_dict":"losses_dict",
-            "logs_dict":"logs_dict",
-            "signals:mode":"mode",
-          }
 
+      if args.same_head:
+        b_mhcm_r_id = f"baseline_mhcm_relational"
+        b_mhcm_nr_id = f"baseline_mhcm_non_relational"
+        b_mhcm_config = {
+          'loss_ids': {},
+          'heads_output_sizes':[],
+          'heads_archs':[],
+          'input_shapes': [],
+          'same_head': True,
+          "use_cuda":args.use_cuda,
+        }
+        b_mhcm_input_stream_ids = {
+          "losses_dict":"losses_dict",
+          "logs_dict":"logs_dict",
+          "signals:mode":"mode",
+        }
+
+        for subtype_id in range(nb_r_qs):
+          b_mhcm_config['loss_ids'][f"inputs_{subtype_id}"] = f"{b_mhcm_r_id}_{subtype_id}"
+          b_mhcm_config['heads_output_sizes'].append(n_answers)
+          b_mhcm_config['heads_archs'].append(mhcm_heads_arch)
+          b_mhcm_config['input_shapes'].append(mhcm_input_shape)
+          
+          b_mhcm_input_stream_ids[f"modules:concat_relational_{subtype_id}:output_0"] = f"inputs_{subtype_id}"
+          b_mhcm_input_stream_ids[f"modules:squeeze_qas:output_{2*subtype_id+1}"] = f"targets_{subtype_id}" #1~2*nb_r_qs-1:2 (questions are interweaved...)
+        
+        for subtype_id in range(nb_nr_qs):
+          b_mhcm_config['loss_ids'][f"inputs_{nb_r_qs + subtype_id}"] = f"{b_mhcm_nr_id}_{subtype_id}"
+          b_mhcm_config['heads_output_sizes'].append(n_answers)
+          b_mhcm_config['heads_archs'].append(mhcm_heads_arch)
+          b_mhcm_config['input_shapes'].append(mhcm_input_shape)
+          
+          mhcm_input_stream_ids[f"modules:concat_non_relational_{subtype_id}:output_0"] = f"inputs_{nb_r_qs + subtype_id}"
+          mhcm_input_stream_ids[f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}"] = f"targets_{nb_r_qs + subtype_id}" #1~2*nb_r_qs-1:2 (questions are interweaved...)
+      else:
+        for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+          if subtype_id < nb_r_qs:
+            b_mhcm_r_id[subtype_id] = f"baseline_mhcm_relational_{subtype_id}"
+            b_mhcm_r_config[subtype_id] = {
+              'loss_ids': {"inputs_0":b_mhcm_r_id[subtype_id]},
+              'heads_output_sizes':[n_answers],
+              'heads_archs':[
+                mhcm_heads_arch,
+              ],
+              'input_shapes': [mhcm_input_shape],
+              'same_head': False,
+              "use_cuda":args.use_cuda,
+            }
+            b_mhcm_r_input_stream_ids[subtype_id] = {
+              f"modules:baseline_concat_relational_{subtype_id}:output_0":"inputs_0",
+              f"modules:squeeze_qas:output_{2*subtype_id+1}":"targets_0", #1~2*nb_r_qs-1:2 (questions are interweaved...)
+              "losses_dict":"losses_dict",
+              "logs_dict":"logs_dict",
+              "signals:mode":"mode",
+            }
+
+          if subtype_id < nb_nr_qs:
+            b_mhcm_nr_id[subtype_id] = f"baseline_mhcm_non_relational_{subtype_id}"
+            b_mhcm_nr_config[subtype_id] = {
+              'loss_ids': {"inputs_0":b_mhcm_nr_id[subtype_id]},
+              'heads_output_sizes':[n_answers],
+              'heads_archs':[
+                mhcm_heads_arch,
+              ],
+              'input_shapes': [mhcm_input_shape],
+              'same_head': False,
+              "use_cuda":args.use_cuda,
+            }
+            b_mhcm_nr_input_stream_ids[subtype_id] = {
+              f"modules:baseline_concat_non_relational_{subtype_id}:output_0":"inputs_0",
+              f"modules:squeeze_qas:output_{2*nb_r_qs+2*subtype_id+1}":"targets_0", #2*nb_r_qs+1~2*nb_r_qs+2*nb_nr_qs-1:2 (answers are interweaved...)
+              "losses_dict":"losses_dict",
+              "logs_dict":"logs_dict",
+              "signals:mode":"mode",
+            }
 
   modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
       id=population_handler_id,
@@ -894,7 +1051,9 @@ def main():
   modules[current_speaker_id] = rg_modules.CurrentAgentModule(id=current_speaker_id,role="speaker")
   modules[current_listener_id] = rg_modules.CurrentAgentModule(id=current_listener_id,role="listener")
 
-  if 'Sort-of-CLEVR' in args.dataset:
+  if 'dSprites' in args.dataset:
+    pass
+  elif 'Sort-of-CLEVR' in args.dataset:
     #Baseline :
     if args.with_baseline:
       modules[baseline_vm_id] = rg_modules.build_VisualModule(
@@ -920,19 +1079,29 @@ def main():
           id=cm_r_id[subtype_id],
           config=cm_r_config[subtype_id],
           input_stream_keys=cm_r_input_stream_keys[subtype_id])
-        modules[mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
-          id=mhcm_r_id[subtype_id], 
-          config=mhcm_r_config[subtype_id],
-          input_stream_ids=mhcm_r_input_stream_ids[subtype_id])
       if subtype_id < nb_nr_qs:
         modules[cm_nr_id[subtype_id]] = rg_modules.build_ConcatModule(
           id=cm_nr_id[subtype_id],
           config=cm_nr_config[subtype_id],
           input_stream_keys=cm_nr_input_stream_keys[subtype_id])
-        modules[mhcm_nr_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
-          id=mhcm_nr_id[subtype_id], 
-          config=mhcm_nr_config[subtype_id],
-          input_stream_ids=mhcm_nr_input_stream_ids[subtype_id])
+
+    if args.same_head:
+      modules["mhcm"] = rg_modules.build_MultiHeadClassificationModule(
+        id="mhcm", 
+        config=mhcm_config,
+          input_stream_ids=mhcm_input_stream_ids)
+    else:
+      for subtype_id in range(max(nb_nr_qs,nb_r_qs)):
+        if subtype_id < nb_r_qs:
+          modules[mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+            id=mhcm_r_id[subtype_id], 
+            config=mhcm_r_config[subtype_id],
+            input_stream_ids=mhcm_r_input_stream_ids[subtype_id])
+        if subtype_id < nb_nr_qs:
+          modules[mhcm_nr_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+            id=mhcm_nr_id[subtype_id], 
+            config=mhcm_nr_config[subtype_id],
+            input_stream_ids=mhcm_nr_input_stream_ids[subtype_id])
 
     # Baseline:
     if args.with_baseline:
@@ -942,19 +1111,29 @@ def main():
             id=b_cm_r_id[subtype_id],
             config=b_cm_r_config[subtype_id],
             input_stream_keys=b_cm_r_input_stream_keys[subtype_id])
-          modules[b_mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
-            id=b_mhcm_r_id[subtype_id], 
-            config=b_mhcm_r_config[subtype_id],
-            input_stream_ids=b_mhcm_r_input_stream_ids[subtype_id])
         if subtype_id < nb_nr_qs:
           modules[b_cm_nr_id[subtype_id]] = rg_modules.build_ConcatModule(
             id=b_cm_nr_id[subtype_id],
             config=b_cm_nr_config[subtype_id],
             input_stream_keys=b_cm_nr_input_stream_keys[subtype_id])
-          modules[b_mhcm_nr_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
-            id=b_mhcm_nr_id[subtype_id], 
-            config=b_mhcm_nr_config[subtype_id],
-            input_stream_ids=b_mhcm_nr_input_stream_ids[subtype_id])
+    
+      if args.same_head:
+        modules["baseline_mhcm"] = rg_modules.build_MultiHeadClassificationModule(
+        id="baseline_mhcm", 
+        config=b_mhcm_config,
+          input_stream_ids=b_mhcm_input_stream_ids)
+      else:
+        for subtype_id in range(max(nb_nr_qs,nb_r_qs)):
+          if subtype_id < nb_r_qs:
+            modules[b_mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+              id=b_mhcm_r_id[subtype_id], 
+              config=b_mhcm_r_config[subtype_id],
+              input_stream_ids=b_mhcm_r_input_stream_ids[subtype_id])
+          if subtype_id < nb_nr_qs:
+            modules[b_mhcm_nr_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
+              id=b_mhcm_nr_id[subtype_id], 
+              config=b_mhcm_nr_config[subtype_id],
+              input_stream_ids=b_mhcm_nr_input_stream_ids[subtype_id])
   else:
     raise NotImplementedError
     
@@ -1004,31 +1183,66 @@ def main():
       sqm_id
     ]
 
-    # Compute relational items:
-    for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
-      if subtype_id < nb_r_qs:
-        pipelines[mhcm_r_id[subtype_id]] = [
-          cm_r_id[subtype_id],
-          mhcm_r_id[subtype_id]
-        ]
-        #Baseline:
-        if args.with_baseline:
-          pipelines[b_mhcm_r_id[subtype_id]] = [
-            b_cm_r_id[subtype_id],
-            b_mhcm_r_id[subtype_id]
+    # Compute items:
+    if args.same_head:
+      for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+        if subtype_id < nb_r_qs:
+          pipelines[cm_r_id[subtype_id]] = [
+            cm_r_id[subtype_id],
+          ]
+        if subtype_id < nb_nr_qs:
+          pipelines[cm_nr_id[subtype_id]] = [
+            cm_nr_id[subtype_id],
           ]
 
-      if subtype_id < nb_nr_qs:
-        pipelines[mhcm_nr_id[subtype_id]] = [
-          cm_nr_id[subtype_id],
-          mhcm_nr_id[subtype_id]
+      pipelines["mhcm"] = [
+        "mhcm",
+      ]
+
+      #Baseline:
+      if args.with_baseline:
+        for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+          if subtype_id < nb_r_qs:
+            pipelines[b_cm_r_id[subtype_id]] = [
+              b_cm_r_id[subtype_id],
+            ]
+
+          if subtype_id < nb_nr_qs:
+            pipelines[b_cm_nr_id[subtype_id]] = [
+              b_cm_nr_id[subtype_id],
+            ]
+        
+        pipelines["baseline_mhcm"] = [
+          "baseline_mhcm",
         ]
-        #Baseline:
-        if args.with_baseline:
-          pipelines[b_mhcm_nr_id[subtype_id]] = [
-            b_cm_nr_id[subtype_id],
-            b_mhcm_nr_id[subtype_id]
+    else:
+      for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+        if subtype_id < nb_r_qs:
+          pipelines[mhcm_r_id[subtype_id]] = [
+            cm_r_id[subtype_id],
+            mhcm_r_id[subtype_id]
           ]
+        if subtype_id < nb_nr_qs:
+          pipelines[mhcm_nr_id[subtype_id]] = [
+            cm_nr_id[subtype_id],
+            mhcm_nr_id[subtype_id]
+          ]
+
+      #Baseline:
+      if args.with_baseline:
+        for subtype_id in range(max(nb_r_qs,nb_nr_qs)):
+          if subtype_id < nb_r_qs:
+            pipelines[b_mhcm_r_id[subtype_id]] = [
+              b_cm_r_id[subtype_id],
+              b_mhcm_r_id[subtype_id]
+            ]
+
+          if subtype_id < nb_nr_qs:
+            pipelines[b_mhcm_nr_id[subtype_id]] = [
+              b_cm_nr_id[subtype_id],
+              b_mhcm_nr_id[subtype_id]
+            ]
+
   
   pipelines[optim_id] = []
   if args.homoscedastic_multitasks_loss:

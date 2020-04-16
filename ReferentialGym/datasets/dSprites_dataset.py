@@ -83,6 +83,12 @@ class dSpritesDataset(Dataset) :
                 self.latent_dims['Y']['position'] = 5
                 # 2: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=4 => effective size = 8  
+                if 'RemainderToUse' in strategy[2]:
+                    strategy[2] = strategy[2].split('RemainderToUse')
+                    self.latent_dims['Y']['remainder_use'] = int(strategy[2][1])
+                    strategy[2] = strategy[2][0]
+                else:
+                    self.latent_dims['Y']['remainder_use'] = 0
                 self.latent_dims['Y']['divider'] = int(strategy[2])
                 # 3: test_set_divider (default:4) : out of the effective samples, which indices
                 # will be used solely in test, when combined with another latent's test indices.
@@ -109,6 +115,12 @@ class dSpritesDataset(Dataset) :
                 self.latent_dims['X']['position'] = 4
                 # 5: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=4 => effective size = 8  
+                if 'RemainderToUse' in strategy[5]:
+                    strategy[5] = strategy[5].split('RemainderToUse')
+                    self.latent_dims['X']['remainder_use'] = int(strategy[5][1])
+                    strategy[5] = strategy[5][0]
+                else:
+                    self.latent_dims['X']['remainder_use'] = 0
                 self.latent_dims['X']['divider'] = int(strategy[5])
                 # 6: test_set_divider (default:4) : out of the effective samples, which indices
                 # will be used solely in test, when combined with another latent's test indices.
@@ -134,6 +146,12 @@ class dSpritesDataset(Dataset) :
                 self.latent_dims['Orientation']['position'] = 3
                 # 8: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=4 => effective size = 10  
+                if 'RemainderToUse' in strategy[8]:
+                    strategy[8] = strategy[8].split('RemainderToUse')
+                    self.latent_dims['Orientation']['remainder_use'] = int(strategy[8][1])
+                    strategy[8] = strategy[8][0]
+                else:
+                    self.latent_dims['Orientation']['remainder_use'] = 0
                 self.latent_dims['Orientation']['divider'] = int(strategy[8])
                 # 9: test_set_divider (default:5) : out of the effective samples, which indices
                 # will be used solely in test, when combined with another latent's test indices.
@@ -156,6 +174,12 @@ class dSpritesDataset(Dataset) :
                 self.latent_dims['Scale']['position'] = 2
                 # 11: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=1 => effective size = 6  
+                if 'RemainderToUse' in strategy[11]:
+                    strategy[11] = strategy[11].split('RemainderToUse')
+                    self.latent_dims['Scale']['remainder_use'] = int(strategy[11][1])
+                    strategy[11] = strategy[11][0]    
+                else:
+                    self.latent_dims['Scale']['remainder_use'] = 0
                 self.latent_dims['Scale']['divider'] = int(strategy[11])
                 # 12: test_set_divider (default:5) : out of the effective samples, which indices
                 # will be used solely in test, when combined with another latent's test indices.
@@ -178,6 +202,12 @@ class dSpritesDataset(Dataset) :
                 self.latent_dims['Shape']['position'] = 1
                 # 14: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=1 => effective size = 3  
+                if 'RemainderToUse' in strategy[14]:
+                    strategy[14] = strategy[14].split('RemainderToUse')
+                    self.latent_dims['Shape']['remainder_use'] = int(strategy[14][1])
+                    strategy[14] = strategy[14][0]    
+                else:
+                    self.latent_dims['Shape']['remainder_use'] = 0
                 self.latent_dims['Shape']['divider'] = int(strategy[14])
                 # 15: test_set_divider (default:3) : out of the effective samples, which indices
                 # will be used solely in test, when combined with another latent's test indices.
@@ -225,7 +255,7 @@ class dSpritesDataset(Dataset) :
                     dim_class = latent_class[dim_dict['position']]
                     quotient = (dim_class+1)//dim_dict['divider']
                     remainder = (dim_class+1)%dim_dict['divider']
-                    if remainder!=0:
+                    if remainder!=dim_dict['remainder_use']:
                         skip_it = True
                         break
 

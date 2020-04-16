@@ -450,13 +450,6 @@ class Agent(Module):
 
         if 'listener' in self.role:
             sample = input_streams_dict['sample']
-            if config['iterated_learning_scheme']:
-                listener_speaking_outputs = self(experiences=sample['speaker_experiences'], 
-                                                 sentences=None, 
-                                                 multi_round=input_streams_dict['multi_round'],
-                                                 graphtype=input_streams_dict['graphtype'],
-                                                 tau0=input_streams_dict['tau0'])
-            
             
             decision_logits = outputs_dict['decision']
             final_decision_logits = decision_logits
@@ -747,16 +740,37 @@ class Agent(Module):
             
             outputs_dict['decision_probs'] = decision_probs
             
-            if 'iterated_learning_scheme' in config and config['iterated_learning_scheme']:
+            if 'iterated_learning_scheme' in config \
+                and config['iterated_learning_scheme']\
+                and 'iterated_learning_rehearse_MDL' in config \
+                and config['iterated_learning_rehearse_MDL']:
+                # Rehearsing:
+                listener_speaking_outputs = self(experiences=sample['speaker_experiences'], 
+                                                 sentences=None, 
+                                                 multi_round=input_streams_dict['multi_round'],
+                                                 graphtype=input_streams_dict['graphtype'],
+                                                 tau0=input_streams_dict['tau0'])
                 # Let us enforce the Minimum Description Length Principle:
                 # Listener's speaking entropy:
+                listener_sentences_log_probs = [s_logits.reshape(-1,self.vocab_size).log_softmax(dim=-1) for s_logits in listener_speaking_outputs['sentences_logits']]
+                listener_sentences_log_probs = torch.cat(
+                    [s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) 
+                    for s_log_probs, s_widx in zip(listener_sentences_log_probs, listener_speaking_outputs['sentences_widx'])], 
+                    dim=0)
+                listener_entropies_per_sentence = -(listener_sentences_log_probs.exp() * listener_sentences_log_probs)
+                # (batch_size, )
+                # Maximization:
+                losses_dict['ilm_MDL_loss'] = [-config['iterated_learning_rehearse_MDL_factor'], listener_entropies_per_sentence]
+
+                '''
                 listener_speaking_entropies = [torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy().mean().view(-1) for w_logits in s_logits], dim=0) for s_logits in listener_speaking_outputs['sentences_logits']]
                 # List of size batch_size of Tensor of shape (sentence_length,)
                 per_sentence_max_entropies = torch.stack([ lss.max(dim=0)[0] for lss in listener_speaking_entropies])
                 # Tensor of shape (batch_size,1)
                 ilm_loss = per_sentence_max_entropies.mean(dim=-1)
                 # (batch_size, )
-                losses_dict['ilm_loss'] = [1.0, ilm_loss]            
+                losses_dict['ilm_MDL_loss'] = [1.0, ilm_loss]
+                '''
 
             if 'with_listener_entropy_regularization' in config and config['with_listener_entropy_regularization']:
                 entropies = torch.cat([ torch.distributions.categorical.Categorical(logits=d_logits).entropy().view(1) for d_logits in final_decision_logits], dim=-1)

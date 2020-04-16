@@ -407,22 +407,6 @@ def generate_dataset(root,
             dataset[f"non_relational_qs_{subtype_id}"].append(np.stack(datapoint[2][0][subtype_id]))
             dataset[f"non_relational_as_{subtype_id}"].append(np.stack(datapoint[2][1][subtype_id]))
 
-        '''
-        dataset['relational_qs_0'].append(np.stack(datapoint[1][0][0]))
-        dataset['relational_qs_1'].append(np.stack(datapoint[1][0][1]))
-        dataset['relational_qs_2'].append(np.stack(datapoint[1][0][2]))
-        dataset['non_relational_qs_0'].append(np.stack(datapoint[2][0][0]))
-        dataset['non_relational_qs_1'].append(np.stack(datapoint[2][0][1]))
-        dataset['non_relational_qs_2'].append(np.stack(datapoint[2][0][2]))
-        
-        dataset['relational_as_0'].append(np.asarray(datapoint[1][1][0]))
-        dataset['relational_as_1'].append(np.asarray(datapoint[1][1][1]))
-        dataset['relational_as_2'].append(np.asarray(datapoint[1][1][2]))
-        dataset['non_relational_as_0'].append(np.asarray(datapoint[2][1][0]))
-        dataset['non_relational_as_1'].append(np.asarray(datapoint[2][1][1]))
-        dataset['non_relational_as_2'].append(np.asarray(datapoint[2][1][2]))
-        '''
-
     print('saving dataset...')
     filename = os.path.join(dirs,'xsort-of-clevr.pickle')
     with  open(filename, 'wb') as f:
@@ -473,7 +457,7 @@ class XSortOfCLEVRDataset(Dataset):
                                        nb_nr_qs=self.nb_nr_qs,
                                        nb_r_qs=self.nb_r_qs)
             else:
-                raise RuntimeError('Dataset not found. You can use download=True to download it')
+                raise RuntimeError('Dataset not found.')
         else:
             filepath = os.path.join(self.root, self.file)
             with open(filepath, 'rb') as f:
@@ -593,10 +577,12 @@ class XSortOfCLEVRDataset(Dataset):
                 
         relational_questions = {f"relational_questions_{k}":torch.from_numpy(v[idx]).float() for k,v in self.relational_qs.items()}
         non_relational_questions = {f"non_relational_questions_{k}":torch.from_numpy(v[idx]).float() for k,v in self.non_relational_qs.items()}
+        #(nbr_objects x qst_repr=15)
         
         relational_answers = {f"relational_answers_{k}":torch.from_numpy(v[idx]).long() for k,v in self.relational_as.items()}
         non_relational_answers = {f"non_relational_answers_{k}":torch.from_numpy(v[idx]).long() for k,v in self.non_relational_as.items()}
-        
+        #(nbr_objects x ans_repr=1)
+
         # Do we test the analogy on the color/object_id?
         if self.test_id_analogy:
             # Let us reserve the QAs with regard to color/object_id greater than the given threshold:

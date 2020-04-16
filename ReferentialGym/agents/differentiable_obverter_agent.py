@@ -45,20 +45,20 @@ class DifferentiableObverterAgent(Listener):
         self.differentiable = differentiable
         if not(self.differentiable):
 
-            del self.input_stream_ids['speaker']['current_listener:sentences_one_hot']
-            del self.input_stream_ids['speaker']['current_listener:sentences_widx']
+            del self.input_stream_ids['speaker']['modules:current_listener:sentences_one_hot']
+            del self.input_stream_ids['speaker']['modules:current_listener:sentences_widx']
 
-            del self.input_stream_ids['listener']['current_speaker:sentences_one_hot']
-            del self.input_stream_ids['listener']['current_speaker:sentences_widx']
+            del self.input_stream_ids['listener']['modules:current_speaker:sentences_one_hot']
+            del self.input_stream_ids['listener']['modules:current_speaker:sentences_widx']
 
             self.input_stream_ids['speaker'].update({
-                'current_listener:sentences_one_hot.detach':'sentences_one_hot',
-                'current_listener:sentences_widx.detach':'sentences_widx',
+                'modules:current_listener:sentences_one_hot.detach':'sentences_one_hot',
+                'modules:current_listener:sentences_widx.detach':'sentences_widx',
             })
 
             self.input_stream_ids['listener'].update({
-                'current_speaker:sentences_one_hot.detach':'sentences_one_hot',
-                'current_speaker:sentences_widx.detach':'sentences_widx', 
+                'modules:current_speaker:sentences_one_hot.detach':'sentences_one_hot',
+                'modules:current_speaker:sentences_widx.detach':'sentences_widx', 
             })
         
 
@@ -139,7 +139,10 @@ class DifferentiableObverterAgent(Listener):
                 )
         else:
             self.temporal_feature_encoder = None
-            assert(self.kwargs['temporal_encoder_nbr_hidden_units'] == self.kwargs['nbr_stimulus']*self.encoder_feature_shape)
+            print("WARNING: Symbol processing :: the number of hidden units is being reparameterized to fit to convolutional features.")
+            self.kwargs['cnn_encoder_feature_dim'] = self.encoder_feature_shape
+            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim']
+            self.kwargs['symbol_processing_nbr_hidden_units'] = self.kwargs['temporal_encoder_nbr_hidden_units']
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         
@@ -202,17 +205,12 @@ class DifferentiableObverterAgent(Listener):
 
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
+        
         if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = list()
             self.compactness_losses.clear()
             self.buffer_cnn_output_dict = dict()
 
-    '''
-    def _compute_tau(self, tau0, emb=None):
-        if emb is None: emb = self.embedding_tf_final_outputs
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(emb))).squeeze()
-        return 1.0/invtau
-    '''
     def _compute_tau(self, tau0, h):
         invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
         return invtau
@@ -229,6 +227,7 @@ class DifferentiableObverterAgent(Listener):
             features: Tensor of shape `(batch_size, -1, nbr_stimulus, feature_dim).
         """
         batch_size = experiences.size(0)
+        nbr_distractors_po = experiences.size(1)
         experiences = experiences.view(-1, *(experiences.size()[3:]))
         features = []
         feat_maps = []
@@ -269,13 +268,10 @@ class DifferentiableObverterAgent(Listener):
             features.append(featout)
             feat_maps.append(feat_map)
 
-        features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
+        self.features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
         self.feat_maps = torch.cat(feat_maps, dim=0)
         
-        if self.use_feat_converter:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.encoder_feature_shape)
-        else:
-            features = features.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['cnn_encoder_feature_dim'])    
+        self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
         if isinstance(self.cnn_encoder, BetaVAE):
@@ -288,7 +284,7 @@ class DifferentiableObverterAgent(Listener):
             if len(self.compactness_losses):
                 self.log_dict['unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
 
-        return features 
+        return self.features
 
     def _reason(self, sentences, features):
         """
@@ -413,24 +409,7 @@ class DifferentiableObverterAgent(Listener):
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, cnn_encoder_feature_dim)
         
         # Forward pass:
-        if self.embedding_tf_final_outputs is None: 
-            '''
-            features = features.view(-1, *(features.size()[2:]))
-            # (batch_size*(nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
-            rnn_outputs = []
-            total_size = features.size(0)
-            mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
-            for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
-                outputs, _ = self.temporal_feature_encoder(featin)
-                # (mini_batch_size, -1, kwargs['temporal_encoder_nbr_hidden_units'])
-                rnn_outputs.append( outputs)
-            outputs = torch.cat(rnn_outputs, dim=0)
-            outputs = outputs.view(batch_size, -1, self.kwargs['nbr_stimulus'], self.kwargs['temporal_encoder_nbr_hidden_units'])
-        
-            embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-            self.embedding_tf_final_outputs = embedding_tf_final_outputs.view(batch_size, -1)
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) * kwargs['temporal_encoder_nbr_hidden_units'])
-            '''
+        if self.embedding_tf_final_outputs is None or self.embedding_tf_final_outputs.shape[1] != nbr_distractors_po: 
             if self.temporal_feature_encoder:
                 features = features.view(-1, *(features.size()[2:]))
                 # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
@@ -450,11 +429,11 @@ class DifferentiableObverterAgent(Listener):
                 embedding_tf_final_outputs = outputs[:,0,-1,:].contiguous()
                 # (batch_size, kwargs['temporal_encoder_feature_dim'])
                 self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, self.kwargs['nbr_distractors']+1, -1)
+                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, nbr_distractors_po, -1)
                 # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
             else:
                 self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
                 # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
 
         # No need to consume the sentences:

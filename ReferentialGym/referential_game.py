@@ -102,6 +102,9 @@ class ReferentialGame(object):
                 for it_dataset in range(self.config['nbr_dataset_repetition'][mode]):
                     end_of_epoch_dataset = (it_dataset==self.config['nbr_dataset_repetition'][mode]-1)
                     self.stream_handler.update("signals:end_of_epoch_dataset", end_of_epoch_dataset)
+                    
+                    nbr_experience_repetition = self.config['nbr_experience_repetition'] if 'train' in mode else 1
+
                     for idx_stimuli, sample in enumerate(data_loader):
                         end_of_epoch_datasample = end_of_epoch_dataset and (idx_stimuli==len(data_loader)-1)
                         self.stream_handler.update("signals:end_of_epoch_datasample", end_of_epoch_datasample)
@@ -118,10 +121,10 @@ class ReferentialGame(object):
                         # //------------------------------------------------------------//
                         # //------------------------------------------------------------//
                         
-                        for it_rep in range(self.config['nbr_experience_repetition']):
+                        for it_rep in range(nbr_experience_repetition):
                             it_samples[mode] += 1
                             it_sample = it_samples[mode]
-                            end_of_epoch_sample = end_of_epoch_datasample and (it_rep==self.config['nbr_experience_repetition']-1)
+                            end_of_epoch_sample = end_of_epoch_datasample and (it_rep==nbr_experience_repetition-1)
                             self.stream_handler.update("signals:end_of_epoch_sample", end_of_epoch_sample)
                             batch_size = len(sample['speaker_experiences'])
                             

@@ -14,18 +14,21 @@ def build_MultiHeadClassificationModule(id:str,
     
     # Multi Heads:
     # Add the feature map size as input to the architectures:
-    input_shape = config['input_shape']
+    input_shapes = config['input_shapes']
     for idx in range(len(config['heads_archs'])):
-        config['heads_archs'][idx] = [input_shape]+config['heads_archs'][idx]
-    
+        config['heads_archs'][idx] = [input_shapes[idx]]+config['heads_archs'][idx]
+        if config['same_head']:
+            break
+
     # Make sure there are as many heads as proposed architectures:
     while len(config['heads_archs']) != len(config['heads_output_sizes']):
         config['heads_archs'].append(copy.deepcopy(config['heads_archs'][-1]))
 
     # Add output sizes to the archs:
     for idx, output_size in enumerate(config['heads_output_sizes']):
-        if isinstance(output_size, int):
-            config['heads_archs'][idx].append(output_size)
+        config['heads_archs'][idx].append(output_size)
+        if config['same_head']:
+            break
 
 
     heads = nn.ModuleList()
@@ -58,13 +61,16 @@ def build_MultiHeadClassificationModule(id:str,
         else:
             layer = None 
         heads.append(layer)
-    
+        
+        if config['same_head']:
+            break
+
     module = MultiHeadClassificationModule(id=id,
                                            config=config,
                                            heads=heads,
                                            input_stream_ids=input_stream_ids)
     print(module)
-    
+
     return module
 
 
@@ -76,11 +82,11 @@ class MultiHeadClassificationModule(Module):
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
-        assert "inputs" in input_stream_ids.values(),\
-               "ClassificationModule relies on 'inputs' id to start its pipeline.\n\
+        assert "inputs_0" in input_stream_ids.values(),\
+               "ClassificationModule relies on, at least, 'input_0' id to start its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "targets" in input_stream_ids.values(),\
-               "ClassificationModule relies on 'targets' id to compute its pipeline.\n\
+        assert "targets_0" in input_stream_ids.values(),\
+               "ClassificationModule relies on, at least, 'targets_0' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
         assert "losses_dict" in input_stream_ids.values(),\
                "ClassificationModule relies on 'losses_dict' id to record the computated losses.\n\
@@ -88,13 +94,13 @@ class MultiHeadClassificationModule(Module):
         assert "logs_dict" in input_stream_ids.values(),\
                "ClassificationModule relies on 'logs_dict' id to record the accuracies.\n\
                 Not found in input_stream_ids."
-        assert "loss_id" in config.keys(),\
-               "ClassificationModule relies on 'loss_id' key to record the computated losses and accuracies.\n\
-                Not found in config keys."
         assert "mode" in input_stream_ids.values(),\
                "ClassificationModule relies on 'mode' key to record the computated losses and accuracies.\n\
                 Not found in input_stream_ids."
-
+        assert "loss_ids" in config.keys(),\
+               "ClassificationModule relies on 'loss_ids' key to record the computated losses and accuracies.\n\
+                Not found in config keys."
+        
         super(MultiHeadClassificationModule, self).__init__(id=id, 
             type="MultiHeadClassificationModule", 
             config=config, 
@@ -121,67 +127,65 @@ class MultiHeadClassificationModule(Module):
         outputs_stream_dict = {}
 
         mode = input_streams_dict['mode']
-        inputs = input_streams_dict['inputs']
+
+        inputs = {k:v for k,v in input_streams_dict.items() if 'inputs' in k}
+        nbr_inputs = len(inputs)
         
-        shape_inputs = inputs.shape
-        batch_size = shape_inputs[0]
+        shape_inputs = {k:v.shape for k,v in inputs.items()}
+        batch_sizes = {k:sh[0] for k,sh in shape_inputs.items()}
         
-        need_reshaping = False
-        if len(shape_inputs) > 2:
-            '''
-            Let us reshape the input so that it only has 2 dimensions.
-            Afterwards, the resulting outputs will be reshaped and 
-            averaged over the extra dimensions.
-            N.B: the target is reshaped similarly...
-            '''
-            need_reshaping = True
-            last_dim_size = shape_inputs[-1]
-            inputs = inputs.reshape(-1, last_dim_size)
+        need_reshaping = {k:False for k in inputs}
+        for k, input_shape in shape_inputs.items():
+            if len(input_shape) > 2:
+                '''
+                Let us reshape the input so that it only has 2 dimensions.
+                Afterwards, the resulting outputs will be reshaped and 
+                averaged over the extra dimensions.
+                N.B: the target is reshaped similarly...
+                '''
+                need_reshaping[k] = True
+                last_dim_size = input_shape[-1]
+                inputs[k] = inputs[k].reshape(-1, last_dim_size)
 
-        if self.config['detach_input']:
-            inputs = inputs.detach()
+        losses = {}
+        accuracies = {}
+        for ii, (key,inp) in enumerate(inputs.items()):
+            if self.config['same_head']:    ih = 0
+            else:   ih = ii
+            head = self.heads[ih]
 
-        losses = []
-        accuracies = []
-        for ih, head in enumerate(self.heads):
-            if isinstance(self.config['heads_output_sizes'][ih], int):
-                head_output = head(inputs)
-                final_output = self.final_fn(head_output)
+            head_output = head(inp)
+            final_output = self.final_fn(head_output)
 
-                # Loss:
-                target_idx = input_streams_dict['targets']
-                if need_reshaping:
-                    target_idx = target_idx.reshape(-1, len(self.heads))
+            # Loss:
+            target_idx = input_streams_dict[f'targets_{ii}']
+            if need_reshaping[key]:
+                # Target indices corresponds to 1 per batch element:
+                target_idx = target_idx.reshape(-1)          
+            
+            criterion = nn.CrossEntropyLoss(reduction='none')
+            loss = criterion( final_output, target_idx.squeeze().long())
 
-                target_idx = target_idx[..., ih]                
-                
-                criterion = nn.CrossEntropyLoss(reduction='none')
-                loss = criterion( final_output, target_idx.squeeze().long())
+            # Accuracy:
+            argmax_final_output = final_output.argmax(dim=-1)
+            accuracy = 100.0*(target_idx==argmax_final_output).float().mean()
 
-                # Accuracy:
-                argmax_final_output = final_output.argmax(dim=-1)
-                accuracy = 100.0*(target_idx==argmax_final_output).float().mean()
-
-                if need_reshaping:
-                    loss = loss.reshape(batch_size,-1).mean(-1)
-            else:
-                loss = torch.zeros(batch_size).to(flatten_input.device)
-                accuracy = torch.zeros(1)
-
-            losses.append(loss)
-            accuracies.append(accuracy)
+            if need_reshaping[key]:
+                loss = loss.reshape(batch_sizes[key],-1).mean(-1)
+        
+            losses[key] = loss
+            accuracies[key] = accuracy
 
         losses_dict = input_streams_dict['losses_dict']
         logs_dict = input_streams_dict['logs_dict'] 
         
         # MultiHead Losses:
-        for idx, loss in enumerate(losses):
-            #losses_dict[f"{mode}/{self.config['loss_id']}/multi_head_{idx}_loss"] = [1.0, loss]
-            losses_dict[f"{self.config['loss_id']}/multi_head_{idx}_loss"] = [1.0, loss]
+        for key, loss in losses.items():
+            losses_dict[f"{self.config['loss_ids'][key]}/loss"] = [1.0, loss]
 
         # MultiHead Accuracy:
-        for idx, acc in enumerate(accuracies):
-            logs_dict[f"{mode}/{self.config['loss_id']}/multi_head_{idx}_accuracy"] = acc
+        for key, acc in accuracies.items():
+            logs_dict[f"{mode}/{self.config['loss_ids'][key]}/accuracy"] = acc
 
         outputs_stream_dict['losses'] = losses
         outputs_stream_dict['accuracies'] = accuracies
