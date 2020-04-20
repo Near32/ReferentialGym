@@ -267,6 +267,8 @@ class ConvolutionalBody(nn.Module):
                 print(f"Dim: {dim}")
             else:
                 add_non_lin = True
+                add_dp = (self.dropout > 0.0)
+                dropout = self.dropout
                 add_bn = False
                 add_ln = False
                 if isinstance(cfg, str) and 'NoNonLin' in cfg:
@@ -276,18 +278,27 @@ class ConvolutionalBody(nn.Module):
                     conv_fn = coordconv
                     cfg = cfg.replace('Coord', '') 
                 
+                if isinstance(cfg, str) and '_DP' in cfg:
+                    add_dp = True
+                    cfg = cfg.split('_DP')
+                    dropout = float(cfg[-1])
+                    cfg = cfg[0] 
+                    # Assumes 'YX_DPZ'
+                    # where Y may be BN/LN/nothing
+                    # and X is an integer
+                    # and Z is the float dropout value.
+                
                 if isinstance(cfg, str) and 'BN' in cfg:
                     add_bn = True
                     cfg = int(cfg[2:])
                     channels[idx+1] = cfg
                     # Assumes 'BNX' where X is an integer...
-                if isinstance(cfg, str) and 'LN' in cfg:
+                elif isinstance(cfg, str) and 'LN' in cfg:
                     add_ln = True
                     cfg = int(cfg[2:])
                     channels[idx+1] = cfg
                     # Assumes 'LNX' where X is an integer...
-                
-                if isinstance(cfg, str):
+                elif isinstance(cfg, str):
                     cfg = int(cfg)
                     channels[idx+1] = cfg
                     
@@ -303,6 +314,8 @@ class ConvolutionalBody(nn.Module):
                     # TODO: It might be necessary to have the possibility to apply this 
                     # normalization over the other dimensions, i.e. width x height...
                     self.cnn.append(nn.LayerNorm(in_ch))
+                if add_dp:
+                    self.cnn.append(nn.Dropout2d(p=dropout))
                 if add_non_lin:
                     self.cnn.append(self.non_linearities[idx](inplace=True))
                 # Update of the shape of the input-image, following Conv:
@@ -365,6 +378,84 @@ class ConvolutionalBody(nn.Module):
         return self.feat_map_dim, self.feat_map_depth
 
 
+class EntityPrioredConvolutionalBody(ConvolutionalBody):
+    def __init__(self, 
+                 input_shape, 
+                 feature_dim=256, 
+                 channels=[3, 3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0], 
+                 fc_hidden_units=None,
+                 dropout=0.0, 
+                 non_linearities=[nn.LeakyReLU],
+                 use_coordconv=False):
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
+        :param dropout: dropout probability to use.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        '''
+        super(EntityPrioredConvolutionalBody, self).__init__(
+            input_shape=input_shape, 
+            feature_dim=feature_dim, 
+            channels=channels, 
+            kernel_sizes=kernel_sizes, 
+            strides=strides, 
+            paddings=paddings, 
+            fc_hidden_units=fc_hidden_units,
+            dropout=dropout, 
+            non_linearities=non_linearities,
+            use_coordconv=use_coordconv)
+
+        self.augxy = addXYfeatures()
+        g_input_dim = self.feat_map_depth+2
+        g_layer_dim = (self.feat_map_depth+2)*self.feat_map_dim**2
+        self.g = nn.Sequential(
+            nn.Linear(g_input_dim,g_layer_dim),
+            nn.ReLU(),
+            nn.Linear(g_layer_dim,g_layer_dim),
+            nn.ReLU(),
+            nn.Linear(g_layer_dim,g_layer_dim),
+            nn.ReLU()
+        )
+        f_input_dim = g_layer_dim
+        f_layer_dim = g_layer_dim
+        f_output_dim = self.feat_map_depth*self.feat_map_dim**2
+        self.f = nn.Sequential(
+            nn.Linear(f_input_dim,f_layer_dim),
+            nn.ReLU(),
+            nn.Linear(f_layer_dim,f_layer_dim),
+            nn.ReLU(),
+            nn.Linear(f_layer_dim,f_output_dim),
+            nn.ReLU()
+        )
+        
+    def _compute_feat_map(self, x):
+        y = self.cnn(x)
+        batch_size = y.shape[0]
+        augy = self.augxy(y).reshape(batch_size, self.feat_map_depth+2, -1)
+        # b x d x fx*fy
+        nbr_entities = augy.shape[-1]
+        g_input = augy.transpose(1,2).reshape(-1, self.feat_map_depth+2)
+        # b*fx*fy x d
+        sum_gx = self.g(g_input).reshape(batch_size, nbr_entities,-1).sum(1)
+        # b x d
+        fx = self.f(sum_gx)
+        return fx
+
+    
 class ConvolutionalLstmBody(ConvolutionalBody):
     def __init__(self, 
                  input_shape, 

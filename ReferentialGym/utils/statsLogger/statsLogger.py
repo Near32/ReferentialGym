@@ -53,7 +53,7 @@ class statsLogger(SummaryWriter):
                                        features_key='temporal_features',
                                        max_nbr_samples=None,
                                        comprange=None,
-                                       verbose=True,
+                                       verbose=False,
                                        max_workers=16):
         '''
         Accounts for a measure of the compositionality of the current epoch-like set of data,

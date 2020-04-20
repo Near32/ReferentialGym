@@ -1,5 +1,5 @@
 from .networks import FCBody, LSTMBody, GRUBody, MHDPA_RN 
-from .networks import ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
+from .networks import ConvolutionalBody, EntityPrioredConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
 from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
 
@@ -52,16 +52,27 @@ def choose_architecture( architecture,
                                           nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
                                           units_per_MLP_layer=MHDPANbrMLPUnit,
                                           interaction_dim=MHDPAInteractionDim)
-        else:    
-            body = ConvolutionalBody(input_shape=input_shape,
-                                     feature_dim=feature_dim,
-                                     channels=channels,
-                                     kernel_sizes=kernels,
-                                     strides=strides,
-                                     paddings=paddings,
-                                     fc_hidden_units=fc_hidden_units_list,
-                                     use_coordconv=use_coordconv,
-                                     dropout=dropout)
+        else:
+            if 'EntityPriored' in architecture:
+                body = EntityPrioredConvolutionalBody(input_shape=input_shape,
+                                                     feature_dim=feature_dim,
+                                                     channels=channels,
+                                                     kernel_sizes=kernels,
+                                                     strides=strides,
+                                                     paddings=paddings,
+                                                     fc_hidden_units=fc_hidden_units_list,
+                                                     use_coordconv=use_coordconv,
+                                                     dropout=dropout)
+            else:
+                body = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=feature_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings,
+                                         fc_hidden_units=fc_hidden_units_list,
+                                         use_coordconv=use_coordconv,
+                                         dropout=dropout)
 
         
     if 'VGG16' in architecture:

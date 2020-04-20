@@ -40,8 +40,8 @@ class PopulationHandlerModule(Module):
         assert "epoch" in input_stream_ids.values(),\
                "PopulationHandlerModule relies on 'epoch' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "it_datasample" in input_stream_ids.values(),\
-               "PopulationHandlerModule relies on 'it_datasample' id to compute its pipeline.\n\
+        assert "global_it_datasample" in input_stream_ids.values(),\
+               "PopulationHandlerModule relies on 'global_it_datasample' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
         assert "mode" in input_stream_ids.values(),\
                "PopulationHandlerModule relies on 'mode' id to compute its pipeline.\n\
@@ -84,7 +84,7 @@ class PopulationHandlerModule(Module):
         print("Create Agents: OK.")
 
         self.previous_epoch = -1
-        self.previous_it_datasample = -1
+        self.previous_global_it_datasample = -1
         self.counterGames = 0
 
     def _select_agents(self):
@@ -94,13 +94,13 @@ class PopulationHandlerModule(Module):
         speaker = self.speakers[idx_speaker]
         listener = self.listeners[idx_listener]
         
-        self.agents_stats[speaker.agent_id]['selection_iterations'].append(self.previous_it_datasample)
-        self.agents_stats[listener.agent_id]['selection_iterations'].append(self.previous_it_datasample)
+        self.agents_stats[speaker.agent_id]['selection_iterations'].append(self.previous_global_it_datasample)
+        self.agents_stats[listener.agent_id]['selection_iterations'].append(self.previous_global_it_datasample)
 
         return speaker, listener
 
     def bookkeeping(self, mode, epoch):
-        it = self.previous_it_datasample
+        it = self.previous_global_it_datasample
         
         if epoch != self.previous_epoch:
             self.previous_epoch = epoch
@@ -116,7 +116,7 @@ class PopulationHandlerModule(Module):
 
         if 'train' in mode \
             and self.config["cultural_pressure_it_period"] is not None \
-            and self.previous_it_datasample % self.config['cultural_pressure_it_period'] == 0:
+            and self.previous_global_it_datasample % self.config['cultural_pressure_it_period'] == 0:
             #and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
             if 'oldest' in self.config['cultural_reset_strategy']:
                 if 'S' in self.config['cultural_reset_strategy']:
@@ -218,12 +218,12 @@ class PopulationHandlerModule(Module):
         
         epoch = input_streams_dict['epoch']
         mode = input_streams_dict['mode']
-        it_datasample = input_streams_dict['it_datasample']
+        global_it_datasample = input_streams_dict['global_it_datasample']
         
-        if it_datasample != self.previous_it_datasample:
+        if global_it_datasample != self.previous_global_it_datasample:
             self.bookkeeping(mode=mode, epoch=epoch)
 
-            self.previous_it_datasample = it_datasample
+            self.previous_global_it_datasample = global_it_datasample
             
             if 'train' in mode:
                 self.counterGames += 1
@@ -245,7 +245,7 @@ class PopulationHandlerModule(Module):
                         print("Iterated Learning Scheme: Listener {} have just been resetted.".format(self.listeners[lidx].agent_id))
         
             new_speaker, new_listener = self._select_agents()
-
+            
             if 'train' in mode: 
                 new_speaker.train()
                 new_listener.train()

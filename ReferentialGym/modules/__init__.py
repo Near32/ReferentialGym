@@ -17,3 +17,7 @@ from .current_agent_module import CurrentAgentModule
 from .population_handler_module import build_PopulationHandlerModule, PopulationHandlerModule 
 
 from .visual_module import build_VisualModule, VisualModule
+
+from .per_epoch_logger_module import build_PerEpochLoggerModule, PerEpochLoggerModule
+from .grad_recorder_module import build_GradRecorderModule, GradRecorderModule
+from .topographic_similarity_metric_module import build_TopographicSimilarityMetricModule, TopographicSimilarityMetricModule

@@ -185,7 +185,9 @@ class Agent(Module):
             'signals:multi_round':'multi_round',
             'signals:end_of_epoch_sample':'end_of_epoch_sample',
             'signals:mode':'mode',
-            'signals:it_step':'it',
+            'signals:it_sample':'it_rep',
+            'signals:it_step':'it_comm_round',
+            'signals:global_it_step':'global_it_comm_round',
             'current_dataloader:sample':'sample',
             'losses_dict':'losses_dict',
             'logs_dict':'logs_dict',
@@ -204,7 +206,9 @@ class Agent(Module):
             'signals:multi_round':'multi_round',
             'signals:end_of_epoch_sample':'end_of_epoch_sample',
             'signals:mode':'mode',
-            'signals:it_step':'it',
+            'signals:it_sample':'it_rep',
+            'signals:it_step':'it_comm_round',
+            'signals:global_it_step':'global_it_comm_round',
             'current_dataloader:sample':'sample',
             'losses_dict':'losses_dict',
             'logs_dict':'logs_dict',
@@ -337,7 +341,10 @@ class Agent(Module):
         """
         config = input_streams_dict['config']
         mode = input_streams_dict['mode']
-        it = input_streams_dict['it']
+        it_rep = input_streams_dict['it_rep']
+        it_comm_round = input_streams_dict['it_comm_round']
+        global_it_comm_round = input_streams_dict['global_it_comm_round']
+        
         losses_dict = input_streams_dict['losses_dict']
         logs_dict = input_streams_dict['logs_dict']
         
@@ -377,18 +384,37 @@ class Agent(Module):
 
         if hasattr(self,'tau'): 
             tau = torch.cat([ t.view((-1)) for t in self.tau], dim=0) if isinstance(self.tau, list) else self.tau
-            logs_dict[f"{mode}/Tau/{self.role}/Mean"] = tau.mean().item()
-            logs_dict[f"{mode}/Tau/{self.role}/Std"] = tau.std().item()
-
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Tau/{self.agent_id}"] = tau
         
         '''
         if hasattr(self, 'TC_losses'):
             losses_dict[f'{self.role}/TC_loss'] = [1.0, self.TC_losses]
         '''
         if hasattr(self, 'VAE_losses'):# and ('listener' in role or not('obverter' in input_streams_dict['graphtype'])):
-            losses_dict[f'{self.role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
+            losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/{self.role}/VAE_loss'] = [self.kwargs['VAE_lambda'], self.VAE_losses]
 
         if 'speaker' in self.role:
+            speaker_sentences_logits = outputs_dict["sentences_logits"]
+            speaker_sentences_widx = outputs_dict["sentences_widx"]
+            
+            # Sentence Lengths:
+            if 'obverter' in input_streams_dict['graphtype'].lower():
+                sentence_length = torch.sum(-(speaker_sentences_widx.squeeze(-1)-self.vocab_size).sign(), dim=-1).mean()
+            else:
+                sentence_length = (speaker_sentences_widx < (self.vocab_size-1)).sum().float()/batch_size
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_length/config['max_sentence_length']
+            
+            # Compute Sentence Entropies:
+            sentences_log_probs = [s_logits.reshape(-1,self.vocab_size).log_softmax(dim=-1) 
+                                    for s_logits in speaker_sentences_logits]
+            speaker_sentences_log_probs = torch.cat(
+                [s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) 
+                for s_log_probs, s_widx in zip(sentences_log_probs, speaker_sentences_widx)], 
+                dim=0)
+            entropies_per_sentence = -(speaker_sentences_log_probs.exp() * speaker_sentences_log_probs)
+            # (batch_size, )
+            logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/Entropy'] = entropies_per_sentence.mean().item()
+
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
                 arange_vocab = torch.arange(config['vocab_size']+1).float()
                 if config['use_cuda']: arange_vocab = arange_vocab.cuda()
@@ -408,21 +434,9 @@ class Agent(Module):
                 # (batch_size, 1)
                 if config['with_utterance_promotion']:
                     oov_loss *= -1 
-                losses_dict['oov_loss'] = [config['utterance_factor'], oov_loss]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/oov_loss'] = [config['utterance_factor'], oov_loss]
 
             if 'with_mdl_principle' in config and config['with_mdl_principle']:
-                '''
-                speaker_utterances_max_logit = [torch.max(s, dim=-1)[0].view((1,-1)) for s in outputs_dict['sentences_logits']]
-                # (batch_size, (1,sentence_length))
-                mask = [ (l < config['obverter_stop_threshold']).float() for l in speaker_utterances_max_logit]
-                # (batch_size, (1,sentence_lenght))
-                if config['use_cuda']: mask = [ m.cuda() for m in mask]
-                # (batch_size, (1,sentence_lenght))
-                #mdl_loss = -(mask*speaker_utterances_max_logit).sum()/(batch_size*self.config['max_sentence_length'])
-                mdl_loss = torch.cat([ (m*(1-l)).sum(dim=-1)/(batch_size) for m,l in zip(mask,speaker_utterances_max_logit)], dim=0)
-                # (batch_size, )
-                losses_dict['mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
-                '''
                 arange_token = torch.arange(config['max_sentence_length'])
                 arange_token = (config['vocab_size']*arange_token).float().view((1,-1)).repeat(batch_size,1)
                 if config['use_cuda']: arange_token = arange_token.cuda()
@@ -432,16 +446,15 @@ class Agent(Module):
                 speaker_reweighted_utterances = 1+mask*outputs_dict['sentences_widx']+(-1)*(1-mask)*outputs_dict['sentences_widx']/(config['vocab_size']-1)
                 mdl_loss = (arange_token+speaker_reweighted_utterances.squeeze()).mean(dim=-1)
                 # (batch_size, )
-                losses_dict['mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/mdl_loss'] = [config['mdl_principle_factor'], mdl_loss]
                 
             if 'with_speaker_entropy_regularization' in config and config['with_speaker_entropy_regularization']:
                 entropies_per_sentence = torch.cat([torch.cat([ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) for w_logits in s_logits], dim=-1).mean(dim=-1) for s_logits in outputs_dict['sentences_logits']], dim=0)
                 # (batch_size, 1)
-                losses_dict['speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies_per_sentence.squeeze()]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_regularization_loss'] = [config['entropy_regularization_factor'], entropies_per_sentence.squeeze()]
                 # (batch_size, )
             if config['with_weight_maxl1_loss']:
-                losses_dict['speaker_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
-
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
@@ -479,7 +492,7 @@ class Agent(Module):
                         criterion = nn.NLLLoss(reduction='none')
                         loss = criterion( final_decision_logits, sample['target_decision_idx'])
                         # (batch_size, )
-                    losses_dict['referential_game_loss'] = [1.0, loss]
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
                 elif config['agent_loss_type'].lower() == 'hinge':
                     #Havrylov's Hinge loss:
                     if 'obverter' in config['graphtype'].lower():
@@ -506,7 +519,7 @@ class Agent(Module):
                                                           multi_round=input_streams_dict['multi_round'])
                     # (batch_size, )
                     
-                    losses_dict['referential_game_loss'] = [1.0, loss]    
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]    
                     '''
                     # Entropy minimization:
                     distr = torch.distributions.Categorical(probs=decision_probs)
@@ -515,7 +528,7 @@ class Agent(Module):
                     '''
                 else:
                     raise NotImplementedError
-
+                
             elif 'reinforce' in config['graphtype'].lower():
                 #REINFORCE Policy-gradient algorithm:
 
@@ -523,6 +536,7 @@ class Agent(Module):
                 final_decision_logits = final_decision_logits[:,-1,...]
                 # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                 decision_probs = final_decision_logits.softmax(dim=-1)
+                
                 decision_distrs = Categorical(probs=decision_probs) 
                 decision_entrs = decision_distrs.entropy()
                 if 'argmax' in config['graphtype'].lower() and not(self.training):
@@ -670,15 +684,13 @@ class Agent(Module):
                         # (batch_size, )
                         listener_decision_loss = listener_decision_loss_deterministic+listener_decision_loss_stochastic
                         
-                    losses_dict['referential_game_loss'] = [1.0, listener_decision_loss]    
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, listener_decision_loss]    
                     
                     # Decision Entropy loss:
                     decision_entropy = torch.cat(self.exp_buffer.decision_entrs[:exp_size], dim=-1).mean(dim=-1)
                     # (batch_size, )
                     self.log_dict[f'{self.agent_id}/decision_entropy'] = decision_entropy.mean()
-                    #losses_dict['decision_entropy'] = [1.0, speaker_entropy_loss]    
                     
-
                     speaker_sentences_log_probs = torch.cat(self.exp_buffer.speaker_sentences_log_probs[:exp_size], dim=-1)
                     # (batch_size, max_sentence_length, nbr_communication_round)
                     # The log likelihood of each sentences is the sum (in log space) over each next token prediction:
@@ -686,7 +698,7 @@ class Agent(Module):
                     # (batch_size, nbr_communication_round)
                     speaker_policy_loss = -(speaker_sentences_log_probs * (ls.detach()-formatted_baseline)).sum(dim=-1)
                     # (batch_size, )
-                    losses_dict['speaker_policy_loss'] = [-1.0, speaker_policy_loss]    
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_policy_loss'] = [-1.0, speaker_policy_loss]    
                     
                     # Speaker Entropy loss:
                     speaker_entropy_loss = -torch.cat(self.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
@@ -700,7 +712,7 @@ class Agent(Module):
                     speaker_entropy_loss_coeff = 0.0
                     if 'max_entr' in config['graphtype']:
                         speaker_entropy_loss_coeff = 1e3
-                    losses_dict['speaker_entropy_loss'] = [speaker_entropy_loss_coeff, speaker_entropy_loss]    
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_loss'] = [speaker_entropy_loss_coeff, speaker_entropy_loss]    
                     
                     if exp_size > 1:
                         #TODO: propagate from speaker to listener!!!
@@ -716,7 +728,7 @@ class Agent(Module):
                         # (batch_size, nbr_communication_round-1)
                         listener_policy_loss = -(listener_sentences_log_probs * (ls[:,1:].detach()-formatted_baseline[:,1:])).sum(dim=-1)
                         # (batch_size, )
-                        losses_dict['listener_policy_loss'] = [1.0, listener_policy_loss]    
+                        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_policy_loss'] = [1.0, listener_policy_loss]    
                     
                         # Listener Entropy loss:
                         listener_entropy_loss = -torch.cat(self.exp_buffer.listener_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
@@ -730,7 +742,7 @@ class Agent(Module):
                         listener_entropy_loss_coeff = 0.0
                         if 'max_entr' in config['graphtype']:
                             listener_entropy_loss_coeff = -1e0
-                        losses_dict['listener_entropy_loss'] = [listener_entropy_loss_coeff, listener_entropy_loss]    
+                        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_entropy_loss'] = [listener_entropy_loss_coeff, listener_entropy_loss]    
                     
 
                     self.exp_buffer.reset()
@@ -739,7 +751,13 @@ class Agent(Module):
 
             
             outputs_dict['decision_probs'] = decision_probs
-            
+
+            # Accuracy:
+            decision_idx = decision_probs.max(dim=-1)[1]
+            acc = (decision_idx==sample['target_decision_idx']).float()*100
+            logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy'] = acc
+            outputs_dict['accuracy'] = acc
+
             if 'iterated_learning_scheme' in config \
                 and config['iterated_learning_scheme']\
                 and 'iterated_learning_rehearse_MDL' in config \
@@ -760,7 +778,7 @@ class Agent(Module):
                 listener_entropies_per_sentence = -(listener_sentences_log_probs.exp() * listener_sentences_log_probs)
                 # (batch_size, )
                 # Maximization:
-                losses_dict['ilm_MDL_loss'] = [-config['iterated_learning_rehearse_MDL_factor'], listener_entropies_per_sentence]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/ilm_MDL_loss'] = [-config['iterated_learning_rehearse_MDL_factor'], listener_entropies_per_sentence]
 
                 '''
                 listener_speaking_entropies = [torch.cat([ torch.distributions.bernoulli.Bernoulli(logits=w_logits).entropy().mean().view(-1) for w_logits in s_logits], dim=0) for s_logits in listener_speaking_outputs['sentences_logits']]
@@ -774,14 +792,14 @@ class Agent(Module):
 
             if 'with_listener_entropy_regularization' in config and config['with_listener_entropy_regularization']:
                 entropies = torch.cat([ torch.distributions.categorical.Categorical(logits=d_logits).entropy().view(1) for d_logits in final_decision_logits], dim=-1)
-                losses_dict['listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies_per_decision.squeeze()]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_entropy_loss'] = [config['entropy_regularization_factor'], entropies_per_decision.squeeze()]
                 # (batch_size, )
             if config['with_weight_maxl1_loss']:
-                losses_dict['listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
+                losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
         
         # Logging:        
         for logname, value in self.log_dict.items():
-            self.logger.add_scalar('{}/{}/{}'.format(mode, self.role, logname), value.item(), it)    
+            self.logger.add_scalar(f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.role}/{logname}", value.item(), global_it_comm_round)
         self.log_dict = {}
 
         self._tidyup()
