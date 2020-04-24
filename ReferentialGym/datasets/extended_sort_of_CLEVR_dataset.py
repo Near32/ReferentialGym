@@ -223,10 +223,10 @@ def generate_dataset(root,
                         answer_idx = 1
                         # no
                 elif subtype_id == 3:
-                    """query horizontal (X) bucket position->yes/no"""
+                    """query horizontal (X) bucket position->position/distance answer"""
                     answer_idx = 2+nb_shapes+nb_objects+ objects_class[color_object_id][2]
                 elif subtype_id == 4:
-                    """query vertical (Y) bucket position->yes/no"""
+                    """query vertical (Y) bucket position->position/distance answer"""
                     answer_idx = 2+nb_shapes+nb_objects+ objects_class[color_object_id][3]
                 
                 norel_questions[subtype_id].append(question)
@@ -367,20 +367,7 @@ def generate_dataset(root,
         "latents_classes":[],
         "latents_one_hot":[],
     }
-    '''
-    "relational_qs_0":[],
-        "relational_qs_1":[],
-        "relational_qs_2":[],
-        "non_relational_qs_0":[],
-        "non_relational_qs_1":[],
-        "non_relational_qs_2":[],
-        "relational_as_0":[],
-        "relational_as_1":[],
-        "relational_as_2":[],
-        "non_relational_as_0":[],
-        "non_relational_as_1":[],
-        "non_relational_as_2":[],
-    '''
+    
     for subtype_id in range(nb_r_qs):
         dataset[f"relational_qs_{subtype_id}"] = []
         dataset[f"relational_as_{subtype_id}"] = []

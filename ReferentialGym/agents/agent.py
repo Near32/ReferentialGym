@@ -468,6 +468,23 @@ class Agent(Module):
             final_decision_logits = decision_logits
             # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             if 'straight_through_gumbel_softmax' in config['graphtype'].lower() or 'obverter' in config['graphtype'].lower():
+                if 'obverter' in config['graphtype'].lower():
+                    sentences_lengths = torch.sum(-(input_streams_dict['sentences_widx'].squeeze(-1)-self.vocab_size).sign(), dim=-1).long()
+                    # (batch_size,) 
+                    sentences_lengths = sentences_lengths.reshape(
+                        -1,
+                        1,
+                        1
+                    ).expand(
+                        final_decision_logits.shape[0],
+                        1,
+                        final_decision_logits.shape[2]
+                    )
+                    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
+                else:
+                    final_decision_logits = final_decision_logits[:,-1]
+                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                
                 if config['agent_loss_type'].lower() == 'nll':
                     if config['descriptive']:  
                         decision_probs = F.log_softmax( final_decision_logits, dim=-1)
@@ -486,31 +503,15 @@ class Agent(Module):
                             loss = criterion( decision_probs, sample['target_decision_idx'])
                             # (batch_size, )
                     else:   
-                        final_decision_logits = final_decision_logits[:,-1,...]
                         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                         decision_probs = F.log_softmax( final_decision_logits, dim=-1)
                         criterion = nn.NLLLoss(reduction='none')
                         loss = criterion( final_decision_logits, sample['target_decision_idx'])
                         # (batch_size, )
                     losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
+                
                 elif config['agent_loss_type'].lower() == 'hinge':
                     #Havrylov's Hinge loss:
-                    if 'obverter' in config['graphtype'].lower():
-                        sentences_lengths = torch.sum(-(input_streams_dict['sentences_widx'].squeeze(-1)-self.vocab_size).sign(), dim=-1).long()
-                        # (batch_size,) 
-                        sentences_lengths = sentences_lengths.reshape(
-                            -1,
-                            1,
-                            1
-                        ).expand(
-                            final_decision_logits.shape[0],
-                            1,
-                            final_decision_logits.shape[2]
-                        )
-                        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent)) 
-                        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
-                    else:
-                        final_decision_logits = final_decision_logits[:,-1]
                     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                     decision_probs = F.log_softmax( final_decision_logits, dim=-1)
                     

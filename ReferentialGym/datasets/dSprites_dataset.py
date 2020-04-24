@@ -160,7 +160,11 @@ class dSpritesDataset(Dataset) :
                 if 'N' in strategy[9]:
                     self.latent_dims['Orientation']['untested'] = True
                     self.latent_dims['Orientation']['test_set_divider'] = (self.latent_dims['Orientation']['size']//self.latent_dims['Orientation']['divider'])+10
-                else:  
+                elif 'E' in strategy[9]:  
+                    self.latent_dims['Orientation']['test_set_size_sample_from_end'] = int(strategy[9][1:])
+                elif 'S' in strategy[9]:  
+                    self.latent_dims['Orientation']['test_set_size_sample_from_start'] = int(strategy[9][1:])
+                else:
                     self.latent_dims['Orientation']['test_set_divider'] = int(strategy[9])
                 
                 # 10: Scale
@@ -188,9 +192,13 @@ class dSpritesDataset(Dataset) :
                 if 'N' in strategy[12]:
                     self.latent_dims['Scale']['untested'] = True
                     self.latent_dims['Scale']['test_set_divider'] = (self.latent_dims['Scale']['size']//self.latent_dims['Scale']['divider'])+10
-                else:  
+                elif 'E' in strategy[12]:  
+                    self.latent_dims['Scale']['test_set_size_sample_from_end'] = int(strategy[12][1:])
+                elif 'S' in strategy[12]:  
+                    self.latent_dims['Scale']['test_set_size_sample_from_start'] = int(strategy[12][1:])
+                else:
                     self.latent_dims['Scale']['test_set_divider'] = int(strategy[12])
-                
+
                 # 13: Shape
                 self.latent_dims['Shape'] = {'size': 3}
                 
@@ -223,7 +231,7 @@ class dSpritesDataset(Dataset) :
 
                 nbr_primitives_and_tested = len([k for k in self.latent_dims 
                     if self.latent_dims[k]['primitive'] or 'untested' not in self.latent_dims[k]])
-                assert(nbr_primitives_and_tested==self.counter_test_threshold)
+                #assert(nbr_primitives_and_tested==self.counter_test_threshold)
 
         else:
             self.divider = 1

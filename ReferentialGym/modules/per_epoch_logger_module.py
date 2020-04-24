@@ -107,7 +107,7 @@ class PerEpochLoggerModule(Module):
           for key, valuelist in self.storages.items():
             need_mean_std = False
             if isinstance(valuelist[0], torch.Tensor) and len(valuelist[0].shape)>=1:
-              values = torch.stack(valuelist).cpu().detach().reshape(-1).numpy()
+              values = torch.cat([vl.cpu().detach().reshape(-1) for vl in valuelist], dim=0).numpy()
               need_mean_std = True
               averaged_value = values.mean()
               std_value = values.std()

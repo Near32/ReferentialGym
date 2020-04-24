@@ -51,9 +51,17 @@ def main():
   parser.add_argument('--max_sentence_length', type=int, default=15)
   parser.add_argument('--vocab_size', type=int, default=25)
   parser.add_argument('--optimizer_type', type=str, 
-    choices=["adam",
-             "sgd"],
+    choices=[
+      "adam",
+      "sgd"
+      ],
     default="adam")
+  parser.add_argument('--agent_loss_type', type=str,
+    choices=[
+      "Hinge",
+      "NLL",
+      ],
+    default="Hinge")
   parser.add_argument('--lr', type=float, default=1e-4)
   parser.add_argument('--epoch', type=int, default=1600)
   parser.add_argument('--batch_size', type=int, default=32)
@@ -95,8 +103,9 @@ def main():
   parser.add_argument('--train_test_split_strategy', type=str, 
     choices=['combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise interweaved split simple XY normal             
              'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-4-N-Shape-1-N',
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse: 64 imgs, 48 train, 16 test
-             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N',  # 4x Denser: 256 imgs, 192 train, 64 test,
+             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N',  # 4x Denser 2 Attributes: 256 imgs, 192 train, 64 test,
+             'combinatorial4-Y-4-S4-X-4-S4-Orientation-10-S4-Scale-1-S3-Shape-3-N', #Sparse 4 Attributes: 192 test / 1344 train
             ],
     help='train/test split strategy',
     default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
@@ -135,7 +144,6 @@ def main():
   
   args = parser.parse_args()
   print(args)
-
 
   gaussian = args.vae_gaussian 
   vae_observation_sigma = args.vae_gaussian_sigma
@@ -216,7 +224,7 @@ def main():
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           'learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
-      "agent_loss_type":          'Hinge', #'NLL'
+      "agent_loss_type":          args.agent_loss_type, #'NLL'
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,

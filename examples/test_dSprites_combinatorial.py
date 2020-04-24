@@ -189,7 +189,35 @@ def main():
   #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: x4
   #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6RemainderToUse4-N-Shape-1-N' 
-  train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  
+  # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
+  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  
+  # Sparse: multi 4 splitted XY X 4/ Y 4/ Orientation 4/ Scale 3/-->  192 test / 1344 train 
+  train_split_strategy = 'combinatorial4-Y-4-S4-X-4-S4-Orientation-10-S4-Scale-1-S3-Shape-3-N' 
+  # Dense: multi 4 splitted XY X 8/ Y 8/ Orientation 8/ Scale 6/-->  1536 test / 10752 train 
+  #train_split_strategy = 'combinatorial4-Y-2-S8-X-2-S8-Orientation-5-S8-Scale-1-S3-Shape-3-N' 
+  
+  # Dense: Multi X 8/ Y 8/ Orientation 10/ NOT Scale 1/ Shape 3
+  #train_split_strategy = 'combinatorial3-Y-2-8-X-2-8-Orientation-2-10-Scale-6-N-Shape-1-N' 
+  # Sparse: Multi X 4/ Y 4/ Orientation 4/ NOT Scale 1/ Shape 2
+  #train_split_strategy = 'combinatorial2-Y-4-4-X-4-4-Orientation-5-4-Scale-6-N-Shape-1-2' 
+  # Sparser: Multi X 2/ Y 2/ Orientation 2/ NOT Scale 1/ Shape 2
+  #train_split_strategy = 'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-6-N-Shape-1-1'
+  # Even Sparser: Multi X 2/ Y 2/ Orientation 2/ NOT Scale 1/ NOT Shape 1
+  #train_split_strategy = 'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-6-N-Shape-3-N' 
+  
+  '''
+  TEST Even Sparser: Multi X 2/ Y 2/ NOT Orientation 1/ NOT Scale 1/ NOT Shape 1
+  The rule of thumb when it comes to selecting the number of testing axises is 
+  to understand it as a threshold so that when there is more test-only values 
+  taken then it will obviously push the stimulus in the test set.
+  Thus, it reduces the train set size further compared to the test set size.
+  '''
+
+  #train_split_strategy = 'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-6-N-Shape-3-N' 
+  #train_split_strategy = 'combinatorial1-Y-8-2-X-8-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   
   # Experiment 2: mistake?
   #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
