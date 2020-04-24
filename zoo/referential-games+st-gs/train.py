@@ -517,7 +517,9 @@ def main():
   if 'obverter' in args.graphtype:
     save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
   else:
-    save_path += f"withPopulationHandlerModule/STGS-LSTM-CNN-Agent/DEBUGENTITY/"
+    save_path += f"withPopulationHandlerModule/STGS-LSTM-CNN-Agent/"
+
+  save_path += f"DEBUG_FVAE_DIS_TEST/Threshold-5e-2/"
   
   if args.same_head:
     save_path += "same_head/"
@@ -1192,6 +1194,22 @@ def main():
   )
   modules[topo_sim_metric_id] = topo_sim_metric_module
 
+  factor_vae_disentanglement_metric_id = "factor_vae_disentanglement_metric"
+  factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
+    id=factor_vae_disentanglement_metric_id,
+    config = {
+      "batch_size":64,#5,
+      "nbr_train_points":10000,#3000,
+      "nbr_eval_points":5000,#2000,
+      "resample":False,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[factor_vae_disentanglement_metric_id] = factor_vae_disentanglement_metric_module
+
   logger_id = "per_epoch_logger"
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
@@ -1285,6 +1303,7 @@ def main():
   # Add gradient recorder module for debugging purposes:
   pipelines[optim_id].append(grad_recorder_id)
   '''
+  pipelines[optim_id].append(factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(logger_id)
 

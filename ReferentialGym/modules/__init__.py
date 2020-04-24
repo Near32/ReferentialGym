@@ -21,3 +21,4 @@ from .visual_module import build_VisualModule, VisualModule
 from .per_epoch_logger_module import build_PerEpochLoggerModule, PerEpochLoggerModule
 from .grad_recorder_module import build_GradRecorderModule, GradRecorderModule
 from .topographic_similarity_metric_module import build_TopographicSimilarityMetricModule, TopographicSimilarityMetricModule
+from .factor_vae_disentanglement_metric_module import build_FactorVAEDisentanglementMetricModule, FactorVAEDisentanglementMetricModule

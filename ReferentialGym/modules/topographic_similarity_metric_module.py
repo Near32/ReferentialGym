@@ -69,7 +69,7 @@ class TopographicSimilarityMetricModule(Module):
         for sidx in range(batch_size):
             sentences.append(''.join([chr(97+int(s.item())) for s in speaker_sentences_widx[sidx] ]))    
         for sentence in sentences:  
-            self.whole_epoch_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))    
+            self.whole_epoch_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
 
         # Is it the end of the epoch?
         end_of_epoch = all([
@@ -102,14 +102,14 @@ class TopographicSimilarityMetricModule(Module):
                                                                        max_workers=self.config['parallel_TS_computation_max_workers'])
             
             for agent_id in topo_sims:
-                logs_dict[f'{mode}/TopographicSimilarity/{agent_id}'] = topo_sims[agent_id]
+                logs_dict[f'{mode}/TopographicSimilarity/{agent_id}'] = topo_sims[agent_id]*100.0
                 logs_dict[f'{mode}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}'] = unique_prod_ratios[agent_id]
                 logs_dict[f'{mode}/TopographicSimilarity-PValues/{agent_id}'] = pvalues[agent_id]
             for agent_id in topo_sims_v:
-                logs_dict[f'{mode}/TopographicSimilarity_withValues/{agent_id}'] =  topo_sims_v[agent_id]
+                logs_dict[f'{mode}/TopographicSimilarity_withValues/{agent_id}'] =  topo_sims_v[agent_id]*100.0
                 logs_dict[f'{mode}/TopographicSimilarity_withValues-PValues/{agent_id}'] = pvalues_v[agent_id]
             for agent_id in feat_topo_sims:
-                logs_dict[f'{mode}/FeaturesTopographicSimilarity/{agent_id}'] = feat_topo_sims[agent_id]
+                logs_dict[f'{mode}/FeaturesTopographicSimilarity/{agent_id}'] = feat_topo_sims[agent_id]*100.0
 
             # Reset epoch storages:
             self.whole_epoch_sentences = []
