@@ -30,6 +30,7 @@ class FactorVAEDisentanglementMetricModule(Module):
         input_stream_ids = {
             "modules:logger:ref":"logger",
             "logs_dict":"logs_dict",
+            "signals:epoch":"epoch",
             "signals:mode":"mode",
 
             "signals:end_of_dataset":"end_of_dataset",  
@@ -109,7 +110,7 @@ class FactorVAEDisentanglementMetricModule(Module):
                 batch_size, 
                 global_variances,
                 active_dims)
-        votes[factor_index, argmin] += 1
+            votes[factor_index, argmin] += 1
         return votes
 
     def _generate_training_sample(self, 
@@ -192,90 +193,101 @@ class FactorVAEDisentanglementMetricModule(Module):
 
         logs_dict = input_streams_dict['logs_dict']
         mode = input_streams_dict['mode']
+        epoch = input_streams_dict['epoch']
         
-        representations = input_streams_dict['representations']
-        self.representations.append(representations.cpu().detach().numpy())
-        latent_representations = input_streams_dict['latent_representations']
-        self.latent_representations.append(latent_representations.cpu().detach().numpy())
-        latent_values_representations = input_streams_dict['latent_values_representations']
-        self.latent_values_representations.append(latent_values_representations.cpu().detach().numpy())
-        indices = input_streams_dict['indices']
-        self.indices.append(indices.cpu().detach().numpy())
+        if epoch % self.config['epoch_period'] == 1:
+            representations = input_streams_dict['representations']
+            self.representations.append(representations.cpu().detach().numpy())
+            latent_representations = input_streams_dict['latent_representations']
+            self.latent_representations.append(latent_representations.cpu().detach().numpy())
+            latent_values_representations = input_streams_dict['latent_values_representations']
+            self.latent_values_representations.append(latent_values_representations.cpu().detach().numpy())
+            indices = input_streams_dict['indices']
+            self.indices.append(indices.cpu().detach().numpy())
 
-        # Is it the end of the epoch?
-        end_of_epoch = all([
-          input_streams_dict[key]
-          for key in self.end_of_]
-        )
-        
-        if end_of_epoch:
-            self.representations = np.concatenate(self.representations, axis=0).squeeze()
-            self.latent_representations = np.concatenate(self.latent_representations, axis=0).squeeze()
-            self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).squeeze()
-            self.indices = np.concatenate(self.indices, axis=0).squeeze()
+            # Is it the end of the epoch?
+            end_of_epoch = all([
+              input_streams_dict[key]
+              for key in self.end_of_]
+            )
+            
+            if end_of_epoch:
+                self.representations = np.concatenate(self.representations, axis=0).squeeze()
+                self.latent_representations = np.concatenate(self.latent_representations, axis=0).squeeze()
+                self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).squeeze()
+                self.indices = np.concatenate(self.indices, axis=0).squeeze()
 
 
-            model = input_streams_dict['model']
-            dataset = input_streams_dict['dataset']
-            logger = input_streams_dict['logger']
+                model = input_streams_dict['model']
+                dataset = input_streams_dict['dataset']
+                logger = input_streams_dict['logger']
 
-            global_variances = np.var(self.representations, axis=0, ddof=1)
-            latent_global_variances = np.var(self.latent_representations, axis=0, ddof=1)
+                global_variances = np.var(self.representations, axis=0, ddof=1)
+                latent_global_variances = np.var(self.latent_representations, axis=0, ddof=1)
 
-            active_dims = self._prune_dims(global_variances)
-            self.active_latent_dims = [idx for idx, var in enumerate(latent_global_variances)
-                                        if var > 0.0]
-            scores_dict = {}
+                active_dims = self._prune_dims(global_variances)
+                self.active_latent_dims = [idx for idx, var in enumerate(latent_global_variances)
+                                            if var > 0.0]
+                scores_dict = {}
 
-            if not active_dims.any():
-                scores_dict["train_accuracy"] = 0.
-                scores_dict["eval_accuracy"] = 0.
-                scores_dict["num_active_dims"] = 0
-            else:
-                #print("Generating training set.")
-                training_votes = self._generate_training_batch(
-                    dataset=dataset,
-                    model=model, 
-                    batch_size=self.config['batch_size'],
-                    nbr_points=self.config['nbr_train_points'], 
-                    global_variances=global_variances, 
-                    active_dims=active_dims)
-                
-                classifier = np.argmax(training_votes, axis=0)
-                other_index = np.arange(training_votes.shape[1])
+                if not active_dims.any():
+                    scores_dict["train_accuracy"] = 0.
+                    scores_dict["eval_accuracy"] = 0.
+                    scores_dict["num_active_dims"] = 0
+                else:
+                    training_votes = self._generate_training_batch(
+                        dataset=dataset,
+                        model=model, 
+                        batch_size=self.config['batch_size'],
+                        nbr_points=self.config['nbr_train_points'], 
+                        global_variances=global_variances, 
+                        active_dims=active_dims)
+                    
+                    classifier = np.argmax(training_votes, axis=0)
+                    other_index = np.arange(training_votes.shape[1])
 
-                #print("Evaluate training set accuracy.")
-                train_accuracy = np.sum(
-                  training_votes[classifier, other_index]) * 1. / np.sum(training_votes)
-                #print("Training set accuracy: %.2g", train_accuracy)
+                    train_accuracy = np.sum(
+                      training_votes[classifier, other_index]) * 1. / np.sum(training_votes)
+                    
+                    eval_votes = self._generate_training_batch(
+                        dataset=dataset,
+                        model=model, 
+                        batch_size=self.config['batch_size'],
+                        nbr_points=self.config['nbr_eval_points'],
+                        global_variances=global_variances,
+                        active_dims=active_dims
+                    )
 
-                #print("Generating evaluation set.")
-                eval_votes = self._generate_training_batch(
-                    dataset=dataset,
-                    model=model, 
-                    batch_size=self.config['batch_size'],
-                    nbr_points=self.config['nbr_eval_points'],
-                    global_variances=global_variances,
-                    active_dims=active_dims
-                )
+                    eval_votes_per_factor = eval_votes.sum(-1)
+                    eval_votes_per_factor += (eval_votes_per_factor==0)*np.ones_like(eval_votes_per_factor)
+                    per_factor_eval_accuracy = eval_votes.max(-1)/eval_votes_per_factor 
+                    '''
+                    eval_votes_per_repr_dim = eval_votes.sum(0)
+                    eval_votes_per_repr_dim += (eval_votes_per_repr_dim==0)*np.ones_like(eval_votes_per_repr_dim)
+                    per_repr_dim_eval_accuracy = eval_votes[classifier]/eval_votes_per_repr_dim 
+                    '''
 
-                #print("Evaluate evaluation set accuracy.")
-                eval_accuracy = np.sum(eval_votes[classifier,
-                                                other_index]) * 1. / np.sum(eval_votes)
-                #print("Evaluation set accuracy: %.2g", eval_accuracy)
-                scores_dict["train_accuracy"] = train_accuracy*100.0
-                scores_dict["eval_accuracy"] = eval_accuracy*100.0
-                scores_dict["num_active_dims"] = len(active_dims)
-                
-            logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/train_accuracy'] = scores_dict['train_accuracy']
-            logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/eval_accuracy'] = scores_dict['eval_accuracy']
-            logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/nbr_active_dims'] = scores_dict['num_active_dims']
-                
-            self.representations = []
-            self.latent_representations = []
-            self.latent_values_representations = []
-            self.representations_indices = []
-            self.indices = []
+                    eval_accuracy = np.sum(eval_votes[classifier,
+                                                    other_index]) * 1. / np.sum(eval_votes)
+                    
+                    scores_dict["train_accuracy"] = train_accuracy*100.0
+                    scores_dict["eval_accuracy"] = eval_accuracy*100.0
+                    for idx, acc in enumerate(per_factor_eval_accuracy):
+                        scores_dict[f"eval_accuracy_{idx}"] = acc*100.0
+                        
+                    scores_dict["num_active_dims"] = len(active_dims)
+                    
+                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/train_accuracy'] = scores_dict['train_accuracy']
+                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/eval_accuracy/mean'] = scores_dict['eval_accuracy']
+                for idx, acc in enumerate(per_factor_eval_accuracy):
+                    logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/eval_accuracy/factor_{idx}'] = scores_dict[f"eval_accuracy_{idx}"]
+                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/nbr_active_dims'] = scores_dict['num_active_dims']
+                    
+                self.representations = []
+                self.latent_representations = []
+                self.latent_values_representations = []
+                self.representations_indices = []
+                self.indices = []
             
         return outputs_stream_dict
     

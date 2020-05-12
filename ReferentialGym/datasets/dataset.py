@@ -42,12 +42,12 @@ class Dataset(torchDataset):
         
         self.classes = None 
 
-    def getNbrDistractors(self):
-        return self.nbr_distractors
+    def getNbrDistractors(self, mode='train'):
+        return self.nbr_distractors[mode]
 
-    def setNbrDistractors(self, nbr_distractors):
+    def setNbrDistractors(self, nbr_distractors, mode='train'):
         assert(nbr_distractors > 0)
-        self.nbr_distractors = nbr_distractors
+        self.nbr_distractors[mode] = nbr_distractors
 
     def __len__(self) -> int:
         raise NotImplementedError

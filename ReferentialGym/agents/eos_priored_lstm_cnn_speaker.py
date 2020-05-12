@@ -7,7 +7,7 @@ from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 import copy
 
 
-class LSTMCNNSpeaker(Speaker):
+class EoSPrioredLSTMCNNSpeaker(Speaker):
     def __init__(self, 
                     kwargs, 
                     obs_shape, 
@@ -23,7 +23,7 @@ class LSTMCNNSpeaker(Speaker):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         '''
-        super(LSTMCNNSpeaker, self).__init__(obs_shape, 
+        super(EoSPrioredLSTMCNNSpeaker, self).__init__(obs_shape, 
             vocab_size, 
             max_sentence_length, 
             agent_id, 
@@ -126,6 +126,9 @@ class LSTMCNNSpeaker(Speaker):
         # TODO: when applying multi-round, it could be interesting to force SoS 
         # at the beginning of sentences so that agents can align rounds.
         self.sos_symbol = nn.Parameter(torch.zeros(1,1,self.config['symbol_embedding_size']))
+        self.eos_prior = torch.zeros(1,self.vocab_size)
+        self.eos_prior[:,0] = 1.0
+        #self.eos_prior = torch.distributions.categorical.Categorical(probs=eos_prior)
         self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
         
         self.symbol_encoder_dropout = nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
@@ -157,8 +160,8 @@ class LSTMCNNSpeaker(Speaker):
             self.buffer_cnn_output_dict = dict()
 
     def _compute_tau(self, tau0, h):
-        tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
-        return tau
+        invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        return invtau
 
     def _sense(self, experiences, sentences=None):
         """
@@ -300,6 +303,9 @@ class LSTMCNNSpeaker(Speaker):
         sentences_widx = [list() for _ in range(batch_size)]
         sentences_logits = [list() for _ in range(batch_size)]
         sentences_one_hots = [list() for _ in range(batch_size)]
+
+        self.per_batch_per_symbol_categorical = []
+
         for b in range(batch_size):
             bemb = self.embedding_tf_final_outputs[b].view((1, 1, -1))
             # (batch_size=1, 1, kwargs['temporal_encoder_nbr_hidden_units'])
@@ -323,6 +329,7 @@ class LSTMCNNSpeaker(Speaker):
             continuer = True
             sentence_token_count = 0
             token_idx = 0
+            self.per_batch_per_symbol_categorical.append([])
             while continuer:
                 sentence_token_count += 1
                 rnn_outputs, next_rnn_states = self.symbol_processing(inputs, rnn_states )
@@ -331,6 +338,9 @@ class LSTMCNNSpeaker(Speaker):
 
                 outputs = self.symbol_decoder(rnn_outputs.squeeze(1))
                 # (batch_size=1, vocab_size)
+                self.per_batch_per_symbol_categorical[-1].append(
+                    torch.distributions.categorical.Categorical(logits=outputs)
+                )
                 _, prediction = torch.softmax(outputs, dim=1).max(1)                        
                 # (batch_size=1)
                 prediction = prediction.unsqueeze(1).float()

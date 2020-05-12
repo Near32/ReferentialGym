@@ -140,8 +140,7 @@ class DifferentiableObverterAgent(Listener):
         else:
             self.temporal_feature_encoder = None
             print("WARNING: Symbol processing :: the number of hidden units is being reparameterized to fit to convolutional features.")
-            self.kwargs['cnn_encoder_feature_dim'] = self.encoder_feature_shape
-            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim']
+            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.encoder_feature_shape
             self.kwargs['symbol_processing_nbr_hidden_units'] = self.kwargs['temporal_encoder_nbr_hidden_units']
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])

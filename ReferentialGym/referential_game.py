@@ -83,7 +83,7 @@ class ReferentialGame(object):
             windowed_accuracy = 0.0
             window_count = 0
             for mode in self.datasets:
-                self.datasets[mode].setNbrDistractors(1)
+                self.datasets[mode].setNbrDistractors(1,mode=mode)
             
         pbar = tqdm(total=nbr_epoch)
         if logger is not None:
@@ -164,7 +164,10 @@ class ReferentialGame(object):
                         
                         losses = self.stream_handler["losses_dict"]
                         loss = sum( [l[-1] for l in losses.values()])
-                        
+                        logs_dict = self.stream_handler["logs_dict"]
+                        acc_keys = [k for k in logs_dict.keys() if '/referential_game_accuracy' in k]
+                        acc = logs_dict[acc_keys[-1]].mean()
+
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
                             descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimulus, len(data_loader), it, loss.item())
                             pbar.set_description_str(descr)
@@ -189,7 +192,7 @@ class ReferentialGame(object):
                         
                         # TODO: CURRICULUM ON DISTRATORS as a module that handles the current dataloader reference....!!
                         if self.config['use_curriculum_nbr_distractors']:
-                            nbr_distractors = self.datasets[mode].getNbrDistractors()
+                            nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
                             logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_step)
                             logger.add_scalar( "{}/CurriculumWindowedAcc".format(mode), windowed_accuracy, it_step)
                         
@@ -225,15 +228,15 @@ class ReferentialGame(object):
 
                     # TODO: many parts everywhere, do not forget them all : CURRICULUM ON DISTRACTORS...!!!
                     if self.config['use_curriculum_nbr_distractors'] and 'train' in mode:
-                        nbr_distractors = self.datasets[mode].getNbrDistractors()
+                        nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
                         windowed_accuracy = (windowed_accuracy*window_count+acc.item())
                         window_count += 1
                         windowed_accuracy /= window_count
-                        if windowed_accuracy > 60 and window_count > self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'] :
+                        if windowed_accuracy > 75 and window_count > self.config['curriculum_distractors_window_size'] and nbr_distractors < self.config['nbr_distractors'][mode]:
                             windowed_accuracy = 0
                             window_count = 0
-                            for mode in self.dataset:
-                                self.datasets[mode].setNbrDistractors(self.datasets[mode].getNbrDistractors()+1)
+                            for mode in self.datasets:
+                                self.datasets[mode].setNbrDistractors(self.datasets[mode].getNbrDistractors(mode=mode)+1, mode=mode)
                     # //------------------------------------------------------------//
 
                 if logger is not None:

@@ -326,18 +326,18 @@ class ConvolutionalBody(nn.Module):
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 
-        if fc_hidden_units != []:
-            hidden_units = fc_hidden_units
-            if hidden_units is None:
-                hidden_units = [dim * dim * channels[-1]]
-            else:
-                hidden_units = [dim * dim * channels[-1]]+hidden_units
+        hidden_units = fc_hidden_units
+        if hidden_units is None or fc_hidden_units == []:
+            hidden_units = [dim * dim * channels[-1]]
+        else:
+            hidden_units = [dim * dim * channels[-1]]+hidden_units
 
-            if isinstance(feature_dim, int):
-                hidden_units = hidden_units + [feature_dim]
-            else:
-                hidden_units = hidden_units + feature_dim
-
+        if isinstance(feature_dim, int):
+            hidden_units = hidden_units + [feature_dim]
+        else:
+            hidden_units = hidden_units + feature_dim
+        
+        if feature_dim != -1 or fc_hidden_units != []:
             self.fcs = nn.ModuleList()
             for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
                 self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))

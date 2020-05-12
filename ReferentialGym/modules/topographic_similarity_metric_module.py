@@ -25,6 +25,7 @@ class TopographicSimilarityMetricModule(Module):
         input_stream_ids = {
             "modules:logger:ref":"logger",
             "logs_dict":"logs_dict",
+            "signals:epoch":"epoch",
             "signals:mode":"mode",
 
             "signals:end_of_dataset":"end_of_dataset",  
@@ -56,63 +57,64 @@ class TopographicSimilarityMetricModule(Module):
 
 
         logs_dict = input_streams_dict['logs_dict']
-        
+        epoch = input_streams_dict['epoch']        
         mode = input_streams_dict['mode']
         
-        speaker = input_streams_dict['current_speaker']
-        listener = input_streams_dict['current_listener']
-        
-        # Store current speaker's sentences:
-        sentences = []
-        speaker_sentences_widx = input_streams_dict['sentences_widx']
-        batch_size = speaker_sentences_widx.shape[0]
-        for sidx in range(batch_size):
-            sentences.append(''.join([chr(97+int(s.item())) for s in speaker_sentences_widx[sidx] ]))    
-        for sentence in sentences:  
-            self.whole_epoch_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
-
-        # Is it the end of the epoch?
-        end_of_epoch = all([
-          input_streams_dict[key]
-          for key in self.end_of_]
-        )
-        
-        # If so, let us average over every value and save it:
-        if end_of_epoch:
-            logger = input_streams_dict['logger']
-
-            max_nbr_samples = None
-            if self.config['fast'] and 'train' in mode:  
-                max_nbr_samples = int(len(self.whole_epoch_sentences)*0.1)
-
-            topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key='sentences_widx',
-                                                                       features_key='exp_latents',
-                                                                       max_nbr_samples=max_nbr_samples,
-                                                                       verbose=self.config['verbose'],
-                                                                       max_workers=self.config['parallel_TS_computation_max_workers'])
-            topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key='sentences_widx',
-                                                                       features_key='exp_latents_values',
-                                                                       max_nbr_samples=max_nbr_samples,
-                                                                       verbose=self.config['verbose'],
-                                                                       max_workers=self.config['parallel_TS_computation_max_workers'])
-            feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key='sentences_widx',
-                                                                       features_key='temporal_features',
-                                                                       max_nbr_samples=max_nbr_samples,
-                                                                       verbose=self.config['verbose'],
-                                                                       max_workers=self.config['parallel_TS_computation_max_workers'])
+        if epoch % self.config['epoch_period'] == 1:
+            speaker = input_streams_dict['current_speaker']
+            listener = input_streams_dict['current_listener']
             
-            for agent_id in topo_sims:
-                logs_dict[f'{mode}/TopographicSimilarity/{agent_id}'] = topo_sims[agent_id]*100.0
-                logs_dict[f'{mode}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}'] = unique_prod_ratios[agent_id]
-                logs_dict[f'{mode}/TopographicSimilarity-PValues/{agent_id}'] = pvalues[agent_id]
-            for agent_id in topo_sims_v:
-                logs_dict[f'{mode}/TopographicSimilarity_withValues/{agent_id}'] =  topo_sims_v[agent_id]*100.0
-                logs_dict[f'{mode}/TopographicSimilarity_withValues-PValues/{agent_id}'] = pvalues_v[agent_id]
-            for agent_id in feat_topo_sims:
-                logs_dict[f'{mode}/FeaturesTopographicSimilarity/{agent_id}'] = feat_topo_sims[agent_id]*100.0
+            # Store current speaker's sentences:
+            sentences = []
+            speaker_sentences_widx = input_streams_dict['sentences_widx']
+            batch_size = speaker_sentences_widx.shape[0]
+            for sidx in range(batch_size):
+                sentences.append(''.join([chr(97+int(s.item())) for s in speaker_sentences_widx[sidx] ]))    
+            for sentence in sentences:  
+                self.whole_epoch_sentences.append(sentence.replace(chr(97+self.config['vocab_size']), ''))
 
-            # Reset epoch storages:
-            self.whole_epoch_sentences = []
+            # Is it the end of the epoch?
+            end_of_epoch = all([
+              input_streams_dict[key]
+              for key in self.end_of_]
+            )
+            
+            # If so, let us average over every value and save it:
+            if end_of_epoch:
+                logger = input_streams_dict['logger']
+
+                max_nbr_samples = None
+                if self.config['fast']:  
+                    max_nbr_samples = int(len(self.whole_epoch_sentences)*0.1)
+
+                topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                           features_key='exp_latents',
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config['verbose'],
+                                                                           max_workers=self.config['parallel_TS_computation_max_workers'])
+                topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                           features_key='exp_latents_values',
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config['verbose'],
+                                                                           max_workers=self.config['parallel_TS_computation_max_workers'])
+                feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key='sentences_widx',
+                                                                           features_key='temporal_features',
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config['verbose'],
+                                                                           max_workers=self.config['parallel_TS_computation_max_workers'])
+                
+                for agent_id in topo_sims:
+                    logs_dict[f'{mode}/TopographicSimilarity/{agent_id}'] = topo_sims[agent_id]*100.0
+                    logs_dict[f'{mode}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}'] = unique_prod_ratios[agent_id]
+                    logs_dict[f'{mode}/TopographicSimilarity-PValues/{agent_id}'] = pvalues[agent_id]
+                for agent_id in topo_sims_v:
+                    logs_dict[f'{mode}/TopographicSimilarity_withValues/{agent_id}'] =  topo_sims_v[agent_id]*100.0
+                    logs_dict[f'{mode}/TopographicSimilarity_withValues-PValues/{agent_id}'] = pvalues_v[agent_id]
+                for agent_id in feat_topo_sims:
+                    logs_dict[f'{mode}/FeaturesTopographicSimilarity/{agent_id}'] = feat_topo_sims[agent_id]*100.0
+
+                # Reset epoch storages:
+                self.whole_epoch_sentences = []
 
         return outputs_stream_dict
     

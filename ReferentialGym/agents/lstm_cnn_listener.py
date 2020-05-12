@@ -103,17 +103,14 @@ class LSTMCNNListener(Listener):
         else:
             self.temporal_feature_encoder = None
             print("WARNING: Symbol processing :: the number of hidden units is being reparameterized to fit to convolutional features.")
-            self.kwargs['cnn_encoder_feature_dim'] = self.encoder_feature_shape
-            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.kwargs['cnn_encoder_feature_dim']
+            self.kwargs['temporal_encoder_nbr_hidden_units'] = self.kwargs['nbr_stimulus']*self.encoder_feature_shape
             self.kwargs['symbol_processing_nbr_hidden_units'] = self.kwargs['temporal_encoder_nbr_hidden_units']
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
     
-        #assert(self.kwargs['symbol_processing_nbr_hidden_units'] == self.kwargs['temporal_encoder_nbr_hidden_units'])
-        #symbol_decoder_input_dim = self.kwargs['symbol_processing_nbr_hidden_units']
-        symbol_decoder_input_dim = self.kwargs['symbol_embedding_size']
-        self.symbol_processing = nn.LSTM(input_size=symbol_decoder_input_dim,
+        symbol_processing_input_dim = self.kwargs['symbol_embedding_size']
+        self.symbol_processing = nn.LSTM(input_size=symbol_processing_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
                                       num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
                                       batch_first=True,
@@ -123,18 +120,10 @@ class LSTMCNNListener(Listener):
         #self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs['symbol_processing_nbr_hidden_units'], padding_idx=self.vocab_size)
         #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False)
         
-        '''
-        self.symbol_encoder = nn.Sequential(
-            nn.Linear(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units'], bias=False),
-            nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
-            )
-        '''
         self.symbol_encoder = nn.Sequential(
             nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False),
             nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
             )
-        
-        self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
         
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
@@ -149,7 +138,6 @@ class LSTMCNNListener(Listener):
     def reset(self):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
-        self.symbol_decoder.apply(layer_init)
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
 

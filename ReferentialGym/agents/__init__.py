@@ -8,6 +8,7 @@ from .basic_cnn_listener import BasicCNNListener
 
 from .lstm_cnn_speaker import LSTMCNNSpeaker
 from .multi_head_lstm_cnn_speaker import MultiHeadLSTMCNNSpeaker
+from .eos_priored_lstm_cnn_speaker import EoSPrioredLSTMCNNSpeaker
 from .lstm_cnn_listener import LSTMCNNListener
 
 from .caption_speaker import CaptionSpeaker 

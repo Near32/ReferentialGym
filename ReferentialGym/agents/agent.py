@@ -233,9 +233,8 @@ class Agent(Module):
 
         self.use_sentences_one_hot_vectors = False
 
-        self.vocab_start_idx = 0
-        self.vocab_stop_idx = 1
-        self.vocab_pad_idx = self.vocab_size-1       
+        self.vocab_stop_idx = 0
+        self.vocab_pad_idx = self.vocab_size#-1
         
         self.hooks = []
 
@@ -399,10 +398,13 @@ class Agent(Module):
             
             # Sentence Lengths:
             if 'obverter' in input_streams_dict['graphtype'].lower():
-                sentence_length = torch.sum(-(speaker_sentences_widx.squeeze(-1)-self.vocab_size).sign(), dim=-1).mean()
+                sentence_lengths = torch.sum(-(speaker_sentences_widx.squeeze(-1)-self.vocab_size).sign(), dim=-1).reshape(batch_size,-1)
+                sentence_length = sentence_lengths.mean()
             else:
-                sentence_length = (speaker_sentences_widx < (self.vocab_size-1)).sum().float()/batch_size
-            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_length/config['max_sentence_length']
+                sentence_lengths = (speaker_sentences_widx < (self.vocab_size-1))
+                sentence_lengths = sentence_lengths.reshape(batch_size,-1).float().sum(-1)
+                sentence_length = sentence_lengths.mean()
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config['max_sentence_length']
             
             # Compute Sentence Entropies:
             sentences_log_probs = [s_logits.reshape(-1,self.vocab_size).log_softmax(dim=-1) 
@@ -414,6 +416,21 @@ class Agent(Module):
             entropies_per_sentence = -(speaker_sentences_log_probs.exp() * speaker_sentences_log_probs)
             # (batch_size, )
             logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/Entropy'] = entropies_per_sentence.mean().item()
+
+            if hasattr(self, "per_batch_per_symbol_categorical"):
+                # Compute KL Divergence between EoS prior and each sentence symbol:
+                per_batch_per_symbol_kl_div = []
+                eos_prior = torch.distributions.categorical.Categorical(logits=self.eos_prior.to(sentence_length.device))
+                for bidx in range(len(self.per_batch_per_symbol_categorical)):
+                    per_batch_per_symbol_kl_div.append([])
+                    per_symbol_categorical = self.per_batch_per_symbol_categorical[bidx]
+                    for sidx in range(len(per_symbol_categorical)):
+                        symbol_kl = torch.distributions.kl.kl_divergence(per_symbol_categorical[sidx],eos_prior)
+                        per_batch_per_symbol_kl_div[-1].append(symbol_kl)
+                    per_batch_per_symbol_kl_div[-1] = torch.stack(per_batch_per_symbol_kl_div[-1]).sum()
+                per_batch_per_symbol_kl_div = torch.stack(per_batch_per_symbol_kl_div)
+                # (batch_size, 1)
+                losses_dict['eos_kl_divergence'] = [1.0, per_batch_per_symbol_kl_div]
 
             if ('with_utterance_penalization' in config or 'with_utterance_promotion' in config) and (config['with_utterance_penalization'] or config['with_utterance_promotion']):
                 arange_vocab = torch.arange(config['vocab_size']+1).float()

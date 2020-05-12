@@ -28,9 +28,14 @@ def main():
     help='dataset to train on.',
     default='XSort-of-CLEVR')
   parser.add_argument('--arch', type=str, 
-    choices=['Santoro2017-SoC-CNN',
+    choices=['CNN',
+             'CNN3x3',
+             'BN+CNN',
+             'BN+CNN3x3',
+             'Santoro2017-SoC-CNN',
              'Santoro2017-CLEVR-CNN',
              'Santoro2017-CLEVR-CNN3x3',
+             'Santoro2017-CLEVR-CoordCNN3x3',
              'Santoro2017-CLEVR-EntityPrioredCNN3x3',
              'Santoro2017-CLEVR-CNN7x4x4x3',
              ], 
@@ -62,8 +67,17 @@ def main():
       "NLL",
       ],
     default="Hinge")
+  parser.add_argument('--agent_type', type=str,
+    choices=[
+      "Baseline",
+      "EoSPriored",
+      ],
+    default="Baseline")
   parser.add_argument('--lr', type=float, default=1e-4)
-  parser.add_argument('--epoch', type=int, default=1600)
+  parser.add_argument('--epoch', type=int, default=2000)
+  parser.add_argument('--metric_epoch_period', type=int, default=20)
+  parser.add_argument('--dataloader_num_worker', type=int, default=4)
+  parser.add_argument('--metric_fast', action='store_true', default=False)
   parser.add_argument('--batch_size', type=int, default=32)
   parser.add_argument('--mini_batch_size', type=int, default=64)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
@@ -73,11 +87,12 @@ def main():
   parser.add_argument('--nbr_test_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_distractors', type=int, default=63)
   parser.add_argument('--nbr_train_distractors', type=int, default=63)
-  parser.add_argument('--resizeDim', default=75, type=int,help='input image resize')
+  parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
   parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
+  parser.add_argument('--use_curriculum_nbr_distractors', action='store_true', default=False)
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
   parser.add_argument('--detached_heads', action='store_true', default=False)
   parser.add_argument('--test_id_analogy', action='store_true', default=False)
@@ -103,12 +118,37 @@ def main():
   parser.add_argument('--train_test_split_strategy', type=str, 
     choices=['combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise interweaved split simple XY normal             
              'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-4-N-Shape-1-N',
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-32-N-X-32-N-Orientation-5-S4-Scale-1-S3-Shape-3-N',  #Sparse 2 Attributes: Orient.+Scale 64 imgs, 48 train, 16 test
              'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N',  # 4x Denser 2 Attributes: 256 imgs, 192 train, 64 test,
-             'combinatorial4-Y-4-S4-X-4-S4-Orientation-10-S4-Scale-1-S3-Shape-3-N', #Sparse 4 Attributes: 192 test / 1344 train
+             
+             # Heart shape: interpolation:
+             'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             'combinatorial2-Y-2-2-X-2-2-Orientation-2-2-Scale-1-2-Shape-3-N', #COMB2:Dense 4 Attributes: ? test / ? train
+             # Heart shape: Extrapolation:
+             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
+             'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-3-N', #COMB2:Dense 4 Attributes: ? test / ? train
+
+             # Ovale shape:
+             'combinatorial2-Y-1-S16-X-1-S16-Orientation-40-N-Scale-6-N-Shape-2-N', # Denser 2 Attributes X+Y X 16/ Y 16/ --> 256 test / 768 train 
+             'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-2-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-2-N', #COMB2:Dense 4 Attributes: ? test / ? train
+             
+             #3 Attributes: denser 2 attributes(X+Y) with the sample size of Dense 4 attributes:
+             'combinatorial2-Y-1-S16-X-1-S16-Orientation-2-S10-Scale-6-N-Shape-2-N', 
+  
+             'combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N', #Sparse 4 Attributes: 192 test / 1344 train
             ],
     help='train/test split strategy',
-    default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
+    # INTER:
+    default='combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N')
+    # EXTRA:
+    #default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
   parser.add_argument('--fast', action='store_true', default=False, 
     help='Disable the deterministic CuDNN. It is likely to make the computation faster.')
   
@@ -176,7 +216,7 @@ def main():
 
   nbr_epoch = args.epoch
   
-  cnn_feature_size = 512 # 128 512 #1024
+  cnn_feature_size = -1 #600 #128 #256 #
   # Except for VAEs...!
   
   stimulus_resize_dim = args.resizeDim #64 #28
@@ -245,7 +285,7 @@ def main():
       "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
 
       "batch_size":               args.batch_size,
-      "dataloader_num_worker":    4,
+      "dataloader_num_worker":    args.dataloader_num_worker,
       "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
@@ -261,7 +301,7 @@ def main():
 
       "use_feat_converter":       args.use_feat_converter,
 
-      "use_curriculum_nbr_distractors": False,
+      "use_curriculum_nbr_distractors": args.use_curriculum_nbr_distractors,
       "curriculum_distractors_window_size": 25, #100,
 
       "unsupervised_segmentation_factor": None, #1e5
@@ -402,13 +442,54 @@ def main():
       agent_config['cnn_encoder_kernels'] = [4,4,4,4]
     agent_config['cnn_encoder_strides'] = [2,2,2,2]
     agent_config['cnn_encoder_paddings'] = [1,1,1,1]
-    agent_config['cnn_encoder_fc_hidden_units'] = [] 
+    agent_config['cnn_encoder_fc_hidden_units'] = []
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
     #agent_config['cnn_encoder_feature_dim'] = args.vae_nbr_latent_dim
     # Otherwise:
-    cnn_feature_size = -1
+    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size
+    # N.B.: if cnn_encoder_fc_hidden_units is [],
+    # then this last parameter does not matter.
+    # The cnn encoder is not topped by a FC network.
+
+    agent_config['cnn_encoder_mini_batch_size'] = args.mini_batch_size
+    agent_config['feat_converter_output_size'] = cnn_feature_size
+
+    if 'MHDPA' in agent_config['architecture']:
+      agent_config['mhdpa_nbr_head'] = 4
+      agent_config['mhdpa_nbr_rec_update'] = 1
+      agent_config['mhdpa_nbr_mlp_unit'] = 256
+      agent_config['mhdpa_interaction_dim'] = 128
+
+    agent_config['temporal_encoder_nbr_hidden_units'] = 0
+    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
+    agent_config['temporal_encoder_mini_batch_size'] = args.mini_batch_size
+    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
+    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+
+  elif 'CNN' in agent_config['architecture']:
+    rg_config['use_feat_converter'] = False
+    agent_config['use_feat_converter'] = False
+    
+    if 'BN' in args.arch:
+      agent_config['cnn_encoder_channels'] = ['BN32','BN32','BN64','BN64']
+    else:
+      agent_config['cnn_encoder_channels'] = [32,32,64,64]
+    
+    if '3x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
+    elif '7x4x4x3' in agent_config['architecture']:
+      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    else:
+      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
+    agent_config['cnn_encoder_strides'] = [2,2,2,2]
+    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
+    agent_config['cnn_encoder_fc_hidden_units'] = []#[128,] 
+    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
+    
+    # For a fair comparison between CNN an VAEs:
+    #agent_config['cnn_encoder_feature_dim'] = args.vae_nbr_latent_dim
     agent_config['cnn_encoder_feature_dim'] = cnn_feature_size
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
@@ -478,13 +559,14 @@ def main():
       rg_config['cultural_pressure_it_period'],
       rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
   
-  save_path += '-{}{}CulturalAgent-SEED{}-{}-obs_b{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
+    args.mini_batch_size,
     rg_config['learning_rate'],
     rg_config['graphtype'], 
     rg_config['tau0'], 
@@ -517,10 +599,12 @@ def main():
   if 'obverter' in args.graphtype:
     save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
   else:
-    save_path += f"withPopulationHandlerModule/STGS-LSTM-CNN-Agent/"
+    save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
-  save_path += f"DEBUG_FVAE_DIS_TEST/Threshold-5e-2/"
+  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
   
+  #save_path += f"TEST_NormalizedHingeLoss/"
+
   if args.same_head:
     save_path += "same_head/"
 
@@ -559,15 +643,26 @@ def main():
       differentiable=args.differentiable
     )
   else:
-    from ReferentialGym.agents import LSTMCNNSpeaker
-    speaker = LSTMCNNSpeaker(
-      kwargs=agent_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='s0',
-      logger=logger
-    )
+    if 'Baseline' in args.agent_type:
+      from ReferentialGym.agents import LSTMCNNSpeaker
+      speaker = LSTMCNNSpeaker(
+        kwargs=agent_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id='s0',
+        logger=logger
+      )
+    elif 'EoSPriored' in args.agent_type:
+      from ReferentialGym.agents import EoSPrioredLSTMCNNSpeaker
+      speaker = EoSPrioredLSTMCNNSpeaker(
+        kwargs=agent_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id='s0',
+        logger=logger
+      )
   print("Speaker:", speaker)
 
   listener_config = copy.deepcopy(agent_config)
@@ -1187,7 +1282,8 @@ def main():
   topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule(id=topo_sim_metric_id,
     config = {
       "parallel_TS_computation_max_workers":16,
-      "fast":False,
+      "epoch_period":args.metric_epoch_period,
+      "fast":args.metric_fast,
       "verbose":False,
       "vocab_size":rg_config["vocab_size"],
     }
@@ -1198,6 +1294,7 @@ def main():
   factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=factor_vae_disentanglement_metric_id,
     config = {
+      "epoch_period":args.metric_epoch_period,
       "batch_size":64,#5,
       "nbr_train_points":10000,#3000,
       "nbr_eval_points":5000,#2000,

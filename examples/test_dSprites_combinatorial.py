@@ -8,6 +8,109 @@ import torch
 import torchvision
 import torchvision.transforms as T 
 
+
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from sklearn.manifold import TSNE
+
+def tsne(data, nbr_train):
+  fig = plt.figure()
+  emb = TSNE(
+    n_components=2,
+    perplexity=5,
+    init='pca',
+    verbose=2,
+    random_state=7,
+    learning_rate=300,
+    n_iter=10000).fit_transform(data)
+
+  train = plt.scatter(emb[:nbr_train,0], emb[:nbr_train,1], c='skyblue', s=50, alpha=0.5)
+  test = plt.scatter(emb[nbr_train:,0], emb[nbr_train:,1], c='red', s=5, alpha=0.5)
+  
+  plt.legend((train, test),
+           ('Train', 'Test'),
+           #scatterpoints=1,
+           #loc='lower left',
+           #ncol=3,
+           fontsize=8)
+
+  plt.show()
+  '''
+  fig = plt.figure()
+  ax = fig.add_subplot(111, projection='3d')
+  emb3d = TSNE(
+    n_components=3,
+    perplexity=500,
+    init='pca',
+    verbose=1,
+    random_state=7).fit_transform(data)
+  train = ax.scatter(emb3d[:nbr_train,0], emb3d[:nbr_train,1], emb3d[:nbr_train,2], c='skyblue', s=50)
+  test = ax.scatter(emb3d[nbr_train:,0], emb3d[nbr_train:,1], emb3d[nbr_train:,2], c='red', s=5)
+  
+  plt.show()
+  '''
+
+def plot(train_dataset, test_dataset):
+  #dd = {'label':[]}
+  dd = {}
+
+  for idx in range(len(train_dataset)):
+    latent_repr = train_dataset.getlatentclass(idx)
+    for key in train_dataset.latent_dims.keys():
+      pos = train_dataset.latent_dims[key]['position']
+      if key not in dd: 
+        dd[key] = [] 
+      dd[key].append(latent_repr[pos])
+    #dd['label'].append('train')
+  nbr_train = idx+1 
+  
+  for idx in range(len(test_dataset)):
+    latent_repr = test_dataset.getlatentclass(idx)
+    for key in test_dataset.latent_dims.keys():
+      pos = test_dataset.latent_dims[key]['position']
+      if key not in dd: dd[key] = [] 
+      dd[key].append(latent_repr[pos])
+    #dd['label'].append('test')
+
+  df = pd.DataFrame(dd)
+  #df = pd.DataFrame({'X':range(1,101), 'Y':np.random.rand(100)*15+range(1,101), 'Z':(np.random.randn(100)*15+range(1,101))*2})
+
+  tsne(df.to_numpy(), nbr_train)
+
+
+  variations = {}
+  for key in dd.keys():
+    variations[key] = len(np.unique(np.asarray(dd[key])))
+
+  nbr_lines = variations['Shape']
+  nbr_rows = variations['Scale']
+
+  
+  fig = plt.figure()
+  axes = []
+  idxcurrentgraph = 0
+  for line in range(nbr_lines):
+    for row in range(nbr_rows):
+      idxcurrentgraph += 1
+      ax = fig.add_subplot(nbr_lines*100+nbr_rows*10+idxcurrentgraph, projection='3d')
+      ax.scatter(df['X'][:nbr_train], df['Y'][:nbr_train], df['Orientation'][:nbr_train], c='skyblue', s=50)
+      ax.scatter(df['X'][nbr_train:], df['Y'][nbr_train:], df['Orientation'][nbr_train:], c='red', s=5)
+      #ax.view_init(125, 35)
+      #ax.view_init(145, 45)
+      #ax.view_init(145, -135)
+      ax.view_init(-175, 145)
+      ax.set_xlabel('position X')
+      ax.set_ylabel('position Y')
+      ax.set_zlabel('Orientaiton')
+      axes.append(ax)
+  plt.show()
+
+  return
+
+
+
 def main():
   seed = 20 #30
   torch.manual_seed(seed)
@@ -136,68 +239,45 @@ def main():
       "test_transform":             transform,
   }
 
-  # Super Aggressive:
-  #train_split_strategy = 'combinatorial3-1FPY-16-2-X-16-2-Orientation-10-4-Scale-1-5-Shape-1-3'
-  #train_split_strategy = 'combinatorial3-0FPY-8-4-X-8-4-Orientation-10-4-Scale-1-5-0FP_Shape-1-3'
-  
-  # Not creating test set in some latent axis:
-  # Normal (undensified orientation...):
-  #train_split_strategy = 'combinatorial3-Y-1-5-X-1-5-Orientation-10-N-Scale-1-N-1FP_Shape-1-N'
-  # Undensified:
-  #train_split_strategy = 'combinatorial3-Y-2-5-X-2-5-Orientation-10-N-Scale-2-N-1FP_Shape-1-N'
-  # Aggressively Undensified:
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-0FP_Shape-1-N'
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Agressive: idem + test values on each axis: 'primitive around right' 0-filler context
-  #Not enough test data: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
-  #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
-  
-  # Normal:
-  #train_split_strategy = 'combinatorial-Y-1-5-X-1-5-Orientation-1-5-Scale-1-6-Shape-1-3'
-  # Aggressive:
-  #train_split_strategy = 'combinatorial-Y-8-4-X-8-4-Orientation-4-5-Scale-1-5-Shape-1-3'
-  
-  # Agressive: 0-filler primitive(shape) condition testing compositional extrapolation on 16 positions.
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-0FP_Shape-1-N'
-  
-  # Agressive: idem + test values on each axis: 'primitive around right' 0-filler context
-  # Not enough test samples: train_split_strategy = 'combinatorial5-Y-4-2-X-4-2-Orientation-10-3-Scale-2-2-0FP_Shape-1-N'
-  #train_split_strategy = 'combinatorial4-Y-4-2-X-4-2-Orientation-10-N-Scale-2-2-0FP_Shape-1-N'
-  
-
-  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # Experiment 1: interweaved
-  #train_split_strategy = 'combinatorial3-Y-4-2-X-4-2-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Exp1 : interweaved split simple X Y
+  # INTER SIMPLE X+Y
+  # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
   #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  # Denser: x4
+  # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  # Jump Around sparse = splitted - normal:
-  #train_split_strategy = 'combinatorial3-Y-4-E4-X-4-E4-Orientation-40-N-Scale-6-N-Shape-1-3' 
 
-  # Experiment 1: splitted
-  #train_split_strategy = 'combinatorial3-Y-4-S4-X-4-S4-Orientation-10-N-Scale-2-N-Shape-1-3'
-  # Agressive: compositional extrapolation is tested on Heart Shape at 16 positions...
-  # --> the test and train set are not alternating sampling but rather completely distinct.
+  # INTER MULTI:
+  # COMB2: Sparse 4 Attributes: 2112 test / 960 train
+  train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N' 
   
-  # Exp1 : splitted split simple X Y
+
+  # SIMPLE X+Y
+  # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
   #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  # Denser: x4
-  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  
-  # Exp1 : splitted split multi-shape X Y
-  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  # Denser: x4
-  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6RemainderToUse4-N-Shape-1-N' 
-  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  
   # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  # Denser: simple splitted XY X 16/ Y 16/ --> 256 test / 768 train 
+  #train_split_strategy = 'combinatorial2-Y-1-S16-X-1-S16-Orientation-40-N-Scale-6-N-Shape-3-N' 
   
-  # Sparse: multi 4 splitted XY X 4/ Y 4/ Orientation 4/ Scale 3/-->  192 test / 1344 train 
-  train_split_strategy = 'combinatorial4-Y-4-S4-X-4-S4-Orientation-10-S4-Scale-1-S3-Shape-3-N' 
-  # Dense: multi 4 splitted XY X 8/ Y 8/ Orientation 8/ Scale 6/-->  1536 test / 10752 train 
-  #train_split_strategy = 'combinatorial4-Y-2-S8-X-2-S8-Orientation-5-S8-Scale-1-S3-Shape-3-N' 
+  # SIMPLE Orient.+Scale
+  # Sparse: simple splitted  Orient. 4/ Scale 3/ --> 12 test / 36 train 
+  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-5-S4-Scale-1-S3-Shape-3-N' 
+  
+  #Multi 3: denser simple X+Y with the sample size of multi 4:
+  #train_split_strategy = 'combinatorial2-Y-1-S16-X-1-S16-Orientation-2-S10-Scale-6-N-Shape-3-N' 
+  
+
+  #MULTI:
+  #COMB2: Sparser 4 Attributes: 264 test / 120 train
+  #train_split_strategy = 'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N' 
+  #COMB2: Sparse 4 Attributes: 2112 test / 960 train
+  train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N' 
+  #COMB2: Dense 4 Attributes: 21120 test / 9600 train
+  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-2-N' 
+             
+  #COMB4: Sparse: multi 4 splitted XY X 4/ Y 4/ Orientation 4/ Scale 3/-->  192 test / 1344 train 
+  #train_split_strategy = 'combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N' 
+  #COMB4: Dense: multi 4 splitted XY X 8/ Y 8/ Orientation 8/ Scale 6/-->  1536 test / 10752 train 
+  #train_split_strategy = 'combinatorial4-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-3-N' 
   
   # Dense: Multi X 8/ Y 8/ Orientation 10/ NOT Scale 1/ Shape 3
   #train_split_strategy = 'combinatorial3-Y-2-8-X-2-8-Orientation-2-10-Scale-6-N-Shape-1-N' 
@@ -249,6 +329,8 @@ def main():
   root = './datasets/dsprites-dataset'
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
   test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+
+  plot(train_dataset, test_dataset)
 
   train_i = 0
   test_i = 0
