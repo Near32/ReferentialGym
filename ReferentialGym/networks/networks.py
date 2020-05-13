@@ -215,6 +215,7 @@ class ConvolutionalBody(nn.Module):
                  fc_hidden_units=None,
                  dropout=0.0, 
                  non_linearities=[nn.LeakyReLU],
+                 #non_linearities=[nn.Tanh],
                  use_coordconv=False):
         '''
         Default input channels assume a RGB image (3 channels).
@@ -317,7 +318,8 @@ class ConvolutionalBody(nn.Module):
                 if add_dp:
                     self.cnn.append(nn.Dropout2d(p=dropout))
                 if add_non_lin:
-                    self.cnn.append(self.non_linearities[idx](inplace=True))
+                    #self.cnn.append(self.non_linearities[idx](inplace=True))
+                    self.cnn.append(self.non_linearities[idx]())
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k+2*p)//s+1
                 print(f"Dim: {dim}")
