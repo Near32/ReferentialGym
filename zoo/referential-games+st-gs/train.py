@@ -79,7 +79,7 @@ def main():
   parser.add_argument('--dataloader_num_worker', type=int, default=4)
   parser.add_argument('--metric_fast', action='store_true', default=False)
   parser.add_argument('--batch_size', type=int, default=32)
-  parser.add_argument('--mini_batch_size', type=int, default=64)
+  parser.add_argument('--mini_batch_size', type=int, default=128)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
   parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
   parser.add_argument('--nbr_experience_repetition', type=int, default=1)
