@@ -27,7 +27,7 @@ class FactorVAEDisentanglementMetricModule(Module):
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]=None):
 
-        input_stream_ids = {
+        default_input_stream_ids = {
             "modules:logger:ref":"logger",
             "logs_dict":"logs_dict",
             "signals:epoch":"epoch",
@@ -41,17 +41,22 @@ class FactorVAEDisentanglementMetricModule(Module):
             "signals:end_of_communication":"end_of_communication",
             # boolean: whether the current communication round is the last of 
             # the current dialog.
-            
-            "modules:current_speaker:ref:ref_agent:cnn_encoder":"model",
             "current_dataset:ref":"dataset",
 
-            "modules:current_speaker:ref:ref_agent:features":"representations",
+            'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
+            'modules:current_speaker:ref:ref_agent:features':'representations',
             'current_dataloader:sample:speaker_experiences':'experiences', 
             'current_dataloader:sample:speaker_exp_latents':'latent_representations', 
             'current_dataloader:sample:speaker_exp_latents_values':'latent_values_representations',
             'current_dataloader:sample:speaker_indices':'indices', 
             
         }
+        if input_stream_ids is None:
+            input_stream_ids = default_input_stream_ids
+        else:
+            for default_stream, default_id in default_input_stream_ids.items():
+                if default_id not in input_stream_ids.values():
+                    input_stream_ids[default_stream] = default_id
 
         super(FactorVAEDisentanglementMetricModule, self).__init__(id=id,
                                                  type="FactorVAEDisentanglementMetricModule",
@@ -195,7 +200,7 @@ class FactorVAEDisentanglementMetricModule(Module):
         mode = input_streams_dict['mode']
         epoch = input_streams_dict['epoch']
         
-        if epoch % self.config['epoch_period'] == 1:
+        if epoch % self.config['epoch_period'] == 0:
             representations = input_streams_dict['representations']
             self.representations.append(representations.cpu().detach().numpy())
             latent_representations = input_streams_dict['latent_representations']
@@ -212,12 +217,20 @@ class FactorVAEDisentanglementMetricModule(Module):
             )
             
             if end_of_epoch:
-                self.representations = np.concatenate(self.representations, axis=0).squeeze()
-                self.latent_representations = np.concatenate(self.latent_representations, axis=0).squeeze()
-                self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).squeeze()
-                self.indices = np.concatenate(self.indices, axis=0).squeeze()
+                repr_last_dim = self.representations[-1].shape[-1] 
+                self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
+                latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
+                self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
+                latent_val_repr_last_dim = self.latent_values_representations[-1].shape[-1] 
+                self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).reshape(-1, latent_val_repr_last_dim)
+                self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
-
+                # Make sure every index is only seen once:
+                self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
+                self.representations = self.representations[in_batch_indices,:]
+                self.latent_representations = self.latent_representations[in_batch_indices,:]
+                self.latent_values_representations = self.latent_values_representations[in_batch_indices,:]
+                
                 model = input_streams_dict['model']
                 dataset = input_streams_dict['dataset']
                 logger = input_streams_dict['logger']
@@ -277,11 +290,11 @@ class FactorVAEDisentanglementMetricModule(Module):
                         
                     scores_dict["num_active_dims"] = len(active_dims)
                     
-                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/train_accuracy'] = scores_dict['train_accuracy']
-                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/eval_accuracy/mean'] = scores_dict['eval_accuracy']
+                logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/train_accuracy'] = scores_dict['train_accuracy']
+                logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/eval_accuracy/mean'] = scores_dict['eval_accuracy']
                 for idx, acc in enumerate(per_factor_eval_accuracy):
-                    logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/eval_accuracy/factor_{idx}'] = scores_dict[f"eval_accuracy_{idx}"]
-                logs_dict[f'{mode}/DisentanglementMetric/FactorVAE/nbr_active_dims'] = scores_dict['num_active_dims']
+                    logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/eval_accuracy/factor_{idx}'] = scores_dict[f"eval_accuracy_{idx}"]
+                logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/nbr_active_dims'] = scores_dict['num_active_dims']
                     
                 self.representations = []
                 self.latent_representations = []
