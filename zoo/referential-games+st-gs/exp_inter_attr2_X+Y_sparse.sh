@@ -70,6 +70,7 @@ python train.py --seed $(($1+40)) \
 --dataset dSprites \
 --train_test_split_strategy combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N \
 --use_cuda \
---batch_size $5 &
+--batch_size $5
+
 #--shared_architecture \
 #--fast \
