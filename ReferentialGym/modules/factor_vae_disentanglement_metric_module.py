@@ -290,10 +290,11 @@ class FactorVAEDisentanglementMetricModule(Module):
                         
                     scores_dict["num_active_dims"] = len(active_dims)
                     
+                    for idx, acc in enumerate(per_factor_eval_accuracy):
+                        logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/eval_accuracy/factor_{idx}'] = scores_dict[f"eval_accuracy_{idx}"]
+                    
                 logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/train_accuracy'] = scores_dict['train_accuracy']
                 logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/eval_accuracy/mean'] = scores_dict['eval_accuracy']
-                for idx, acc in enumerate(per_factor_eval_accuracy):
-                    logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/eval_accuracy/factor_{idx}'] = scores_dict[f"eval_accuracy_{idx}"]
                 logs_dict[f'{mode}/{self.id}/DisentanglementMetric/FactorVAE/nbr_active_dims'] = scores_dict['num_active_dims']
                     
                 self.representations = []
