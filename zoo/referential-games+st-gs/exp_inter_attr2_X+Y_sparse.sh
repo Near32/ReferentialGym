@@ -40,7 +40,7 @@ python train.py --seed $(($1+20)) \
 --nbr_train_distractors $3 --nbr_test_distractors $4 \
 --max_sentence_length 20 --vocab_size 100 \
 --dataset dSprites \
---train_test_split_strategy 2combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N \
+--train_test_split_strategy combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N \
 --use_cuda \
 --batch_size $5 &
 #--shared_architecture \

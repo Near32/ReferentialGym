@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#SBATCH --job-name=Paper01a_Test_Inter_Sparse_BN+CNN3x3_B2
+#SBATCH --job-name=Paper01a_Test_Inter_Sparse_BN+CNN3x3_B24
 #SBATCH	--mail-type=ALL
 #SBATCH	--mail-user=kyd500@york.ac.uk
 #SBATCH --account=cs-dclabs-2019
@@ -12,5 +12,5 @@
 #SBATCH --gres=gpu:1
 
 cd /users/kyd500/scratch/git/ReferentialGym/zoo/referential-games+st-gs/
-./exp_inter_attr2_X+Y_sparse.sh 0 BN+CNN3x3 47 63 2
+./exp_inter_attr2_X+Y_sparse.sh 0 BN+CNN3x3 47 63 24
 
