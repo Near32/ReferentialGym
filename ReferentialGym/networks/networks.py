@@ -122,6 +122,56 @@ class addXYfeatures(nn.Module) :
 
         return out 
 
+class addXYRhoThetaFeatures(nn.Module) :
+    def __init__(self) :
+        super(addXYRhoThetaFeatures,self).__init__() 
+        self.fXYRhoTheta = None
+
+    def forward(self,x) :
+        xsize = x.size()
+        batch = xsize[0]
+        if self.fXYRhoTheta is None:
+            # batch x depth x X x Y
+            depth = xsize[1]
+            sizeX = xsize[2]
+            sizeY = xsize[3]
+            stepX = 2.0/sizeX
+            stepY = 2.0/sizeY
+
+            midX = sizeX/2
+            midY = sizeY/2
+            sizeRho = math.sqrt(midX**2+midY**2)
+            sizeTheta = 2*math.pi
+            stepX = 2.0/sizeX
+            stepY = 2.0/sizeY
+
+            fx = torch.zeros((1,1,sizeX,1))
+            fy = torch.zeros((1,1,1,sizeY))
+            
+            vx = -1+0.5*stepX
+            for i in range(sizeX):
+                fx[:,:,i,:] = vx 
+                vx += stepX
+            vy = -1+0.5*stepY
+            for i in range(sizeY):
+                fy[:,:,:,i] = vy 
+                vy += stepY
+
+            fxy = fx.repeat(1,1,1,sizeY).transpose(-1,-2)
+            fyx = -fy.repeat(1,1,sizeX,1).transpose(-1,-2)
+            
+            fRho = (fxy**2+fyx**2).sqrt()/sizeRho
+            fTheta = torch.atan2(fyx, fxy)/math.pi
+            
+            self.fXYRhoTheta = torch.cat( [fxy,fyx, fRho, fTheta], dim=1)
+        
+        fXYRhoTheta = self.fXYRhoTheta.repeat(batch,1,1,1)
+        if x.is_cuda : fXYRhoTheta = fXYRhoTheta.cuda()
+            
+        out = torch.cat( [x,fXYRhoTheta], dim=1)
+
+        return out 
+
 def conv( sin, sout,k,stride=1,padding=0,batchNorm=True) :
     layers = []
     layers.append( nn.Conv2d( sin,sout, k, stride,padding,bias=not(batchNorm)) )
@@ -185,6 +235,43 @@ def coorddeconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=Fa
     return nn.Sequential( *layers )
 
 
+def coord4conv( sin, sout,kernel_size,stride=1,padding=0,batchNorm=False,bias=True, groups=1, dilation=1) :
+    layers = []
+    layers.append( addXYRhoThetaFeatures() )
+    layers.append( nn.Conv2d( sin+4,
+                            sout, 
+                            kernel_size, 
+                            stride,
+                            padding, 
+                            groups=groups, 
+                            bias=(True if bias else not(batchNorm)),
+                            dilation=dilation))
+
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+# Adapted from conv3x3 in torchvision.models.resnet:
+def coord4conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3 coord convolution with padding"""
+    return coord4conv(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+    
+# Adapted from conv1x1 in torchvision.models.resnet:
+def coord4conv1x1(in_planes, out_planes, stride=1):
+    """1x1 coord convolution"""
+    return coord4conv(in_planes, out_planes, kernel_size=1, stride=stride, 
+        padding=0, bias=False)
+
+def coord4deconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=False) :
+    layers = []
+    layers.append( addXYRhoThetaFeatures() )
+    layers.append( nn.ConvTranspose2d( sin+4,sout, kernel_size, stride,padding,bias=(True if bias else not(batchNorm) ) ) )
+    if batchNorm :
+        layers.append( nn.BatchNorm2d( sout) )
+    return nn.Sequential( *layers )
+
+
 class FCBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
         super(FCBody, self).__init__()
@@ -237,7 +324,7 @@ class ConvolutionalBody(nn.Module):
         super(ConvolutionalBody, self).__init__()
         original_conv_fn = nn.Conv2d
         if use_coordconv:
-            original_conv_fn = coordconv
+            original_conv_fn = coord4conv #coordconv
 
         self.dropout = dropout
         self.non_linearities = non_linearities
@@ -276,7 +363,7 @@ class ConvolutionalBody(nn.Module):
                     add_non_lin = False
                     cfg = cfg.replace('NoNonLin', '') 
                 if isinstance(cfg, str) and 'Coord' in cfg:
-                    conv_fn = coordconv
+                    conv_fn = coord4conv#coordconv
                     cfg = cfg.replace('Coord', '') 
                 
                 if isinstance(cfg, str) and '_DP' in cfg:

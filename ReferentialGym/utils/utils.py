@@ -1,5 +1,6 @@
 import os 
 import torch
+import torch.nn as nn
 import torchvision
 import numpy as np 
 from numpy import linalg as LA
@@ -71,6 +72,32 @@ def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
         import ipdb; ipdb.set_trace()
 
     return ret
+
+class StraightThroughGumbelSoftmaxLayer(nn.Module):
+  def __init__(self, 
+               input_dim,
+               inv_tau0=0.5):
+    super(StraightThroughGumbelSoftmaxLayer, self).__init__()
+    self.input_dim = input_dim
+    self.inv_tau0 = inv_tau0
+    self.tau_fc = nn.Sequential(
+      nn.Linear(self.input_dim, 1,bias=False),
+      nn.Softplus()
+    )
+
+  def forward(self,
+              logits,
+              param):
+    tau = 1. / ( self.tau_fc(param).squeeze()+self.inv_tau0)
+    one_hot_distr = gumbel_softmax(
+      logits=logits, 
+      tau=tau, 
+      hard=True, 
+      dim=-1, 
+      eps=1e-6)
+    return one_hot_distr
+                    
+
 
 
 def cardinality(data):
