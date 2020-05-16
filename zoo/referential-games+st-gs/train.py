@@ -79,14 +79,14 @@ def main():
   parser.add_argument('--dataloader_num_worker', type=int, default=4)
   parser.add_argument('--metric_fast', action='store_true', default=False)
   parser.add_argument('--batch_size', type=int, default=32)
-  parser.add_argument('--mini_batch_size', type=int, default=64)
+  parser.add_argument('--mini_batch_size', type=int, default=128)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
   parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
   parser.add_argument('--nbr_experience_repetition', type=int, default=1)
   parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_dataset_repetition', type=int, default=1)
   parser.add_argument('--nbr_test_distractors', type=int, default=63)
-  parser.add_argument('--nbr_train_distractors', type=int, default=63)
+  parser.add_argument('--nbr_train_distractors', type=int, default=47)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--same_head', action='store_true', default=False)
@@ -784,9 +784,18 @@ def main():
   )
   modules[topo_sim_metric_id] = topo_sim_metric_module
 
-  factor_vae_disentanglement_metric_id = "factor_vae_disentanglement_metric"
-  factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
-    id=factor_vae_disentanglement_metric_id,
+  speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
+  speaker_factor_vae_disentanglement_metric_input_stream_ids = {
+    'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
+    'modules:current_speaker:ref:ref_agent:features':'representations',
+    'current_dataloader:sample:speaker_experiences':'experiences', 
+    'current_dataloader:sample:speaker_exp_latents':'latent_representations', 
+    'current_dataloader:sample:speaker_exp_latents_values':'latent_values_representations',
+    'current_dataloader:sample:speaker_indices':'indices', 
+  }
+  speaker_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
+    id=speaker_factor_vae_disentanglement_metric_id,
+    input_stream_ids=speaker_factor_vae_disentanglement_metric_input_stream_ids,
     config = {
       "epoch_period":args.metric_epoch_period,
       "batch_size":64,#5,
@@ -799,7 +808,33 @@ def main():
       "active_factors_only":True,
     }
   )
-  modules[factor_vae_disentanglement_metric_id] = factor_vae_disentanglement_metric_module
+  modules[speaker_factor_vae_disentanglement_metric_id] = speaker_factor_vae_disentanglement_metric_module
+
+  listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
+  listener_factor_vae_disentanglement_metric_input_stream_ids = {
+    'modules:current_listener:ref:ref_agent:cnn_encoder':'model',
+    'modules:current_listener:ref:ref_agent:features':'representations',
+    'current_dataloader:sample:listener_experiences':'experiences', 
+    'current_dataloader:sample:listener_exp_latents':'latent_representations', 
+    'current_dataloader:sample:listener_exp_latents_values':'latent_values_representations',
+    'current_dataloader:sample:listener_indices':'indices', 
+  }
+  listener_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
+    id=listener_factor_vae_disentanglement_metric_id,
+    input_stream_ids=listener_factor_vae_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":10000,#3000,
+      "nbr_eval_points":5000,#2000,
+      "resample":False,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[listener_factor_vae_disentanglement_metric_id] = listener_factor_vae_disentanglement_metric_module
 
   logger_id = "per_epoch_logger"
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
@@ -819,7 +854,8 @@ def main():
   # Add gradient recorder module for debugging purposes:
   pipelines[optim_id].append(grad_recorder_id)
   '''
-  pipelines[optim_id].append(factor_vae_disentanglement_metric_id)
+  pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+  pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(logger_id)
 
