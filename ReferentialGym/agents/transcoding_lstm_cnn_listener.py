@@ -175,7 +175,10 @@ class TranscodingLSTMCNNListener(Listener):
 
         self.textual_context_dim = self.textual_embedding_size
 
-        self.st_gs = StraightThroughGumbelSoftmaxLayer(inv_tau0=0.5, input_dim=self.transcoder_hidden_size)
+        self.st_gs = StraightThroughGumbelSoftmaxLayer(
+                inv_tau0=self.kwargs['transcoder_st_gs_inv_tau0'], 
+                input_dim=self.transcoder_hidden_size
+        )
 
         ##
 
