@@ -91,8 +91,9 @@ def main():
   parser.add_argument('--nbr_test_distractors', type=int, default=63)
   parser.add_argument('--nbr_train_distractors', type=int, default=47)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
-  parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
   parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
+  parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
+  parser.add_argument('--transcoder_st_gs_inv_tau0', type=float, default=0.5)
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
@@ -426,7 +427,8 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
-
+    agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
+    
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
@@ -490,6 +492,7 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
+    agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
 
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
@@ -550,6 +553,7 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
+    agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
 
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
@@ -657,7 +661,7 @@ def main():
     save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
   if 'TranscodingListener' in args.agent_type:
-    save_path += f"TranscodingSteps{args.visual_decoder_nbr_steps}/"
+    save_path += f"TranscodingSteps{args.visual_decoder_nbr_steps}-STGS{args.transcoder_st_gs_inv_tau0}/"
 
   save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/TestCoord4Conv/TrLisAlone/"#TestArchTanh/"
   
