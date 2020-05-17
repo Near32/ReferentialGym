@@ -92,6 +92,7 @@ def main():
   parser.add_argument('--nbr_train_distractors', type=int, default=47)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
+  parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
@@ -261,7 +262,7 @@ def main():
       "nbr_stimulus":             1,
 
       "graphtype":                args.graphtype,
-      "tau0":                     0.2,
+      "tau0":                     args.st_gs_inv_tau0,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
       "symbol_embedding_size":    256, #64
