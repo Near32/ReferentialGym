@@ -88,7 +88,8 @@ class StraightThroughGumbelSoftmaxLayer(nn.Module):
   def forward(self,
               logits,
               param):
-    tau = 1. / ( self.tau_fc(param).squeeze()+self.inv_tau0)
+    batch_size = param.shape[0]
+    tau = 1. / ( self.tau_fc(param.reshape(-1,self.input_dim))+self.inv_tau0).reshape(batch_size, -1)
     one_hot_distr = gumbel_softmax(
       logits=logits, 
       tau=tau, 
