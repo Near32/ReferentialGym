@@ -32,6 +32,8 @@ def main():
              'CNN3x3',
              'BN+CNN',
              'BN+CNN3x3',
+             'BN+Coord2CNN3x3',
+             'BN+Coord4CNN3x3',
              'Santoro2017-SoC-CNN',
              'Santoro2017-CLEVR-CNN',
              'Santoro2017-CLEVR-CNN3x3',

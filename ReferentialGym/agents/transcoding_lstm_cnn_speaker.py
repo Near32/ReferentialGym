@@ -102,15 +102,21 @@ class TranscodingLSTMCNNSpeaker(Speaker):
         self.visual_emb_input_spatial_dim = self.cnn_encoder.feat_map_dim
         self.visual_emb_nbrHead = 3
 
-        self.visual_encoder_output_depth_dim = self.visual_emb_input_depth_dim+2
+        self.visual_encoder_output_depth_dim = self.visual_emb_input_depth_dim
+        if self.kwargs['transcoder_visual_encoder_use_coord4']:
+            self.visual_encoder_output_depth_dim += 4
+        else:
+            self.visual_encoder_output_depth_dim += 2
+        self.visual_encoder_input_depth_dim = self.visual_emb_input_depth_dim
         self.visual_encoder = MHDPA_RN(output_dim=None,
-           depth_dim=self.visual_encoder_output_depth_dim,
+           depth_dim=self.visual_emb_input_depth_dim,
            nbrHead=self.visual_emb_nbrHead, 
            nbrRecurrentSharedLayers=1, 
            nbrEntity=self.visual_emb_input_spatial_dim*self.visual_emb_input_spatial_dim, 
            units_per_MLP_layer=256,
            interactions_dim=128,
            dropout_prob=0.0,
+           use_coord4=self.kwargs['transcoder_visual_encoder_use_coord4']
         )
 
         # Transcoder vocabulary is shifted right compared to the decoder vocabulary:
@@ -136,7 +142,7 @@ class TranscodingLSTMCNNSpeaker(Speaker):
         # MLP + Concat Attention:
         self.transcoder_attention_interaction_dim = self.kwargs['transcoder_attention_interaction_dim']
         self.transcoder_guided_visual_pre_att = nn.Sequential(
-            nn.Linear(self.transcoder_hidden_size+(self.visual_emb_input_depth_dim+2), self.transcoder_attention_interaction_dim, bias=True),
+            nn.Linear(self.transcoder_hidden_size+self.visual_encoder_output_depth_dim, self.transcoder_attention_interaction_dim, bias=True),
             nn.ReLU(inplace=True),
         )
         self.transcoder_guided_visual_att = nn.Linear(self.transcoder_attention_interaction_dim, 1, bias=False)
@@ -287,7 +293,7 @@ class TranscodingLSTMCNNSpeaker(Speaker):
             )
         )
         # (batch_size, 
-        #   self.visual_emb_input_depth_dim+2, 
+        #   self.visual_emb_input_depth_dim+aug_dpeth=2 or 4, 
         #   self.visual_emb_input_spatial_dim,
         #   self.visual_emb_input_spatial_dim  )
 
@@ -295,7 +301,7 @@ class TranscodingLSTMCNNSpeaker(Speaker):
         # (batch_size, 
         #   self.visual_emb_input_spatial_dim,
         #   self.visual_emb_input_spatial_dim,
-        #   self.visual_emb_input_depth_dim+2)
+        #   self.visual_emb_input_depth_dim+aug_depth=2 or 4)
 
         if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
@@ -362,7 +368,7 @@ class TranscodingLSTMCNNSpeaker(Speaker):
             feat_map = self.feat_maps[b].reshape((-1, self.visual_emb_input_depth_dim))
             # (nbr_visual_entity=spatialDim^2, self.visual_emb_input_depth_dim)
             encoded_feat_map = self.encoded_feat_maps[b].reshape((-1, self.visual_encoder_output_depth_dim))
-            # (nbr_visual_entity=spatialDim^2, self.visual_emb_input_depth_dim+2)
+            # (nbr_visual_entity=spatialDim^2, self.visual_emb_input_depth_dim+aug_depth)
             nbr_visual_entity = encoded_feat_map.shape[0]
 
             ## Transcoder:

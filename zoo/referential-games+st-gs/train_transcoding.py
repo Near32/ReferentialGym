@@ -32,7 +32,8 @@ def main():
              'CNN3x3',
              'BN+CNN',
              'BN+CNN3x3',
-             'BN+CoordCNN3x3',
+             'BN+Coord2CNN3x3',
+             'BN+Coord4CNN3x3',
              'Santoro2017-SoC-CNN',
              'Santoro2017-CLEVR-CNN',
              'Santoro2017-CLEVR-CNN3x3',
@@ -41,7 +42,7 @@ def main():
              'Santoro2017-CLEVR-CNN7x4x4x3',
              ], 
     help='model architecture to train',
-    default="BN-CNN3x3")
+    default="BN+Coord4CNN3x3")
   parser.add_argument('--graphtype', type=str,
     choices=['straight_through_gumbel_softmax',
              'reinforce',
@@ -73,9 +74,10 @@ def main():
       "Baseline",
       "EoSPriored",
       "Transcoding",
+      "TranscodingSpeaker",
       "TranscodingListener"
       ],
-    default="Transcoding")
+    default="TranscodingSpeaker")
   parser.add_argument('--lr', type=float, default=1e-4)
   parser.add_argument('--epoch', type=int, default=10000)
   parser.add_argument('--metric_epoch_period', type=int, default=20)
@@ -94,6 +96,7 @@ def main():
   parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
   parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
   parser.add_argument('--transcoder_st_gs_inv_tau0', type=float, default=0.5)
+  parser.add_argument('--transcoder_visual_encoder_use_coord4', action='store_true', default=False)
   parser.add_argument('--shared_architecture', action='store_true', default=False)
   parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
@@ -428,7 +431,8 @@ def main():
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
-    
+    agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
+
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
 
@@ -493,6 +497,7 @@ def main():
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
+    agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
 
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
@@ -554,6 +559,7 @@ def main():
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
+    agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
 
     agent_config['symbol_processing_nbr_hidden_units'] = 256
     agent_config['symbol_processing_nbr_rnn_layers'] = 1
@@ -660,10 +666,14 @@ def main():
   else:
     save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
-  if 'TranscodingListener' in args.agent_type:
-    save_path += f"TranscodingSteps{args.visual_decoder_nbr_steps}-STGS{args.transcoder_st_gs_inv_tau0}/"
+  if 'Transcoding' in args.agent_type or 'TranscodingListener' in args.agent_type:
+    save_path += f"TranscodingSteps{args.visual_decoder_nbr_steps}"
+    save_path += f"-TransListSTGS{args.transcoder_st_gs_inv_tau0}/"
+  
+  if 'Transcoding' in args.agent_type or 'TranscodingSpeaker' in args.agent_type:
+    save_path += f"TranscodingSpeaker-Coord{'4' if args.transcoder_visual_encoder_use_coord4 else '2' }/"
 
-  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/TestCoord4Conv/TrLisAlone/"#TestArchTanh/"
+  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
   
   
   if args.same_head:
@@ -762,7 +772,7 @@ def main():
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
       differentiable=args.differentiable
     )
-  elif 'TranscodingListener' in args.agent_type:
+  elif 'TranscodingListener' in args.agent_type and 'Speaker' not in args.agent_type:
       from ReferentialGym.agents import TranscodingLSTMCNNListener
       listener = TranscodingLSTMCNNListener(
         kwargs=listener_config, 

@@ -37,7 +37,12 @@ def choose_architecture( architecture,
         return FCBody(input_shape[0], hidden_units=fc_hidden_units_list, gate=nn.LeakyReLU)
     
     if 'CNN' in architecture:
-        use_coordconv = ('Coord' in architecture)
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
+            
         channels = [input_shape[0]] + nbr_channels_list
         if 'MHDPA' in architecture:
             body = ConvolutionalMHDPABody(input_shape=input_shape,
@@ -90,7 +95,11 @@ def choose_architecture( architecture,
     if 'ResNet18AvgPooled' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture.lower())
-        use_coordconv = ('coord' in architecture.lower())
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
         body = ModelResNet18AvgPooled(input_shape=input_shape,
                                       feature_dim=feature_dim,
                                       nbr_layer=nbr_layer,
@@ -99,7 +108,11 @@ def choose_architecture( architecture,
     elif 'ResNet18AvgPooled' in architecture and "MHDPA" in architecture:
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture.lower())
-        use_coordconv = ('coord' in architecture.lower())
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
         body = ResNet18AvgPooledMHDPA(input_shape=input_shape,
                                      feature_dim=feature_dim,
                                      nbr_layer=nbr_layer,
@@ -114,7 +127,11 @@ def choose_architecture( architecture,
     elif 'ResNet18' in architecture and not("MHDPA" in architecture):
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture.lower())
-        use_coordconv = ('coord' in architecture.lower())
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
         body = ModelResNet18(input_shape=input_shape,
                              feature_dim=feature_dim,
                              nbr_layer=nbr_layer,
@@ -124,7 +141,11 @@ def choose_architecture( architecture,
     elif 'ResNet18' in architecture and "MHDPA" in architecture:
         nbr_layer = int(architecture[-1])
         pretrained = ('pretrained' in architecture.lower())
-        use_coordconv = ('coord' in architecture.lower())
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
         body = ResNet18MHDPA(input_shape=input_shape,
                              feature_dim=feature_dim,
                              nbr_layer=nbr_layer,
@@ -148,7 +169,11 @@ def choose_architecture( architecture,
                                      rnn_hidden_units=rnn_hidden_units_list,
                                      dropout=dropout)
     if 'BetaVAE' in architecture:
-        use_coordconv = ('Coord' in architecture)
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
         resnet_encoder = ('ResNet' in architecture)
         resnet_nbr_layer = None
         use_avg_pooled = ('AvgPooled' in architecture)

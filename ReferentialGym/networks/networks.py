@@ -89,7 +89,7 @@ class addXYfeatures(nn.Module) :
         super(addXYfeatures,self).__init__() 
         self.fXY = None
 
-    def forward(self,x) :
+    def forward(self,x, outputFsizes=False) :
         xsize = x.size()
         batch = xsize[0]
         if self.fXY is None:
@@ -114,11 +114,16 @@ class addXYfeatures(nn.Module) :
             fxy = fx.repeat(1,1,1,sizeY)
             fyx = fy.repeat(1,1,sizeX,1)
             self.fXY = torch.cat( [fxy,fyx], dim=1)
-        
+            self.sizeX = sizeX
+            self.sizeY = sizeY
+            
         fXY = self.fXY.repeat(batch,1,1,1)
         if x.is_cuda : fXY = fXY.cuda()
             
         out = torch.cat( [x,fXY], dim=1)
+
+        if outputFsizes:
+            return out, self.sizeX, self.sizeY
 
         return out 
 
@@ -127,7 +132,7 @@ class addXYRhoThetaFeatures(nn.Module) :
         super(addXYRhoThetaFeatures,self).__init__() 
         self.fXYRhoTheta = None
 
-    def forward(self,x) :
+    def forward(self,x, outputFsizes=False) :
         xsize = x.size()
         batch = xsize[0]
         if self.fXYRhoTheta is None:
@@ -164,12 +169,17 @@ class addXYRhoThetaFeatures(nn.Module) :
             fTheta = torch.atan2(fyx, fxy)/math.pi
             
             self.fXYRhoTheta = torch.cat( [fxy,fyx, fRho, fTheta], dim=1)
-        
+            self.sizeX = sizeX
+            self.sizeY = sizeY
+
         fXYRhoTheta = self.fXYRhoTheta.repeat(batch,1,1,1)
         if x.is_cuda : fXYRhoTheta = fXYRhoTheta.cuda()
             
         out = torch.cat( [x,fXYRhoTheta], dim=1)
 
+        if outputFsizes:
+            return out, self.sizeX, self.sizeY
+        
         return out 
 
 def conv( sin, sout,k,stride=1,padding=0,batchNorm=True) :
@@ -302,7 +312,7 @@ class ConvolutionalBody(nn.Module):
                  fc_hidden_units=None,
                  dropout=0.0, 
                  non_linearities=[nn.LeakyReLU],
-                 use_coordconv=False):
+                 use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -318,12 +328,17 @@ class ConvolutionalBody(nn.Module):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
         '''
         super(ConvolutionalBody, self).__init__()
         original_conv_fn = nn.Conv2d
-        if use_coordconv:
-            original_conv_fn = coord4conv #coordconv
+        if use_coordconv is not None:
+            if use_coordconv == 2: 
+                original_conv_fn = coordconv
+            elif use_coordconv == 4:
+                original_conv_fn = coord4conv
+            else:
+                raise NotImplementedError
 
         self.dropout = dropout
         self.non_linearities = non_linearities
@@ -361,9 +376,12 @@ class ConvolutionalBody(nn.Module):
                 if isinstance(cfg, str) and 'NoNonLin' in cfg:
                     add_non_lin = False
                     cfg = cfg.replace('NoNonLin', '') 
-                if isinstance(cfg, str) and 'Coord' in cfg:
-                    conv_fn = coord4conv#coordconv
-                    cfg = cfg.replace('Coord', '') 
+                if isinstance(cfg, str) and 'Coord2' in cfg:
+                    conv_fn = coordconv
+                    cfg = cfg.replace('Coord2', '') 
+                elif isinstance(cfg, str) and 'Coord4' in cfg:
+                    conv_fn = coord4conv
+                    cfg = cfg.replace('Coord4', '') 
                 
                 if isinstance(cfg, str) and '_DP' in cfg:
                     add_dp = True
@@ -477,7 +495,7 @@ class EntityPrioredConvolutionalBody(ConvolutionalBody):
                  fc_hidden_units=None,
                  dropout=0.0, 
                  non_linearities=[nn.LeakyReLU],
-                 use_coordconv=False):
+                 use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -493,7 +511,7 @@ class EntityPrioredConvolutionalBody(ConvolutionalBody):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
         '''
         super(EntityPrioredConvolutionalBody, self).__init__(
             input_shape=input_shape, 
@@ -557,7 +575,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
                  dropout=0.0, 
                  non_linearities=[nn.ReLU], 
                  gate=F.relu,
-                 use_coordconv=False):
+                 use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -575,7 +593,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
         '''
         super(ConvolutionalLstmBody, self).__init__(input_shape=input_shape,
                                                 feature_dim=feature_dim,
@@ -623,7 +641,7 @@ class ConvolutionalGruBody(ConvolutionalBody):
                  dropout=0.0, 
                  non_linearities=[nn.ReLU], 
                  gate=F.relu,
-                 use_coordconv=False):
+                 use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).
         
@@ -641,7 +659,7 @@ class ConvolutionalGruBody(ConvolutionalBody):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
         '''
         super(ConvolutionalGruBody, self).__init__(input_shape=input_shape,
                                                 feature_dim=feature_dim,
@@ -795,7 +813,8 @@ class MHDPA(nn.Module):
         self.queryGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
         self.keyGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
         self.valueGenerator_layerNorm = nn.LayerNorm(self.interactions_dim,elementwise_affine=False)
-        
+    
+    '''    
     def addXYfeatures(self,x,outputFsizes=False):
         xsize = x.size()
         batch = xsize[0]
@@ -831,6 +850,7 @@ class MHDPA(nn.Module):
             return out, self.sizeX, self.sizeY
 
         return out 
+    '''
 
     def forward(self,x, usef=False):
         # input: b x d x f
@@ -883,20 +903,22 @@ class MHDPA(nn.Module):
 
 class MHDPA_RN(nn.Module):
     def __init__(self,
-                 depth_dim=24+11+2, 
+                 depth_dim=24+11, 
                  nbrHead=3,
                  nbrRecurrentSharedLayers=1,
                  nbrEntity=7,
                  units_per_MLP_layer=256,
                  interactions_dim=128,
                  output_dim=None,
-                 dropout_prob=0.0):
+                 dropout_prob=0.0,
+                 use_coord4=False):
         super(MHDPA_RN,self).__init__()
 
         self.nbrEntity = nbrEntity
         self.output_dim = output_dim
         self.depth_dim = depth_dim
         self.dropout_prob = dropout_prob
+        self.use_coord4 = use_coord4
 
         self.nbrHead = nbrHead
         self.nbrRecurrentSharedLayers = nbrRecurrentSharedLayers
@@ -904,6 +926,13 @@ class MHDPA_RN(nn.Module):
         self.units_per_MLP_layer = units_per_MLP_layer 
         self.interactions_dim = interactions_dim 
         self.use_bias = False 
+
+        if self.use_coord4:
+            self.augmentationScheme = addXYRhoThetaFeatures()
+            self.depth_dim += 4
+        else:
+            self.augmentationScheme = addXYfeatures()
+            self.depth_dim += 2
 
         self.MHDPAs = nn.ModuleList()
         for i in range(self.nbrHead):
@@ -968,9 +997,10 @@ class MHDPA_RN(nn.Module):
         augxNone = True
         if augx is None:
             # add coordinate channels:
-            augx, self.sizeX, self.sizeY = self.MHDPAs[0].addXYfeatures(x,outputFsizes=True)
-            self.featuresize = self.sizeX*self.sizeY
+            augx, self.sizeX, self.sizeY = self.augmentationScheme(x,outputFsizes=True)
+            augx = augx.view((self.batchsize,self.depth_dim,-1))
             # batch x d x f(=featuremap_dim^2)
+            self.featuresize = self.sizeX*self.sizeY
         else:
             augxNone = False
             self.featuresize = augx.size(-1)
@@ -1010,11 +1040,12 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                  fc_hidden_units=None,
                  dropout=0.0, 
                  non_linearities=[nn.LeakyReLU],
-                 use_coordconv=False,
+                 use_coordconv=None,
                  nbrHead=4,
                  nbrRecurrentSharedLayers=1,  
                  units_per_MLP_layer=512,
-                 interaction_dim=128):
+                 interaction_dim=128,
+                 use_coord4=False):
         '''
         Default input channels assume a RGB image (3 channels).
         
@@ -1032,13 +1063,14 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-        :param use_coordconv: boolean specifying whether to use coord convolutional layers.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
         
         :param nbrHead: Int, number of Scaled Dot-Product Attention head.
         :param nbrRecurrentSharedLayers: Int, number of recurrent update to apply.
         :param units_per_MLP_layer: Int, number of neurons in the transformation from the
                                     concatenated head outputs to the entity embedding space.
         :param interaction_dim: Int, number of dimensions in the interaction space.
+        :param use_coord4: boolean specifying whether to augment the features with XY and RhoTheta channels.
         '''
         super(ConvolutionalMHDPABody, self).__init__(input_shape=input_shape,
                                                      feature_dim=feature_dim,
@@ -1052,13 +1084,14 @@ class ConvolutionalMHDPABody(ConvolutionalBody):
                                                      use_coordconv=use_coordconv)       
         
         self.relationModule = MHDPA_RN(output_dim=None,
-                                       depth_dim=channels[-1]+2,
+                                       depth_dim=channels[-1],
                                        nbrHead=nbrHead, 
                                        nbrRecurrentSharedLayers=nbrRecurrentSharedLayers, 
                                        nbrEntity=self.feat_map_dim*self.feat_map_dim,  
                                        units_per_MLP_layer=units_per_MLP_layer,
                                        interactions_dim=interaction_dim,
-                                       dropout_prob=dropout)
+                                       dropout_prob=dropout,
+                                       use_coord4=use_coord4)
         
         hidden_units = (self.feat_map_dim * self.feat_map_dim * (channels[-1]+2),)
         if isinstance(feature_dim, tuple):
