@@ -244,24 +244,45 @@ def main():
   #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
-
-  # INTER MULTI:
-  # COMB2: Sparse 4 Attributes: 2112 test / 960 train
-  train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N' 
-  
-
-  # SIMPLE X+Y
-  # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
-  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
-  # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
-  #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: simple splitted XY X 16/ Y 16/ --> 256 test / 768 train 
   #train_split_strategy = 'combinatorial2-Y-1-S16-X-1-S16-Orientation-40-N-Scale-6-N-Shape-3-N' 
   
-  # SIMPLE Orient.+Scale
-  # Sparse: simple splitted  Orient. 4/ Scale 3/ --> 12 test / 36 train 
-  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-5-S4-Scale-1-S3-Shape-3-N' 
+  # EXTRA SIMPLE X+Y
+  # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N' 
   
+  # INTER SIMPLE Scale+Orientation
+  # Sparse: simple splitted Scale Orientation Scale 4/ Orientation 3/ --> 12 test / 36 train 
+  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-5-2-Scale-1-2-Shape-3-N' 
+  # Dense: simple splitted Scale Orientation Scale 10/ Orientation 3/ --> 30 test / 90 train 
+  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-2-2-Scale-1-2-Shape-3-N' 
+  
+  # EXTRA SIMPLE Scale+Orientation
+  # Sparse: simple splitted Scale Orientation Scale 4/ Orientation 3/ --> 12 test / 36 train 
+  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-5-2-Scale-1-2-Shape-3-N' 
+  # Dense: simple splitted Scale Orientation Scale 10/ Orientation 3/ --> 30 test / 90 train 
+  #train_split_strategy = 'combinatorial2-Y-32-N-X-32-N-Orientation-2-S10-Scale-1-S3-Shape-3-N' 
+  
+  # INTER MULTI3 X+Y+Orientation
+  #COMB2 Sparse: simple splitted XYOrientation X 4/ Y 4/ Orientation 4/ --> 256 test / 256 train 
+  #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N' 
+  
+  # EXTRA MULTI3 X+Y+Orientation
+  #COMB2 Sparse: simple splitted XYOrientation X 4/ Y 4/ Orientation 4/ --> 256 test / 256 train 
+  train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N' 
+    
+
+  # INTER MULTI:
+  #COMB2: Sparser 4 Attributes: 264 test / 120 train
+  #train_split_strategy = 'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N' 
+  #COMB4: Sparser 4 Attributes: 24 test / 360 train
+  #train_split_strategy = 'combinatorial4-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N' 
+  
+  # COMB2: Sparse 4 Attributes: 2112 test / 960 train
+  #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N' 
+  
+
+
   #Multi 3: denser simple X+Y with the sample size of multi 4:
   #train_split_strategy = 'combinatorial2-Y-1-S16-X-1-S16-Orientation-2-S10-Scale-6-N-Shape-3-N' 
   
@@ -269,8 +290,11 @@ def main():
   #MULTI:
   #COMB2: Sparser 4 Attributes: 264 test / 120 train
   #train_split_strategy = 'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N' 
+  #COMB4: Sparser 4 Attributes: 24 test / 360 train
+  #train_split_strategy = 'combinatorial4-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N' 
+  
   #COMB2: Sparse 4 Attributes: 2112 test / 960 train
-  train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N' 
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N' 
   #COMB2: Dense 4 Attributes: 21120 test / 9600 train
   #train_split_strategy = 'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-2-N' 
              
