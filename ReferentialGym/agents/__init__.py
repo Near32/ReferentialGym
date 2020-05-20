@@ -11,6 +11,7 @@ from .transcoding_lstm_cnn_speaker import TranscodingLSTMCNNSpeaker
 from .multi_head_lstm_cnn_speaker import MultiHeadLSTMCNNSpeaker
 from .eos_priored_lstm_cnn_speaker import EoSPrioredLSTMCNNSpeaker
 from .lstm_cnn_listener import LSTMCNNListener
+from .attention_lstm_cnn_listener import AttentionLSTMCNNListener
 from .transcoding_lstm_cnn_listener import TranscodingLSTMCNNListener
 
 from .caption_speaker import CaptionSpeaker 

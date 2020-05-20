@@ -7,7 +7,7 @@ from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 from ..utils import StraightThroughGumbelSoftmaxLayer
 
 
-class TranscodingLSTMCNNListener(Listener):
+class AttentionLSTMCNNListener(Listener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
@@ -17,7 +17,7 @@ class TranscodingLSTMCNNListener(Listener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(TranscodingLSTMCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
+        super(AttentionLSTMCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
@@ -131,59 +131,44 @@ class TranscodingLSTMCNNListener(Listener):
         )
         
 
-        ## Multi-modal Transcoder:
+        ## Multi-modal Attention:
         self.decoder_nbr_steps = self.kwargs['visual_decoder_nbr_steps']
-        # This transcoder has to embed the decoder hidden state.
-        # Therefore, the embedding can be a simple MLP:
         self.visual_decoder_hidden_size = self.kwargs['visual_decoder_nbr_hidden_units']
-        self.transcoder_visual_embedder_input_size = self.visual_decoder_hidden_size
-        self.transcoder_visual_embedder_output_size = self.encoder_feature_shape
-        self.transcoder_visual_embedder =  nn.Linear(
-            self.transcoder_visual_embedder_input_size, 
-            self.transcoder_visual_embedder_output_size, 
-            bias=False
-        )
-        self.transcoder_visual_embedder_learnable_initial_input = nn.Parameter(
-            torch.zeros(1,self.transcoder_visual_embedder_input_size)
-        )
         
-        # 
-        self.transcoder_hidden_size = self.kwargs['transcoder_nbr_hidden_units']
-        self.transcoder_input_size = self.transcoder_visual_embedder_output_size
-        self.transcoder = nn.LSTM(input_size=self.transcoder_input_size,
-          hidden_size=self.transcoder_hidden_size, 
-          num_layers=self.kwargs['transcoder_nbr_rnn_layers'],
-          batch_first=True,
-          dropout=self.kwargs['dropout_prob'],
-          bidirectional=False,
-        )
-        self.transcoder_learnable_initial_state = nn.Parameter(
-            torch.zeros(1,1,self.transcoder_hidden_size)
-        )
-        
-        # MLP + Concat Attention:
-        self.transcoder_attention_interaction_dim = self.kwargs['transcoder_attention_interaction_dim']
-        self.transcoder_guided_textual_pre_att = nn.Sequential(
+        # Attention Model:
+        self.attention_model_input_size = self.textual_encoder_hidden_size+self.visual_decoder_hidden_size
+        self.attention_model_hidden_size = self.kwargs['attention_model_hidden_size']
+        self.attention_model = nn.Sequential(
             nn.Linear(
-                self.transcoder_hidden_size+self.textual_encoder_hidden_size, 
-                self.transcoder_attention_interaction_dim, 
+                self.attention_model_input_size, 
+                self.attention_model_hidden_size, 
                 bias=True
             ),
             nn.ReLU(inplace=True),
+            nn.Linear(
+                self.attention_model_hidden_size, 
+                self.attention_model_hidden_size, 
+                bias=True
+            ),
+            nn.ReLU(inplace=True),
+            nn.Linear(
+                self.attention_model_hidden_size, 
+                1, 
+                bias=True
+            )
         )
-        self.transcoder_guided_textual_att = nn.Linear(self.transcoder_attention_interaction_dim, 1, bias=False)
-
-        self.textual_context_dim = self.textual_embedding_size
+        
+        self.textual_context_dim = self.textual_encoder_hidden_size
 
         self.st_gs = StraightThroughGumbelSoftmaxLayer(
-                inv_tau0=self.kwargs['transcoder_st_gs_inv_tau0'], 
-                input_dim=self.transcoder_hidden_size
+                inv_tau0=self.kwargs['attention_st_gs_inv_tau0'], 
+                input_dim=self.textual_encoder_hidden_size
         )
 
         ##
 
         ## Visual Decoder:
-        self.visual_decoder_input_dim = self.textual_context_dim+self.transcoder_visual_embedder_output_size
+        self.visual_decoder_input_dim = self.textual_context_dim+self.encoder_feature_shape
         self.visual_decoder = nn.LSTM(input_size=self.visual_decoder_input_dim,
                                       hidden_size=self.visual_decoder_hidden_size, 
                                       num_layers=self.kwargs['visual_decoder_nbr_rnn_layers'],
@@ -201,6 +186,9 @@ class TranscodingLSTMCNNListener(Listener):
                 bias=True
             ),
             nn.Dropout( p=self.kwargs['visual_decoder_mlp_dropout_prob'])
+        )
+        self.visual_decoder_mlp_learnable_initial_output = nn.Parameter(
+                torch.zeros(1, self.encoder_feature_shape)
         )
 
         if self.textual_context_dim != self.visual_decoder_hidden_size:
@@ -224,10 +212,7 @@ class TranscodingLSTMCNNListener(Listener):
     def reset(self):
         self.textual_embedder.apply(layer_init)
         self.textual_encoder.apply(layer_init)
-        self.transcoder_visual_embedder.apply(layer_init)
-        self.transcoder.apply(layer_init)
-        self.transcoder_guided_textual_pre_att.apply(layer_init)
-        self.transcoder_guided_textual_att.apply(layer_init)
+        self.attention_model.apply(layer_init)
         self.st_gs.apply(layer_init)
         self.visual_decoder.apply(layer_init)
         self.visual_decoder_mlp.apply(layer_init)
@@ -359,7 +344,7 @@ class TranscodingLSTMCNNListener(Listener):
             self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
             # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
 
-        # (Eq 1) :
+        # Textual Embedding:
         # (batch_size, max_sentence_length, self.vocab_size)
         sentences_length = sentences.shape[1]
         sentences = sentences.view((-1, self.vocab_size))
@@ -368,7 +353,7 @@ class TranscodingLSTMCNNListener(Listener):
         embedded_sentences = embedded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))
         # (batch_size, max_sentence_length, textual_embedding_size)
         
-        # (Eq 2) :
+        # Textual Encoding:
         init_textual_encoder_state = self.textual_encoder_learnable_initial_state.expand(
             self.kwargs['textual_encoder_nbr_rnn_layers'],
             batch_size, 
@@ -391,21 +376,9 @@ class TranscodingLSTMCNNListener(Listener):
             textual_encoder_outputs = self.projection_normalization(textual_encoder_outputs.reshape((batch_size, -1)))
             textual_encoder_outputs = textual_encoder_outputs.reshape((batch_size, -1, self.textual_encoder_hidden_size))
 
-        #  Transcoder+Decoder Loop Initialization:
-        init_transcoder_state = self.transcoder_learnable_initial_state.expand(
-            self.kwargs['transcoder_nbr_rnn_layers'],
-            batch_size, 
-            -1
-        )
-        # (hidden_layer*num_directions=1, batch_size, kwargs['transcoder_nbr_hidden_units'])
-        transcoder_state = (
-            init_transcoder_state.contiguous(),
-            torch.zeros_like(init_transcoder_state)
-        )
-
         # Decoder initial state, as seen in (Eq 10), after full focus, if any...
         init_visual_decoder_state = self.visual_decoder_learnable_initial_state.expand(
-            self.kwargs['transcoder_nbr_rnn_layers'],
+            self.kwargs['visual_decoder_nbr_rnn_layers'],
             batch_size, 
             -1
         )
@@ -415,46 +388,53 @@ class TranscodingLSTMCNNListener(Listener):
             torch.zeros_like(init_visual_decoder_state)
         )
 
-        visual_decoder_output = self.transcoder_visual_embedder_learnable_initial_input.expand(
+        visual_decoder_output = self.visual_decoder_learnable_initial_state.expand(
             batch_size, 
+            -1,
+            -1
+        )
+        # (batch_size, 1, visual_decoder_hidden_size)
+        
+        visual_decoder_mlp_output = self.visual_decoder_mlp_learnable_initial_output.expand(
+            batch_size,
             -1
         )
 
         decision_logits = []
         per_step_visual_decoder_mlp_outputs = []
         for timestep in range(self.decoder_nbr_steps):
-            ## Transcoder:
-            # (Eq 3) Encoding the decoder output symbol at t-1:
-            transcoder_visual_embedding = self.transcoder_visual_embedder(visual_decoder_output).unsqueeze(1)
-            # (batch_size, 1, transcoder_visual_embedder_output_size)
-            # (Eq 4) Forward pass through the transcoder:
-            transcoder_outputs, next_transcoder_states = self.transcoder(transcoder_visual_embedding, transcoder_state)
-            # (batch_size, 1, kwargs['transcoder_nbr_hidden_units'])
-            # (hidden_layer*num_directions, batch_size, kwargs['transcoder_nbr_hidden_units'])
-            # (Eq 5): assuming LSTMs... taking the last layer output:
-            transcoder_state = transcoder_state[0][-1].unsqueeze(1).expand(-1, sentences_length,-1)
-            # (batch_size, sentences_length, transcoder_nbr_hidden_size)
-            trans_att_inputs = torch.cat([textual_encoder_outputs, transcoder_state], dim=-1)
-            # (batch_size, sentence_length, textual_encoder_hidden_size+transcoder_hidden_size) 
-            # (Eq 5): ReLU Linear
-            trans_pre_att_activation = self.transcoder_guided_textual_pre_att(trans_att_inputs)
-            # ( batch_size, sentence_length, interaction_dim) 
-            # (Eq 5 & 6): Final Linear + Softmax
-            trans_att = self.transcoder_guided_textual_att(trans_pre_att_activation).reshape(batch_size, sentences_length).softmax(dim=-1)
+            # (batch_size, 1, visual_decoder_hidden_size)
+            visual_decoder_hidden_state = visual_decoder_output.expand(
+                -1,
+                sentences_length,
+                -1
+            )
+            # (batch_size, sentence_length, visual_decoder_hidden_size)
+            attention_model_inputs = torch.cat([textual_encoder_outputs, visual_decoder_hidden_state], dim=-1)
+            # (batch_size, sentence_length, textual_encoder_hidden_size+visual_decoder_hidden_size) 
+            # (Eq 6 (and below)): Attention Model + Softmax
+            att = self.attention_model(attention_model_inputs).reshape(batch_size, sentences_length).softmax(dim=-1)
             # ( batch_size, sentence_length)
             
-            # (Eq 7 & 8) Straight-Through Gumbel-Softmax:
-            if not self.kwargs['transcoder_listener_soft_attention']:
-                trans_att = self.st_gs(logits=trans_att, param=transcoder_state)
+            # Soft or Hard Attention via Straight-Through Gumbel-Softmax:
+            if not self.kwargs['attention_listener_soft_attention']:
+                att = self.st_gs(logits=att, param=visual_decoder_hidden_state)
             # (batch_size, sentence_length)
-            # (Eq 9) Context computation:
-            context = (trans_att.unsqueeze(-1) * embedded_sentences).sum(1) 
-            # (batch_size, context_dim=textual_embedding_size)
+            
+            # (Eq 5) Context computation:
+            context = (att.unsqueeze(-1) * textual_encoder_outputs).sum(1) 
+            # (batch_size, context_dim=textual_encoder_hidden_size)
 
             ## Decoder:
             # (Eq 10) Forward pass through the decoder:
-            visual_decoder_input = torch.cat([context.unsqueeze(1), transcoder_visual_embedding], dim=-1)
-            # (batch_size, seq_len=1, textual_embedding_size+transcoder_visual_embedder_output_size)
+            visual_decoder_input = torch.cat(
+                [
+                    context.unsqueeze(1), 
+                    visual_decoder_mlp_output.unsqueeze(1)
+                ], 
+                dim=-1
+            )
+            # (batch_size, seq_len=1, textual_context_dim(=textual_encoder_hidden_size)+visual_decoder_mlp_output_size=self.encoded_feature_shape)
             visual_decoder_outputs, next_visual_decoder_states = self.visual_decoder(
                 visual_decoder_input, 
                 visual_decoder_state
@@ -462,29 +442,33 @@ class TranscodingLSTMCNNListener(Listener):
             # (batch_size, 1, visual_decoder_hidden_size)
             # (hidden_layer*num_directions, batch_size, visual_decoder_hidden_size)
             # (Eq 11 - listener)
-            visual_decoder_outputs = visual_decoder_outputs.reshape(batch_size,-1)
-            # (batch_size, visual_decoder_hidden_size)
-            visual_decoder_mlp_output = self.visual_decoder_mlp(visual_decoder_outputs)
+            # Input: (batch_size, visual_decoder_hidden_size)
+            visual_decoder_mlp_output = self.visual_decoder_mlp(visual_decoder_outputs.reshape(batch_size,-1))
             # (batch_size, self.encoded_feature_shape)
             per_step_visual_decoder_mlp_outputs.append(visual_decoder_mlp_output)
 
             ## Bookkeeping:
-            # Transcoder
             visual_decoder_output = visual_decoder_outputs
-            transcoder_state = next_transcoder_states
+            # (batch_size, 1, visual_decoder_hidden_size)
             # Visual Decoder:
             visual_decoder_state = next_visual_decoder_states
             # Visual Decoder's Full Focus Scheme:
-            if self.textual_context2decoder_converter is not None:
-                context = self.textual_context2decoder_converter(context.reshape(-1, self.textual_context_dim))
-            context = context.reshape(batch_size,1,-1)
-            # (batch_size, 1, visual_decoder_hidden_size)
-            # Assumes LSTMs...
-            full_focus_visual_decoder_state = visual_decoder_state[0]*context
-            decoder_state =(
-                full_focus_visual_decoder_state,
-                visual_decoder_state[-1]
-            )
+            if self.kwargs['attention_full_focus_scheme']:
+                if self.textual_context2decoder_converter is not None:
+                    context = self.textual_context2decoder_converter(context.reshape(-1, self.textual_context_dim))
+                context = context.reshape(batch_size,1,-1)
+                # (batch_size, 1, visual_decoder_hidden_size)
+                # Assumes LSTMs...
+                full_focus_visual_decoder_state = visual_decoder_state[0]*context
+                decoder_state =(
+                    full_focus_visual_decoder_state,
+                    visual_decoder_state[1]
+                )
+            else:
+                decoder_state =(
+                    visual_decoder_state[0],
+                    visual_decoder_state[1]
+                )
 
             ## Visual Feature Projection:
             stimuli_features = self.embedding_tf_final_outputs
