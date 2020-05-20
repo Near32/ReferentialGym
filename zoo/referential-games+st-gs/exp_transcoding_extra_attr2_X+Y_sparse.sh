@@ -3,10 +3,27 @@
 # $2==ARCH( /BN+CNN3x3)
 # $3==NBR_DISTRACTORS_TRAIN (48 train + 16 test)
 # $4==NBR_DISTRACTORS_TEST (48 train + 16 test)
-# $5==VOCAV_SIZE (5/20)
+# $5==VOCAB_SIZE (5/20)
 # $6==BATCH_SIZE (2/12/24/36/48)
 
-python train.py --seed $(($1+0)) \
+python train_transcoding.py --seed $(($1+0)) \
+--agent_type TranscodingSpeaker \
+--arch $2 \
+--epoch 10000 \
+--distractor_sampling uniform \
+--nbr_train_distractors $3 --nbr_test_distractors $4 \
+--max_sentence_length $5 --vocab_size 100 \
+--dataset dSprites \
+--train_test_split_strategy combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N \
+--use_cuda \
+--batch_size $6 &
+#--shared_architecture \
+#--fast \
+#--transcoder_visual_encoder_use_coord4 \
+
+
+python train_transcoding.py --seed $(($1+10)) \
+--agent_type TranscodingSpeaker \
 --arch $2 \
 --epoch 10000 \
 --distractor_sampling uniform \
@@ -20,7 +37,8 @@ python train.py --seed $(($1+0)) \
 #--fast \
 
 
-python train.py --seed $(($1+10)) \
+python train_transcoding.py --seed $(($1+20)) \
+--agent_type TranscodingSpeaker \
 --arch $2 \
 --epoch 10000 \
 --distractor_sampling uniform \
@@ -34,7 +52,8 @@ python train.py --seed $(($1+10)) \
 #--fast \
 
 
-python train.py --seed $(($1+20)) \
+python train_transcoding.py --seed $(($1+30)) \
+--agent_type TranscodingSpeaker \
 --arch $2 \
 --epoch 10000 \
 --distractor_sampling uniform \
@@ -48,21 +67,8 @@ python train.py --seed $(($1+20)) \
 #--fast \
 
 
-python train.py --seed $(($1+30)) \
---arch $2 \
---epoch 10000 \
---distractor_sampling uniform \
---nbr_train_distractors $3 --nbr_test_distractors $4 \
---max_sentence_length $5 --vocab_size 100 \
---dataset dSprites \
---train_test_split_strategy combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N \
---use_cuda \
---batch_size $6 &
-#--shared_architecture \
-#--fast \
-
-
-python train.py --seed $(($1+40)) \
+python train_transcoding.py --seed $(($1+40)) \
+--agent_type TranscodingSpeaker \
 --arch $2 \
 --epoch 10000 \
 --distractor_sampling uniform \
@@ -72,5 +78,6 @@ python train.py --seed $(($1+40)) \
 --train_test_split_strategy combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N \
 --use_cuda \
 --batch_size $6
+
 #--shared_architecture \
 #--fast \
