@@ -440,14 +440,15 @@ class TranscodingLSTMCNNListener(Listener):
             trans_pre_att_activation = self.transcoder_guided_textual_pre_att(trans_att_inputs)
             # ( batch_size, sentence_length, interaction_dim) 
             # (Eq 5 & 6): Final Linear + Softmax
-            trans_att = self.transcoder_guided_textual_att(trans_pre_att_activation).squeeze().softmax(dim=-1)
+            trans_att = self.transcoder_guided_textual_att(trans_pre_att_activation).reshape(batch_size, sentences_length).softmax(dim=-1)
             # ( batch_size, sentence_length)
             
             # (Eq 7 & 8) Straight-Through Gumbel-Softmax:
-            st_gs_trans_att = self.st_gs(logits=trans_att, param=transcoder_state).unsqueeze(-1)
-            # (batch_size, sentence_length, 1)
+            if not self.kwargs['transcoder_listener_soft_attention']:
+                trans_att = self.st_gs(logits=trans_att, param=transcoder_state)
+            # (batch_size, sentence_length)
             # (Eq 9) Context computation:
-            context = (st_gs_trans_att * embedded_sentences).sum(1) 
+            context = (trans_att.unsqueeze(-1) * embedded_sentences).sum(1) 
             # (batch_size, context_dim=textual_embedding_size)
 
             ## Decoder:
@@ -461,13 +462,15 @@ class TranscodingLSTMCNNListener(Listener):
             # (batch_size, 1, visual_decoder_hidden_size)
             # (hidden_layer*num_directions, batch_size, visual_decoder_hidden_size)
             # (Eq 11 - listener)
-            visual_decoder_mlp_output = self.visual_decoder_mlp(visual_decoder_outputs.squeeze(1))
+            visual_decoder_outputs = visual_decoder_outputs.reshape(batch_size,-1)
+            # (batch_size, visual_decoder_hidden_size)
+            visual_decoder_mlp_output = self.visual_decoder_mlp(visual_decoder_outputs)
             # (batch_size, self.encoded_feature_shape)
             per_step_visual_decoder_mlp_outputs.append(visual_decoder_mlp_output)
 
             ## Bookkeeping:
             # Transcoder
-            visual_decoder_output = visual_decoder_outputs.squeeze(1)
+            visual_decoder_output = visual_decoder_outputs
             transcoder_state = next_transcoder_states
             # Visual Decoder:
             visual_decoder_state = next_visual_decoder_states
