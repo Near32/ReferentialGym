@@ -95,6 +95,8 @@ def main():
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
   parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
+  parser.add_argument('--transcoder_speaker_soft_attention', action='store_true', default=False)
+  parser.add_argument('--transcoder_listener_soft_attention', action='store_true', default=False)
   parser.add_argument('--transcoder_st_gs_inv_tau0', type=float, default=0.5)
   parser.add_argument('--transcoder_visual_encoder_use_coord4', action='store_true', default=False)
   parser.add_argument('--shared_architecture', action='store_true', default=False)
@@ -431,6 +433,8 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
+    agent_config['transcoder_speaker_soft_attention'] = args.transcoder_speaker_soft_attention
+    agent_config['transcoder_listener_soft_attention'] = args.transcoder_listener_soft_attention
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
     agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
 
@@ -497,6 +501,8 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
+    agent_config['transcoder_speaker_soft_attention'] = args.transcoder_speaker_soft_attention
+    agent_config['transcoder_listener_soft_attention'] = args.transcoder_listener_soft_attention
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
     agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
 
@@ -559,6 +565,8 @@ def main():
     agent_config['transcoder_nbr_hidden_units'] = 256
     agent_config['transcoder_nbr_rnn_layers'] = 1
     agent_config['transcoder_attention_interaction_dim'] = 128
+    agent_config['transcoder_speaker_soft_attention'] = args.transcoder_speaker_soft_attention
+    agent_config['transcoder_listener_soft_attention'] = args.transcoder_listener_soft_attention
     agent_config['transcoder_st_gs_inv_tau0'] = args.transcoder_st_gs_inv_tau0
     agent_config['transcoder_visual_encoder_use_coord4'] = args.transcoder_visual_encoder_use_coord4
 
@@ -667,14 +675,14 @@ def main():
   else:
     save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
-  if 'Transcoding' in args.agent_type or 'TranscodingListener' in args.agent_type:
-    save_path += f"TranscodingSteps{args.visual_decoder_nbr_steps}"
+  if 'Transcoding' in args.agent_type and 'TranscodingSpeaker' not in args.agent_type:
+    save_path += f"{'Soft' if args.transcoder_listener_soft_attention else ''}TranscodingSteps{args.visual_decoder_nbr_steps}"
     save_path += f"-TransListSTGS{args.transcoder_st_gs_inv_tau0}/"
   
-  if 'Transcoding' in args.agent_type or 'TranscodingSpeaker' in args.agent_type:
-    save_path += f"TranscodingSpeaker-Coord{'4' if args.transcoder_visual_encoder_use_coord4 else '2' }/"
+  if 'Transcoding' in args.agent_type and 'TranscodingListener' not in args.agent_type:
+    save_path += f"{'Soft' if args.transcoder_speaker_soft_attention else ''}TranscodingSpeaker-Coord{'4' if args.transcoder_visual_encoder_use_coord4 else '2' }/"
 
-  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
+  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/TestTranscoding/"
   
   
   if args.same_head:

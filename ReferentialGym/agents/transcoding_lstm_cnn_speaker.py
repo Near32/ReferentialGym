@@ -418,10 +418,11 @@ class TranscodingLSTMCNNSpeaker(Speaker):
                 # (batch_size=1, nbr_visual_entity)
                 
                 # (Eq 7 & 8) Straight-Through Gumbel-Softmax:
-                st_gs_trans_att = self.st_gs(logits=trans_att, param=expanded_transcoder_state.unsqueeze(0)).reshape(-1,1)
+                if not self.kwargs['transcoder_speaker_soft_attention']:
+                    trans_att = self.st_gs(logits=trans_att, param=expanded_transcoder_state.unsqueeze(0)).reshape(-1,1)
                 # (nbr_visual_entity, 1)
                 # (Eq 9) Context computation:
-                context = (st_gs_trans_att * feat_map).sum(0) 
+                context = (trans_att.reshape(-1,1) * feat_map).sum(0) 
                 # (context_dim=visual_emb_input_depth_dim)
 
                 ## Decoder:
