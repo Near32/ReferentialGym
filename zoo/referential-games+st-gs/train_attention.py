@@ -67,6 +67,7 @@ def main():
     choices=[
       "Hinge",
       "NLL",
+      "CE",
       ],
     default="Hinge")
   parser.add_argument('--agent_type', type=str,
@@ -890,6 +891,14 @@ def main():
   )
   modules[topo_sim_metric_id] = topo_sim_metric_module
 
+  inst_coord_metric_id = "inst_coord_metric"
+  inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(id=inst_coord_metric_id,
+    config = {
+      "epoch_period":1,
+    }
+  )
+  modules[inst_coord_metric_id] = inst_coord_metric_module
+
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
     'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
@@ -963,6 +972,7 @@ def main():
   pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
+  pipelines[optim_id].append(inst_coord_metric_id)
   pipelines[optim_id].append(logger_id)
 
   rg_config["modules"] = modules

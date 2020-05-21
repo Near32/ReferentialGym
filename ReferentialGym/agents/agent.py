@@ -523,6 +523,17 @@ class Agent(Module):
                         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
                         decision_probs = F.log_softmax( final_decision_logits, dim=-1)
                         criterion = nn.NLLLoss(reduction='none')
+                        loss = criterion( decision_probs, sample['target_decision_idx'])
+                        # (batch_size, )
+                    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
+                
+                elif config['agent_loss_type'].lower() == 'ce':
+                    if config['descriptive']:  
+                        raise NotImplementedError
+                    else:   
+                        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                        decision_probs = torch.softmax(final_decision_logits, dim=-1)
+                        criterion = nn.CrossEntropyLoss(reduction='none')
                         loss = criterion( final_decision_logits, sample['target_decision_idx'])
                         # (batch_size, )
                     losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
