@@ -67,6 +67,7 @@ def main():
     choices=[
       "Hinge",
       "NLL",
+      "CE",
       ],
     default="Hinge")
   parser.add_argument('--agent_type', type=str,
@@ -794,7 +795,7 @@ def main():
     }
   )
   modules[inst_coord_metric_id] = inst_coord_metric_module
-  
+
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
     'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',

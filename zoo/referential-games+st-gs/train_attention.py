@@ -587,7 +587,7 @@ def main():
     raise NotImplementedError
 
 
-  save_path = f"./{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  save_path = f"./TestAttention/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
@@ -681,7 +681,7 @@ def main():
   if 'Attention' in args.agent_type and 'AttentionListener' not in args.agent_type:
     save_path += f"{'Soft' if args.attention_speaker_soft_attention else ''}AttentionSpeaker-Coord{'4' if args.attention_visual_encoder_use_coord4 else '2' }/"
 
-  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/TestAttention/"
+  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
   
   
   if args.same_head:
