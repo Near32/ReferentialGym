@@ -234,7 +234,7 @@ class Agent(Module):
         self.use_sentences_one_hot_vectors = False
 
         self.vocab_stop_idx = 0
-        self.vocab_pad_idx = self.vocab_size#-1
+        self.vocab_pad_idx = self.vocab_size
         
         self.hooks = []
 
@@ -401,7 +401,7 @@ class Agent(Module):
                 sentence_lengths = torch.sum(-(speaker_sentences_widx.squeeze(-1)-self.vocab_size).sign(), dim=-1).reshape(batch_size,-1)
                 sentence_length = sentence_lengths.mean()
             else:
-                sentence_lengths = (speaker_sentences_widx < (self.vocab_size-1))
+                sentence_lengths = (speaker_sentences_widx < (self.vocab_pad_idx))
                 sentence_lengths = sentence_lengths.reshape(batch_size,-1).float().sum(-1)
                 sentence_length = sentence_lengths.mean()
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config['max_sentence_length']

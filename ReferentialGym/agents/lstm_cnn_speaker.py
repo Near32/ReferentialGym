@@ -352,6 +352,7 @@ class LSTMCNNSpeaker(Speaker):
                 stop_word_condition = (prediction == self.vocab_stop_idx)
                 if len(sentences_widx[b]) >= self.max_sentence_length or stop_word_condition :
                     continuer = False 
+                    #TODO: enforce stop token at the last position, maybe?
 
                 token_idx +=1
             # Embed the sentence:
@@ -368,14 +369,14 @@ class LSTMCNNSpeaker(Speaker):
             sentences_hidden_states[b] = torch.cat(sentences_hidden_states[b], dim=0)
             # (sentence_length<=max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
             sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
-            # (batch_size=1, sentence_length<=max_sentence_length, 1)
+            # (batch_size=1, max_sentence_length, 1)
             sentences_logits[b] = torch.cat(sentences_logits[b], dim=0)
             # (sentence_length<=max_sentence_length, vocab_size)
             sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
             # (sentence_length<=max_sentence_length, vocab_size)
 
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
-        # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
+        # (batch_size, sentence_length<=max_sentence_length, vocab_size)
         
         sentences_widx = torch.cat(sentences_widx, dim=0)
         # (batch_size, max_sentence_length, 1)
