@@ -163,22 +163,38 @@ def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange):
         cossims.append( compute_cosine_sim(f1.squeeze(),f2.squeeze()))
     return cossims
 
+# def compute_topographic_similarity_parallel(sentences,features,comprange=100, max_workers=32):
+#     executor = ProcessPoolExecutor(max_workers=max_workers)
+#     indices = list(range(len(sentences)))
+#     levs = []
+#     for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+#         for l in idx1_levs: 
+#             levs.append(l)
+
+#     indices = list(range(len(features)))
+#     cossims = []
+#     for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+#         for c in idx1_cossims: 
+#             cossims.append(c)
+    
+#     rho, p = spearmanr(levs, cossims)
+#     return -rho, p, levs, cossims
 def compute_topographic_similarity_parallel(sentences,features,comprange=100, max_workers=32):
-    executor = ProcessPoolExecutor(max_workers=max_workers)
     indices = list(range(len(sentences)))
     levs = []
-    for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_levs in tqdm(zip(indices, map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
         for l in idx1_levs: 
             levs.append(l)
 
     indices = list(range(len(features)))
     cossims = []
-    for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_cossims in tqdm(zip(indices, map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
         for c in idx1_cossims: 
             cossims.append(c)
     
     rho, p = spearmanr(levs, cossims)
     return -rho, p, levs, cossims
+
 
 def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffset=None, suffix='', use_cuda=False):
   if use_cuda:
