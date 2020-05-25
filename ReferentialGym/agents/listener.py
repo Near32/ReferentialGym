@@ -7,6 +7,7 @@ from ..networks import layer_init
 from ..utils import gumbel_softmax 
 from .agent import Agent
 
+
 class Listener(Agent):
     def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None, kwargs=None):
         """

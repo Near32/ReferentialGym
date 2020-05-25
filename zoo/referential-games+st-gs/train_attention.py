@@ -95,7 +95,7 @@ def main():
   parser.add_argument('--nbr_train_distractors', type=int, default=47)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
-  parser.add_argument('--visual_decoder_nbr_steps', type=int, default=2)
+  parser.add_argument('--visual_decoder_nbr_steps', type=int, default=1)
   parser.add_argument('--attention_speaker_soft_attention', action='store_true', default=False)
   parser.add_argument('--attention_listener_soft_attention', action='store_true', default=False)
   parser.add_argument('--attention_st_gs_inv_tau0', type=float, default=0.5)
@@ -138,6 +138,7 @@ def main():
              'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
              'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Dense 2 Attributes: X+Y 256 imgs, 192 train, 64 test
              'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N', #COMB2:Sparse 3 Attributes: 256 test / 256 train
              'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
              'combinatorial2-Y-2-2-X-2-2-Orientation-2-2-Scale-1-2-Shape-3-N', #COMB2:Dense 4 Attributes: ? test / ? train
              # Heart shape: Extrapolation:
@@ -363,7 +364,7 @@ def main():
   test_split_strategy = train_split_strategy
   
   ## Agent Configuration:
-  agent_config = dict()
+  agent_config = copy.deepcopy(rg_config)
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['homoscedastic_multitasks_loss'] = rg_config['use_homoscedastic_multitasks_loss']
   agent_config['use_feat_converter'] = rg_config['use_feat_converter']
@@ -587,7 +588,8 @@ def main():
     raise NotImplementedError
 
 
-  save_path = f"./TestAttention/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  #TestAttention/
+  save_path = f"./TestMinimalVocab/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
@@ -899,6 +901,14 @@ def main():
   )
   modules[inst_coord_metric_id] = inst_coord_metric_module
 
+  dsprites_latent_metric_id = "dsprites_latent_metric"
+  dsprites_latent_metric_module = rg_modules.build_dSpritesPerLatentAccuracyMetricModule(id=dsprites_latent_metric_id,
+    config = {
+      "epoch_period":1,
+    }
+  )
+  modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
+
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
     'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
@@ -973,6 +983,7 @@ def main():
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(inst_coord_metric_id)
+  pipelines[optim_id].append(dsprites_latent_metric_id)
   pipelines[optim_id].append(logger_id)
 
   rg_config["modules"] = modules
