@@ -362,7 +362,7 @@ def main():
   test_split_strategy = train_split_strategy
   
   ## Agent Configuration:
-  agent_config = dict()
+  agent_config = copy.deepcopy(rg_config)
   agent_config['use_cuda'] = rg_config['use_cuda']
   agent_config['homoscedastic_multitasks_loss'] = rg_config['use_homoscedastic_multitasks_loss']
   agent_config['use_feat_converter'] = rg_config['use_feat_converter']
