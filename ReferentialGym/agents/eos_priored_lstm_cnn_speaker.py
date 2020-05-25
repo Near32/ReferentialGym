@@ -7,6 +7,33 @@ from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 import copy
 
 
+def eos_priored_loss_hook(agent,
+                          losses_dict,
+                          input_streams_dict,
+                          outputs_dict,
+                          logs_dict,
+                          **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    config = input_streams_dict['config']
+
+    batch_size = len(input_streams_dict['experiences'])
+
+    # Compute KL Divergence between EoS prior and each sentence symbol:
+    per_batch_per_symbol_kl_div = []
+    eos_prior = torch.distributions.categorical.Categorical(logits=agent.eos_prior.to(agent.sos_symbol.device))
+    for bidx in range(len(agent.per_batch_per_symbol_categorical)):
+        per_batch_per_symbol_kl_div.append([])
+        per_symbol_categorical = agent.per_batch_per_symbol_categorical[bidx]
+        for sidx in range(len(per_symbol_categorical)):
+            symbol_kl = torch.distributions.kl.kl_divergence(per_symbol_categorical[sidx],eos_prior)
+            per_batch_per_symbol_kl_div[-1].append(symbol_kl)
+        per_batch_per_symbol_kl_div[-1] = torch.stack(per_batch_per_symbol_kl_div[-1]).sum()
+    per_batch_per_symbol_kl_div = torch.stack(per_batch_per_symbol_kl_div)
+    # (batch_size, 1)
+    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/eos_kl_divergence'] = [1.0, per_batch_per_symbol_kl_div]
+
+
 class EoSPrioredLSTMCNNSpeaker(Speaker):
     def __init__(self, 
                     kwargs, 
@@ -32,6 +59,8 @@ class EoSPrioredLSTMCNNSpeaker(Speaker):
 
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
+
+        self.register_hook(eos_priored_loss_hook)
 
         cnn_input_shape = self.obs_shape[2:]
         MHDPANbrHead=4

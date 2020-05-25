@@ -8,10 +8,6 @@ import numpy as np
 
 from .module import Module
 
-'''
-Based on:
-https://github.com/google-research/disentanglement_lib/blob/master/disentanglement_lib/evaluation/metrics/factor_vae.py
-'''
 
 def build_InstantaneousCoordinationMetricModule(id:str,
                                config:Dict[str,object],

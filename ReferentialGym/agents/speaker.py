@@ -6,6 +6,157 @@ from ..utils import gumbel_softmax
 from .agent import Agent 
 
 
+def sentence_length_logging_hook(agent,
+                                 losses_dict,
+                                 input_streams_dict,
+                                 outputs_dict,
+                                 logs_dict,
+                                 **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    mode = input_streams_dict['mode']
+    config = input_streams_dict['config']
+
+    batch_size = len(input_streams_dict['experiences'])
+    speaker_sentences_logits = outputs_dict["sentences_logits"]
+    speaker_sentences_widx = outputs_dict["sentences_widx"]
+
+    # Sentence Lengths:
+    '''
+    #if 'obverter' in input_streams_dict['graphtype'].lower():
+    sentence_lengths = torch.sum(-(speaker_sentences_widx.squeeze(-1)-agent.vocab_size).sign(), dim=-1).reshape(batch_size,-1)
+    sentence_length = sentence_lengths.mean()
+    '''
+    sentence_lengths = (speaker_sentences_widx < (agent.vocab_pad_idx))
+    sentence_lengths = sentence_lengths.reshape(batch_size,-1).float().sum(-1)
+    sentence_length = sentence_lengths.mean()
+    
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config['max_sentence_length']
+
+
+def entropy_logging_hook(agent,
+                         losses_dict,
+                         input_streams_dict,
+                         outputs_dict,
+                         logs_dict,
+                         **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    mode = input_streams_dict['mode']
+    config = input_streams_dict['config']
+
+    batch_size = len(input_streams_dict['experiences'])
+    speaker_sentences_logits = outputs_dict["sentences_logits"]
+    speaker_sentences_widx = outputs_dict["sentences_widx"]
+    
+    # Compute Sentence Entropies:
+    sentences_log_probs = [
+        s_logits.reshape(-1,agent.vocab_size).log_softmax(dim=-1) 
+        for s_logits in speaker_sentences_logits
+    ]
+
+    speaker_sentences_log_probs = torch.cat(
+        [ s_log_probs.gather(dim=-1,index=s_widx[:s_log_probs.shape[0]].long()).sum().unsqueeze(0) 
+          for s_log_probs, s_widx in zip(sentences_log_probs, speaker_sentences_widx)
+        ], 
+        dim=0
+    )
+    
+    entropies_per_sentence = -(speaker_sentences_log_probs.exp() * speaker_sentences_log_probs)
+    # (batch_size, )
+    logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/Entropy'] = entropies_per_sentence.mean().item()
+
+
+def entropy_regularization_loss_hook(agent,
+                                     losses_dict,
+                                     input_streams_dict,
+                                     outputs_dict,
+                                     logs_dict,
+                                     **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    config = input_streams_dict['config']
+
+    entropies_per_sentence = torch.cat(
+        [ torch.cat(
+            [ torch.distributions.categorical.Categorical(logits=w_logits).entropy().view(1,1) 
+              for w_logits in s_logits
+            ], 
+            dim=-1).mean(dim=-1) 
+          for s_logits in outputs_dict['sentences_logits']
+        ], 
+        dim=0
+    )
+    # (batch_size, 1)
+    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_regularization_loss'] = [
+        config['entropy_regularization_factor'], 
+        entropies_per_sentence.squeeze()
+    ]
+    # (batch_size, )
+
+
+def mdl_principle_loss_hook(agent,
+                            losses_dict,
+                            input_streams_dict,
+                            outputs_dict,
+                            logs_dict,
+                            **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    config = input_streams_dict['config']
+
+    batch_size = len(input_streams_dict['experiences'])
+
+    arange_token = torch.arange(config['max_sentence_length'])
+    arange_token = (config['vocab_size']*arange_token).float().view((1,-1)).repeat(batch_size,1)
+    if config['use_cuda']: arange_token = arange_token.cuda()
+    non_pad_mask = (outputs_dict['sentences_widx'] < (agent.vocab_size)).float()
+    # (batch_size, max_sentence_length, 1)
+    if config['use_cuda']: mask = mask.cuda()
+    speaker_reweighted_utterances = 1+non_pad_mask*outputs_dict['sentences_widx'] \
+        -(1-non_pad_mask)*outputs_dict['sentences_widx']/config['vocab_size']
+    mdl_loss = (arange_token+speaker_reweighted_utterances.squeeze()).mean(dim=-1)
+    # (batch_size, )
+    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/mdl_loss'] = [
+        config['mdl_principle_factor'], 
+        mdl_loss
+    ]   
+
+
+def oov_loss_hook(agent,
+                  losses_dict,
+                  input_streams_dict,
+                  outputs_dict,
+                  logs_dict,
+                  **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    config = input_streams_dict['config']
+
+    batch_size = len(input_streams_dict['experiences'])
+
+    arange_vocab = torch.arange(config['vocab_size']+1).float()
+    if config['use_cuda']: arange_vocab = arange_vocab.cuda()
+    speaker_utterances = torch.cat(
+        [((s+1) / (s.detach()+1)) * torch.nn.functional.one_hot(s.long().squeeze(), num_classes=config['vocab_size']+1).float().unsqueeze(0)
+        for s in outputs_dict['sentences_widx']], 
+        dim=0
+    )
+    # (batch_size, sentence_length,vocab_size+1)
+    speaker_utterances_count = speaker_utterances.sum(dim=0).sum(dim=0).float().squeeze()
+    outputs_dict['speaker_utterances_count'] = speaker_utterances_count
+    # (vocab_size+1,)
+    total_nbr_utterances = speaker_utterances_count.sum().item()
+    d_speaker_utterances_probs = (speaker_utterances_count/(config['utterance_oov_prob']+total_nbr_utterances-1)).detach()
+    # (vocab_size+1,)
+    #oov_loss = -(1.0/(batch_size*config['max_sentence_length']))*torch.sum(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
+    oov_loss = -(1.0/(batch_size*config['max_sentence_length']))*(speaker_utterances_count*torch.log(d_speaker_utterances_probs+1e-10))
+    # (batch_size, 1)
+    if config['with_utterance_promotion']:
+        oov_loss *= -1 
+    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/oov_loss'] = [config['utterance_factor'], oov_loss]
+
+
 class Speaker(Agent):
     def __init__(self, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None, kwargs=None):
         '''
@@ -25,6 +176,22 @@ class Speaker(Agent):
                                       kwargs=kwargs,
                                       role="speaker")
         
+        
+        self.register_hook(sentence_length_logging_hook)
+        self.register_hook(entropy_logging_hook)
+
+        if 'with_speaker_entropy_regularization' in self.kwargs \
+         and self.kwargs['with_speaker_entropy_regularization']:
+            self.register_hook(entropy_regularization_loss_hook)
+
+        if 'with_mdl_principle' in self.kwargs \
+         and self.kwargs['with_mdl_principle']:
+            self.register_hook(mdl_principle_loss_hook)
+
+        if ('with_utterance_penalization' in self.kwargs or 'with_utterance_promotion' in self.kwargs) \
+         and (self.kwargs['with_utterance_penalization'] or self.kwargs['with_utterance_promotion']):
+            self.register_hook(oov_loss_hook)
+
         # Multi-round:
         self._reset_rnn_states()
 

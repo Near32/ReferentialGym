@@ -28,6 +28,7 @@ class dSpritesDataset(Dataset) :
         self.imgs = dataset_zip['imgs']
         self.latents_values = dataset_zip['latents_values']
         self.latents_classes = dataset_zip['latents_classes']
+        self.test_latents_mask = np.zeros_like(self.latents_classes)
         self.targets = np.zeros(len(self.latents_classes)) #[random.randint(0, 10) for _ in self.imgs]
         for idx, latent_cls in enumerate(self.latents_classes):
             posX = latent_cls[-2]
@@ -283,6 +284,9 @@ class dSpritesDataset(Dataset) :
                         if quotient <= dim_dict['test_set_size_sample_from_start']:
                             counter_test[dim_name] = 1
 
+                    if dim_name in counter_test:
+                        self.test_latents_mask[idx, dim_dict['position']] = 1
+                        
                 if skip_it: continue
 
 
@@ -306,6 +310,7 @@ class dSpritesDataset(Dataset) :
         self.imgs = self.imgs[self.indices]
         self.latents_values = self.latents_values[self.indices]
         self.latents_classes = self.latents_classes[self.indices]
+        self.test_latents_mask = self.test_latents_mask[self.indices]
         self.targets = self.targets[self.indices]
         del self.metadata
 
@@ -317,24 +322,26 @@ class dSpritesDataset(Dataset) :
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        #idx = self.indices[idx]
-        #target = self.latents_classes[idx]
         target = self.targets[idx]
         return target
 
     def getlatentvalue(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        #idx = self.indices[idx]
         latent_value = self.latents_values[idx]
         return latent_value
 
     def getlatentclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        #idx = self.indices[idx]
         latent_class = self.latents_classes[idx]
         return latent_class
+
+    def gettestlatentmask(self, idx):
+        if idx >= len(self):
+            idx = idx%len(self)
+        test_latents_mask = self.test_latents_mask[idx]
+        return test_latents_mask
 
     def __getitem__(self, idx:int) -> Dict[str,torch.Tensor]:
         """
@@ -346,6 +353,7 @@ class dSpritesDataset(Dataset) :
                 - `"exp_labels"`: List[int] consisting of the indices of the label to which the experiences belong.
                 - `"exp_latents"`: Tensor representatin the latent of the experience in one-hot-encoded vector form.
                 - `"exp_latents_values"`: Tensor representatin the latent of the experience in value form.
+                - `"exp_test_latent_mask"`: Tensor that highlights the presence of test values, if any on each latent axis.
         """
         if idx >= len(self):
             idx = idx%len(self)
@@ -355,13 +363,11 @@ class dSpritesDataset(Dataset) :
         #img, target = self.dataset[idx]
         image = Image.fromarray((self.imgs[idx]*255).astype('uint8'))
         
-        #target = self.getclass(orig_idx)
-        #latent_value = torch.from_numpy(self.getlatentvalue(orig_idx))
-        
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
         latent_class = torch.from_numpy(self.getlatentclass(idx))
-        
+        test_latents_mask = torch.from_numpy(self.gettestlatentmask(idx))
+
         if self.transform is not None:
             image = self.transform(image)
         
@@ -369,7 +375,8 @@ class dSpritesDataset(Dataset) :
             "experiences":image, 
             "exp_labels":target, 
             "exp_latents":latent_class, 
-            "exp_latents_values":latent_value
+            "exp_latents_values":latent_value,
+            "exp_test_latents_masks":test_latents_mask,
         }
 
         return sampled_d

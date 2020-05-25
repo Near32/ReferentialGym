@@ -796,6 +796,14 @@ def main():
   )
   modules[inst_coord_metric_id] = inst_coord_metric_module
 
+  dsprites_latent_metric_id = "dsprites_latent_metric"
+  dsprites_latent_metric_module = rg_modules.build_dSpritesPerLatentAccuracyMetricModule(id=dsprites_latent_metric_id,
+    config = {
+      "epoch_period":1,
+    }
+  )
+  modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
+
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
     'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
@@ -870,6 +878,7 @@ def main():
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(inst_coord_metric_id)
+  pipelines[optim_id].append(dsprites_latent_metric_id)
   pipelines[optim_id].append(logger_id)
 
   rg_config["modules"] = modules
