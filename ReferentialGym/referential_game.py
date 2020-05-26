@@ -169,7 +169,7 @@ class ReferentialGame(object):
                         acc = logs_dict[acc_keys[-1]].mean()
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
-                            descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch, mode, idx_stimulus, len(data_loader), it, loss.item())
+                            descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch+1, mode, idx_stimulus+1, len(data_loader), it+1, loss.item())
                             pbar.set_description_str(descr)
                         
                         self.stream_handler.reset("losses_dict")

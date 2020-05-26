@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .listener import Listener
+from .discriminative_listener import DiscriminativeListener
 from ..networks import choose_architecture, layer_init, BetaVAE
 from ..utils import gumbel_softmax
 
 
-class DifferentiableObverterAgent(Listener):
+class DifferentiableObverterAgent(DiscriminativeListener):
     def __init__(self,
                  kwargs, 
                  obs_shape, 

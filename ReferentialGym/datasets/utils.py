@@ -2,6 +2,8 @@ import torch
 import torchvision.transforms as T
 import numpy as np
 import cv2
+from PIL import Image 
+
 
 class DictBatch(object):
     def __init__(self, data):
@@ -75,6 +77,29 @@ class ResizeNormalize(object):
     def __repr__(self):
         return self.__class__.__name__ + '()'
 
+
+class AddEgocentricInvariance(object):
+    def __init__(self, marker_demisize=2):
+        '''
+            Add a central marker to enable egocentric invariance.
+            
+            :param marker_demisize: Int, half the size of the marker.
+        '''
+        self.marker_demisize = marker_demisize
+    
+    def __call__(self, x):
+        x = np.array(x)
+        dim = x.shape[-2]
+        marker_colour = x.max()
+        start = int(dim//2-self.marker_demisize)
+        end = int(dim//2+self.marker_demisize)
+        x[start:end, :, ...] = marker_colour
+        x[:,start:end, ...] = marker_colour
+        x = Image.fromarray(x.astype('uint8'))
+        return x
+
+    def __repr__(self):
+        return self.__class__.__name__ + '()'
 
 class Rescale(object) :
   def __init__(self, output_size) :

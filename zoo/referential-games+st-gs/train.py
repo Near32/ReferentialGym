@@ -99,6 +99,8 @@ def main():
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
   parser.add_argument('--detached_heads', action='store_true', default=False)
   parser.add_argument('--test_id_analogy', action='store_true', default=False)
+  parser.add_argument('--descriptive', action='store_true', default=False)
+  parser.add_argument('--egocentric', action='store_true', default=False)
   parser.add_argument('--distractor_sampling', type=str,
     choices=[ "uniform",
               "similarity-0.98",
@@ -234,8 +236,12 @@ def main():
                               normalize_rgb_values=normalize_rgb_values,
                               rgb_scaler=rgb_scaler)
 
-  transform_degrees = 45
-  transform_translate = (0.25, 0.25)
+  from ReferentialGym.datasets.utils import AddEgocentricInvariance
+  ego_inv_transform = AddEgocentricInvariance()
+
+  transform_degrees = 25
+  transform_translate = (0.0625, 0.0625)
+
 
   multi_head_detached = args.detached_heads 
 
@@ -252,8 +258,8 @@ def main():
       # a word that is relevant to the class/label
       # of the target, seemingly.  
       
-      "descriptive":              False,
-      "descriptive_target_ratio": 0.97, 
+      "descriptive":              args.descriptive,
+      "descriptive_target_ratio": 1-(1/(args.nbr_train_distractors+2)), #0.97, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
       # where it only predicts 'no-target'...
@@ -329,26 +335,36 @@ def main():
 
       "use_cuda":                 args.use_cuda,
   
-      # "train_transform":          T.Compose([T.RandomAffine(degrees=transform_degrees, 
-      #                                                       translate=transform_translate, 
-      #                                                       scale=None, 
-      #                                                       shear=None, 
-      #                                                       resample=False, 
-      #                                                       fillcolor=0),
-      #                                         transform]),
-
-      # "test_transform":           T.Compose([T.RandomAffine(degrees=transform_degrees, 
-      #                                                      translate=transform_translate, 
-      #                                                      scale=None, 
-      #                                                      shear=None, 
-      #                                                      resample=False, 
-      #                                                      fillcolor=0),
-      #                                         transform]),
-  
       "train_transform":            transform,
       "test_transform":             transform,
   }
 
+  if args.egocentric:
+    rg_config["train_transform"]= T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+    rg_config["test_transform"]=  T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+  
   ## Train set:
   train_split_strategy = args.train_test_split_strategy
   test_split_strategy = train_split_strategy
@@ -519,7 +535,7 @@ def main():
     raise NotImplementedError
 
 
-  save_path = f"./{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  save_path = f"./TestEgocentric/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"

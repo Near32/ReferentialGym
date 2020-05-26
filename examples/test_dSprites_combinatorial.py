@@ -129,8 +129,12 @@ def main():
                               normalize_rgb_values=normalize_rgb_values,
                               rgb_scaler=rgb_scaler)
 
-  transform_degrees = 45
-  transform_translate = (0.25, 0.25)
+  from ReferentialGym.datasets.utils import AddEgocentricInvariance
+  ego_inv_transform = AddEgocentricInvariance()
+
+
+  transform_degrees = 25
+  transform_translate = (0.0625, 0.0625)
 
   rg_config = {
       "observability":            "partial",
@@ -219,26 +223,37 @@ def main():
       "with_grad_logging":        False,
       "use_cuda":                 True,
   
-      # "train_transform":          T.Compose([T.RandomAffine(degrees=transform_degrees, 
-      #                                                       translate=transform_translate, 
-      #                                                       scale=None, 
-      #                                                       shear=None, 
-      #                                                       resample=False, 
-      #                                                       fillcolor=0),
-      #                                         transform]),
-
-      # "test_transform":           T.Compose([T.RandomAffine(degrees=transform_degrees, 
-      #                                                      translate=transform_translate, 
-      #                                                      scale=None, 
-      #                                                      shear=None, 
-      #                                                      resample=False, 
-      #                                                      fillcolor=0),
-      #                                         transform]),
-  
       "train_transform":            transform,
       "test_transform":             transform,
   }
 
+  if True:
+    rg_config["train_transform"]= T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+    rg_config["test_transform"]=  T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+  
+      
   # INTER SIMPLE X+Y
   # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
   #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
@@ -354,7 +369,7 @@ def main():
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
   test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
 
-  plot(train_dataset, test_dataset)
+  if False: plot(train_dataset, test_dataset)
 
   train_i = 0
   test_i = 0

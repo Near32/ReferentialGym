@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .listener import Listener
+from .discriminative_listener import DiscriminativeListener
 from ..networks import choose_architecture, layer_init, BetaVAE
 
 
-class ObverterAgent(Listener):
+class ObverterAgent(DiscriminativeListener):
     def __init__(self,
                  kwargs, 
                  obs_shape, 

@@ -94,6 +94,13 @@ def entropy_regularization_loss_hook(agent,
     ]
     # (batch_size, )
 
+    '''
+    # Entropy minimization:
+    distr = torch.distributions.Categorical(probs=decision_probs)
+    entropy_loss = distr.entropy()
+    losses_dict['entropy_loss'] = [1.0, entropy_loss]
+    '''
+
 
 def mdl_principle_loss_hook(agent,
                             losses_dict,

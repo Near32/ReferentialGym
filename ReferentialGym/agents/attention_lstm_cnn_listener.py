@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .listener import Listener
+from .discriminative_listener import DiscriminativeListener
 from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 from ..utils import StraightThroughGumbelSoftmaxLayer
 
 
-class AttentionLSTMCNNListener(Listener):
+class AttentionLSTMCNNListener(DiscriminativeListener):
     def __init__(self,kwargs, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None):
         """
         :param obs_shape: tuple defining the shape of the stimulus following `(nbr_distractors+1, nbr_stimulus, *stimulus_shape)`
