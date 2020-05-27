@@ -75,6 +75,8 @@ class StreamHandler(object):
 
         :params stream_id: string formatted with ':' between the name of the streaming module/placeholder and the name of the stream.
         '''
+        if stream_id == 'None': return None 
+        
         stream_id = stream_id.split(":")
         p_ptr = self.placeholders
         for ptr in stream_id[:-1]:

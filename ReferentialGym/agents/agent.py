@@ -223,12 +223,15 @@ class Agent(Module):
         losses_dict = input_streams_dict['losses_dict']
         logs_dict = input_streams_dict['logs_dict']
         
-        batch_size = len(input_streams_dict['experiences'])
-
         input_sentence = input_streams_dict['sentences_widx']
         if self.use_sentences_one_hot_vectors:
             input_sentence = input_streams_dict['sentences_one_hot']
 
+        if input_streams_dict['experiences'] is not None:
+            batch_size = input_streams_dict['experiences'].shape[0]
+        else:
+            batch_size = input_sentence.shape[0]
+            
         outputs_dict = self(sentences=input_sentence,
                            experiences=input_streams_dict['experiences'],
                            multi_round=input_streams_dict['multi_round'],

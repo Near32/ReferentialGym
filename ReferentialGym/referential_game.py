@@ -166,7 +166,8 @@ class ReferentialGame(object):
                         loss = sum( [l[-1] for l in losses.values()])
                         logs_dict = self.stream_handler["logs_dict"]
                         acc_keys = [k for k in logs_dict.keys() if '/referential_game_accuracy' in k]
-                        acc = logs_dict[acc_keys[-1]].mean()
+                        if len(acc_keys):
+                            acc = logs_dict[acc_keys[-1]].mean()
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
                             descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch+1, mode, idx_stimulus+1, len(data_loader), it+1, loss.item())
