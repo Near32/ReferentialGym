@@ -147,6 +147,9 @@ class LSTMCNNListener(DiscriminativeListener):
         self._reset_rnn_states()
 
     def _tidyup(self):
+        """
+        Called at the agent level at the end of the `compute` function.
+        """
         self.embedding_tf_final_outputs = None
 
         if isinstance(self.cnn_encoder, BetaVAE):
@@ -245,28 +248,29 @@ class LSTMCNNListener(DiscriminativeListener):
         nbr_distractors_po = features.size(1)        
         # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
         # Forward pass:
-        if self.temporal_feature_encoder: 
-            features = features.view(-1, *(features.size()[2:]))
-            # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
-            rnn_outputs = []
-            total_size = features.size(0)
-            mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
-            for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
-                outputs, _ = self.temporal_feature_encoder(featin)
-                rnn_outputs.append( outputs)
-            outputs = torch.cat(rnn_outputs, dim=0)
-            outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
-            
-            # Caring only about the final output:
-            embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
-            # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
-            self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, nbr_distractors_po, -1)
-            # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
-        else:
-            self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
-            self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
-            # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+        if self.embedding_tf_final_outputs is None:
+            if self.temporal_feature_encoder: 
+                features = features.view(-1, *(features.size()[2:]))
+                # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+                rnn_outputs = []
+                total_size = features.size(0)
+                mini_batch_size = min(self.kwargs['temporal_encoder_mini_batch_size'], total_size)
+                for featin in torch.split(features, split_size_or_sections=mini_batch_size, dim=0):
+                    outputs, _ = self.temporal_feature_encoder(featin)
+                    rnn_outputs.append( outputs)
+                outputs = torch.cat(rnn_outputs, dim=0)
+                outputs = outputs.view(batch_size, *(self.obs_shape[:2]), -1)
+                
+                # Caring only about the final output:
+                embedding_tf_final_outputs = outputs[:,:,-1,:].contiguous()
+                # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+                self.embedding_tf_final_outputs = self.normalization(embedding_tf_final_outputs.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape(batch_size, nbr_distractors_po, -1)
+                # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+            else:
+                self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
+                self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
+                # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
 
         # Consume the sentences:
         # (batch_size, max_sentence_length, self.vocab_size)
@@ -277,11 +281,8 @@ class LSTMCNNListener(DiscriminativeListener):
         # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
         
         # We initialize the rnn_states to either None, if it is not multi-round, or:
-        # TODO: find a strategy for multiround...
-        '''
         states = self.rnn_states
         rnn_outputs, self.rnn_states = self.symbol_processing(encoded_sentences, states)          
-        '''
         '''
         init_rnn_state = self.symbol_processing_learnable_initial_state.expand(
             batch_size,
@@ -293,9 +294,12 @@ class LSTMCNNListener(DiscriminativeListener):
             torch.zeros_like(init_rnn_state)
         )
         '''
+        
+        """
         rnn_states = None
         rnn_outputs, next_rnn_states = self.symbol_processing(encoded_sentences, rnn_states)          
-        
+        """
+
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
