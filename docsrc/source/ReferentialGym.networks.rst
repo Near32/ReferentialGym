@@ -4,6 +4,22 @@ ReferentialGym.networks package
 Submodules
 ----------
 
+ReferentialGym.networks.autoregressive\_networks module
+-------------------------------------------------------
+
+.. automodule:: ReferentialGym.networks.autoregressive_networks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ReferentialGym.networks.homoscedastic\_multitask\_loss module
+-------------------------------------------------------------
+
+.. automodule:: ReferentialGym.networks.homoscedastic_multitask_loss
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 ReferentialGym.networks.networks module
 ---------------------------------------
 
@@ -12,10 +28,10 @@ ReferentialGym.networks.networks module
    :undoc-members:
    :show-inheritance:
 
-ReferentialGym.networks.utils module
-------------------------------------
+ReferentialGym.networks.residual\_networks module
+-------------------------------------------------
 
-.. automodule:: ReferentialGym.networks.utils
+.. automodule:: ReferentialGym.networks.residual_networks
    :members:
    :undoc-members:
    :show-inheritance:

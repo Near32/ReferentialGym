@@ -1,0 +1,172 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferentialGym.utils.statsLogger package &#8212; ReferentialGym  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ReferentialGym.utils.streamHandler package" href="ReferentialGym.utils.streamHandler.html" />
+    <link rel="prev" title="ReferentialGym.utils package" href="ReferentialGym.utils.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.streamHandler.html" title="ReferentialGym.utils.streamHandler package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.html" title="ReferentialGym.utils package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li>
+          <li class="nav-item nav-item-3"><a href="ReferentialGym.utils.html" accesskey="U">ReferentialGym.utils package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="referentialgym-utils-statslogger-package">
+<h1>ReferentialGym.utils.statsLogger package<a class="headerlink" href="#referentialgym-utils-statslogger-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.utils.statsLogger.statsLogger">
+<span id="referentialgym-utils-statslogger-statslogger-module"></span><h2>ReferentialGym.utils.statsLogger.statsLogger module<a class="headerlink" href="#module-ReferentialGym.utils.statsLogger.statsLogger" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.utils.statsLogger.statsLogger.statsLogger">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.utils.statsLogger.statsLogger.</code><code class="sig-name descname">statsLogger</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">path</span><span class="o">=</span><span class="default_value">'./'</span></em>, <em class="sig-param"><span class="n">filename</span><span class="o">=</span><span class="default_value">'logs.dict'</span></em>, <em class="sig-param"><span class="n">dumpPeriod</span><span class="o">=</span><span class="default_value">1</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.statsLogger.statsLogger.statsLogger" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tensorboardX.writer.SummaryWriter</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.utils.statsLogger.statsLogger.statsLogger.dump">
+<code class="sig-name descname">dump</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.statsLogger.statsLogger.statsLogger.dump" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dumps the data that have been recorder so far with the <cite>add_dict</cite> method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.utils.statsLogger.statsLogger.statsLogger.switch_epoch">
+<code class="sig-name descname">switch_epoch</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.statsLogger.statsLogger.statsLogger.switch_epoch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Separate the data recording in epoch-based entries.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.utils.statsLogger.statsLogger.statsLogger.measure_topographic_similarity">
+<code class="sig-name descname">measure_topographic_similarity</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences_key</span><span class="o">=</span><span class="default_value">'sentences_widx'</span></em>, <em class="sig-param"><span class="n">features_key</span><span class="o">=</span><span class="default_value">'temporal_features'</span></em>, <em class="sig-param"><span class="n">max_nbr_samples</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">comprange</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">verbose</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">max_workers</span><span class="o">=</span><span class="default_value">16</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.statsLogger.statsLogger.statsLogger.measure_topographic_similarity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Accounts for a measure of the compositionality of the current epoch-like set of data,
+following the computation of topographic similarity.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.utils.statsLogger.statsLogger.statsLogger.add_dict">
+<code class="sig-name descname">add_dict</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">rec</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">batch</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">idx</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.statsLogger.statsLogger.statsLogger.add_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Records the data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> – <cite>dict</cite> of data to record. If it is a imbrigated dictionnary,
+then it is recorded with the same hierarchy.</p></li>
+<li><p><strong>rec</strong> – <cite>None</cite> or <cite>dict</cite> of the current level in the recording hierarchy.</p></li>
+<li><p><strong>batch</strong> – boolean that defines whether to the data to be recorded is given as a batch or not.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.utils.statsLogger">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-ReferentialGym.utils.statsLogger" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">ReferentialGym.utils.statsLogger package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.utils.statsLogger.statsLogger">ReferentialGym.utils.statsLogger.statsLogger module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.utils.statsLogger">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="ReferentialGym.utils.html"
+                        title="previous chapter">ReferentialGym.utils package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="ReferentialGym.utils.streamHandler.html"
+                        title="next chapter">ReferentialGym.utils.streamHandler package</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/ReferentialGym.utils.statsLogger.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.streamHandler.html" title="ReferentialGym.utils.streamHandler package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.html" title="ReferentialGym.utils package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li>
+          <li class="nav-item nav-item-3"><a href="ReferentialGym.utils.html" >ReferentialGym.utils package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Kevin Denamganaï.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 3.0.4.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,883 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferentialGym.modules package &#8212; ReferentialGym  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ReferentialGym.networks package" href="ReferentialGym.networks.html" />
+    <link rel="prev" title="ReferentialGym.datasets package" href="ReferentialGym.datasets.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.networks.html" title="ReferentialGym.networks package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.datasets.html" title="ReferentialGym.datasets package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" accesskey="U">ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="referentialgym-modules-package">
+<h1>ReferentialGym.modules package<a class="headerlink" href="#referentialgym-modules-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.modules.batch_reshape_module">
+<span id="referentialgym-modules-batch-reshape-module-module"></span><h2>ReferentialGym.modules.batch_reshape_module module<a class="headerlink" href="#module-ReferentialGym.modules.batch_reshape_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.batch_reshape_module.build_BatchReshapeModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.batch_reshape_module.</code><code class="sig-name descname">build_BatchReshapeModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_module.build_BatchReshapeModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.batch_reshape_module.BatchReshapeModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.batch_reshape_module.</code><code class="sig-name descname">BatchReshapeModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_module.BatchReshapeModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.batch_reshape_module.BatchReshapeModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_module.BatchReshapeModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.batch_reshape_repeat_module">
+<span id="referentialgym-modules-batch-reshape-repeat-module-module"></span><h2>ReferentialGym.modules.batch_reshape_repeat_module module<a class="headerlink" href="#module-ReferentialGym.modules.batch_reshape_repeat_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.batch_reshape_repeat_module.build_BatchReshapeRepeatModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.batch_reshape_repeat_module.</code><code class="sig-name descname">build_BatchReshapeRepeatModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_repeat_module.build_BatchReshapeRepeatModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.batch_reshape_repeat_module.BatchReshapeRepeatModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.batch_reshape_repeat_module.</code><code class="sig-name descname">BatchReshapeRepeatModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_repeat_module.BatchReshapeRepeatModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.batch_reshape_repeat_module.BatchReshapeRepeatModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.batch_reshape_repeat_module.BatchReshapeRepeatModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.concat_module">
+<span id="referentialgym-modules-concat-module-module"></span><h2>ReferentialGym.modules.concat_module module<a class="headerlink" href="#module-ReferentialGym.modules.concat_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.concat_module.build_ConcatModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.concat_module.</code><code class="sig-name descname">build_ConcatModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.concat_module.build_ConcatModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.concat_module.ConcatModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.concat_module.</code><code class="sig-name descname">ConcatModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.concat_module.ConcatModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.concat_module.ConcatModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.concat_module.ConcatModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.current_agent_module">
+<span id="referentialgym-modules-current-agent-module-module"></span><h2>ReferentialGym.modules.current_agent_module module<a class="headerlink" href="#module-ReferentialGym.modules.current_agent_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.current_agent_module.</code><code class="sig-name descname">CurrentAgentModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="o">=</span><span class="default_value">'current_agent'</span></em>, <em class="sig-param"><span class="n">role</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.set_ref">
+<code class="sig-name descname">set_ref</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.set_ref" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.get_input_stream_ids">
+<code class="sig-name descname">get_input_stream_ids</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.get_input_stream_ids" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.clone">
+<code class="sig-name descname">clone</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">clone_id</span><span class="o">=</span><span class="default_value">'a0'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.clone" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.save">
+<code class="sig-name descname">save</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">path</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.save" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule._log">
+<code class="sig-name descname">_log</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">log_dict</span></em>, <em class="sig-param"><span class="n">batch_size</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule._log" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.register_hook">
+<code class="sig-name descname">register_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">hook</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.register_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">graphtype</span><span class="o">=</span><span class="default_value">'straight_through_gumbel_softmax'</span></em>, <em class="sig-param"><span class="n">tau0</span><span class="o">=</span><span class="default_value">0.2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.forward" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>multi_round</strong> – Boolean defining whether to utter a sentence back or not.</p></li>
+<li><p><strong>graphtype</strong> – String defining the type of symbols used in the output sentence:
+- <cite>‘categorical’</cite>: one-hot-encoded symbols.
+- <cite>‘gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.
+- <cite>‘straight_through_gumbel_softmax’</cite>: improved continuous relaxation…
+- <cite>‘obverter’</cite>: obverter training scheme…</p></li>
+<li><p><strong>tau0</strong> – Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.current_agent_module.CurrentAgentModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.current_agent_module.CurrentAgentModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the losses and return them along with the produced outputs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – <p>Dict that should contain, at least, the following keys and values:
+- <cite>‘sentences_logits’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits over symbols.
+- <cite>‘sentences_widx’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> containing the padded sequence of symbols’ indices.
+- <cite>‘sentences_one_hot’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.
+- <cite>‘experiences’</cite>: Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+- <cite>‘exp_latents’</cite>: Tensor of shape <cite>(batch_size, nbr_latent_dimensions)</cite>.
+- <cite>‘multi_round’</cite>: Boolean defining whether to utter a sentence back or not.
+- <cite>‘graphtype’</cite>: String defining the type of symbols used in the output sentence:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>’categorical’</cite>: one-hot-encoded symbols.</p></li>
+<li><p><cite>’gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.</p></li>
+<li><p><cite>’straight_through_gumbel_softmax’</cite>: improved continuous relaxation…</p></li>
+<li><p><cite>’obverter’</cite>: obverter training scheme…</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><cite>’tau0’</cite>: Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+<li><p><cite>’sample’</cite>: Dict that contains the speaker and listener experiences as well as the target index.</p></li>
+<li><p><cite>’config’</cite>: Dict of hyperparameters to the referential game.</p></li>
+<li><p><cite>’mode’</cite>: String that defines what mode we are in, e.g. ‘train’ or ‘test’. Those keywords are expected.</p></li>
+<li><p><cite>’it’</cite>: Integer specifying the iteration number of the current function call.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module">
+<span id="referentialgym-modules-dsprites-per-latent-accuracy-metric-module-module"></span><h2>ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module module<a class="headerlink" href="#module-ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.build_dSpritesPerLatentAccuracyMetricModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.</code><code class="sig-name descname">build_dSpritesPerLatentAccuracyMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.build_dSpritesPerLatentAccuracyMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.dSpritesPerLatentAccuracyMetricModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.</code><code class="sig-name descname">dSpritesPerLatentAccuracyMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.dSpritesPerLatentAccuracyMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.dSpritesPerLatentAccuracyMetricModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module.dSpritesPerLatentAccuracyMetricModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.factor_vae_disentanglement_metric_module">
+<span id="referentialgym-modules-factor-vae-disentanglement-metric-module-module"></span><h2>ReferentialGym.modules.factor_vae_disentanglement_metric_module module<a class="headerlink" href="#module-ReferentialGym.modules.factor_vae_disentanglement_metric_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.build_FactorVAEDisentanglementMetricModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.factor_vae_disentanglement_metric_module.</code><code class="sig-name descname">build_FactorVAEDisentanglementMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.build_FactorVAEDisentanglementMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.factor_vae_disentanglement_metric_module.</code><code class="sig-name descname">FactorVAEDisentanglementMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._prune_dims">
+<code class="sig-name descname">_prune_dims</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">variances</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._prune_dims" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mask for dimensions collapsed to the prior.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._generate_training_batch">
+<code class="sig-name descname">_generate_training_batch</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dataset</span></em>, <em class="sig-param"><span class="n">model</span></em>, <em class="sig-param"><span class="n">batch_size</span></em>, <em class="sig-param"><span class="n">nbr_points</span></em>, <em class="sig-param"><span class="n">global_variances</span></em>, <em class="sig-param"><span class="n">active_dims</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._generate_training_batch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample a set of training samples based on a batch of ground-truth data.</p>
+<dl>
+<dt>Args:</dt><dd><p>dataset: dataset to be sampled from.
+model: model that takes observations as input and</p>
+<blockquote>
+<div><p>outputs a dim_representation sized representation for each observation.</p>
+</div></blockquote>
+<p>batch_size: Number of points to be used to compute the training_sample.
+nbr_points: Number of points to be sampled for training/evaluation set.
+global_variances: Numpy vector with variances for all dimensions of</p>
+<blockquote>
+<div><p>representation.</p>
+</div></blockquote>
+<p>active_dims: Indexes of active dimensions.</p>
+</dd>
+<dt>Returns:</dt><dd><p>(num_factors, dim_representation)-sized numpy array with votes.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._generate_training_sample">
+<code class="sig-name descname">_generate_training_sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dataset</span></em>, <em class="sig-param"><span class="n">model</span></em>, <em class="sig-param"><span class="n">batch_size</span></em>, <em class="sig-param"><span class="n">global_variances</span></em>, <em class="sig-param"><span class="n">active_dims</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule._generate_training_sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample a single training sample based on a mini-batch of ground-truth data.</p>
+<p>Args:
+dataset: dataset to be sampled from.
+model: model that takes observation as input and</p>
+<blockquote>
+<div><p>outputs a representation.</p>
+</div></blockquote>
+<p>batch_size: Number of points to be used to compute the training_sample.
+global_variances: Numpy vector with variances for all dimensions of</p>
+<blockquote>
+<div><p>representation.</p>
+</div></blockquote>
+<p>active_dims: Indexes of active dimensions.</p>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>factor_index: Index of factor coordinate to be used.
+argmin: Index of representation coordinate with the least variance.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.factor_vae_disentanglement_metric_module.FactorVAEDisentanglementMetricModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.flatten_module">
+<span id="referentialgym-modules-flatten-module-module"></span><h2>ReferentialGym.modules.flatten_module module<a class="headerlink" href="#module-ReferentialGym.modules.flatten_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.flatten_module.build_FlattenModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.flatten_module.</code><code class="sig-name descname">build_FlattenModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.flatten_module.build_FlattenModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.flatten_module.FlattenModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.flatten_module.</code><code class="sig-name descname">FlattenModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.flatten_module.FlattenModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.flatten_module.FlattenModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.flatten_module.FlattenModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.grad_recorder_module">
+<span id="referentialgym-modules-grad-recorder-module-module"></span><h2>ReferentialGym.modules.grad_recorder_module module<a class="headerlink" href="#module-ReferentialGym.modules.grad_recorder_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.grad_recorder_module.build_GradRecorderModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.grad_recorder_module.</code><code class="sig-name descname">build_GradRecorderModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.grad_recorder_module.build_GradRecorderModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.grad_recorder_module.GradRecorderModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.grad_recorder_module.</code><code class="sig-name descname">GradRecorderModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.grad_recorder_module.GradRecorderModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.grad_recorder_module.GradRecorderModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.grad_recorder_module.GradRecorderModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.homoscedastic_multi_task_loss_module">
+<span id="referentialgym-modules-homoscedastic-multi-task-loss-module-module"></span><h2>ReferentialGym.modules.homoscedastic_multi_task_loss_module module<a class="headerlink" href="#module-ReferentialGym.modules.homoscedastic_multi_task_loss_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.homoscedastic_multi_task_loss_module.build_HomoscedasticMultiTasksLossModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.homoscedastic_multi_task_loss_module.</code><code class="sig-name descname">build_HomoscedasticMultiTasksLossModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.homoscedastic_multi_task_loss_module.build_HomoscedasticMultiTasksLossModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.homoscedastic_multi_task_loss_module.HomoscedasticMultiTasksLossModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.homoscedastic_multi_task_loss_module.</code><code class="sig-name descname">HomoscedasticMultiTasksLossModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.homoscedastic_multi_task_loss_module.HomoscedasticMultiTasksLossModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.homoscedastic_multi_task_loss_module.HomoscedasticMultiTasksLossModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.homoscedastic_multi_task_loss_module.HomoscedasticMultiTasksLossModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.instantaneous_coordination_metric_module">
+<span id="referentialgym-modules-instantaneous-coordination-metric-module-module"></span><h2>ReferentialGym.modules.instantaneous_coordination_metric_module module<a class="headerlink" href="#module-ReferentialGym.modules.instantaneous_coordination_metric_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.instantaneous_coordination_metric_module.build_InstantaneousCoordinationMetricModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.instantaneous_coordination_metric_module.</code><code class="sig-name descname">build_InstantaneousCoordinationMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.instantaneous_coordination_metric_module.build_InstantaneousCoordinationMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.instantaneous_coordination_metric_module.InstantaneousCoordinationMetricModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.instantaneous_coordination_metric_module.</code><code class="sig-name descname">InstantaneousCoordinationMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.instantaneous_coordination_metric_module.InstantaneousCoordinationMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.instantaneous_coordination_metric_module.InstantaneousCoordinationMetricModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.instantaneous_coordination_metric_module.InstantaneousCoordinationMetricModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.module">
+<span id="referentialgym-modules-module-module"></span><h2>ReferentialGym.modules.module module<a class="headerlink" href="#module-ReferentialGym.modules.module" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.modules.module.Module">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.module.</code><code class="sig-name descname">Module</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">type</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.module.Module" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.module.Module.get_id">
+<code class="sig-name descname">get_id</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; str<a class="headerlink" href="#ReferentialGym.modules.module.Module.get_id" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.module.Module.get_type">
+<code class="sig-name descname">get_type</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; str<a class="headerlink" href="#ReferentialGym.modules.module.Module.get_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.module.Module.get_input_stream_ids">
+<code class="sig-name descname">get_input_stream_ids</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.module.Module.get_input_stream_ids" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.module.Module.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">inputs_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.module.Module.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>inputs_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords
+and are extracted from <cite>self.input_stream_keys</cite>
+-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_sream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.multi_head_classification_from_feature_map_module">
+<span id="referentialgym-modules-multi-head-classification-from-feature-map-module-module"></span><h2>ReferentialGym.modules.multi_head_classification_from_feature_map_module module<a class="headerlink" href="#module-ReferentialGym.modules.multi_head_classification_from_feature_map_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.multi_head_classification_from_feature_map_module.build_MultiHeadClassificationFromFeatureMapModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.multi_head_classification_from_feature_map_module.</code><code class="sig-name descname">build_MultiHeadClassificationFromFeatureMapModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_from_feature_map_module.build_MultiHeadClassificationFromFeatureMapModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.multi_head_classification_from_feature_map_module.MultiHeadClassificationFromFeatureMapModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.multi_head_classification_from_feature_map_module.</code><code class="sig-name descname">MultiHeadClassificationFromFeatureMapModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">heads</span><span class="p">:</span> <span class="n">torch.nn.modules.container.ModuleList</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">final_fn</span><span class="p">:</span> <span class="n">torch.nn.modules.module.Module</span> <span class="o">=</span> <span class="default_value">Softmax(dim=- 1)</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_from_feature_map_module.MultiHeadClassificationFromFeatureMapModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.multi_head_classification_from_feature_map_module.MultiHeadClassificationFromFeatureMapModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_from_feature_map_module.MultiHeadClassificationFromFeatureMapModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.multi_head_classification_module">
+<span id="referentialgym-modules-multi-head-classification-module-module"></span><h2>ReferentialGym.modules.multi_head_classification_module module<a class="headerlink" href="#module-ReferentialGym.modules.multi_head_classification_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.multi_head_classification_module.build_MultiHeadClassificationModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.multi_head_classification_module.</code><code class="sig-name descname">build_MultiHeadClassificationModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_module.build_MultiHeadClassificationModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.multi_head_classification_module.MultiHeadClassificationModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.multi_head_classification_module.</code><code class="sig-name descname">MultiHeadClassificationModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">heads</span><span class="p">:</span> <span class="n">torch.nn.modules.container.ModuleList</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">final_fn</span><span class="p">:</span> <span class="n">torch.nn.modules.module.Module</span> <span class="o">=</span> <span class="default_value">Softmax(dim=- 1)</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_module.MultiHeadClassificationModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.multi_head_classification_module.MultiHeadClassificationModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_classification_module.MultiHeadClassificationModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.multi_head_regression_module">
+<span id="referentialgym-modules-multi-head-regression-module-module"></span><h2>ReferentialGym.modules.multi_head_regression_module module<a class="headerlink" href="#module-ReferentialGym.modules.multi_head_regression_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.multi_head_regression_module.build_MultiHeadRegressionModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.multi_head_regression_module.</code><code class="sig-name descname">build_MultiHeadRegressionModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.multi_head_regression_module.build_MultiHeadRegressionModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.multi_head_regression_module.MultiHeadRegressionModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.multi_head_regression_module.</code><code class="sig-name descname">MultiHeadRegressionModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">heads</span><span class="p">:</span> <span class="n">torch.nn.modules.container.ModuleList</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">final_fn</span><span class="p">:</span> <span class="n">torch.nn.modules.module.Module</span> <span class="o">=</span> <span class="default_value">Softmax(dim=- 1)</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_regression_module.MultiHeadRegressionModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.multi_head_regression_module.MultiHeadRegressionModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.multi_head_regression_module.MultiHeadRegressionModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.optimization_module">
+<span id="referentialgym-modules-optimization-module-module"></span><h2>ReferentialGym.modules.optimization_module module<a class="headerlink" href="#module-ReferentialGym.modules.optimization_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.optimization_module.build_OptimizationModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.optimization_module.</code><code class="sig-name descname">build_OptimizationModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.optimization_module.build_OptimizationModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.optimization_module.OptimizationModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.optimization_module.</code><code class="sig-name descname">OptimizationModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.optimization_module.OptimizationModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.optimization_module.OptimizationModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.optimization_module.OptimizationModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.per_epoch_logger_module">
+<span id="referentialgym-modules-per-epoch-logger-module-module"></span><h2>ReferentialGym.modules.per_epoch_logger_module module<a class="headerlink" href="#module-ReferentialGym.modules.per_epoch_logger_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.per_epoch_logger_module.build_PerEpochLoggerModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.per_epoch_logger_module.</code><code class="sig-name descname">build_PerEpochLoggerModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.per_epoch_logger_module.build_PerEpochLoggerModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.per_epoch_logger_module.PerEpochLoggerModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.per_epoch_logger_module.</code><code class="sig-name descname">PerEpochLoggerModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.per_epoch_logger_module.PerEpochLoggerModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.per_epoch_logger_module.PerEpochLoggerModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.per_epoch_logger_module.PerEpochLoggerModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.population_handler_module">
+<span id="referentialgym-modules-population-handler-module-module"></span><h2>ReferentialGym.modules.population_handler_module module<a class="headerlink" href="#module-ReferentialGym.modules.population_handler_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.population_handler_module.build_PopulationHandlerModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.population_handler_module.</code><code class="sig-name descname">build_PopulationHandlerModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">prototype_speaker</span><span class="p">:</span> <span class="n"><a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a></span></em>, <em class="sig-param"><span class="n">prototype_listener</span><span class="p">:</span> <span class="n"><a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a></span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.build_PopulationHandlerModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.population_handler_module.</code><code class="sig-name descname">PopulationHandlerModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">prototype_speaker</span><span class="p">:</span> <span class="n"><a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a></span></em>, <em class="sig-param"><span class="n">prototype_listener</span><span class="p">:</span> <span class="n"><a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a></span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule._select_agents">
+<code class="sig-name descname">_select_agents</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule._select_agents" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule.bookkeeping">
+<code class="sig-name descname">bookkeeping</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">mode</span></em>, <em class="sig-param"><span class="n">epoch</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule.bookkeeping" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule._reptile_step">
+<code class="sig-name descname">_reptile_step</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">learner</span></em>, <em class="sig-param"><span class="n">reptile_learner</span></em>, <em class="sig-param"><span class="n">nbr_grad_steps</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">verbose</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule._reptile_step" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule._apply_meta_update">
+<code class="sig-name descname">_apply_meta_update</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">meta_learner</span></em>, <em class="sig-param"><span class="n">meta_optimizer</span></em>, <em class="sig-param"><span class="n">learner</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule._apply_meta_update" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.modules.population_handler_module.PopulationHandlerModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.population_handler_module.PopulationHandlerModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.squeeze_module">
+<span id="referentialgym-modules-squeeze-module-module"></span><h2>ReferentialGym.modules.squeeze_module module<a class="headerlink" href="#module-ReferentialGym.modules.squeeze_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.squeeze_module.build_SqueezeModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.squeeze_module.</code><code class="sig-name descname">build_SqueezeModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.squeeze_module.build_SqueezeModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.squeeze_module.SqueezeModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.squeeze_module.</code><code class="sig-name descname">SqueezeModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_keys</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.squeeze_module.SqueezeModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.squeeze_module.SqueezeModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.squeeze_module.SqueezeModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.topographic_similarity_metric_module">
+<span id="referentialgym-modules-topographic-similarity-metric-module-module"></span><h2>ReferentialGym.modules.topographic_similarity_metric_module module<a class="headerlink" href="#module-ReferentialGym.modules.topographic_similarity_metric_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.topographic_similarity_metric_module.build_TopographicSimilarityMetricModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.topographic_similarity_metric_module.</code><code class="sig-name descname">build_TopographicSimilarityMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.topographic_similarity_metric_module.build_TopographicSimilarityMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.topographic_similarity_metric_module.TopographicSimilarityMetricModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.topographic_similarity_metric_module.</code><code class="sig-name descname">TopographicSimilarityMetricModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.topographic_similarity_metric_module.TopographicSimilarityMetricModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.topographic_similarity_metric_module.TopographicSimilarityMetricModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.topographic_similarity_metric_module.TopographicSimilarityMetricModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules.visual_module">
+<span id="referentialgym-modules-visual-module-module"></span><h2>ReferentialGym.modules.visual_module module<a class="headerlink" href="#module-ReferentialGym.modules.visual_module" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.modules.visual_module.build_VisualModule">
+<code class="sig-prename descclassname">ReferentialGym.modules.visual_module.</code><code class="sig-name descname">build_VisualModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">config</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">input_stream_ids</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>str<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module">ReferentialGym.modules.module.Module</a><a class="headerlink" href="#ReferentialGym.modules.visual_module.build_VisualModule" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.modules.visual_module.VisualModule">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.modules.visual_module.</code><code class="sig-name descname">VisualModule</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">id</span></em>, <em class="sig-param"><span class="n">encoder</span></em>, <em class="sig-param"><span class="n">featout_converter</span></em>, <em class="sig-param"><span class="n">featout_normalization</span></em>, <em class="sig-param"><span class="n">config</span></em>, <em class="sig-param"><span class="n">input_stream_ids</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.modules.visual_module.VisualModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.modules.visual_module.VisualModule.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.modules.visual_module.VisualModule.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operates on inputs_dict that is made up of referents to the available stream.
+Make sure that accesses to its element are non-destructive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – dict of str and data elements that 
+follows <cite>self.input_stream_ids</cite>’s keywords and are extracted 
+from <cite>self.input_stream_keys</cite>-named streams.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>outputs_stream_dict:</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.modules">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-ReferentialGym.modules" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">ReferentialGym.modules package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.batch_reshape_module">ReferentialGym.modules.batch_reshape_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.batch_reshape_repeat_module">ReferentialGym.modules.batch_reshape_repeat_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.concat_module">ReferentialGym.modules.concat_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.current_agent_module">ReferentialGym.modules.current_agent_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module">ReferentialGym.modules.dsprites_per_latent_accuracy_metric_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.factor_vae_disentanglement_metric_module">ReferentialGym.modules.factor_vae_disentanglement_metric_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.flatten_module">ReferentialGym.modules.flatten_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.grad_recorder_module">ReferentialGym.modules.grad_recorder_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.homoscedastic_multi_task_loss_module">ReferentialGym.modules.homoscedastic_multi_task_loss_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.instantaneous_coordination_metric_module">ReferentialGym.modules.instantaneous_coordination_metric_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.module">ReferentialGym.modules.module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.multi_head_classification_from_feature_map_module">ReferentialGym.modules.multi_head_classification_from_feature_map_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.multi_head_classification_module">ReferentialGym.modules.multi_head_classification_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.multi_head_regression_module">ReferentialGym.modules.multi_head_regression_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.optimization_module">ReferentialGym.modules.optimization_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.per_epoch_logger_module">ReferentialGym.modules.per_epoch_logger_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.population_handler_module">ReferentialGym.modules.population_handler_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.squeeze_module">ReferentialGym.modules.squeeze_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.topographic_similarity_metric_module">ReferentialGym.modules.topographic_similarity_metric_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules.visual_module">ReferentialGym.modules.visual_module module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.modules">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="ReferentialGym.datasets.html"
+                        title="previous chapter">ReferentialGym.datasets package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="ReferentialGym.networks.html"
+                        title="next chapter">ReferentialGym.networks package</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/ReferentialGym.modules.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.networks.html" title="ReferentialGym.networks package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.datasets.html" title="ReferentialGym.datasets package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Kevin Denamganaï.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 3.0.4.
+    </div>
+  </body>
+</html>
