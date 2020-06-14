@@ -17,6 +17,7 @@ import torchvision.transforms as T
 def main():
   parser = argparse.ArgumentParser(description='LSTM CNN Agents: ST-GS Language Emergence.')
   parser.add_argument('--seed', type=int, default=0)
+  parser.add_argument('--parent_folder', type=str, help='folder to save into.',default='')
   parser.add_argument('--use_cuda', action='store_true', default=False)
   parser.add_argument('--dataset', type=str, 
     choices=['Sort-of-CLEVR',
@@ -535,7 +536,10 @@ def main():
     raise NotImplementedError
 
 
-  save_path = f"./TestEgocentric/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  save_path = "./"
+  if args.parent_folder != '':
+    save_path += args.parent_folder+'/'
+  save_path += f"{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
