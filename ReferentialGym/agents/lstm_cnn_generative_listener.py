@@ -16,7 +16,15 @@ class LSTMCNNGenerativeListener(GenerativeListener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(LSTMCNNGenerativeListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
+        super(LSTMCNNGenerativeListener, self).__init__(
+            obs_shape, 
+            vocab_size, 
+            max_sentence_length, 
+            agent_id, 
+            logger, 
+            kwargs
+        )
+        
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
