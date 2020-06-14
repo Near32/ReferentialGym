@@ -4,9 +4,6 @@ from .speaker import Speaker
 from .listener import Listener
 from .discriminative_listener import DiscriminativeListener 
 
-from .basic_cnn_speaker import BasicCNNSpeaker
-from .basic_cnn_listener import BasicCNNListener
-
 from .lstm_cnn_speaker import LSTMCNNSpeaker
 from .transcoding_lstm_cnn_speaker import TranscodingLSTMCNNSpeaker
 from .multi_head_lstm_cnn_speaker import MultiHeadLSTMCNNSpeaker

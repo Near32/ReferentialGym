@@ -47,6 +47,8 @@ def discriminative_st_gs_referential_game_loss(agent,
     config = input_streams_dict['config']
     mode = input_streams_dict['mode']
 
+    if 'listener' not in agent.role:    return outputs_dict
+
     batch_size = len(input_streams_dict['experiences'])
 
     sample = input_streams_dict['sample']

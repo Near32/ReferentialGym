@@ -66,7 +66,7 @@ class ReferentialGame(object):
                                                             shuffle=True,
                                                             collate_fn=collate_dict_wrapper,
                                                             pin_memory=True,
-                                                            num_workers=self.config['dataloader_num_worker'])
+                                                            )#num_workers=self.config['dataloader_num_worker'])
                         for mode, dataset in self.datasets.items()
                         }
         
@@ -79,7 +79,8 @@ class ReferentialGame(object):
         it_samples = {mode:0 for mode in self.datasets} # counting the number of multi-round
         it_steps = {mode:0 for mode in self.datasets} # taking into account multi round... counting the number of sample shown to the agents.
         
-        if self.config['use_curriculum_nbr_distractors']:
+        if 'use_curriculum_nbr_distractors' in self.config\
+            and self.config['use_curriculum_nbr_distractors']:
             windowed_accuracy = 0.0
             window_count = 0
             for mode in self.datasets:
@@ -103,7 +104,10 @@ class ReferentialGame(object):
                 end_of_epoch_dataset = (it_dataset==len(data_loaders)-1)
                 self.stream_handler.update("signals:end_of_epoch_dataset", end_of_epoch_dataset)
                 
-                nbr_experience_repetition = self.config['nbr_experience_repetition'] if 'train' in mode else 1
+                nbr_experience_repetition = 1
+                if 'nbr_experience_repetition' in self.config\
+                    and 'train' in mode:
+                    nbr_experience_repetition = self.config['nbr_experience_repetition']
 
                 for idx_stimulus, sample in enumerate(data_loader):
                     end_of_dataset = (idx_stimulus==len(data_loader)-1)
@@ -192,7 +196,8 @@ class ReferentialGame(object):
                         # //------------------------------------------------------------//
                         
                         # TODO: CURRICULUM ON DISTRATORS as a module that handles the current dataloader reference....!!
-                        if self.config['use_curriculum_nbr_distractors']:
+                        if 'use_curriculum_nbr_distractors' in self.config\
+                            and self.config['use_curriculum_nbr_distractors']:
                             nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
                             logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_step)
                             logger.add_scalar( "{}/CurriculumWindowedAcc".format(mode), windowed_accuracy, it_step)
@@ -228,7 +233,9 @@ class ReferentialGame(object):
                     # //------------------------------------------------------------//
 
                     # TODO: many parts everywhere, do not forget them all : CURRICULUM ON DISTRACTORS...!!!
-                    if self.config['use_curriculum_nbr_distractors'] and 'train' in mode:
+                    if 'train' in mode\
+                        and 'use_curriculum_nbr_distractors' in self.config\
+                        and self.config['use_curriculum_nbr_distractors']:
                         nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
                         windowed_accuracy = (windowed_accuracy*window_count+acc.item())
                         window_count += 1

@@ -6,6 +6,34 @@ from .discriminative_listener import DiscriminativeListener
 from ..networks import choose_architecture, layer_init, BetaVAE
 from ..utils import gumbel_softmax
 
+def sentence_length_logging_hook(agent,
+                                 losses_dict,
+                                 input_streams_dict,
+                                 outputs_dict,
+                                 logs_dict,
+                                 **kwargs):
+    it_rep = input_streams_dict['it_rep']
+    it_comm_round = input_streams_dict['it_comm_round']
+    mode = input_streams_dict['mode']
+    config = input_streams_dict['config']
+
+    if 'speaker' not in agent.role: return
+
+    batch_size = len(input_streams_dict['experiences'])
+    speaker_sentences_logits = outputs_dict["sentences_logits"]
+    speaker_sentences_widx = outputs_dict["sentences_widx"]
+
+    # Sentence Lengths:
+    sentence_lengths = torch.sum(-(speaker_sentences_widx.squeeze(-1)-agent.vocab_size).sign(), dim=-1).reshape(batch_size,-1)
+    sentence_length = sentence_lengths.mean()
+    """
+    sentence_lengths = (speaker_sentences_widx < (agent.vocab_pad_idx))
+    sentence_lengths = sentence_lengths.reshape(batch_size,-1).float().sum(-1)
+    sentence_length = sentence_lengths.mean()
+    """
+
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config['max_sentence_length']
+
 
 class DifferentiableObverterAgent(DiscriminativeListener):
     def __init__(self,
@@ -38,6 +66,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             agent_id, 
             logger, 
             kwargs)
+
+        self.register_hook(sentence_length_logging_hook)
         
         self.kwargs = kwargs 
 
@@ -506,7 +536,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                           not_target_logits_per_token=None,
                           use_sentences_one_hot_vectors=False,
                           logger=None):
-        """Compute sentences using the obverter approach, adapted to referential game variants following the
+        """
+        Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
 
         In descriptive mode, `nbr_distractors_po=1` and `target_idx=torch.zeros((batch_size,1))`, 
