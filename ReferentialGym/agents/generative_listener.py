@@ -76,6 +76,8 @@ def generative_st_gs_referential_game_loss(agent,
         # (batch_size, n_dim)
         accuracies = 100.0*(target_output==argmax_generative_output).float()
         # (batch_size, n_dim)
+        accuracy = accuracies.prod(dim=-1)
+        # (batch_size, )
         
         neg_log_lik_classes = [
             -torch.distributions.Categorical( 
@@ -96,6 +98,7 @@ def generative_st_gs_referential_game_loss(agent,
                 f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik/Dim{idx}"] = nll
 
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy"] = accuracy
 
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     else:
