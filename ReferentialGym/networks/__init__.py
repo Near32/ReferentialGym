@@ -11,6 +11,7 @@ from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
 
 from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
 
+import torch.nn as nn 
 import torch.nn.functional as F 
 
 def choose_architecture( architecture, 
@@ -35,8 +36,8 @@ def choose_architecture( architecture,
     if 'GRU-RNN' in architecture:
         return GRUBody(input_shape[0], hidden_units=rnn_hidden_units_list, gate=nn.LeakyReLU)
     
-    if architecture == 'MLP':
-        return FCBody(input_shape[0], hidden_units=fc_hidden_units_list, gate=nn.LeakyReLU)
+    if 'MLP' in architecture:
+        return FCBody(input_shape, hidden_units=fc_hidden_units_list, non_linearities=[nn.LeakyReLU])
     
     if 'CNN' in architecture and 'DCNN' not in architecture:
         use_coordconv = None

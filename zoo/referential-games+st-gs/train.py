@@ -15,94 +15,94 @@ import torchvision.transforms as T
 
 
 def main():
-  parser = argparse.ArgumentParser(description='LSTM CNN Agents: ST-GS Language Emergence.')
-  parser.add_argument('--seed', type=int, default=0)
-  parser.add_argument('--parent_folder', type=str, help='folder to save into.',default='')
-  parser.add_argument('--use_cuda', action='store_true', default=False)
-  parser.add_argument('--dataset', type=str, 
-    choices=['Sort-of-CLEVR',
-             'tiny-Sort-of-CLEVR',
-             'XSort-of-CLEVR',
-             'tiny-XSort-of-CLEVR',
-             'dSprites',
+  parser = argparse.ArgumentParser(description="LSTM CNN Agents: ST-GS Language Emergence.")
+  parser.add_argument("--seed", type=int, default=0)
+  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="")
+  parser.add_argument("--use_cuda", action="store_true", default=False)
+  parser.add_argument("--dataset", type=str, 
+    choices=["Sort-of-CLEVR",
+             "tiny-Sort-of-CLEVR",
+             "XSort-of-CLEVR",
+             "tiny-XSort-of-CLEVR",
+             "dSprites",
              ], 
-    help='dataset to train on.',
-    default='XSort-of-CLEVR')
-  parser.add_argument('--arch', type=str, 
-    choices=['CNN',
-             'CNN3x3',
-             'BN+CNN',
-             'BN+CNN3x3',
-             'BN+Coord2CNN3x3',
-             'BN+Coord4CNN3x3',
-             'Santoro2017-SoC-CNN',
-             'Santoro2017-CLEVR-CNN',
-             'Santoro2017-CLEVR-CNN3x3',
-             'Santoro2017-CLEVR-CoordCNN3x3',
-             'Santoro2017-CLEVR-EntityPrioredCNN3x3',
-             'Santoro2017-CLEVR-CNN7x4x4x3',
+    help="dataset to train on.",
+    default="XSort-of-CLEVR")
+  parser.add_argument("--arch", type=str, 
+    choices=["CNN",
+             "CNN3x3",
+             "BN+CNN",
+             "BN+CNN3x3",
+             "BN+Coord2CNN3x3",
+             "BN+Coord4CNN3x3",
+             "Santoro2017-SoC-CNN",
+             "Santoro2017-CLEVR-CNN",
+             "Santoro2017-CLEVR-CNN3x3",
+             "Santoro2017-CLEVR-CoordCNN3x3",
+             "Santoro2017-CLEVR-EntityPrioredCNN3x3",
+             "Santoro2017-CLEVR-CNN7x4x4x3",
              ], 
-    help='model architecture to train',
+    help="model architecture to train",
     default="Santoro2017-CLEVR-CNN")
-  parser.add_argument('--graphtype', type=str,
-    choices=['straight_through_gumbel_softmax',
-             'reinforce',
-             'baseline_reduced_reinforce',
-             'normalized_reinforce',
-             'baseline_reduced_normalized_reinforce',
-             'max_entr_reinforce',
-             'baseline_reduced_normalized_max_entr_reinforce',
-             'argmax_reinforce',
-             'obverter'],
-    help='type of graph to use during training of the speaker and listener.',
-    default='straight_through_gumbel_softmax')
-  parser.add_argument('--max_sentence_length', type=int, default=15)
-  parser.add_argument('--vocab_size', type=int, default=25)
-  parser.add_argument('--optimizer_type', type=str, 
+  parser.add_argument("--graphtype", type=str,
+    choices=["straight_through_gumbel_softmax",
+             "reinforce",
+             "baseline_reduced_reinforce",
+             "normalized_reinforce",
+             "baseline_reduced_normalized_reinforce",
+             "max_entr_reinforce",
+             "baseline_reduced_normalized_max_entr_reinforce",
+             "argmax_reinforce",
+             "obverter"],
+    help="type of graph to use during training of the speaker and listener.",
+    default="straight_through_gumbel_softmax")
+  parser.add_argument("--max_sentence_length", type=int, default=15)
+  parser.add_argument("--vocab_size", type=int, default=25)
+  parser.add_argument("--optimizer_type", type=str, 
     choices=[
       "adam",
       "sgd"
       ],
     default="adam")
-  parser.add_argument('--agent_loss_type', type=str,
+  parser.add_argument("--agent_loss_type", type=str,
     choices=[
       "Hinge",
       "NLL",
       "CE",
       ],
     default="Hinge")
-  parser.add_argument('--agent_type', type=str,
+  parser.add_argument("--agent_type", type=str,
     choices=[
       "Baseline",
       "EoSPriored",
       ],
     default="Baseline")
-  parser.add_argument('--lr', type=float, default=1e-4)
-  parser.add_argument('--epoch', type=int, default=2000)
-  parser.add_argument('--metric_epoch_period', type=int, default=20)
-  parser.add_argument('--dataloader_num_worker', type=int, default=4)
-  parser.add_argument('--metric_fast', action='store_true', default=False)
-  parser.add_argument('--batch_size', type=int, default=32)
-  parser.add_argument('--mini_batch_size', type=int, default=128)
-  parser.add_argument('--dropout_prob', type=float, default=0.0)
-  parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
-  parser.add_argument('--nbr_experience_repetition', type=int, default=1)
-  parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
-  parser.add_argument('--nbr_test_dataset_repetition', type=int, default=1)
-  parser.add_argument('--nbr_test_distractors', type=int, default=63)
-  parser.add_argument('--nbr_train_distractors', type=int, default=47)
-  parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
-  parser.add_argument('--shared_architecture', action='store_true', default=False)
-  parser.add_argument('--same_head', action='store_true', default=False)
-  parser.add_argument('--with_baseline', action='store_true', default=False)
-  parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
-  parser.add_argument('--use_curriculum_nbr_distractors', action='store_true', default=False)
-  parser.add_argument('--use_feat_converter', action='store_true', default=False)
-  parser.add_argument('--detached_heads', action='store_true', default=False)
-  parser.add_argument('--test_id_analogy', action='store_true', default=False)
-  parser.add_argument('--descriptive', action='store_true', default=False)
-  parser.add_argument('--egocentric', action='store_true', default=False)
-  parser.add_argument('--distractor_sampling', type=str,
+  parser.add_argument("--lr", type=float, default=1e-4)
+  parser.add_argument("--epoch", type=int, default=2000)
+  parser.add_argument("--metric_epoch_period", type=int, default=20)
+  parser.add_argument("--dataloader_num_worker", type=int, default=4)
+  parser.add_argument("--metric_fast", action="store_true", default=False)
+  parser.add_argument("--batch_size", type=int, default=32)
+  parser.add_argument("--mini_batch_size", type=int, default=128)
+  parser.add_argument("--dropout_prob", type=float, default=0.0)
+  parser.add_argument("--emb_dropout_prob", type=float, default=0.8)
+  parser.add_argument("--nbr_experience_repetition", type=int, default=1)
+  parser.add_argument("--nbr_train_dataset_repetition", type=int, default=1)
+  parser.add_argument("--nbr_test_dataset_repetition", type=int, default=1)
+  parser.add_argument("--nbr_test_distractors", type=int, default=63)
+  parser.add_argument("--nbr_train_distractors", type=int, default=47)
+  parser.add_argument("--resizeDim", default=32, type=int,help="input image resize")
+  parser.add_argument("--shared_architecture", action="store_true", default=False)
+  parser.add_argument("--same_head", action="store_true", default=False)
+  parser.add_argument("--with_baseline", action="store_true", default=False)
+  parser.add_argument("--homoscedastic_multitasks_loss", action="store_true", default=False)
+  parser.add_argument("--use_curriculum_nbr_distractors", action="store_true", default=False)
+  parser.add_argument("--use_feat_converter", action="store_true", default=False)
+  parser.add_argument("--detached_heads", action="store_true", default=False)
+  parser.add_argument("--test_id_analogy", action="store_true", default=False)
+  parser.add_argument("--descriptive", action="store_true", default=False)
+  parser.add_argument("--egocentric", action="store_true", default=False)
+  parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
               "similarity-0.98",
               "similarity-0.90",
@@ -110,79 +110,79 @@ def main():
               ],
     default="similarity-0.75")
   # Obverter Hyperparameters:
-  parser.add_argument('--use_sentences_one_hot_vectors', action='store_true', default=False)
-  parser.add_argument('--differentiable', action='store_true', default=False)
-  parser.add_argument('--obverter_threshold_to_stop_message_generation', type=float, default=0.95)
-  parser.add_argument('--obverter_nbr_games_per_round', type=int, default=4)
+  parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
+  parser.add_argument("--differentiable", action="store_true", default=False)
+  parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
+  parser.add_argument("--obverter_nbr_games_per_round", type=int, default=4)
   # Cultural Bottleneck:
-  parser.add_argument('--iterated_learning_scheme', action='store_true', default=False)
-  parser.add_argument('--iterated_learning_period', type=int, default=4)
-  parser.add_argument('--iterated_learning_rehearse_MDL', action='store_true', default=False)
-  parser.add_argument('--iterated_learning_rehearse_MDL_factor', type=float, default=1.0)
+  parser.add_argument("--iterated_learning_scheme", action="store_true", default=False)
+  parser.add_argument("--iterated_learning_period", type=int, default=4)
+  parser.add_argument("--iterated_learning_rehearse_MDL", action="store_true", default=False)
+  parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
   
   # Dataset Hyperparameters:
-  parser.add_argument('--train_test_split_strategy', type=str, 
-    choices=['combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N', # Exp : DoRGsFurtherDise interweaved split simple XY normal             
-             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-4-N-Shape-1-N',
-             'combinatorial2-Y-32-N-X-32-N-Orientation-5-S4-Scale-1-S3-Shape-3-N',  #Sparse 2 Attributes: Orient.+Scale 64 imgs, 48 train, 16 test
-             'combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N',  # 4x Denser 2 Attributes: 256 imgs, 192 train, 64 test,
+  parser.add_argument("--train_test_split_strategy", type=str, 
+    choices=["combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N", # Exp : DoRGsFurtherDise interweaved split simple XY normal             
+             "combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-4-N-Shape-1-N",
+             "combinatorial2-Y-32-N-X-32-N-Orientation-5-S4-Scale-1-S3-Shape-3-N",  #Sparse 2 Attributes: Orient.+Scale 64 imgs, 48 train, 16 test
+             "combinatorial2-Y-2-S8-X-2-S8-Orientation-40-N-Scale-6-N-Shape-3-N",  # 4x Denser 2 Attributes: 256 imgs, 192 train, 64 test,
              
              # Heart shape: interpolation:
-             'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
-             'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N',  #Dense 2 Attributes: X+Y 256 imgs, 192 train, 64 test
-             'combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
-             'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
-             'combinatorial2-Y-2-2-X-2-2-Orientation-2-2-Scale-1-2-Shape-3-N', #COMB2:Dense 4 Attributes: ? test / ? train
-             'combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N',  #COMB2 Sparse: 3 Attributes: XYOrientation 256 test / 256 train
+             "combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N",  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
+             "combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N",  #Dense 2 Attributes: X+Y 256 imgs, 192 train, 64 test
+             "combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-2-Shape-3-N", #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             "combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-1-2-Shape-3-N", #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             "combinatorial2-Y-2-2-X-2-2-Orientation-2-2-Scale-1-2-Shape-3-N", #COMB2:Dense 4 Attributes: ? test / ? train
+             "combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N",  #COMB2 Sparse: 3 Attributes: XYOrientation 256 test / 256 train
              # Heart shape: Extrapolation:
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N',  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
-             'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
-             'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-3-N', #COMB2:Dense 4 Attributes: ? test / ? train
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N',  #COMB2 Sparse: 3 Attributes: XYOrientation 256 test / 256 train
+             "combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N",  #Sparse 2 Attributes: X+Y 64 imgs, 48 train, 16 test
+             "combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-3-N", #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             "combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N", #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             "combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-3-N", #COMB2:Dense 4 Attributes: ? test / ? train
+             "combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N",  #COMB2 Sparse: 3 Attributes: XYOrientation 256 test / 256 train
 
              # Ovale shape:
-             'combinatorial2-Y-1-S16-X-1-S16-Orientation-40-N-Scale-6-N-Shape-2-N', # Denser 2 Attributes X+Y X 16/ Y 16/ --> 256 test / 768 train 
-             'combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-2-N', #COMB2:Sparser 4 Attributes: 264 test / 120 train
-             'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N', #COMB2:Sparse 4 Attributes: 2112 test / 960 train
-             'combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-2-N', #COMB2:Dense 4 Attributes: ? test / ? train
+             "combinatorial2-Y-1-S16-X-1-S16-Orientation-40-N-Scale-6-N-Shape-2-N", # Denser 2 Attributes X+Y X 16/ Y 16/ --> 256 test / 768 train 
+             "combinatorial2-Y-8-S2-X-8-S2-Orientation-10-S2-Scale-1-S3-Shape-2-N", #COMB2:Sparser 4 Attributes: 264 test / 120 train
+             "combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-2-N", #COMB2:Sparse 4 Attributes: 2112 test / 960 train
+             "combinatorial2-Y-2-S8-X-2-S8-Orientation-2-S10-Scale-1-S3-Shape-2-N", #COMB2:Dense 4 Attributes: ? test / ? train
              
              #3 Attributes: denser 2 attributes(X+Y) with the sample size of Dense 4 attributes:
-             'combinatorial2-Y-1-S16-X-1-S16-Orientation-2-S10-Scale-6-N-Shape-2-N', 
+             "combinatorial2-Y-1-S16-X-1-S16-Orientation-2-S10-Scale-6-N-Shape-2-N", 
   
-             'combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N', #Sparse 4 Attributes: 192 test / 1344 train
+             "combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N", #Sparse 4 Attributes: 192 test / 1344 train
             ],
-    help='train/test split strategy',
+    help="train/test split strategy",
     # INTER:
-    default='combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N')
+    default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
     # EXTRA:
-    #default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
-  parser.add_argument('--fast', action='store_true', default=False, 
-    help='Disable the deterministic CuDNN. It is likely to make the computation faster.')
+    #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N")
+  parser.add_argument("--fast", action="store_true", default=False, 
+    help="Disable the deterministic CuDNN. It is likely to make the computation faster.")
   
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
   # VAE Hyperparameters:
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
-  parser.add_argument('--vae_detached_featout', action='store_true', default=False)
+  parser.add_argument("--vae_detached_featout", action="store_true", default=False)
 
-  parser.add_argument('--vae_lambda', type=float, default=1.0)
-  parser.add_argument('--vae_use_mu_value', action='store_true', default=False)
+  parser.add_argument("--vae_lambda", type=float, default=1.0)
+  parser.add_argument("--vae_use_mu_value", action="store_true", default=False)
   
-  parser.add_argument('--vae_nbr_latent_dim', type=int, default=128)
-  parser.add_argument('--vae_decoder_nbr_layer', type=int, default=3)
-  parser.add_argument('--vae_decoder_conv_dim', type=int, default=32)
+  parser.add_argument("--vae_nbr_latent_dim", type=int, default=128)
+  parser.add_argument("--vae_decoder_nbr_layer", type=int, default=3)
+  parser.add_argument("--vae_decoder_conv_dim", type=int, default=32)
   
-  parser.add_argument('--vae_gaussian', action='store_true', default=False)
-  parser.add_argument('--vae_gaussian_sigma', type=float, default=0.25)
+  parser.add_argument("--vae_gaussian", action="store_true", default=False)
+  parser.add_argument("--vae_gaussian_sigma", type=float, default=0.25)
   
-  parser.add_argument('--vae_beta', type=float, default=1.0)
-  parser.add_argument('--vae_factor_gamma', type=float, default=0.0)
+  parser.add_argument("--vae_beta", type=float, default=1.0)
+  parser.add_argument("--vae_factor_gamma", type=float, default=0.0)
   
-  parser.add_argument('--vae_constrained_encoding', action='store_true', default=False)
-  parser.add_argument('--vae_max_capacity', type=float, default=1e3)
-  parser.add_argument('--vae_nbr_epoch_till_max_capacity', type=int, default=10)
+  parser.add_argument("--vae_constrained_encoding", action="store_true", default=False)
+  parser.add_argument("--vae_max_capacity", type=float, default=1e3)
+  parser.add_argument("--vae_nbr_epoch_till_max_capacity", type=int, default=10)
 
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
@@ -214,7 +214,7 @@ def main():
 
   # Following: https://pytorch.org/docs/stable/notes/randomness.html
   torch.manual_seed(seed)
-  if hasattr(torch.backends, 'cudnn') and not(args.fast):
+  if hasattr(torch.backends, "cudnn") and not(args.fast):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -250,7 +250,7 @@ def main():
       "observability":            "partial",
       "max_sentence_length":      args.max_sentence_length,
       "nbr_communication_round":  1,
-      "nbr_distractors":          {'train':args.nbr_train_distractors, 'test':args.nbr_test_distractors},
+      "nbr_distractors":          {"train":args.nbr_train_distractors, "test":args.nbr_test_distractors},
       "distractor_sampling":      args.distractor_sampling,
       # Default: use 'similarity-0.5'
       # otherwise the emerging language 
@@ -275,8 +275,8 @@ def main():
       "symbol_embedding_size":    256, #64
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
-      "agent_learning":           'learning',  #'transfer_learning' : CNN's outputs are detached from the graph...
-      "agent_loss_type":          args.agent_loss_type, #'NLL'
+      "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
+      "agent_loss_type":          args.agent_loss_type, #"NLL"
 
       "cultural_pressure_it_period": None,
       "cultural_speaker_substrate_size":  1,
@@ -298,7 +298,7 @@ def main():
 
       "batch_size":               args.batch_size,
       "dataloader_num_worker":    args.dataloader_num_worker,
-      "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
+      "stimulus_depth_dim":       1 if "dSprites" in args.dataset else 3,
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
       "learning_rate":            args.lr, #1e-3,
@@ -372,165 +372,165 @@ def main():
   
   ## Agent Configuration:
   agent_config = copy.deepcopy(rg_config)
-  agent_config['use_cuda'] = rg_config['use_cuda']
-  agent_config['homoscedastic_multitasks_loss'] = rg_config['use_homoscedastic_multitasks_loss']
-  agent_config['use_feat_converter'] = rg_config['use_feat_converter']
-  agent_config['max_sentence_length'] = rg_config['max_sentence_length']
-  agent_config['nbr_distractors'] = rg_config['nbr_distractors']['train'] if rg_config['observability'] == 'full' else 0
-  agent_config['nbr_stimulus'] = rg_config['nbr_stimulus']
-  agent_config['nbr_communication_round'] = rg_config['nbr_communication_round']
-  agent_config['descriptive'] = rg_config['descriptive']
-  agent_config['gumbel_softmax_eps'] = rg_config['gumbel_softmax_eps']
-  agent_config['agent_learning'] = rg_config['agent_learning']
+  agent_config["use_cuda"] = rg_config["use_cuda"]
+  agent_config["homoscedastic_multitasks_loss"] = rg_config["use_homoscedastic_multitasks_loss"]
+  agent_config["use_feat_converter"] = rg_config["use_feat_converter"]
+  agent_config["max_sentence_length"] = rg_config["max_sentence_length"]
+  agent_config["nbr_distractors"] = rg_config["nbr_distractors"]["train"] if rg_config["observability"] == "full" else 0
+  agent_config["nbr_stimulus"] = rg_config["nbr_stimulus"]
+  agent_config["nbr_communication_round"] = rg_config["nbr_communication_round"]
+  agent_config["descriptive"] = rg_config["descriptive"]
+  agent_config["gumbel_softmax_eps"] = rg_config["gumbel_softmax_eps"]
+  agent_config["agent_learning"] = rg_config["agent_learning"]
 
   # Obverter:
-  agent_config['use_obverter_threshold_to_stop_message_generation'] = args.obverter_threshold_to_stop_message_generation
+  agent_config["use_obverter_threshold_to_stop_message_generation"] = args.obverter_threshold_to_stop_message_generation
   
-  agent_config['symbol_embedding_size'] = rg_config['symbol_embedding_size']
+  agent_config["symbol_embedding_size"] = rg_config["symbol_embedding_size"]
 
   # Recurrent Convolutional Architecture:
-  agent_config['architecture'] = rg_config['agent_architecture']
-  agent_config['dropout_prob'] = rg_config['dropout_prob']
-  agent_config['embedding_dropout_prob'] = rg_config['embedding_dropout_prob']
+  agent_config["architecture"] = rg_config["agent_architecture"]
+  agent_config["dropout_prob"] = rg_config["dropout_prob"]
+  agent_config["embedding_dropout_prob"] = rg_config["embedding_dropout_prob"]
   
-  if 'Santoro2017-SoC' in agent_config['architecture']:
+  if "Santoro2017-SoC" in agent_config["architecture"]:
     # For a fair comparison between CNN an VAEs:
     # the CNN is augmented with one final FC layer reducing to the latent space shape.
     # Need to use feat converter too:
-    #rg_config['use_feat_converter'] = True 
-    #agent_config['use_feat_converter'] = True 
+    #rg_config["use_feat_converter"] = True 
+    #agent_config["use_feat_converter"] = True 
     
     # Otherwise, the VAE alone may be augmented:
     # This approach assumes that the VAE latent dimension size
     # is acting as a prior which is part of the comparison...
-    rg_config['use_feat_converter'] = False
-    agent_config['use_feat_converter'] = False
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
     
-    agent_config['cnn_encoder_channels'] = ['BN32','BN64','BN128','BN256']
-    if '3x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
-    elif '7x4x4x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    agent_config["cnn_encoder_channels"] = ["BN32","BN64","BN128","BN256"]
+    if "3x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
+    elif "7x4x4x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
     else:
-      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
-    agent_config['cnn_encoder_strides'] = [2,2,2,2]
-    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
-    agent_config['cnn_encoder_fc_hidden_units'] = [] 
+      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
+    agent_config["cnn_encoder_strides"] = [2,2,2,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = [] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
-    #agent_config['cnn_encoder_feature_dim'] = args.vae_nbr_latent_dim
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
     # Otherwise:
     cnn_feature_size = 100
-    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size
+    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
 
-    agent_config['cnn_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['feat_converter_output_size'] = cnn_feature_size
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = cnn_feature_size
 
-    if 'MHDPA' in agent_config['architecture']:
-      agent_config['mhdpa_nbr_head'] = 4
-      agent_config['mhdpa_nbr_rec_update'] = 1
-      agent_config['mhdpa_nbr_mlp_unit'] = 256
-      agent_config['mhdpa_interaction_dim'] = 128
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
 
-    agent_config['temporal_encoder_nbr_hidden_units'] = rg_config['nbr_stimulus']*cnn_feature_size
-    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
-    agent_config['temporal_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
-    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+    agent_config["temporal_encoder_nbr_hidden_units"] = rg_config["nbr_stimulus"]*cnn_feature_size
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
-  elif 'Santoro2017-CLEVR' in agent_config['architecture']:
+  elif "Santoro2017-CLEVR" in agent_config["architecture"]:
     # For a fair comparison between CNN an VAEs:
     # the CNN is augmented with one final FC layer reducing to the latent space shape.
     # Need to use feat converter too:
-    #rg_config['use_feat_converter'] = True 
-    #agent_config['use_feat_converter'] = True 
+    #rg_config["use_feat_converter"] = True 
+    #agent_config["use_feat_converter"] = True 
     
     # Otherwise, the VAE alone may be augmented:
     # This approach assumes that the VAE latent dimension size
     # is acting as a prior which is part of the comparison...
-    rg_config['use_feat_converter'] = False
-    agent_config['use_feat_converter'] = False
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
     
-    agent_config['cnn_encoder_channels'] = ['BN24','BN24','BN24','BN24']
-    if '3x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
-    elif '7x4x4x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    agent_config["cnn_encoder_channels"] = ["BN24","BN24","BN24","BN24"]
+    if "3x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
+    elif "7x4x4x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
     else:
-      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
-    agent_config['cnn_encoder_strides'] = [2,2,2,2]
-    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
-    agent_config['cnn_encoder_fc_hidden_units'] = []
+      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
+    agent_config["cnn_encoder_strides"] = [2,2,2,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = []
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
-    #agent_config['cnn_encoder_feature_dim'] = args.vae_nbr_latent_dim
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
     # Otherwise:
-    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size
+    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
 
-    agent_config['cnn_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['feat_converter_output_size'] = cnn_feature_size
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = cnn_feature_size
 
-    if 'MHDPA' in agent_config['architecture']:
-      agent_config['mhdpa_nbr_head'] = 4
-      agent_config['mhdpa_nbr_rec_update'] = 1
-      agent_config['mhdpa_nbr_mlp_unit'] = 256
-      agent_config['mhdpa_interaction_dim'] = 128
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
 
-    agent_config['temporal_encoder_nbr_hidden_units'] = 0
-    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
-    agent_config['temporal_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
-    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
-  elif 'CNN' in agent_config['architecture']:
-    rg_config['use_feat_converter'] = False
-    agent_config['use_feat_converter'] = False
+  elif "CNN" in agent_config["architecture"]:
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
     
-    if 'BN' in args.arch:
-      agent_config['cnn_encoder_channels'] = ['BN32','BN32','BN64','BN64']
+    if "BN" in args.arch:
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN64","BN64"]
     else:
-      agent_config['cnn_encoder_channels'] = [32,32,64,64]
+      agent_config["cnn_encoder_channels"] = [32,32,64,64]
     
-    if '3x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [3,3,3,3]
-    elif '7x4x4x3' in agent_config['architecture']:
-      agent_config['cnn_encoder_kernels'] = [7,4,4,3]
+    if "3x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
+    elif "7x4x4x3" in agent_config["architecture"]:
+      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
     else:
-      agent_config['cnn_encoder_kernels'] = [4,4,4,4]
-    agent_config['cnn_encoder_strides'] = [2,2,2,2]
-    agent_config['cnn_encoder_paddings'] = [1,1,1,1]
-    agent_config['cnn_encoder_fc_hidden_units'] = []#[128,] 
+      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
+    agent_config["cnn_encoder_strides"] = [2,2,2,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
-    #agent_config['cnn_encoder_feature_dim'] = args.vae_nbr_latent_dim
-    agent_config['cnn_encoder_feature_dim'] = cnn_feature_size
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
+    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
 
-    agent_config['cnn_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['feat_converter_output_size'] = cnn_feature_size
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = cnn_feature_size
 
-    if 'MHDPA' in agent_config['architecture']:
-      agent_config['mhdpa_nbr_head'] = 4
-      agent_config['mhdpa_nbr_rec_update'] = 1
-      agent_config['mhdpa_nbr_mlp_unit'] = 256
-      agent_config['mhdpa_interaction_dim'] = 128
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
 
-    agent_config['temporal_encoder_nbr_hidden_units'] = 0
-    agent_config['temporal_encoder_nbr_rnn_layers'] = 0
-    agent_config['temporal_encoder_mini_batch_size'] = args.mini_batch_size
-    agent_config['symbol_processing_nbr_hidden_units'] = agent_config['temporal_encoder_nbr_hidden_units']
-    agent_config['symbol_processing_nbr_rnn_layers'] = 1
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
   else:
     raise NotImplementedError
@@ -743,11 +743,11 @@ def main():
   population_handler_id = "population_handler_0"
   population_handler_config = rg_config
   population_handler_stream_ids = {
-    "modules:current_speaker":"current_speaker_streams_dict",
-    "modules:current_listener":"current_listener_streams_dict",
-    "signals:epoch":"epoch",
-    "signals:mode":"mode",
-    "signals:global_it_datasample":"global_it_datasample",
+    "current_speaker_streams_dict":"modules:current_speaker",
+    "current_listener_streams_dict":"modules:current_listener",
+    "epoch":"signals:epoch",
+    "mode":"signals:mode",
+    "global_it_datasample":"signals:global_it_datasample",
   }
 
   # Current Speaker:
@@ -827,12 +827,12 @@ def main():
 
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
-    'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
-    'modules:current_speaker:ref:ref_agent:features':'representations',
-    'current_dataloader:sample:speaker_experiences':'experiences', 
-    'current_dataloader:sample:speaker_exp_latents':'latent_representations', 
-    'current_dataloader:sample:speaker_exp_latents_values':'latent_values_representations',
-    'current_dataloader:sample:speaker_indices':'indices', 
+    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_speaker:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
   }
   speaker_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=speaker_factor_vae_disentanglement_metric_id,
@@ -853,12 +853,12 @@ def main():
 
   listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
   listener_factor_vae_disentanglement_metric_input_stream_ids = {
-    'modules:current_listener:ref:ref_agent:cnn_encoder':'model',
-    'modules:current_listener:ref:ref_agent:features':'representations',
-    'current_dataloader:sample:listener_experiences':'experiences', 
-    'current_dataloader:sample:listener_exp_latents':'latent_representations', 
-    'current_dataloader:sample:listener_exp_latents_values':'latent_values_representations',
-    'current_dataloader:sample:listener_indices':'indices', 
+    "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_listener:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:listener_experiences", 
+    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:listener_exp_latents_values",
+    "indices":"current_dataloader:sample:listener_indices", 
   }
   listener_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=listener_factor_vae_disentanglement_metric_id,
@@ -881,7 +881,7 @@ def main():
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
 
-  pipelines['referential_game'] = [
+  pipelines["referential_game"] = [
     population_handler_id,
     current_speaker_id,
     current_listener_id
@@ -891,10 +891,10 @@ def main():
   if args.homoscedastic_multitasks_loss:
     pipelines[optim_id].append(homo_id)
   pipelines[optim_id].append(optim_id)
-  '''
+  """
   # Add gradient recorder module for debugging purposes:
   pipelines[optim_id].append(grad_recorder_id)
-  '''
+  """
   pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
@@ -912,13 +912,13 @@ def main():
                 "test": test_dataset,
                 },
       "need_dict_wrapping":       need_dict_wrapping,
-      "nbr_stimulus":             rg_config['nbr_stimulus'],
-      "distractor_sampling":      rg_config['distractor_sampling'],
-      "nbr_distractors":          rg_config['nbr_distractors'],
-      "observability":            rg_config['observability'],
-      "object_centric":           rg_config['object_centric'],
-      "descriptive":              rg_config['descriptive'],
-      "descriptive_target_ratio": rg_config['descriptive_target_ratio'],
+      "nbr_stimulus":             rg_config["nbr_stimulus"],
+      "distractor_sampling":      rg_config["distractor_sampling"],
+      "nbr_distractors":          rg_config["nbr_distractors"],
+      "observability":            rg_config["observability"],
+      "object_centric":           rg_config["object_centric"],
+      "descriptive":              rg_config["descriptive"],
+      "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
 
   refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
@@ -931,5 +931,5 @@ def main():
 
   logger.flush()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

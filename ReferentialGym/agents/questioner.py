@@ -7,8 +7,8 @@ from .conversational_agent import ConversationalAgent
 
 
 class Questioner(ConversationalAgent):
-    def __init__(self, obs_shape, vocab_size=100, max_sentence_length=10, agent_id='s0', logger=None, kwargs=None):
-        '''
+    def __init__(self, obs_shape, vocab_size=100, max_sentence_length=10, agent_id="s0", logger=None, kwargs=None):
+        """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_experiences, sequence_length, *experience_shape)`
                           where, by default, `nbr_experiences=1` (partial observability), and `sequence_length=1` (static stimuli). 
         :param vocab_size: int defining the size of the vocabulary of the language.
@@ -16,7 +16,7 @@ class Questioner(ConversationalAgent):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         :param kwargs: Dict of kwargs...
-        '''
+        """
         super(Questioner, self).__init__(
             agent_id=agent_id, 
             obs_shape=obs_shape,
@@ -40,7 +40,7 @@ class Questioner(ConversationalAgent):
         raise NotImplementedError
 
     def _sense(self, experiences, sentences=None):
-        '''
+        """
         Infers features from the experiences that have been provided.
 
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -49,7 +49,7 @@ class Questioner(ConversationalAgent):
         
         :returns:
             features: Tensor of shape `(batch_size, *(self.obs_shape[:2]), feature_dim).
-        '''
+        """
 
         raise NotImplementedError
 
@@ -67,7 +67,7 @@ class Questioner(ConversationalAgent):
         raise NotImplementedError
     
     def _utter(self, features, sentences=None):
-        '''
+        """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
         :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
@@ -78,7 +78,7 @@ class Questioner(ConversationalAgent):
             - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
-        '''
+        """
         raise NotImplementedError
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -103,37 +103,37 @@ class Questioner(ConversationalAgent):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
-        config = input_streams_dict['config']
-        mode = input_streams_dict['mode']
-        it_rep = input_streams_dict['it_rep']
-        it_comm_round = input_streams_dict['it_comm_round']
-        global_it_comm_round = input_streams_dict['global_it_comm_round']
+        config = input_streams_dict["config"]
+        mode = input_streams_dict["mode"]
+        it_rep = input_streams_dict["it_rep"]
+        it_comm_round = input_streams_dict["it_comm_round"]
+        global_it_comm_round = input_streams_dict["global_it_comm_round"]
         
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
         
-        input_sentence = input_streams_dict['sentences_widx']
+        input_sentence = input_streams_dict["sentences_widx"]
         if self.use_sentences_one_hot_vectors:
-            input_sentence = input_streams_dict['sentences_one_hot']
+            input_sentence = input_streams_dict["sentences_one_hot"]
 
-        if input_streams_dict['experiences'] is not None:
-            batch_size = input_streams_dict['experiences'].shape[0]
+        if input_streams_dict["experiences"] is not None:
+            batch_size = input_streams_dict["experiences"].shape[0]
         else:
             batch_size = input_sentence.shape[0]
             
         outputs_dict = self(sentences=input_sentence,
-                           experiences=input_streams_dict['experiences'],
-                           multi_round=input_streams_dict['multi_round'],
-                           graphtype=input_streams_dict['graphtype'],
-                           tau0=input_streams_dict['tau0'])
+                           experiences=input_streams_dict["experiences"],
+                           multi_round=input_streams_dict["multi_round"],
+                           graphtype=input_streams_dict["graphtype"],
+                           tau0=input_streams_dict["tau0"])
 
         ## Accounts for the fact that it is a discriminative agent:
-        outputs_dict['decision'] = outputs_dict['output']
+        outputs_dict["decision"] = outputs_dict["output"]
 
-        if 'exp_latents' in input_streams_dict:
-            outputs_dict['exp_latents'] = input_streams_dict['exp_latents']
-        if 'exp_latents_values' in input_streams_dict:
-            outputs_dict['exp_latents_values'] = input_streams_dict['exp_latents_values']
+        if "exp_latents" in input_streams_dict:
+            outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
+        if "exp_latents_values" in input_streams_dict:
+            outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
         
         self._log(outputs_dict, batch_size=batch_size)
 
@@ -141,14 +141,14 @@ class Questioner(ConversationalAgent):
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
 
-        '''
-        if hasattr(self, 'TC_losses'):
-            losses_dict[f'{self.role}/TC_loss'] = [1.0, self.TC_losses]
-        '''
-        if hasattr(self, 'VAE_losses') and vae_loss_hook not in self.hooks:
+        """
+        if hasattr(self, "TC_losses"):
+            losses_dict[f"{self.role}/TC_loss"] = [1.0, self.TC_losses]
+        """
+        if hasattr(self, "VAE_losses") and vae_loss_hook not in self.hooks:
             self.register_hook(vae_loss_hook)
 
-        if hasattr(self,'tau'): 
+        if hasattr(self,"tau"): 
             tau = torch.cat([ t.view((-1)) for t in self.tau], dim=0) if isinstance(self.tau, list) else self.tau
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Tau/{self.agent_id}"] = tau
         
@@ -176,6 +176,6 @@ class Questioner(ConversationalAgent):
 
         self._tidyup()
         
-        outputs_dict['losses'] = losses_dict
+        outputs_dict["losses"] = losses_dict
 
         return outputs_dict    

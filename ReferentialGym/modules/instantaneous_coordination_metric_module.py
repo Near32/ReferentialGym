@@ -24,27 +24,27 @@ class InstantaneousCoordinationMetricModule(Module):
                  input_stream_ids:Dict[str,str]=None):
 
         default_input_stream_ids = {
-            "modules:logger:ref":"logger",
+            "logger":"modules:logger:ref",
             "logs_dict":"logs_dict",
-            "signals:epoch":"epoch",
-            "signals:mode":"mode",
+            "epoch":"signals:epoch",
+            "mode":"signals:mode",
 
-            "signals:end_of_dataset":"end_of_dataset",  
+            "end_of_dataset":"signals:end_of_dataset",  
             # boolean: whether the current batch/datasample is the last of the current dataset/mode.
-            "signals:end_of_repetition_sequence":"end_of_repetition_sequence",
+            "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
             # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
             # is the last of the current sequence of repetition.
-            "signals:end_of_communication":"end_of_communication",
+            "end_of_communication":"signals:end_of_communication",
             # boolean: whether the current communication round is the last of 
             # the current dialog.
-            "current_dataset:ref":"dataset",
+            "dataset":"current_dataset:ref",
 
-            'config:vocab_size':'vocab_size',
-            'config:max_sentence_length':'max_sentence_length',
-            'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
-            'modules:current_speaker:sentences_widx':'sentences_widx', 
-            'modules:current_listener:decision_probs':'decision_probs',
-            'current_dataloader:sample:listener_indices':'listener_indices',
+            "vocab_size":"config:vocab_size",
+            "max_sentence_length":"config:max_sentence_length",
+            "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+            "sentences_widx":"modules:current_speaker:sentences_widx", 
+            "decision_probs":"modules:current_listener:decision_probs",
+            "listener_indices":"current_dataloader:sample:listener_indices",
         }
         if input_stream_ids is None:
             input_stream_ids = default_input_stream_ids
@@ -62,26 +62,26 @@ class InstantaneousCoordinationMetricModule(Module):
         self.decision_probs = []
         self.listener_indices = []
 
-        self.end_of_ = [value for key,value in input_stream_ids.items() if 'end_of_' in value]
+        self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
-        '''
+        """
+        """
         outputs_stream_dict = {}
 
 
-        logs_dict = input_streams_dict['logs_dict']
-        mode = input_streams_dict['mode']
-        epoch = input_streams_dict['epoch']
+        logs_dict = input_streams_dict["logs_dict"]
+        mode = input_streams_dict["mode"]
+        epoch = input_streams_dict["epoch"]
         
-        if epoch % self.config['epoch_period'] == 0:
-            sentences_widx = input_streams_dict['sentences_widx']
+        if epoch % self.config["epoch_period"] == 0:
+            sentences_widx = input_streams_dict["sentences_widx"]
             self.sentences_widx.append(sentences_widx.cpu().detach().long().numpy())
             # (1, batch_size, max_sentence_length, 1) 
-            decision_probs = input_streams_dict['decision_probs']
+            decision_probs = input_streams_dict["decision_probs"]
             self.decision_probs.append(decision_probs.cpu().detach().numpy())
             # (1, batch_size, nbr_stimulus) 
-            listener_indices = input_streams_dict['listener_indices']
+            listener_indices = input_streams_dict["listener_indices"]
             self.listener_indices.append(listener_indices.cpu().detach().long().numpy())
             # (1, batch_size, nbr_stimulus) 
 
@@ -100,7 +100,7 @@ class InstantaneousCoordinationMetricModule(Module):
                 # (nbr_element, batch_size may vary.., nbr_stimulus)
                 nbr_element =  len(self.decision_probs)
                 nbr_possible_listener_actions = self.decision_probs[0].shape[-1]
-                nbr_possible_unique_sentences = input_streams_dict['vocab_size']**input_streams_dict['max_sentence_length']
+                nbr_possible_unique_sentences = input_streams_dict["vocab_size"]**input_streams_dict["max_sentence_length"]
                 
                 self.listener_decision_stimulus_indices = [
                     self.decision_probs[el].max(axis=-1).reshape(-1, 1) 
@@ -113,7 +113,7 @@ class InstantaneousCoordinationMetricModule(Module):
                 ]
                 # (nbr_element, batch_size, 1) 
                 
-                logger = input_streams_dict['logger']
+                logger = input_streams_dict["logger"]
 
                 co_occ_matrix = {}
                 nbr_decisions = 0
@@ -150,7 +150,7 @@ class InstantaneousCoordinationMetricModule(Module):
                         joint_p_sentence_action = co_occ_matrix[sentence][action]/nbr_decisions
                         IC += joint_p_sentence_action*np.log2(joint_p_sentence_action/(marg_p[action]*marg_p[sentence]))
 
-                logs_dict[f'{mode}/{self.id}/IC'] = IC
+                logs_dict[f"{mode}/{self.id}/IC"] = IC
                 
                 self.sentences_widx = []  
                 self.decision_probs = []

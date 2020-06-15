@@ -283,19 +283,78 @@ def coord4deconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=F
 
 
 class FCBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
+    def __init__(self, state_dim, hidden_units=(64, 64), non_linearities=[nn.LeakyReLU],dropout=0.0):
         super(FCBody, self).__init__()
-        dims = (state_dim, ) + hidden_units
-        self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
-        self.gate = gate
+        
+        dims = state_dim + hidden_units
+        self.dropout = dropout
+
+        self.non_linearities = non_linearities
+        if not isinstance(non_linearities, list):
+            self.non_linearities = [non_linearities] * (len(dims) - 1)
+        else:
+            while len(self.non_linearities) <= (len(dims) - 1):
+                self.non_linearities.append(self.non_linearities[0])
+        
+        self.layers = []
+        in_ch = dims[0]
+        for idx, cfg in enumerate(dims[1:]):
+            add_non_lin = True
+            if idx == len(dims)-2:  add_non_lin = False
+            add_dp = (self.dropout > 0.0)
+            dropout = self.dropout
+            add_bn = False
+            add_ln = False
+            if isinstance(cfg, str) and 'NoNonLin' in cfg:
+                add_non_lin = False
+                cfg = cfg.replace('NoNonLin', '') 
+            if isinstance(cfg, str) and '_DP' in cfg:
+                add_dp = True
+                cfg = cfg.split('_DP')
+                dropout = float(cfg[-1])
+                cfg = cfg[0] 
+                # Assumes 'YX_DPZ'
+                # where Y may be BN/LN/nothing
+                # and X is an integer
+                # and Z is the float dropout value.
+            
+            if isinstance(cfg, str) and 'BN' in cfg:
+                add_bn = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'BNX' where X is an integer...
+            elif isinstance(cfg, str) and 'LN' in cfg:
+                add_ln = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'LNX' where X is an integer...
+            elif isinstance(cfg, str):
+                cfg = int(cfg)
+                dims[idx+1] = cfg
+                
+            layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
+            layer = layer_init(layer, w_scale=math.sqrt(2))
+            in_ch = cfg
+            self.layers.append(layer)
+            if add_bn:
+                self.layers.append(nn.BatchNorm1d(in_ch))
+            if add_ln:
+                # Layer Normalization:
+                # solely about the last dimension of the 4D tensor, i.e. channels...
+                # TODO: It might be necessary to have the possibility to apply this 
+                # normalization over the other dimensions, i.e. width x height...
+                self.layers.append(nn.LayerNorm(in_ch))
+            if add_dp:
+                self.layers.append(nn.Dropout(p=dropout))
+            if add_non_lin:
+                self.layers.append(self.non_linearities[idx]())
+        self.layers = nn.Sequential(*self.layers)
+
         self.feature_dim = dims[-1]
 
     def forward(self, x):
-        for idx, layer in enumerate(self.layers):
-            x = layer(x)
-            if idx != len(self.layers)-1:
-                x = self.gate(x)
-        return x
+        self.output = self.layers(x)
+        return self.output
 
     def get_feature_shape(self):
         return self.feature_dim

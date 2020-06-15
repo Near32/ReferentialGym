@@ -31,19 +31,19 @@ class PopulationHandlerModule(Module):
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]):
 
-        assert "current_speaker_streams_dict" in input_stream_ids.values(),\
+        assert "current_speaker_streams_dict" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'current_speaker_streams_dict' id.\n\
                 Not found in input_stream_ids."
-        assert "current_listener_streams_dict" in input_stream_ids.values(),\
+        assert "current_listener_streams_dict" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'current_listener_streams_dict' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "epoch" in input_stream_ids.values(),\
+        assert "epoch" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'epoch' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "global_it_datasample" in input_stream_ids.values(),\
+        assert "global_it_datasample" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'global_it_datasample' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'mode' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
 

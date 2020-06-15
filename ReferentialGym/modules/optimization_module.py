@@ -8,10 +8,10 @@ from .module import Module
 from ..networks import handle_nan
 
 #TODO:
-'''
+"""
 1) Maybe make it possible for this module to ignore some task loss:
 --> implement a mask-based policy?
-'''
+"""
 
 def build_OptimizationModule(id:str,
                              config:Dict[str,object],
@@ -31,10 +31,10 @@ class OptimizationModule(Module):
             input_stream_ids = {
                 "losses_dict":"losses_dict",
                 "logs_dict":"logs_dict",
-                "signals:mode":"mode",
-                "signals:it_sample":"it_sample",
+                "mode":"signals:mode",
+                "it_sample":"signals:it_sample",
                 # step in the sequence of repetitions of the current batch
-                "signals:it_step":"it_step",
+                "it_step":"signals:it_step",
                 # step in the communication round.
             }
 
@@ -46,15 +46,15 @@ class OptimizationModule(Module):
                "OptimizationModule relies on 'optimizer_type'.\n\
                 Not found in config."
         
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "OptimizationModule relies on 'mode' id.\n\
                 Not found in input_stream_ids."
         
-        assert "losses_dict" in input_stream_ids.values(),\
+        assert "losses_dict" in input_stream_ids.keys(),\
                "OptimizationModule relies on 'losses_dict' id.\n\
                 Not found in input_stream_ids."
 
-        assert "logs_dict" in input_stream_ids.values(),\
+        assert "logs_dict" in input_stream_ids.keys(),\
                "OptimizationModule relies on 'logs_dict' id.\n\
                 Not found in input_stream_ids."
         
@@ -66,17 +66,17 @@ class OptimizationModule(Module):
         for k,m in self.config["modules"].items():
             parameters += m.parameters()
 
-        if 'sgd' in self.config['optimizer_type'].lower():
+        if "sgd" in self.config["optimizer_type"].lower():
           self.optimizer = optim.SGD(parameters, 
-                                      lr=self.config['learning_rate'])
+                                      lr=self.config["learning_rate"])
         else:
           self.optimizer = optim.Adam(parameters, 
-                                      lr=self.config['learning_rate'], 
+                                      lr=self.config["learning_rate"], 
                                       betas=(0.9, 0.999), 
-                                      eps=self.config['adam_eps'])
+                                      eps=self.config["adam_eps"])
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
@@ -86,29 +86,29 @@ class OptimizationModule(Module):
 
         :returns:
             - outputs_stream_dict: 
-        '''
+        """
         outputs_stream_dict = {}
 
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
-        mode = input_streams_dict['mode']
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
+        mode = input_streams_dict["mode"]
 
-        it_rep = input_streams_dict['it_sample']
-        it_comm_round = input_streams_dict['it_step']
+        it_rep = input_streams_dict["it_sample"]
+        it_comm_round = input_streams_dict["it_step"]
 
         for k, v in losses_dict.items():
             losses_dict[k] = v[0]*v[-1]
         
         loss = sum([l.mean() for l in losses_dict.values()])
 
-        if 'train' in mode:
+        if "train" in mode:
             self.optimizer.zero_grad()
             loss.backward()
             
             for k,m in self.config["modules"].items():
                 m.apply(handle_nan)
-                if self.config['with_gradient_clip']:
-                    nn.utils.clip_grad_value_(m.parameters(), self.config['gradient_clip'])
+                if self.config["with_gradient_clip"]:
+                    nn.utils.clip_grad_value_(m.parameters(), self.config["gradient_clip"])
             
             self.optimizer.step()
 

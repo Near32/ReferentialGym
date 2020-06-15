@@ -72,7 +72,7 @@ class SqueezeModule(Module):
             else:
                 n_inp = inp.squeeze()
 
-            outputs_stream_dict[f'output_{idx}'] = n_inp
+            outputs_stream_dict[f"output_{idx}"] = n_inp
 
         return outputs_stream_dict
         

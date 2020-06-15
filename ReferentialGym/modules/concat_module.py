@@ -49,7 +49,7 @@ class ConcatModule(Module):
         '''
         outputs_stream_dict = {}
 
-        outputs_stream_dict['output_0'] = torch.cat(list(input_streams_dict.values()), dim=self.config["dim"])
+        outputs_stream_dict["output_0"] = torch.cat(list(input_streams_dict.values()), dim=self.config["dim"])
         
         return outputs_stream_dict
         
