@@ -20,7 +20,7 @@ class BatchReshapeRepeatModule(Module):
                  id:str,
                  config:Dict[str,object],
                  input_stream_keys:List[str]):
-        '''
+        """
         Reshape input streams data while keeping the batch dimension identical.
 
         :param config: Dict of parameters. Expectes:
@@ -32,7 +32,7 @@ class BatchReshapeRepeatModule(Module):
                 of each input stream, without mentionning the batch dimension.
                 If multiple input streams are proposed but only one element in this
                 list, then the list is expanded by repeating the last element.
-        '''
+        """
         input_stream_ids = {
                 ik:f"input_{idx}" 
                 for idx, ik in enumerate(input_stream_keys)
@@ -65,17 +65,17 @@ class BatchReshapeRepeatModule(Module):
             self.repetition.append(self.repetition[-1])
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
         :param input_streams_dict: dict of str and data elements that 
-            follows `self.input_stream_ids`'s keywords and are extracted 
+            follows `self.input_stream_ids`"s keywords and are extracted 
             from `self.input_stream_keys`-named streams.
 
         :returns:
             - outputs_stream_dict: 
-        '''
+        """
         outputs_stream_dict = {}
 
         for idx, (k, inp) in enumerate(input_streams_dict.items()):
@@ -88,7 +88,7 @@ class BatchReshapeRepeatModule(Module):
             if repeat is not None:
                 n_inp = n_inp.repeat(1, *repeat) 
             
-            outputs_stream_dict[f'output_{idx}'] = n_inp
+            outputs_stream_dict[f"output_{idx}"] = n_inp
         
         return outputs_stream_dict
         

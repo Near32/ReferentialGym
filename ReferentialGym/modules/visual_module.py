@@ -10,48 +10,48 @@ def build_VisualModule(id:str,
                        config:Dict[str,object],
                        input_stream_ids:Dict[str,str]) -> Module:
     
-    obs_shape = config['obs_shape']
+    obs_shape = config["obs_shape"]
 
     cnn_input_shape = obs_shape[2:]
     MHDPANbrHead=4
     MHDPANbrRecUpdate=1
     MHDPANbrMLPUnit=512
     MHDPAInteractionDim=128
-    if 'mhdpa_nbr_head' in config: MHDPANbrHead = config['mhdpa_nbr_head']
-    if 'mhdpa_nbr_rec_update' in config: MHDPANbrRecUpdate = config['mhdpa_nbr_rec_update']
-    if 'mhdpa_nbr_mlp_unit' in config: MHDPANbrMLPUnit = config['mhdpa_nbr_mlp_unit']
-    if 'mhdpa_interaction_dim' in config: MHDPAInteractionDim = config['mhdpa_interaction_dim']
+    if "mhdpa_nbr_head" in config: MHDPANbrHead = config["mhdpa_nbr_head"]
+    if "mhdpa_nbr_rec_update" in config: MHDPANbrRecUpdate = config["mhdpa_nbr_rec_update"]
+    if "mhdpa_nbr_mlp_unit" in config: MHDPANbrMLPUnit = config["mhdpa_nbr_mlp_unit"]
+    if "mhdpa_interaction_dim" in config: MHDPAInteractionDim = config["mhdpa_interaction_dim"]
     
     encoder = choose_architecture(
-        architecture=config['architecture'],
+        architecture=config["architecture"],
         kwargs=config,
         input_shape=cnn_input_shape,
-        feature_dim=config['cnn_encoder_feature_dim'],
-        nbr_channels_list=config['cnn_encoder_channels'],
-        kernels=config['cnn_encoder_kernels'],
-        strides=config['cnn_encoder_strides'],
-        paddings=config['cnn_encoder_paddings'],
-        fc_hidden_units_list=config['cnn_encoder_fc_hidden_units'],
-        dropout=config['dropout_prob'],
+        feature_dim=config["cnn_encoder_feature_dim"],
+        nbr_channels_list=config["cnn_encoder_channels"],
+        kernels=config["cnn_encoder_kernels"],
+        strides=config["cnn_encoder_strides"],
+        paddings=config["cnn_encoder_paddings"],
+        fc_hidden_units_list=config["cnn_encoder_fc_hidden_units"],
+        dropout=config["dropout_prob"],
         MHDPANbrHead=MHDPANbrHead,
         MHDPANbrRecUpdate=MHDPANbrRecUpdate,
         MHDPANbrMLPUnit=MHDPANbrMLPUnit,
         MHDPAInteractionDim=MHDPAInteractionDim
     )
 
-    use_feat_converter = config['use_feat_converter'] if 'use_feat_converter' in config else False 
+    use_feat_converter = config["use_feat_converter"] if "use_feat_converter" in config else False 
     if use_feat_converter:
         featout_converter_input = encoder.get_feature_shape()
 
     encoder_feature_shape = encoder.get_feature_shape()
     if use_feat_converter:
         featout_converter = []
-        featout_converter.append(nn.Linear(featout_converter_input, config['cnn_encoder_feature_dim']*2))
+        featout_converter.append(nn.Linear(featout_converter_input, config["cnn_encoder_feature_dim"]*2))
         featout_converter.append(nn.ReLU())
-        featout_converter.append(nn.Linear(config['cnn_encoder_feature_dim']*2, config['feat_converter_output_size'])) 
+        featout_converter.append(nn.Linear(config["cnn_encoder_feature_dim"]*2, config["feat_converter_output_size"])) 
         featout_converter.append(nn.ReLU())
         featout_converter =  nn.Sequential(*featout_converter)
-        encoder_feature_shape = config['feat_converter_output_size']
+        encoder_feature_shape = config["feat_converter_output_size"]
     else:
         featout_converter = None 
 
@@ -77,16 +77,16 @@ class VisualModule(Module):
                  input_stream_ids,
                  ):
         
-        assert "inputs" in input_stream_ids.values(),\
+        assert "inputs" in input_stream_ids.keys(),\
                "VisualModule relies on 'inputs' id to start its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "losses_dict" in input_stream_ids.values(),\
+        assert "losses_dict" in input_stream_ids.keys(),\
                "VisualModule relies on 'losses_dict' id to record the computated losses.\n\
                 Not found in input_stream_ids."
-        assert "logs_dict" in input_stream_ids.values(),\
+        assert "logs_dict" in input_stream_ids.keys(),\
                "VisualModule relies on 'logs_dict' id to record the accuracies.\n\
                 Not found in input_stream_ids."
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "VisualModule relies on 'mode' key to record the computated losses and accuracies.\n\
                 Not found in input_stream_ids."
 
@@ -100,7 +100,7 @@ class VisualModule(Module):
         self.featout_converter = featout_converter
         self.featout_normalization = featout_normalization
 
-        if 'BetaVAE' in self.config['architecture'] or 'MONet' in self.config['architecture']:
+        if "BetaVAE" in self.config["architecture"] or "MONet" in self.config["architecture"]:
             self.VAE_losses = list()
             self.compactness_losses = list()
             self.buffer_cnn_output_dict = dict()
@@ -111,7 +111,7 @@ class VisualModule(Module):
             self = self.cuda()
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
@@ -121,13 +121,13 @@ class VisualModule(Module):
 
         :returns:
             - outputs_stream_dict: 
-        '''
+        """
         outputs_stream_dict = {}
 
-        mode = input_streams_dict['mode']
-        experiences = input_streams_dict['inputs']
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
+        mode = input_streams_dict["mode"]
+        experiences = input_streams_dict["inputs"]
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
 
         batch_size = experiences.size(0)
         nbr_distractors_po = experiences.size(1)
@@ -135,14 +135,14 @@ class VisualModule(Module):
         features = []
         feat_maps = []
         total_size = experiences.size(0)
-        mini_batch_size = min(self.config['cnn_encoder_mini_batch_size'], total_size)
+        mini_batch_size = min(self.config["cnn_encoder_mini_batch_size"], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             if isinstance(self.encoder, BetaVAE):
                 cnn_output_dict  = self.encoder.compute_loss(stin)
-                if 'VAE_loss' in cnn_output_dict:
-                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
+                if "VAE_loss" in cnn_output_dict:
+                    self.VAE_losses.append(cnn_output_dict["VAE_loss"])
                 
-                if hasattr(self.encoder, 'compactness_losses') and self.encoder.compactness_losses is not None:
+                if hasattr(self.encoder, "compactness_losses") and self.encoder.compactness_losses is not None:
                     self.compactness_losses.append(self.encoder.compactness_losses.cpu())
                 
                 for key in cnn_output_dict:
@@ -150,7 +150,7 @@ class VisualModule(Module):
                         self.buffer_cnn_output_dict[key] = list()
                     self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
 
-                if self.config['vae_use_mu_value']:
+                if self.config["vae_use_mu_value"]:
                     featout = self.encoder.mu 
                 else:
                     featout = self.encoder.z
@@ -169,21 +169,21 @@ class VisualModule(Module):
         self.features = self.featout_normalization(torch.cat(features, dim=0))
         self.feat_maps = torch.cat(feat_maps, dim=0)
         
-        self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
+        self.features = self.features.view(batch_size, nbr_distractors_po, self.config["nbr_stimulus"], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
-        outputs_stream_dict['feat_maps'] = self.feat_maps 
-        outputs_stream_dict['features'] = self.features
+        outputs_stream_dict["feat_maps"] = self.feat_maps 
+        outputs_stream_dict["features"] = self.features
 
         if isinstance(self.encoder, BetaVAE):
             self.VAE_losses = torch.cat(self.VAE_losses).contiguous()
-            losses_dict[f"{mode}/{self.id}/VAE_loss"] = [self.config['VAE_lambda'], self.VAE_losses]
+            losses_dict[f"{mode}/{self.id}/VAE_loss"] = [self.config["VAE_lambda"], self.VAE_losses]
 
             for key in self.buffer_cnn_output_dict:
                 log_dict[f"{mode}/{self.id}/{key}"] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
 
-            log_dict[f'{mode}/{self.id}/kl_capacity'] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
+            log_dict[f"{mode}/{self.id}/kl_capacity"] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
             if len(self.compactness_losses):
-                logs_dict[f'{mode}/{self.id}/unsup_compactness_loss'] = torch.cat(self.compactness_losses).mean()
+                logs_dict[f"{mode}/{self.id}/unsup_compactness_loss"] = torch.cat(self.compactness_losses).mean()
             
         return outputs_stream_dict 

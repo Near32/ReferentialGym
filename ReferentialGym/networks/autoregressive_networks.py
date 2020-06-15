@@ -55,7 +55,7 @@ class Normal(Distribution) :
         return -( (value-self.mean) ** 2 ) / ( 2 * var) - 0.5*log_var - 0.5*math.log( 2*math.pi )
 
 
-from .networks import addXYfeatures, conv, deconv, coordconv, coorddeconv
+from .networks import addXYfeatures, conv, deconv, coordconv, coorddeconv, coord4deconv
 
 
 class ResNetEncoder(ModelResNet18) :
@@ -336,6 +336,179 @@ class Decoder(nn.Module) :
 
     def forward(self,z) :
         return self.decode(z)
+
+class DeconvolutionalBody(nn.Module) :
+    def __init__(self,
+                 input_shape, 
+                 output_shape=[3, 64, 64], 
+                 channels=[3,3], 
+                 kernel_sizes=[1], 
+                 strides=[1], 
+                 paddings=[0],
+                 dropout=0.0, 
+                 non_linearities=[nn.LeakyReLU],
+                 use_coordconv=None) :
+        '''
+        Default input channels assume a RGB image (3 channels).
+
+        :param input_shape: Integer, dimensions of the input.
+        :param output_shape: List[Integer] desired dimensions of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param fc_hidden_units: list of number of neurons per fully-connected 
+                hidden layer following the convolutional layers.
+        :param dropout: dropout probability to use.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        :param use_coordconv: None or Int specifying the type of coord convolutional layers to use, either 2 or 4.
+        '''
+        super(DeconvolutionalBody,self).__init__()
+        original_deconv_fn = nn.ConvTranspose2d
+        if use_coordconv is not None:
+            if use_coordconv == 2: 
+                original_deconv_fn = coorddeconv
+            elif use_coordconv == 4:
+                original_deconv_fn = coord4deconv
+            else:
+                raise NotImplementedError
+
+        assert(len(output_shape)==3 and output_shape[2]==output_shape[1])
+        
+        self.dropout = dropout
+        self.non_linearities = non_linearities
+        if not isinstance(non_linearities, list):
+            self.non_linearities = [non_linearities] * (len(channels) - 1)
+        else:
+            while len(self.non_linearities) <= (len(channels) - 1):
+                self.non_linearities.append(self.non_linearities[0])
+
+        self.input_shape = input_shape[0]
+        self.output_shape = output_shape
+        
+        self.dcs = []
+        outd = self.input_shape//2
+        ind= self.input_shape
+        k = 2 #4
+        dim = k
+        pad = 1
+        stride = 2
+        self.fc = coorddeconv( ind, outd, k, stride=1, padding=0, batchNorm=False)
+        
+        """
+        for i in reversed(range(self.net_depth)) :
+            ind = outd
+            outd = self.conv_dim*(2**i)
+            self.dcs.append( coorddeconv( ind, outd,k,stride=stride,padding=pad) )
+            self.dcs.append( nn.ReLU() )
+            dim = k-2*pad + stride*(dim-1)
+            print('Decoder: layer {} : dim {}.'.format(i, dim))
+        self.dcs = nn.Sequential( *self.dcs) 
+        """ 
+
+        self.dcs = []
+        in_ch = outd
+        for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
+            deconv_fn = original_deconv_fn
+            if isinstance(cfg, str) and cfg == 'MP':
+                if isinstance(k, str):
+                    assert(k=="Full")
+                    k = dim
+                    channels[idx+1] = in_ch
+                layer = nn.MaxPool2d(kernel_size=k, stride=s)
+                self.dcs.append(layer)
+                # Update of the shape of the input-image, following Conv:
+                dim = (dim-k)//s+1
+                print(f"Dim: {dim}")
+            else:
+                add_non_lin = True
+                add_dp = (self.dropout > 0.0)
+                dropout = self.dropout
+                add_bn = False
+                add_ln = False
+                if isinstance(cfg, str) and 'NoNonLin' in cfg:
+                    add_non_lin = False
+                    cfg = cfg.replace('NoNonLin', '') 
+                if isinstance(cfg, str) and 'Coord2' in cfg:
+                    deconv_fn = coordconv
+                    cfg = cfg.replace('Coord2', '') 
+                elif isinstance(cfg, str) and 'Coord4' in cfg:
+                    deconv_fn = coord4conv
+                    cfg = cfg.replace('Coord4', '') 
+                
+                if isinstance(cfg, str) and '_DP' in cfg:
+                    add_dp = True
+                    cfg = cfg.split('_DP')
+                    dropout = float(cfg[-1])
+                    cfg = cfg[0] 
+                    # Assumes 'YX_DPZ'
+                    # where Y may be BN/LN/nothing
+                    # and X is an integer
+                    # and Z is the float dropout value.
+                
+                if isinstance(cfg, str) and 'BN' in cfg:
+                    add_bn = True
+                    cfg = int(cfg[2:])
+                    channels[idx+1] = cfg
+                    # Assumes 'BNX' where X is an integer...
+                elif isinstance(cfg, str) and 'LN' in cfg:
+                    add_ln = True
+                    cfg = int(cfg[2:])
+                    channels[idx+1] = cfg
+                    # Assumes 'LNX' where X is an integer...
+                elif isinstance(cfg, str):
+                    cfg = int(cfg)
+                    channels[idx+1] = cfg
+                    
+                layer = deconv_fn(in_ch, cfg, kernel_size=k, stride=s, padding=p, bias=not(add_bn)) 
+                layer = layer_init(layer, w_scale=math.sqrt(2))
+                in_ch = cfg
+                self.dcs.append(layer)
+                if add_bn:
+                    self.dcs.append(nn.BatchNorm2d(in_ch))
+                if add_ln:
+                    # Layer Normalization:
+                    # solely about the last dimension of the 4D tensor, i.e. channels...
+                    # TODO: It might be necessary to have the possibility to apply this 
+                    # normalization over the other dimensions, i.e. width x height...
+                    self.dcs.append(nn.LayerNorm(in_ch))
+                if add_dp:
+                    self.dcs.append(nn.Dropout2d(p=dropout))
+                if add_non_lin:
+                    #self.cnn.append(self.non_linearities[idx](inplace=True))
+                    self.dcs.append(self.non_linearities[idx]())
+                # Update of the shape of the input-image, following Conv:
+                #dim = (dim-k+2*p)//s+1
+                dim = k-2*pad + stride*(dim-1)
+                print(f"Dim: {dim}")
+        self.dcs = nn.Sequential(*self.dcs)
+
+        ind = in_ch
+        self.img_depth = self.output_shape[0]
+        outdim = self.output_shape[1]
+        indim = dim
+        pad = 0
+        stride = 1
+        k = outdim +2*pad -stride*(indim-1)
+        self.dcout = coorddeconv( ind, self.img_depth, k, stride=stride, padding=pad, batchNorm=False)
+    
+    def decode(self, z) :
+        z = z.view( z.size(0), z.size(1), 1, 1)
+        out = F.leaky_relu( self.fc(z), 0.05)
+        out = F.leaky_relu( self.dcs(out), 0.05)
+        out = self.dcout(out)
+        return out
+
+    def forward(self,z) :
+        return self.decode(z)
+
+    def get_input_shape(self):
+        return self.input_shape
+
+    def get_feature_shape(self):
+        return self.output_shape
 
 
 class BroadcastingDecoder(nn.Module) :

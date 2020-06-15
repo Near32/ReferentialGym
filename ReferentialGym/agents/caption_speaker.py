@@ -63,9 +63,9 @@ class CaptionSpeaker(Speaker):
         self.symbol_decoder.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
 
-    def _compute_tau(self, tau0):
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.rnn_states[0][-1]))).squeeze()
-        return 1.0/invtau
+    def _compute_tau(self, tau0, h):
+        invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        return invtau
 
     def _sense(self, stimuli, sentences=None):
         '''

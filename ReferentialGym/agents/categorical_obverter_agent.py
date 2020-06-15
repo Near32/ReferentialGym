@@ -79,9 +79,9 @@ class CategoricalObverterAgent(Listener):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
-    def _compute_tau(self, tau0):
-        invtau = tau0 + torch.log(1+torch.exp(self.tau_fc(self.embedding_tf_final_outputs))).squeeze()
-        return 1.0/invtau
+    def _compute_tau(self, tau0, h):
+        invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        return invtau
 
     def _sense(self, experiences, sentences=None):
         """
@@ -247,7 +247,9 @@ class CategoricalObverterAgent(Listener):
                           vocab_stop_idx=0,
                           use_obverter_threshold_to_stop_message_generation=False,
                           use_stop_word=False):
-        """Compute sentences using the obverter approach, adapted to referential game variants following the
+        """
+
+        Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
 
         In descriptive mode, `nbr_distractors_po=1` and `target_idx=torch.zeros((batch_size,1))`, 

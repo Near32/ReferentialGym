@@ -36,16 +36,9 @@ def main():
     default="BN+CNN3x3")
   parser.add_argument('--graphtype', type=str,
     choices=['straight_through_gumbel_softmax',
-             'reinforce',
-             'baseline_reduced_reinforce',
-             'normalized_reinforce',
-             'baseline_reduced_normalized_reinforce',
-             'max_entr_reinforce',
-             'baseline_reduced_normalized_max_entr_reinforce',
-             'argmax_reinforce',
              'obverter'],
     help='type of graph to use during training of the speaker and listener.',
-    default='straight_through_gumbel_softmax')
+    default='obverter')
   parser.add_argument('--max_sentence_length', type=int, default=20)
   parser.add_argument('--vocab_size', type=int, default=100)
   parser.add_argument('--symbol_embedding_size', type=int, default=256)
@@ -61,13 +54,7 @@ def main():
       "NLL",
       "CE",
       ],
-    default="Hinge")
-  parser.add_argument('--agent_type', type=str,
-    choices=[
-      "Baseline",
-      "EoSPriored",
-      ],
-    default="Baseline")
+    default="CE")
   parser.add_argument('--lr', type=float, default=1e-4)
   parser.add_argument('--epoch', type=int, default=100)
   parser.add_argument('--metric_epoch_period', type=int, default=20)
@@ -91,6 +78,18 @@ def main():
               "similarity-0.75",
               ],
     default="similarity-0.75")
+  
+  # Obverter Hyperparameters:
+  parser.add_argument('--use_sentences_one_hot_vectors', action='store_true', default=False)
+  parser.add_argument('--differentiable', action='store_true', default=False)
+  parser.add_argument('--obverter_threshold_to_stop_message_generation', type=float, default=0.95)
+  parser.add_argument('--obverter_nbr_games_per_round', type=int, default=4)
+  
+  # Cultural Bottleneck:
+  parser.add_argument('--iterated_learning_scheme', action='store_true', default=False)
+  parser.add_argument('--iterated_learning_period', type=int, default=4)
+  parser.add_argument('--iterated_learning_rehearse_MDL', action='store_true', default=False)
+  parser.add_argument('--iterated_learning_rehearse_MDL_factor', type=float, default=1.0)
   
   # Dataset Hyperparameters:
   parser.add_argument('--train_test_split_strategy', type=str, 
@@ -123,6 +122,7 @@ def main():
   args = parser.parse_args()
   print(args)
 
+  
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
   #--------------------------------------------------------------------------
@@ -194,6 +194,15 @@ def main():
       # "cultural_reset_strategy":  "oldestL", # "uniformSL" #"meta-oldestL-SGD"
       # "cultural_reset_meta_learning_rate":  1e-3,
 
+      # # Obverter's Cultural Bottleneck:
+      # "iterated_learning_scheme": args.iterated_learning_scheme,
+      # "iterated_learning_period": args.iterated_learning_period,
+      # "iterated_learning_rehearse_MDL": args.iterated_learning_rehearse_MDL,
+      # "iterated_learning_rehearse_MDL_factor": args.iterated_learning_rehearse_MDL_factor,
+      
+      # "obverter_least_effort_loss": False,
+      # "obverter_least_effort_loss_weights": [1.0 for x in range(0, 10)],
+
       "batch_size":               args.batch_size,
       "dataloader_num_worker":    args.dataloader_num_worker,
       "stimulus_depth_dim":       1 if 'dSprites' in args.dataset else 3,
@@ -203,7 +212,7 @@ def main():
       "adam_eps":                 1e-8,
       
       "with_gradient_clip":       False,
-      "gradient_clip":            1e0,      
+      "gradient_clip":            1e0,
       "with_weight_maxl1_loss":   False,
 
       "use_homoscedastic_multitasks_loss": args.homoscedastic_multitasks_loss,
@@ -221,6 +230,10 @@ def main():
   ## Agent Configuration:
   agent_config = copy.deepcopy(rg_config)
   agent_config['nbr_distractors'] = rg_config['nbr_distractors']['train'] if rg_config['observability'] == 'full' else 0
+  
+  # Obverter-specific Hyperparameter:
+  agent_config['use_obverter_threshold_to_stop_message_generation'] = args.obverter_threshold_to_stop_message_generation
+  
   
   # Recurrent Convolutional Architecture:
   agent_config['architecture'] = rg_config['agent_architecture']
@@ -317,10 +330,7 @@ def main():
   
   save_path += f"/{args.optimizer_type}/"
 
-  if 'reinforce' in args.graphtype:
-    save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/'
-
-  save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
+  save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/"
 
   save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
   
@@ -339,26 +349,17 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  if 'Baseline' in args.agent_type:
-    from ReferentialGym.agents import LSTMCNNSpeaker
-    speaker = LSTMCNNSpeaker(
-      kwargs=agent_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='s0',
-      logger=logger
-    )
-  elif 'EoSPriored' in args.agent_type:
-    from ReferentialGym.agents import EoSPrioredLSTMCNNSpeaker
-    speaker = EoSPrioredLSTMCNNSpeaker(
-      kwargs=agent_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='s0',
-      logger=logger
-    )
+  from ReferentialGym.agents import DifferentiableObverterAgent
+  speaker = DifferentiableObverterAgent(
+    kwargs=agent_config, 
+    obs_shape=obs_shape, 
+    vocab_size=vocab_size, 
+    max_sentence_length=max_sentence_length,
+    agent_id='s0',
+    logger=logger,
+    use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+    differentiable=args.differentiable
+  )
   print("Speaker:", speaker)
 
   listener_config = copy.deepcopy(agent_config)
@@ -372,14 +373,15 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  from ReferentialGym.agents import LSTMCNNListener
-  listener = LSTMCNNListener(
+  listener = DifferentiableObverterAgent(
     kwargs=listener_config, 
     obs_shape=obs_shape, 
     vocab_size=vocab_size, 
     max_sentence_length=max_sentence_length,
     agent_id='l0',
-    logger=logger
+    logger=logger,
+    use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+    differentiable=args.differentiable
   )
   print("Listener:", listener)
 

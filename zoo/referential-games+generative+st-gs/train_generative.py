@@ -18,6 +18,7 @@ def main():
   parser = argparse.ArgumentParser(description="LSTM CNN Agents: ST-GS Language Emergence.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="")
+  parser.add_argument("--symbolic", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
     choices=["Sort-of-CLEVR",
@@ -27,7 +28,7 @@ def main():
              "dSprites",
              ], 
     help="dataset to train on.",
-    default="XSort-of-CLEVR")
+    default="dSprites")
   parser.add_argument("--arch", type=str, 
     choices=["CNN",
              "CNN3x3",
@@ -35,15 +36,9 @@ def main():
              "BN+CNN3x3",
              "BN+Coord2CNN3x3",
              "BN+Coord4CNN3x3",
-             "Santoro2017-SoC-CNN",
-             "Santoro2017-CLEVR-CNN",
-             "Santoro2017-CLEVR-CNN3x3",
-             "Santoro2017-CLEVR-CoordCNN3x3",
-             "Santoro2017-CLEVR-EntityPrioredCNN3x3",
-             "Santoro2017-CLEVR-CNN7x4x4x3",
              ], 
     help="model architecture to train",
-    default="Santoro2017-CLEVR-CNN")
+    default="BN+CNN3x3")
   parser.add_argument("--graphtype", type=str,
     choices=["straight_through_gumbel_softmax",
              "reinforce",
@@ -56,8 +51,8 @@ def main():
              "obverter"],
     help="type of graph to use during training of the speaker and listener.",
     default="straight_through_gumbel_softmax")
-  parser.add_argument("--max_sentence_length", type=int, default=15)
-  parser.add_argument("--vocab_size", type=int, default=25)
+  parser.add_argument("--max_sentence_length", type=int, default=20)
+  parser.add_argument("--vocab_size", type=int, default=100)
   parser.add_argument("--optimizer_type", type=str, 
     choices=[
       "adam",
@@ -69,36 +64,34 @@ def main():
       "Hinge",
       "NLL",
       "CE",
+      "BCE",
       ],
-    default="Hinge")
+    default="BCE")
   parser.add_argument("--agent_type", type=str,
     choices=[
       "Baseline",
-      "EoSPriored",
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=1e-4)
-  parser.add_argument("--epoch", type=int, default=2000)
+  parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
   parser.add_argument("--metric_fast", action="store_true", default=False)
-  parser.add_argument("--batch_size", type=int, default=32)
+  parser.add_argument("--batch_size", type=int, default=2)
   parser.add_argument("--mini_batch_size", type=int, default=128)
   parser.add_argument("--dropout_prob", type=float, default=0.0)
   parser.add_argument("--emb_dropout_prob", type=float, default=0.8)
   parser.add_argument("--nbr_experience_repetition", type=int, default=1)
   parser.add_argument("--nbr_train_dataset_repetition", type=int, default=1)
   parser.add_argument("--nbr_test_dataset_repetition", type=int, default=1)
-  parser.add_argument("--nbr_test_distractors", type=int, default=63)
-  parser.add_argument("--nbr_train_distractors", type=int, default=47)
+  parser.add_argument("--nbr_test_distractors", type=int, default=0)
+  parser.add_argument("--nbr_train_distractors", type=int, default=0)
   parser.add_argument("--resizeDim", default=32, type=int,help="input image resize")
   parser.add_argument("--shared_architecture", action="store_true", default=False)
-  parser.add_argument("--same_head", action="store_true", default=False)
   parser.add_argument("--with_baseline", action="store_true", default=False)
   parser.add_argument("--homoscedastic_multitasks_loss", action="store_true", default=False)
   parser.add_argument("--use_curriculum_nbr_distractors", action="store_true", default=False)
   parser.add_argument("--use_feat_converter", action="store_true", default=False)
-  parser.add_argument("--detached_heads", action="store_true", default=False)
   parser.add_argument("--test_id_analogy", action="store_true", default=False)
   parser.add_argument("--descriptive", action="store_true", default=False)
   parser.add_argument("--egocentric", action="store_true", default=False)
@@ -108,7 +101,7 @@ def main():
               "similarity-0.90",
               "similarity-0.75",
               ],
-    default="similarity-0.75")
+    default="uniform")
   # Obverter Hyperparameters:
   parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
   parser.add_argument("--differentiable", action="store_true", default=False)
@@ -154,9 +147,11 @@ def main():
             ],
     help="train/test split strategy",
     # INTER:
-    default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
+    #default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
     # EXTRA:
     #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N")
+    # EXTRA-3:
+    default="combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N")
   parser.add_argument("--fast", action="store_true", default=False, 
     help="Disable the deterministic CuDNN. It is likely to make the computation faster.")
   
@@ -243,16 +238,13 @@ def main():
   transform_degrees = 25
   transform_translate = (0.0625, 0.0625)
 
-
-  multi_head_detached = args.detached_heads 
-
   rg_config = {
       "observability":            "partial",
       "max_sentence_length":      args.max_sentence_length,
       "nbr_communication_round":  1,
       "nbr_distractors":          {"train":args.nbr_train_distractors, "test":args.nbr_test_distractors},
       "distractor_sampling":      args.distractor_sampling,
-      # Default: use 'similarity-0.5'
+      # Default: use "similarity-0.5"
       # otherwise the emerging language 
       # will have very high ambiguity...
       # Speakers find the strategy of uttering
@@ -263,7 +255,7 @@ def main():
       "descriptive_target_ratio": 1-(1/(args.nbr_train_distractors+2)), #0.97, 
       # Default: 1-(1/(nbr_distractors+2)), 
       # otherwise the agent find the local minimum
-      # where it only predicts 'no-target'...
+      # where it only predicts "no-target"...
 
       "object_centric":           False,
       "nbr_stimulus":             1,
@@ -274,7 +266,7 @@ def main():
       "vocab_size":               args.vocab_size,
       "symbol_embedding_size":    256, #64
 
-      "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "agent_architecture":       args.arch, #"CoordResNet18AvgPooled-2", #"BetaVAE", #"ParallelMONet", #"BetaVAE", #"CNN[-MHDPA]"/"[pretrained-]ResNet18[-MHDPA]-2"
       "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
       "agent_loss_type":          args.agent_loss_type, #"NLL"
 
@@ -284,7 +276,7 @@ def main():
       "cultural_reset_strategy":  "oldestL", # "uniformSL" #"meta-oldestL-SGD"
       "cultural_reset_meta_learning_rate":  1e-3,
 
-      # Obverter's Cultural Bottleneck:
+      # Obverter"s Cultural Bottleneck:
       "iterated_learning_scheme": args.iterated_learning_scheme,
       "iterated_learning_period": args.iterated_learning_period,
       "iterated_learning_rehearse_MDL": args.iterated_learning_rehearse_MDL,
@@ -390,107 +382,14 @@ def main():
 
   # Recurrent Convolutional Architecture:
   agent_config["architecture"] = rg_config["agent_architecture"]
+  agent_config["decoder_architecture"] = "DCNN"
+  if args.symbolic:
+    agent_config["decoder_architecture"] = "BN+MLP"
+    
   agent_config["dropout_prob"] = rg_config["dropout_prob"]
   agent_config["embedding_dropout_prob"] = rg_config["embedding_dropout_prob"]
   
-  if "Santoro2017-SoC" in agent_config["architecture"]:
-    # For a fair comparison between CNN an VAEs:
-    # the CNN is augmented with one final FC layer reducing to the latent space shape.
-    # Need to use feat converter too:
-    #rg_config["use_feat_converter"] = True 
-    #agent_config["use_feat_converter"] = True 
-    
-    # Otherwise, the VAE alone may be augmented:
-    # This approach assumes that the VAE latent dimension size
-    # is acting as a prior which is part of the comparison...
-    rg_config["use_feat_converter"] = False
-    agent_config["use_feat_converter"] = False
-    
-    agent_config["cnn_encoder_channels"] = ["BN32","BN64","BN128","BN256"]
-    if "3x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
-    elif "7x4x4x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
-    else:
-      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
-    agent_config["cnn_encoder_fc_hidden_units"] = [] 
-    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
-    
-    # For a fair comparison between CNN an VAEs:
-    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    # Otherwise:
-    cnn_feature_size = 100
-    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
-    # N.B.: if cnn_encoder_fc_hidden_units is [],
-    # then this last parameter does not matter.
-    # The cnn encoder is not topped by a FC network.
-
-    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["feat_converter_output_size"] = cnn_feature_size
-
-    if "MHDPA" in agent_config["architecture"]:
-      agent_config["mhdpa_nbr_head"] = 4
-      agent_config["mhdpa_nbr_rec_update"] = 1
-      agent_config["mhdpa_nbr_mlp_unit"] = 256
-      agent_config["mhdpa_interaction_dim"] = 128
-
-    agent_config["temporal_encoder_nbr_hidden_units"] = rg_config["nbr_stimulus"]*cnn_feature_size
-    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
-    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
-    agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-  elif "Santoro2017-CLEVR" in agent_config["architecture"]:
-    # For a fair comparison between CNN an VAEs:
-    # the CNN is augmented with one final FC layer reducing to the latent space shape.
-    # Need to use feat converter too:
-    #rg_config["use_feat_converter"] = True 
-    #agent_config["use_feat_converter"] = True 
-    
-    # Otherwise, the VAE alone may be augmented:
-    # This approach assumes that the VAE latent dimension size
-    # is acting as a prior which is part of the comparison...
-    rg_config["use_feat_converter"] = False
-    agent_config["use_feat_converter"] = False
-    
-    agent_config["cnn_encoder_channels"] = ["BN24","BN24","BN24","BN24"]
-    if "3x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
-    elif "7x4x4x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
-    else:
-      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
-    agent_config["cnn_encoder_fc_hidden_units"] = []
-    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
-    
-    # For a fair comparison between CNN an VAEs:
-    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    # Otherwise:
-    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
-    # N.B.: if cnn_encoder_fc_hidden_units is [],
-    # then this last parameter does not matter.
-    # The cnn encoder is not topped by a FC network.
-
-    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["feat_converter_output_size"] = cnn_feature_size
-
-    if "MHDPA" in agent_config["architecture"]:
-      agent_config["mhdpa_nbr_head"] = 4
-      agent_config["mhdpa_nbr_rec_update"] = 1
-      agent_config["mhdpa_nbr_mlp_unit"] = 256
-      agent_config["mhdpa_interaction_dim"] = 128
-
-    agent_config["temporal_encoder_nbr_hidden_units"] = 0
-    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
-    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
-    agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-  elif "CNN" in agent_config["architecture"]:
+  if "CNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
     
@@ -532,6 +431,29 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
+    ## Decoder:
+    ### CNN:
+    if "BN" in agent_config["decoder_architecture"]:
+      agent_config["cnn_decoder_channels"] = ["BN64","BN64","BN32","BN32"]
+    else:
+      agent_config["cnn_decoder_channels"] = [64,64,32,32]
+    
+    if "3x3" in agent_config["decoder_architecture"]:
+      agent_config["cnn_decoder_kernels"] = [3,3,3,3]
+    elif "3x4x4x7" in agent_config["decoder_architecture"]:
+      agent_config["cnn_decoder_kernels"] = [3,4,4,7]
+    else:
+      agent_config["cnn_decoder_kernels"] = [4,4,4,4]
+    agent_config["cnn_decoder_strides"] = [2,2,2,2]
+    agent_config["cnn_decoder_paddings"] = [1,1,1,1]
+    
+    ### MLP:
+    if "BN" in agent_config["decoder_architecture"]:
+      agent_config['mlp_decoder_fc_hidden_units'] = ["BN256", "BN256"]
+    else:
+      agent_config['mlp_decoder_fc_hidden_units'] = [256, 256]
+    agent_config['mlp_decoder_fc_hidden_units'].append(40*6)
+                                                   
   else:
     raise NotImplementedError
 
@@ -539,8 +461,10 @@ def main():
   save_path = "./"
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
-  save_path += f"{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
-  save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
+  save_path += f"{args.dataset}+DualLabeled/"
+  if args.symbolic:
+    save_path += f"Symbolic/"
+  save_path += f"{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
   save_path += f"/TrainNOTF_TestNOTF/"
@@ -628,10 +552,6 @@ def main():
 
   save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"#TestArchTanh/"
   
-  
-  if args.same_head:
-    save_path += "same_head/"
-
   if args.test_id_analogy:
     save_path += 'withAnalogyTest/'
   else:
@@ -648,88 +568,95 @@ def main():
   
   # # Agents
   batch_size = 4
-  nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
-  nbr_stimulus = agent_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
-  vocab_size = rg_config['vocab_size']
-  max_sentence_length = rg_config['max_sentence_length']
+  nbr_distractors = 1 if "partial" in rg_config["observability"] else agent_config["nbr_distractors"]["train"]
+  nbr_stimulus = agent_config["nbr_stimulus"]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config["stimulus_depth_dim"],rg_config["stimulus_resize_dim"],rg_config["stimulus_resize_dim"]]
+  vocab_size = rg_config["vocab_size"]
+  max_sentence_length = rg_config["max_sentence_length"]
 
-  if 'obverter' in args.graphtype:
+  if "obverter" in args.graphtype:
     from ReferentialGym.agents import DifferentiableObverterAgent
     speaker = DifferentiableObverterAgent(
       kwargs=agent_config, 
       obs_shape=obs_shape, 
       vocab_size=vocab_size, 
       max_sentence_length=max_sentence_length,
-      agent_id='s0',
+      agent_id="s0",
       logger=logger,
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
       differentiable=args.differentiable
     )
   else:
-    if 'Baseline' in args.agent_type:
+    if "Baseline" in args.agent_type:
       from ReferentialGym.agents import LSTMCNNSpeaker
       speaker = LSTMCNNSpeaker(
         kwargs=agent_config, 
         obs_shape=obs_shape, 
         vocab_size=vocab_size, 
         max_sentence_length=max_sentence_length,
-        agent_id='s0',
+        agent_id="s0",
         logger=logger
       )
-    elif 'EoSPriored' in args.agent_type:
+    elif "EoSPriored" in args.agent_type:
       from ReferentialGym.agents import EoSPrioredLSTMCNNSpeaker
       speaker = EoSPrioredLSTMCNNSpeaker(
         kwargs=agent_config, 
         obs_shape=obs_shape, 
         vocab_size=vocab_size, 
         max_sentence_length=max_sentence_length,
-        agent_id='s0',
+        agent_id="s0",
         logger=logger
       )
   print("Speaker:", speaker)
 
   listener_config = copy.deepcopy(agent_config)
   if args.shared_architecture:
-    listener_config['cnn_encoder'] = speaker.cnn_encoder 
-  listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
+    listener_config["cnn_encoder"] = speaker.cnn_encoder 
+  listener_config["nbr_distractors"] = rg_config["nbr_distractors"]["train"]
   batch_size = 4
-  nbr_distractors = listener_config['nbr_distractors']
-  nbr_stimulus = listener_config['nbr_stimulus']
-  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config['stimulus_depth_dim'],rg_config['stimulus_resize_dim'],rg_config['stimulus_resize_dim']]
-  vocab_size = rg_config['vocab_size']
-  max_sentence_length = rg_config['max_sentence_length']
+  nbr_distractors = listener_config["nbr_distractors"]
+  nbr_stimulus = listener_config["nbr_stimulus"]
+  obs_shape = [nbr_distractors+1,nbr_stimulus, rg_config["stimulus_depth_dim"],rg_config["stimulus_resize_dim"],rg_config["stimulus_resize_dim"]]
+  vocab_size = rg_config["vocab_size"]
+  max_sentence_length = rg_config["max_sentence_length"]
 
-  if 'obverter' in args.graphtype:
-    listener = DifferentiableObverterAgent(
-      kwargs=listener_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='l0',
-      logger=logger,
-      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
-      differentiable=args.differentiable
-    )
+  if "obverter" in args.graphtype:
+    raise NotImplementedError
   else:
-    from ReferentialGym.agents import LSTMCNNListener
-    listener = LSTMCNNListener(
-      kwargs=listener_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='l0',
-      logger=logger
-    )
+    if args.symbolic:
+      from ReferentialGym.agents import LSTMMLPGenerativeListener
+      listener = LSTMMLPGenerativeListener(
+        kwargs=listener_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id="l0",
+        logger=logger
+      )
+    else:
+      from ReferentialGym.agents import LSTMCNNGenerativeListener
+      listener = LSTMCNNGenerativeListener(
+        kwargs=listener_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id="l0",
+        logger=logger
+      )
+
+  if args.symbolic:
+    assert args.agent_loss_type.lower() == 'ce'
+    listener.input_stream_ids["listener"]["target_output"] = "current_dataloader:sample:speaker_exp_latents"
+        
   print("Listener:", listener)
 
   # # Dataset:
   need_dict_wrapping = {}
 
-  if 'dSprites' in args.dataset:
-    root = './datasets/dsprites-dataset'
-    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
-    test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  if "dSprites" in args.dataset:
+    root = "./datasets/dsprites-dataset"
+    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config["train_transform"], split_strategy=train_split_strategy)
+    test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config["test_transform"], split_strategy=test_split_strategy)
   else:
     raise NotImplementedError
   
@@ -809,6 +736,7 @@ def main():
   )
   modules[topo_sim_metric_id] = topo_sim_metric_module
 
+  """
   inst_coord_metric_id = "inst_coord_metric"
   inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(id=inst_coord_metric_id,
     config = {
@@ -816,7 +744,9 @@ def main():
     }
   )
   modules[inst_coord_metric_id] = inst_coord_metric_module
+  """
 
+  """
   dsprites_latent_metric_id = "dsprites_latent_metric"
   dsprites_latent_metric_module = rg_modules.build_dSpritesPerLatentAccuracyMetricModule(id=dsprites_latent_metric_id,
     config = {
@@ -824,6 +754,7 @@ def main():
     }
   )
   modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
+  """
 
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
@@ -854,11 +785,11 @@ def main():
   listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
   listener_factor_vae_disentanglement_metric_input_stream_ids = {
     "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_listener:ref:ref_agent:features",
-    "experiences":"current_dataloader:sample:listener_experiences", 
-    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
-    "latent_values_representations":"current_dataloader:sample:listener_exp_latents_values",
-    "indices":"current_dataloader:sample:listener_indices", 
+    "representations":"modules:current_listener:ref:ref_agent:rnn_outputs",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
   }
   listener_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=listener_factor_vae_disentanglement_metric_id,
@@ -898,8 +829,10 @@ def main():
   pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
+  """
   pipelines[optim_id].append(inst_coord_metric_id)
   pipelines[optim_id].append(dsprites_latent_metric_id)
+  """
   pipelines[optim_id].append(logger_id)
 
   rg_config["modules"] = modules

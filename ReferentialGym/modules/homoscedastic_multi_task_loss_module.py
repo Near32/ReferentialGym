@@ -7,10 +7,10 @@ from .module import Module
 
 
 #TODO:
-'''
+"""
 1) Maybe make it possible for this module to ignore some task loss:
 --> implement a mask-based policy?
-'''
+"""
 
 def build_HomoscedasticMultiTasksLossModule(id:str,
                                             config:Dict[str,object],
@@ -30,16 +30,16 @@ class HomoscedasticMultiTasksLossModule(Module):
             input_stream_ids = {
             "losses_dict":"losses_dict",
             "logs_dict":"logs_dict",
-            "signals:mode":"mode",
+            "mode":"signals:mode",
             }
 
-        assert "losses_dict" in input_stream_ids.values(),\
+        assert "losses_dict" in input_stream_ids.keys(),\
                "HomoscedasticMultiTasksLossModule relies on 'losses_dict' id.\n\
                 Not found in input_stream_ids."
-        assert "logs_dict" in input_stream_ids.values(),\
+        assert "logs_dict" in input_stream_ids.keys(),\
                "HomoscedasticMultiTasksLossModule records data on 'logs_dict' id.\n\
                 Not found in input_stream_ids."
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "HomoscedasticMultiTasksLossModule relies on 'mode' key.\n\
                 Not found in input_stream_ids."
 
@@ -47,7 +47,7 @@ class HomoscedasticMultiTasksLossModule(Module):
                                                                 type="HomoscedasticMultiTasksLossModule",
                                                                 config=config,
                                                                 input_stream_ids=input_stream_ids)
-        self.nbr_tasks = 2 #self.config['nbr_tasks']
+        self.nbr_tasks = 2 #self.config["nbr_tasks"]
         
         self.homoscedastic_log_vars = torch.nn.Parameter(torch.zeros(self.nbr_tasks))
         
@@ -55,7 +55,7 @@ class HomoscedasticMultiTasksLossModule(Module):
             self = self.cuda()
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
@@ -65,12 +65,12 @@ class HomoscedasticMultiTasksLossModule(Module):
 
         :returns:
             - outputs_stream_dict: 
-        '''
+        """
         outputs_stream_dict = {}
 
-        loss_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
-        mode = input_streams_dict['mode']
+        loss_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
+        mode = input_streams_dict["mode"]
         
         nbr_tasks_ineffect = len(loss_dict)
         k0 = list(loss_dict.keys())[0]
@@ -91,7 +91,7 @@ class HomoscedasticMultiTasksLossModule(Module):
             loss_dict[kn].append( batched_multiloss[kn])
 
         for (lossname, lossvalues), logvar  in zip(loss_dict.items(), self.homoscedastic_log_vars):
-            logs_dict[f'/{mode}/HomoscedasticLogVar/{lossname}'] = logvar.item()
+            logs_dict[f"/{mode}/HomoscedasticLogVar/{lossname}"] = logvar.item()
         
         return outputs_stream_dict
         

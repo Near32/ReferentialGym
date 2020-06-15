@@ -14,26 +14,26 @@ def build_MultiHeadClassificationFromFeatureMapModule(id:str,
     
     # Multi Heads:
     # Add the feature map size as input to the architectures:
-    feat_map_dim, feat_map_depth = config['input_stream_module']._compute_feature_shape()
+    feat_map_dim, feat_map_depth = config["input_stream_module"]._compute_feature_shape()
     #flattened_feat_map_shape = 2 #feat_map_depth*feat_map_dim*feat_map_dim
     flattened_feat_map_shape = feat_map_depth*feat_map_dim*feat_map_dim
-    for idx in range(len(config['heads_archs'])):
-        config['heads_archs'][idx] = [flattened_feat_map_shape]+config['heads_archs'][idx]
+    for idx in range(len(config["heads_archs"])):
+        config["heads_archs"][idx] = [flattened_feat_map_shape]+config["heads_archs"][idx]
     
     # Make sure there are as many heads as proposed architectures:
-    while len(config['heads_archs']) != len(config['heads_output_sizes']):
-        config['heads_archs'].append(copy.deepcopy(config['heads_archs'][-1]))
+    while len(config["heads_archs"]) != len(config["heads_output_sizes"]):
+        config["heads_archs"].append(copy.deepcopy(config["heads_archs"][-1]))
 
     # Add output sizes to the archs:
-    for idx, output_size in enumerate(config['heads_output_sizes']):
+    for idx, output_size in enumerate(config["heads_output_sizes"]):
         if isinstance(output_size, int):
-            config['heads_archs'][idx].append(output_size)
+            config["heads_archs"][idx].append(output_size)
 
 
     heads = nn.ModuleList()
-    for idx, arch in enumerate(config['heads_archs']):
-        if isinstance(config['heads_output_sizes'][idx], int):
-            arch = config['heads_archs'][idx]
+    for idx, arch in enumerate(config["heads_archs"]):
+        if isinstance(config["heads_output_sizes"][idx], int):
+            arch = config["heads_archs"][idx]
             sequence = []
             for i_l, (input_size, output_size) in enumerate(zip(arch,arch[1:])):
                 sequence.append(nn.Linear(input_size, output_size))
@@ -59,16 +59,16 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
-        assert("inputs" in input_stream_ids.values(), 
+        assert("inputs" in input_stream_ids.keys(), 
                "ClassificationModule relies on 'inputs' id to start its pipeline.\n\
                 Not found in input_stream_ids.")
-        assert("targets" in input_stream_ids.values(), 
+        assert("targets" in input_stream_ids.keys(), 
                "ClassificationModule relies on 'targets' id to compute its pipeline.\n\
                 Not found in input_stream_ids.")
-        assert("losses_dict" in input_stream_ids.values(), 
+        assert("losses_dict" in input_stream_ids.keys(), 
                "ClassificationModule relies on 'losses_dict' id to record the computated losses.\n\
                 Not found in input_stream_ids.")
-        assert("logs_dict" in input_stream_ids.values(), 
+        assert("logs_dict" in input_stream_ids.keys(), 
                "ClassificationModule relies on 'logs_dict' id to record the accuracies.\n\
                 Not found in input_stream_ids.")
         assert("loss_id" in config.keys(), 
@@ -86,7 +86,7 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
             self = self.cuda()
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
@@ -96,27 +96,27 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
 
         :returns:
             - outputs_stream_dict: 
-        '''
+        """
         outputs_stream_dict = {}
 
-        inputs = input_streams_dict['inputs']
+        inputs = input_streams_dict["inputs"]
         shape_inputs = inputs.shape
         batch_size = shape_inputs[0]
         
         flatten_input = inputs.view(batch_size, -1)
-        if self.config['detach_feat_map']:
+        if self.config["detach_feat_map"]:
             flatten_input = flatten_input.detach()
 
         losses = []
         accuracies = []
         for ih, head in enumerate(self.heads):
-            if isinstance(self.config['heads_output_sizes'][ih], int):
+            if isinstance(self.config["heads_output_sizes"][ih], int):
                 head_output = head(flatten_input)
                 final_output = self.final_fn(head_output)
 
                 # Loss:
-                target_idx = input_streams_dict['targets'][..., ih].squeeze()
-                criterion = nn.CrossEntropyLoss(reduction='none')
+                target_idx = input_streams_dict["targets"][..., ih].squeeze()
+                criterion = nn.CrossEntropyLoss(reduction="none")
                 loss = criterion( final_output, target_idx)
 
                 # Accuracy:
@@ -129,8 +129,8 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
             losses.append(loss)
             accuracies.append(accuracy)
 
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict'] 
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"] 
         
         # MultiHead Losses:
         for idx, loss in enumerate(losses):
@@ -140,7 +140,7 @@ class MultiHeadClassificationFromFeatureMapModule(Module):
         for idx, acc in enumerate(accuracies):
             logs_dict[f"{self.config['loss_id']}/multi_head_{idx}_accuracy"] = acc
 
-        outputs_stream_dict['losses'] = losses
-        outputs_stream_dict['accuracies'] = accuracies
+        outputs_stream_dict["losses"] = losses
+        outputs_stream_dict["accuracies"] = accuracies
 
         return outputs_stream_dict

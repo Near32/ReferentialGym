@@ -17,7 +17,7 @@ class DictDatasetWrapper(Dataset) :
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        if hastattr(self.dataset, "getclass"):
+        if hasattr(self.dataset, "getclass"):
             return self.dataset.getclass(idx)
         else:    
             _, label = self.dataset[idx]

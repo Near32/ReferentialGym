@@ -27,7 +27,7 @@ def make(config, dataset_args):
     need_dict_wrapping = dataset_args.pop('need_dict_wrapping')
     
     for key in need_dict_wrapping:
-        mode2dataset[key] = DictDatasetWrapper(mode2dataset[key])
+        mode2dataset[key] = datasets.DictDatasetWrapper(mode2dataset[key])
         
     rg_datasets = {}
     for mode, dataset in mode2dataset.items():
