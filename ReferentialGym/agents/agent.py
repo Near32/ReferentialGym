@@ -68,6 +68,7 @@ class Agent(Module):
         input_stream_ids["speaker"] = {
             "experiences":"current_dataloader:sample:speaker_experiences", 
             "exp_latents":"current_dataloader:sample:speaker_exp_latents", 
+            "exp_latents_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
             "exp_latents_values":"current_dataloader:sample:speaker_exp_latents_values", 
             "sentences_logits":"modules:current_listener:sentences_logits",
             "sentences_one_hot":"modules:current_listener:sentences_one_hot",
@@ -89,6 +90,7 @@ class Agent(Module):
         input_stream_ids["listener"] = {
             "experiences":"current_dataloader:sample:listener_experiences", 
             "exp_latents":"current_dataloader:sample:listener_exp_latents", 
+            "exp_latents_one_hot_encoded":"current_dataloader:sample:listener_exp_latents_one_hot_encoded", 
             "exp_latents_values":"current_dataloader:sample:listener_exp_latents_values", 
             "sentences_logits":"modules:current_speaker:sentences_logits",
             "sentences_one_hot":"modules:current_speaker:sentences_one_hot",
@@ -236,6 +238,7 @@ class Agent(Module):
 
         outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
         outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
+        outputs_dict["exp_latents_one_hot_encoded"] = input_streams_dict["exp_latents_one_hot_encoded"]
         self._log(outputs_dict, batch_size=batch_size)
 
         # //------------------------------------------------------------//

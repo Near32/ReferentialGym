@@ -96,8 +96,11 @@ class OptimizationModule(Module):
         it_rep = input_streams_dict["it_sample"]
         it_comm_round = input_streams_dict["it_step"]
 
-        for k, v in losses_dict.items():
-            losses_dict[k] = v[0]*v[-1]
+        for l_name, l in losses_dict.items():
+            logs_dict[f"{mode}/{l_name}"] = l[-1]
+        
+        for l_name, l in losses_dict.items():
+            losses_dict[l_name] = l[0]*l[-1]
         
         loss = sum([l.mean() for l in losses_dict.values()])
 
@@ -114,8 +117,5 @@ class OptimizationModule(Module):
 
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
         
-        for l_name, l in losses_dict.items():
-            logs_dict[f"{mode}/{l_name}"] = l
-
         return outputs_stream_dict
         

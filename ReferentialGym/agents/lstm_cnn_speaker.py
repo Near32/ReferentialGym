@@ -78,7 +78,7 @@ class LSTMCNNSpeaker(Speaker):
 
             self.VAE = self.cnn_encoder
 
-            self.use_feat_converter = True
+            self.use_feat_converter = self.kwargs['use_feat_converter']
             self.feat_converter_input = self.cnn_encoder.latent_dim
         else:
             if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
@@ -200,7 +200,8 @@ class LSTMCNNSpeaker(Speaker):
                 if self.vae_detached_featout:
                     featout = featout.detach()
 
-                featout = self.featout_converter(featout)
+                if self.kwargs['use_feat_converter']:
+                    featout = self.featout_converter(featout)
 
                 feat_map = self.cnn_encoder.get_feat_map()
             else:

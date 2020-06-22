@@ -283,9 +283,10 @@ def coord4deconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=F
 
 
 class FCBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(64, 64), non_linearities=[nn.LeakyReLU],dropout=0.0):
+    def __init__(self, state_dim, hidden_units=[64, 64], non_linearities=[nn.LeakyReLU],dropout=0.0):
         super(FCBody, self).__init__()
         
+        if isinstance(state_dim,int): state_dim = [state_dim]
         dims = state_dim + hidden_units
         self.dropout = dropout
 

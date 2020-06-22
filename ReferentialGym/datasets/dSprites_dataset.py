@@ -310,6 +310,10 @@ class dSpritesDataset(Dataset) :
         self.imgs = self.imgs[self.indices]
         self.latents_values = self.latents_values[self.indices]
         self.latents_classes = self.latents_classes[self.indices]
+        
+        self.latents_one_hot_encodings = np.eye(40)[self.latents_classes.reshape(-1)]
+        self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, 6, 40))
+
         self.test_latents_mask = self.test_latents_mask[self.indices]
         self.targets = self.targets[self.indices]
         del self.metadata
@@ -337,6 +341,12 @@ class dSpritesDataset(Dataset) :
         latent_class = self.latents_classes[idx]
         return latent_class
 
+    def getlatentonehot(self, idx):
+        if idx >= len(self):
+            idx = idx%len(self)
+        latent_one_hot_encoded = self.latents_one_hot_encodings[idx]
+        return latent_one_hot_encoded
+
     def gettestlatentmask(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
@@ -351,8 +361,9 @@ class dSpritesDataset(Dataset) :
             sampled_d: Dict of:
                 - `"experiences"`: Tensor of the sampled experiences.
                 - `"exp_labels"`: List[int] consisting of the indices of the label to which the experiences belong.
-                - `"exp_latents"`: Tensor representatin the latent of the experience in one-hot-encoded vector form.
-                - `"exp_latents_values"`: Tensor representatin the latent of the experience in value form.
+                - `"exp_latents"`: Tensor representation of the latent of the experience in one-hot-encoded vector form.
+                - `"exp_latents_values"`: Tensor representation of the latent of the experience in value form.
+                - `"exp_latents_one_hot_encoded"`: Tensor representation of the latent of the experience in one-hot-encoded class form.
                 - `"exp_test_latent_mask"`: Tensor that highlights the presence of test values, if any on each latent axis.
         """
         if idx >= len(self):
@@ -366,6 +377,7 @@ class dSpritesDataset(Dataset) :
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
         latent_class = torch.from_numpy(self.getlatentclass(idx))
+        latent_one_hot_encoded = torch.from_numpy(self.getlatentonehot(idx))
         test_latents_mask = torch.from_numpy(self.gettestlatentmask(idx))
 
         if self.transform is not None:
@@ -376,6 +388,7 @@ class dSpritesDataset(Dataset) :
             "exp_labels":target, 
             "exp_latents":latent_class, 
             "exp_latents_values":latent_value,
+            "exp_latents_one_hot_encoded":latent_one_hot_encoded,
             "exp_test_latents_masks":test_latents_mask,
         }
 

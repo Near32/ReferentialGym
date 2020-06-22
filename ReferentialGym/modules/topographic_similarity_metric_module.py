@@ -92,6 +92,11 @@ class TopographicSimilarityMetricModule(Module):
                                                                            max_nbr_samples=max_nbr_samples,
                                                                            verbose=self.config["verbose"],
                                                                            max_workers=self.config["parallel_TS_computation_max_workers"])
+                topo_sims_onehot, pvalues_onehot, unique_prod_ratios_onehot = logger.measure_topographic_similarity(sentences_key="sentences_widx",
+                                                                           features_key="exp_latents_one_hot_encoded",
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config["verbose"],
+                                                                           max_workers=self.config["parallel_TS_computation_max_workers"])
                 topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key="sentences_widx",
                                                                            features_key="exp_latents_values",
                                                                            max_nbr_samples=max_nbr_samples,
@@ -107,6 +112,9 @@ class TopographicSimilarityMetricModule(Module):
                     logs_dict[f"{mode}/{self.id}/TopographicSimilarity/{agent_id}"] = topo_sims[agent_id]*100.0
                     logs_dict[f"{mode}/{self.id}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}"] = unique_prod_ratios[agent_id]
                     logs_dict[f"{mode}/{self.id}/TopographicSimilarity-PValues/{agent_id}"] = pvalues[agent_id]
+                for agent_id in topo_sims_onehot:
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings/{agent_id}"] =  topo_sims_onehot[agent_id]*100.0
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings-PValues/{agent_id}"] = pvalues_onehot[agent_id]
                 for agent_id in topo_sims_v:
                     logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues/{agent_id}"] =  topo_sims_v[agent_id]*100.0
                     logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues-PValues/{agent_id}"] = pvalues_v[agent_id]

@@ -88,9 +88,10 @@ def entropy_regularization_loss_hook(agent,
         dim=0
     )
     # (batch_size, 1)
+    
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_regularization_loss"] = [
         config["entropy_regularization_factor"], 
-        entropies_per_sentence.squeeze()
+        entropies_per_sentence.reshape(-1)
     ]
     # (batch_size, )
 

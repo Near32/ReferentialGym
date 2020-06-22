@@ -74,7 +74,7 @@ def generative_st_gs_referential_game_loss(agent,
         # Accuracy:
         argmax_generative_output = generative_output.argmax(dim=1)
         # (batch_size, n_dim)
-        accuracies = 100.0*(target_output==argmax_generative_output).float()
+        accuracies = (target_output==argmax_generative_output).float()
         # (batch_size, n_dim)
         accuracy = accuracies.prod(dim=-1)
         # (batch_size, )
@@ -91,14 +91,14 @@ def generative_st_gs_referential_game_loss(agent,
         
         for idx in range(accuracies.shape[-1]):        
             logs_dict[
-                f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy/Acc{idx}"] = accuracies[:,idx]
+                f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy/Acc{idx}"] = 100.0*accuracies[:,idx]
 
         for idx, nll in enumerate(neg_log_lik_classes):        
             logs_dict[
                 f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik/Dim{idx}"] = nll
 
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
-        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy"] = accuracy
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy"] = 100.0*accuracy
 
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     else:

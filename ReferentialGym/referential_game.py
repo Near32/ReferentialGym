@@ -207,11 +207,8 @@ class ReferentialGame(object):
                         if 'current_speaker' in self.modules and 'current_listener' in self.modules:
                             prototype_speaker = self.stream_handler["modules:current_speaker:ref_agent"]
                             prototype_listener = self.stream_handler["modules:current_listener:ref_agent"]
+                            image_save_path = logger.path 
                             if prototype_speaker is not None and hasattr(prototype_speaker,'VAE') and idx_stimulus % 4 == 0:
-                                import ipdb; ipdb.set_trace()
-                                image_save_path = logger.path 
-                                '''
-                                '''
                                 query_vae_latent_space(prototype_speaker.VAE, 
                                                        sample=sample['speaker_experiences'],
                                                        path=image_save_path,
@@ -220,6 +217,8 @@ class ReferentialGame(object):
                                                        idxoffset=it_rep+idx_stimulus*self.config['nbr_experience_repetition'],
                                                        suffix='speaker',
                                                        use_cuda=True)
+                                
+                            if prototype_listener is not None and hasattr(prototype_listener,'VAE') and idx_stimulus % 4 == 0:
                                 query_vae_latent_space(prototype_listener.VAE, 
                                                        sample=sample['listener_experiences'],
                                                        path=image_save_path,

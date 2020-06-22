@@ -676,10 +676,10 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
 class TotalCorrelationDiscriminator(object):
     def __init__(self, VAE):
         self.latent_dim = VAE.latent_dim
-        tc_discriminator_hidden_units = tuple([2*self.latent_dim]*4+[2])
+        tc_discriminator_hidden_units = [2*self.latent_dim]*4+[2]
         self.discriminator = FCBody(state_dim=self.latent_dim,
                                     hidden_units=tc_discriminator_hidden_units,
-                                    gate=F.leaky_relu)
+                                    non_linearities=[nn.LeakyReLU])
         self.optimizer = optim.Adam(self.discriminator.parameters(), lr=1e-4)
 
     def __call__(self, z):

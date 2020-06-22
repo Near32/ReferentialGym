@@ -28,6 +28,7 @@ class LSTMMLPGenerativeListener(GenerativeListener):
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
+        """
         cnn_input_shape = self.obs_shape[2:]
         MHDPANbrHead=4
         MHDPANbrRecUpdate=1
@@ -82,7 +83,7 @@ class LSTMMLPGenerativeListener(GenerativeListener):
 
             self.VAE = self.cnn_encoder
 
-            self.use_feat_converter = True
+            self.use_feat_converter = self.kwargs['use_feat_converter']
             self.feat_converter_input = self.cnn_encoder.latent_dim
         else:
             if 'agent_learning' in self.kwargs and 'transfer_learning' in self.kwargs['agent_learning']:
@@ -116,7 +117,8 @@ class LSTMMLPGenerativeListener(GenerativeListener):
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['temporal_encoder_nbr_hidden_units'])
         #self.normalization = nn.LayerNorm(normalized_shape=self.kwargs['temporal_encoder_nbr_hidden_units'])
-    
+        """
+
         symbol_processing_input_dim = self.kwargs['symbol_embedding_size']
         self.symbol_processing = nn.LSTM(input_size=symbol_processing_input_dim,
                                       hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
@@ -170,11 +172,13 @@ class LSTMMLPGenerativeListener(GenerativeListener):
     def _tidyup(self):
         self.embedding_tf_final_outputs = None
 
+        """
         if isinstance(self.cnn_encoder, BetaVAE):
             self.VAE_losses = list()
             self.compactness_losses.clear()
             self.buffer_cnn_output_dict = dict()
-
+        """
+        
     def _compute_tau(self, tau0, h):
         raise NotImplementedError
 
@@ -190,6 +194,8 @@ class LSTMMLPGenerativeListener(GenerativeListener):
             features: Tensor of shape `(batch_size, -1, feature_dim).
         
         """
+        raise NotImplementedError
+
         batch_size = experiences.size(0)
         nbr_distractors_po = experiences.size(1)
         experiences = experiences.view(-1, *(experiences.size()[3:]))
@@ -262,6 +268,8 @@ class LSTMMLPGenerativeListener(GenerativeListener):
         
         # TODO implement reasoning that makes us of the distractor stimuli.
         if features is not None:
+            raise NotImplementedError
+
             nbr_distractors_po = features.size(1)        
             # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
             # Forward pass:

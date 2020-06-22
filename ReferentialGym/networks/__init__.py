@@ -259,7 +259,7 @@ def choose_architecture( architecture,
             else:
                 channels = [input_shape[0]] + nbr_channels_list
                 encoder = ConvolutionalBody(input_shape=input_shape,
-                                            feature_dim=[feature_dim, latent_dim*2],
+                                            feature_dim=latent_dim*2,
                                             channels=channels,
                                             kernel_sizes=kernels,
                                             strides=strides,
