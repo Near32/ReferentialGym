@@ -1,3 +1,5 @@
+from typing import Dict, List 
+
 import math
 import torch
 import torch.nn as nn
@@ -8,6 +10,7 @@ import torchvision
 from torchvision import models
 from torchvision.models.resnet import model_urls, BasicBlock
 
+from ..modules import Module 
 
 def retrieve_output_shape(input, model):
     xin = input.to(model.device)
@@ -282,13 +285,37 @@ def coord4deconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=F
     return nn.Sequential( *layers )
 
 
-class FCBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=[64, 64], non_linearities=[nn.LeakyReLU],dropout=0.0):
-        super(FCBody, self).__init__()
+class FCBody(Module):
+    def __init__(
+        self, 
+        state_dim, 
+        hidden_units=None, 
+        non_linearities=None, 
+        dropout=0.0,
+        id='FCBodyModule_0', 
+        config=None,
+        input_stream_ids=None,
+        use_cuda=False):
+
+        super(FCBody, self).__init__(
+            id=id,
+            type="FCBodyModule",
+            config=config,
+            input_stream_ids=input_stream_ids,
+        )
         
         if isinstance(state_dim,int): state_dim = [state_dim]
+
+        if hidden_units is None:
+            if config is not None and  'hidden_units' in config:
+                hidden_units = config['hidden_units']
+
         dims = state_dim + hidden_units
         self.dropout = dropout
+
+        if non_linearities is None:
+            if config is not None and 'non_linearities' in config:
+                non_linearities = config['non_linearities']
 
         self.non_linearities = non_linearities
         if not isinstance(non_linearities, list):
@@ -353,9 +380,43 @@ class FCBody(nn.Module):
 
         self.feature_dim = dims[-1]
 
+        self.use_cuda = use_cuda
+        if self.use_cuda:
+            self = self.cuda()
+
     def forward(self, x):
         self.output = self.layers(x)
         return self.output
+
+    def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
+        """
+        Operates on inputs_dict that is made up of referents to the available stream.
+        Make sure that accesses to its element are non-destructive.
+
+        :param input_streams_dict: dict of str and data elements that 
+            follows `self.input_stream_ids`'s keywords and are extracted 
+            from `self.input_stream_keys`-named streams.
+
+        :returns:
+            - outputs_stream_dict: 
+        """
+        outputs_stream_dict = {}
+
+        for key, experiences in input_streams_dict.items():
+            batch_size = experiences.size(0)
+            nbr_distractors_po = experiences.size(1)
+            nbr_stimulus = experiences.size(2)
+
+            experiences = experiences.view(batch_size*nbr_distractors_po, -1)
+            if self.use_cuda:   experiences = experiences.cuda()
+
+            features = self.layers(experiences)
+            features = features.reshape(batch_size, nbr_distractors_po, nbr_stimulus, -1)
+            # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
+            
+            outputs_stream_dict[key] = features
+
+        return outputs_stream_dict 
 
     def get_feature_shape(self):
         return self.feature_dim

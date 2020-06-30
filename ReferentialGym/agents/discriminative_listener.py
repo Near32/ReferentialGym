@@ -17,7 +17,7 @@ from .listener import Listener
 def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
     target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
     # (batch_size, 1)
-
+    
     distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
         for pb_dl, tidx in zip(decision_logits, target_decision_idx)]
     distractors_decision_logits = torch.cat(

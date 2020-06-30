@@ -73,6 +73,12 @@ def main():
       "Baseline",
       ],
     default="Baseline")
+  parser.add_argument("--rnn_type", type=str,
+    choices=[
+      "LSTM",
+      "GRU",
+      ],
+    default="LSTM")
   parser.add_argument("--lr", type=float, default=1e-4)
   parser.add_argument("--epoch", type=int, default=1875)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
@@ -88,13 +94,14 @@ def main():
   parser.add_argument("--nbr_test_distractors", type=int, default=63)
   parser.add_argument("--nbr_train_distractors", type=int, default=47)
   parser.add_argument("--resizeDim", default=32, type=int,help="input image resize")
+  #TODO: make sure it is understood....!
   parser.add_argument("--shared_architecture", action="store_true", default=True)
   parser.add_argument("--with_baseline", action="store_true", default=False)
   parser.add_argument("--homoscedastic_multitasks_loss", action="store_true", default=False)
   parser.add_argument("--use_curriculum_nbr_distractors", action="store_true", default=False)
   parser.add_argument("--use_feat_converter", action="store_true", default=False)
-  parser.add_argument("--test_id_analogy", action="store_true", default=False)
   parser.add_argument("--descriptive", action="store_true", default=False)
+  parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--egocentric", action="store_true", default=False)
   parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
@@ -239,6 +246,15 @@ def main():
   transform_degrees = 25
   transform_translate = (0.0625, 0.0625)
 
+  default_descriptive_ratio = 1-(1/(args.nbr_train_distractors+2))
+  # Default: 1-(1/(nbr_distractors+2)), 
+  # otherwise the agent find the local minimum
+  # where it only predicts "no-target"...
+  if args.descriptive_ratio <=0.001:
+    descriptive_ratio = default_descriptive_ratio
+  else:
+    descriptive_ratio = args.descriptive_ratio
+
   rg_config = {
       "observability":            "partial",
       "max_sentence_length":      args.max_sentence_length,
@@ -253,10 +269,7 @@ def main():
       # of the target, seemingly.  
       
       "descriptive":              args.descriptive,
-      "descriptive_target_ratio": 1-(1/(args.nbr_train_distractors+2)), #0.97, 
-      # Default: 1-(1/(nbr_distractors+2)), 
-      # otherwise the agent find the local minimum
-      # where it only predicts "no-target"...
+      "descriptive_target_ratio": descriptive_ratio,
 
       "object_centric":           False,
       "nbr_stimulus":             1,
@@ -283,7 +296,7 @@ def main():
       "iterated_learning_rehearse_MDL": args.iterated_learning_rehearse_MDL,
       "iterated_learning_rehearse_MDL_factor": args.iterated_learning_rehearse_MDL_factor,
       
-      "obverter_stop_threshold":  0.95,  #0.0 if not in use.
+      "obverter_stop_threshold":  args.obverter_threshold_to_stop_message_generation,  #0.0 if not in use.
       "obverter_nbr_games_per_round": args.obverter_nbr_games_per_round,
 
       "obverter_least_effort_loss": False,
@@ -400,8 +413,8 @@ def main():
     agent_config['vae_max_capacity'] = args.vae_max_capacity #1e2
     agent_config['vae_nbr_epoch_till_max_capacity'] = args.vae_nbr_epoch_till_max_capacity
 
-    agent_config['vae_decoder_conv_dim'] = 32
-    agent_config['vae_decoder_nbr_layer'] = 3
+    agent_config['vae_decoder_conv_dim'] = args.vae_decoder_conv_dim
+    agent_config['vae_decoder_nbr_layer'] = args.vae_decoder_nbr_layer
     agent_config['vae_nbr_latent_dim'] = args.vae_nbr_latent_dim
     agent_config['vae_detached_featout'] = args.vae_detached_featout
     agent_config['vae_use_mu_value'] = args.vae_use_mu_value
@@ -484,7 +497,6 @@ def main():
   save_path += f"{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
-  save_path += f"/TrainNOTF_TestNOTF/"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
   save_path += f"{rg_config['agent_loss_type']}"
@@ -563,16 +575,11 @@ def main():
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
+    save_path += f"Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
   else:
-    save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
+    save_path += f"STGS-{args.agent_type}-{args.rnn_type}-CNN-Agent/"
 
   save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"#TestArchTanh/"
-  
-  if args.test_id_analogy:
-    save_path += 'withAnalogyTest/'
-  else:
-    save_path += 'NoAnalogyTest/'
   
   save_path += f'DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
@@ -605,15 +612,28 @@ def main():
     )
   else:
     if "Baseline" in args.agent_type:
-      from ReferentialGym.agents import LSTMCNNSpeaker
-      speaker = LSTMCNNSpeaker(
-        kwargs=agent_config, 
-        obs_shape=obs_shape, 
-        vocab_size=vocab_size, 
-        max_sentence_length=max_sentence_length,
-        agent_id="s0",
-        logger=logger
-      )
+      if 'lstm' in args.rnn_type.lower():
+        from ReferentialGym.agents import LSTMCNNSpeaker
+        speaker = LSTMCNNSpeaker(
+          kwargs=agent_config, 
+          obs_shape=obs_shape, 
+          vocab_size=vocab_size, 
+          max_sentence_length=max_sentence_length,
+          agent_id="s0",
+          logger=logger
+        )
+      elif 'gru' in args.rnn_type.lower():
+        from ReferentialGym.agents import GRUCNNSpeaker
+        speaker = GRUCNNSpeaker(
+          kwargs=agent_config, 
+          obs_shape=obs_shape, 
+          vocab_size=vocab_size, 
+          max_sentence_length=max_sentence_length,
+          agent_id="s0",
+          logger=logger
+        )
+      else:
+        raise NotImplementedError
     elif "EoSPriored" in args.agent_type:
       from ReferentialGym.agents import EoSPrioredLSTMCNNSpeaker
       speaker = EoSPrioredLSTMCNNSpeaker(
@@ -640,16 +660,29 @@ def main():
   if "obverter" in args.graphtype:
     raise NotImplementedError
   else:
-    from ReferentialGym.agents import LSTMCNNListener
-    listener = LSTMCNNListener(
-      kwargs=listener_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id="l0",
-      logger=logger
-    )
-    
+    if 'lstm' in args.rnn_type.lower():
+      from ReferentialGym.agents import LSTMCNNListener
+      listener = LSTMCNNListener(
+        kwargs=listener_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id="l0",
+        logger=logger
+      )
+    elif 'gru' in args.rnn_type.lower():
+      from ReferentialGym.agents import GRUCNNListener
+      listener = GRUCNNListener(
+        kwargs=listener_config, 
+        obs_shape=obs_shape, 
+        vocab_size=vocab_size, 
+        max_sentence_length=max_sentence_length,
+        agent_id="l0",
+        logger=logger
+      )
+    else:
+      raise NotImplementedError
+
   if args.symbolic:
     assert args.agent_loss_type.lower() == 'ce'
     listener.input_stream_ids["listener"]["target_output"] = "current_dataloader:sample:speaker_exp_latents"

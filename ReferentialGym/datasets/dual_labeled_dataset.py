@@ -100,13 +100,19 @@ class DualLabeledDataset(Dataset):
                 
             indices = []
             nbr_samples = self.nbr_distractors[self.mode]
-            try:
-                set_indices.remove(idx)
-            except Exception as e:
-                print("Exception caught during removal of the target index:")
-                print(e)
-                import ipdb; ipdb.set_trace()
-            indices.append(idx)
+
+            if idx is not None and not target_only:
+                # i.e. if we are not trying to resample the target stimulus...
+                try:
+                    set_indices.remove(idx)
+                except Exception as e:
+                    print("Exception caught during removal of the target index:")
+                    print(e)
+                    import ipdb; ipdb.set_trace()
+                indices.append(idx)
+            else:
+                # i.e. if we are only sampling the target stimulus:
+                nbr_samples = 1
 
             if len(set_indices) < nbr_samples:
                 print("WARNING: Dataset's class has not enough element to choose from...")
@@ -116,9 +122,9 @@ class DualLabeledDataset(Dataset):
                 test = False 
 
         for choice_idx in range(nbr_samples):
-            chosen = random.choice( list(set_indices))
+            chosen = random.choice(list(set_indices))
             set_indices.remove(chosen)
-            indices.append( chosen)
+            indices.append(chosen)
         
         sample_d = {
             "experiences":[],
@@ -167,7 +173,9 @@ class DualLabeledDataset(Dataset):
             sample_d[key] = torch.stack(lvalue)
 
         # Add the stimulus size / temporal dimension:
-        sample_d["experiences"] = sample_d["experiences"].unsqueeze(1)
+        for k,v in sample_d.items():
+            if not(isinstance(v, torch.Tensor)):    continue
+            sample_d[k] = v.unsqueeze(1)
         
         # Adding the sampled indices:
         sample_d["indices"] = indices 

@@ -31,10 +31,13 @@ class dSpritesDataset(Dataset) :
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         self.targets = np.zeros(len(self.latents_classes)) #[random.randint(0, 10) for _ in self.imgs]
         for idx, latent_cls in enumerate(self.latents_classes):
+            """
             posX = latent_cls[-2]
             posY = latent_cls[-1]
             target = posX*32+posY
-            self.targets[idx] = target  
+            self.targets[idx] = target
+            """
+            self.targets[idx] = idx  
         self.metadata = dataset_zip['metadata'][()]
         
         if self.split_strategy is not None:

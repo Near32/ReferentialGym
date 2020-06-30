@@ -66,7 +66,7 @@ class ReferentialGame(object):
                                                             shuffle=True,
                                                             collate_fn=collate_dict_wrapper,
                                                             pin_memory=True,
-                                                            )#num_workers=self.config['dataloader_num_worker'])
+                                                            num_workers=self.config['dataloader_num_worker'])
                         for mode, dataset in self.datasets.items()
                         }
         

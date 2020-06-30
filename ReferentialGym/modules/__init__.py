@@ -16,6 +16,7 @@ from .optimization_module import build_OptimizationModule, OptimizationModule
 from .current_agent_module import CurrentAgentModule 
 from .population_handler_module import build_PopulationHandlerModule, PopulationHandlerModule 
 
+from .one_hot_encoder_module import build_OneHotEncoderModule, OneHotEncoderModule
 from .visual_module import build_VisualModule, VisualModule
 
 from .per_epoch_logger_module import build_PerEpochLoggerModule, PerEpochLoggerModule

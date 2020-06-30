@@ -105,68 +105,65 @@ class Dataset(torchDataset):
             if torch.rand(size=(1,)).item() < similarity_ratio:
                 from_class = exp_labels
 
-        if self.kwargs['descriptive']:
-            # TODO: format with DictDatasetWrapper as input dataset:
-            
-            '''
-            experiences, indices, exp_labels, exp_latents, exp_latents_values = self.sample(idx=idx, from_class=from_class)
-            experiences = experiences.unsqueeze(0)
-            latent_experiences = exp_latents.unsqueeze(0)
-            latent_experiences_values = exp_latents_values.unsqueeze(0)
-            # In descriptive mode, the speaker observability is always partial:
-            speaker_experiences = experiences[:,0].unsqueeze(1)
-            speaker_latent_experiences = latent_experiences[:,0].unsqueeze(1)
-            speaker_latent_experiences_values = latent_experiences_values[:,0].unsqueeze(1)
-            
-            if torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']:
-                # Target experience remain in the experiences yielded to the listener:
-                listener_experiences = experiences 
-                listener_latent_experiences = latent_experiences 
-                listener_latent_experiences_values = latent_experiences_values 
-                if self.kwargs['object_centric']:
-                    #lexp, _, _, lexp_latent = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
-                    lexp, _, _, lexp_latent, lexp_latent_values = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
-                    listener_experiences[:,0] = lexp.unsqueeze(0)
-                    listener_latent_experiences[:,0] = lexp_latent.unsqueeze(0)
-                    listener_latent_experiences_values[:,0] = lexp_latent_values.unsqueeze(0)
-                listener_experiences, target_decision_idx, orders = shuffle(listener_experiences)
-                listener_latent_experiences, _, _ = shuffle(listener_latent_experiences, orders=orders)
-                listener_latent_experiences_values, _, _ = shuffle(listener_latent_experiences_values, orders=orders)
-            else:
-                # Target experience is excluded from the experiences yielded to the listener:
-                #lexp, _, _, lexp_latent = self.sample(idx=None, from_class=from_class, excepts=[idx])
-                lexp, _, _, lexp_latent, lexp_latent_values = self.sample(idx=None, from_class=from_class, excepts=[idx])
-                listener_experiences = lexp.unsqueeze(0)
-                listener_latent_experiences = lexp_latent.unsqueeze(0)
-                listener_latent_experiences_values = lexp_latent_values.unsqueeze(0)
-                #listener_experiences = self.sample(idx=None, from_class=from_class, excepts=[idx])[0].unsqueeze(0)
-                # The target_decision_idx is set to `nbr_experiences`:
-                target_decision_idx = (self.nbr_distractors+1)*torch.ones(1).long()
-            '''
-        else:
-            #experiences, indices, exp_labels, exp_latents, exp_latents_values = self.sample(idx=idx, from_class=from_class)
-            sample_d = self.sample(idx=idx, from_class=from_class)
+        sample_d = self.sample(idx=idx, from_class=from_class)
+        exp_labels = sample_d["exp_labels"]
+        
+        # Adding batch dimension:
+        for k,v in sample_d.items():
+            if not(isinstance(v, torch.Tensor)):    
+                v = torch.Tensor(v)
+            sample_d[k] = v.unsqueeze(0)
+
+         
+
+        ##--------------------------------------------------------------
+        ##--------------------------------------------------------------
+
+        # Creating listener's dictionnary:
+        listener_sample_d = copy.deepcopy(sample_d)
+        
+        retain_target = True
+        if self.kwargs["descriptive"]:
+            retain_target = torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']
+            # Target experience is excluded from the experiences yielded to the listener:
+            if not retain_target:
+                new_target_for_listener_sample_d = self.sample(idx=None, from_class=from_class, target_only=True, excepts=[idx])
+                # Adding batch dimension:
+                for k,v in new_target_for_listener_sample_d.items():
+                    if not(isinstance(v, torch.Tensor)):    
+                        v = torch.Tensor(v)
+                    listener_sample_d[k][:,0] = v.unsqueeze(0)
+                
+        # Object-Centric or Stimulus-Centric?
+        if retain_target and self.kwargs['object_centric']:
+            new_target_for_listener_sample_d = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
             # Adding batch dimension:
-            for k,v in sample_d.items():
+            for k,v in new_target_for_listener_sample_d.items():
                 if not(isinstance(v, torch.Tensor)):    
                     v = torch.Tensor(v)
-                sample_d[k] = v.unsqueeze(0)
-
-            # Creating listener's dictionnary:
-            listener_sample_d = copy.deepcopy(sample_d)
-            listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
-            listener_sample_d["exp_latents"], _, _ = shuffle(listener_sample_d["exp_latents"], orders=orders)
-            listener_sample_d["exp_latents_values"], _, _ = shuffle(listener_sample_d["exp_latents_values"], orders=orders)
+                listener_sample_d[k][:,0] = v.unsqueeze(0)
             
-            # Creating speaker's dictionnary:
-            speaker_sample_d = copy.deepcopy(sample_d)
-            if self.kwargs['observability'] == "partial":
-                for k,v in speaker_sample_d.items():
-                    speaker_sample_d[k] = v[:,0].unsqueeze(1)
+        listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
+        if not retain_target:   
+            # The target_decision_idx is set to `nbr_experiences`:
+            target_decision_idx = (self.nbr_distractors[self.mode]+1)*torch.ones(1).long()
+        
+        for k,v in listener_sample_d.items():
+            if k == "experiences":  continue
+            listener_sample_d[k], _, _ = shuffle(v, orders=orders)
+        
+        ##--------------------------------------------------------------
+        ##--------------------------------------------------------------
+
+        # Creating speaker's dictionnary:
+        speaker_sample_d = copy.deepcopy(sample_d)
+        if self.kwargs['observability'] == "partial":
+            for k,v in speaker_sample_d.items():
+                speaker_sample_d[k] = v[:,0].unsqueeze(1)
         
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
-            output_dict[f"listener_{k}"] = v 
+            output_dict[f"listener_{k}"] = v
         for k,v in speaker_sample_d.items():
             output_dict[f"speaker_{k}"] = v 
 

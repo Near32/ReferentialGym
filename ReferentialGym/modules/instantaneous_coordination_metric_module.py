@@ -41,7 +41,6 @@ class InstantaneousCoordinationMetricModule(Module):
 
             "vocab_size":"config:vocab_size",
             "max_sentence_length":"config:max_sentence_length",
-            "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
             "sentences_widx":"modules:current_speaker:sentences_widx", 
             "decision_probs":"modules:current_listener:decision_probs",
             "listener_indices":"current_dataloader:sample:listener_indices",
