@@ -1,14 +1,15 @@
 from typing import Dict, List 
 
+import os 
+import random 
+import copy
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
 import numpy as np 
-import random 
-
-import copy
 
 from ..modules import Module
 
@@ -149,10 +150,14 @@ class Agent(Module):
         self.logger = logger  
         return clone 
 
-    def save(self, path):
+    def save(self, path, filename=None):
         logger = self.logger
         self.logger = None
-        torch.save(self, path)
+        if filename is None:
+            filepath = path+self.id+".agent"
+        else:
+            filepath = os.path.join(path, filename)
+        torch.save(self, filepath)
         self.logger = logger 
 
     def _tidyup(self):

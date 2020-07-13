@@ -65,9 +65,15 @@ class RNNSpeaker(Speaker):
         # TODO: when applying multi-round, it could be interesting to force SoS 
         # at the beginning of sentences so that agents can align rounds.
         self.sos_symbol = nn.Parameter(torch.zeros(1,1,self.config['symbol_embedding_size']))
-        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
         
+        """
+        self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
         self.symbol_encoder_dropout = nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
+        """
+        self.symbol_encoder = nn.Sequential(
+            nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False),
+            nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
+        )
         # EoS symbol is part of the vocabulary:
         self.symbol_decoder = nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], self.vocab_size)
 
@@ -91,6 +97,20 @@ class RNNSpeaker(Speaker):
     def _compute_tau(self, tau0, h):
         tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
         return tau
+
+    def embed_sentences(self, sentences):
+        """
+        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+        :returns embedded_sentences: Tensor of shape `(batch_size, max_sentence_length, symbol_embedding_size)` containing the padded sequence of embedded symbols.
+        """
+        batch_size = sentences.shape[0]
+        # (batch_size, max_sentence_length, self.vocab_size)
+        sentences = sentences.view((-1, self.vocab_size)).float()
+        embedded_symbols = self.symbol_encoder(sentences) 
+        # (batch_size*max_sentence_length, self.kwargs['symbol_embedding_size'])
+        embedded_sentences = embedded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))
+        # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
+        return embedded_sentences
 
     def _sense(self, experiences, sentences=None):
         """
@@ -184,13 +204,19 @@ class RNNSpeaker(Speaker):
                 sentences_widx[b].append( prediction)
                 sentences_logits[b].append( outputs.view((1,-1)))
                 # Counting EoS symbol:
-                sentences_one_hots[b].append( nn.functional.one_hot(prediction.squeeze().long(), num_classes=self.vocab_size).view((1,-1)))
+                prediction_one_hot = nn.functional.one_hot(prediction.squeeze().long(), num_classes=self.vocab_size).view((1,-1))
+                sentences_one_hots[b].append(prediction_one_hot)
                 
                 # next inputs:
+                """
                 #inputs = self.symbol_encoder(outputs).unsqueeze(1)
                 inputs = self.symbol_encoder.weight[:, prediction.long()].reshape((1,1,-1))
                 # (batch_size, 1, kwargs['symbol_embedding_size'])
                 inputs = self.symbol_encoder_dropout(inputs)
+                """
+                inputs = self.embed_sentences(prediction_one_hot.reshape(1,1,-1))
+                # (batch_size, 1, kwargs['symbol_embedding_size'])
+
                 # next rnn_states:
                 rnn_states = next_rnn_states
                 

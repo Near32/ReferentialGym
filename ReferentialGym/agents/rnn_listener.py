@@ -106,7 +106,7 @@ class RNNListener(DiscriminativeListener):
         """
         batch_size = sentences.shape[0]
         # (batch_size, max_sentence_length, self.vocab_size)
-        sentences = sentences.view((-1, self.vocab_size))
+        sentences = sentences.view((-1, self.vocab_size)).float()
         embedded_symbols = self.symbol_encoder(sentences) 
         # (batch_size*max_sentence_length, self.kwargs['symbol_embedding_size'])
         embedded_sentences = embedded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))

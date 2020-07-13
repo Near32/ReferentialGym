@@ -3,6 +3,8 @@ import os
 import copy
 import random
 import time
+import pickle 
+import glob
 
 import torch
 import torch.nn as nn
@@ -24,30 +26,147 @@ VERBOSE = False
 
 
 class ReferentialGame(object):
-    def __init__(self, datasets, config, modules, pipelines):
+    def __init__(self, 
+                 datasets, 
+                 config={}, 
+                 modules={}, 
+                 pipelines={}, 
+                 load_path=None, 
+                 save_path=None,
+                 verbose=False):
         '''
 
         '''
+        self.verbose = verbose
+        self.load_path= load_path
+        self.save_path = save_path
+
         self.datasets = datasets
         self.config = config
+        if load_path is not None:
+            self.load_config(load_path)
         
         self.stream_handler = StreamHandler()
-        self.stream_handler.register("current_listener")
-        self.stream_handler.register("current_speaker")
-        
         self.stream_handler.register("losses_dict")
         self.stream_handler.register("logs_dict")
+        self.stream_handler.register("signals")
+        if load_path is not None:
+            self.load_signals(load_path)
         
         # Register hyperparameters:
         for k,v in self.config.items():
             self.stream_handler.update(f"config:{k}", v)
         # Register modules:
         self.modules = modules
+        if load_path is not None:
+            self.load_modules(load_path)
         for k,m in self.modules.items():
             self.stream_handler.update(f"modules:{m.get_id()}:ref", m)
 
         # Register pipelines:
         self.pipelines = pipelines
+        if load_path is not None:
+            self.load_pipelines(load_path)
+
+    def save(self, path=None):
+        if path is None:
+            print("WARNING: no path provided for save. Saving in './temp_save/'.")
+            path = './temp_save/'
+
+        os.makedirs(path, exist_ok=True)
+
+        self.save_config(path)
+        self.save_modules(path)
+        self.save_pipelines(path)
+        self.save_signals(path)
+
+        if self.verbose:
+            print(f"Saving at {path}: OK.")
+
+    def save_config(self, path):
+        try:
+            with open(os.path.join(path, "config.conf"), 'wb') as f:
+                pickle.dump(self.config, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            print(f"Exception caught while trying to save config: {e}")
+
+    def save_modules(self, path):
+        for module_id, module in self.modules.items():
+            #try:
+            if hasattr(module, "save"):
+                module.save(path=path)
+            else:
+                torch.save(module, os.path.join(path,module_id+".pth"))
+            #except Exception as e:
+            #    print(f"Exception caught will trying to save module {module_id}: {e}")
+                 
+
+    def save_pipelines(self, path):
+        try:
+            with open(os.path.join(path, "pipelines.pipe"), 'wb') as f:
+                pickle.dump(self.pipelines, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            print(f"Exception caught while trying to save pipelines: {e}")
+
+    def save_signals(self, path):
+        try:
+            with open(os.path.join(path, "signals.conf"), 'wb') as f:
+                pickle.dump(self.stream_handler["signals"], f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            print(f"Exception caught while trying to save signals: {e}")
+
+    def load(self, path):
+        self.load_config(path)
+        self.load_modules(path)
+        self.load_pipelines(path)
+        self.load_signals(path)
+
+        if self.verbose:
+            print(f"Loading from {path}: OK.")
+
+
+    def load_config(self, path):
+        try:
+            with open(os.path.join(path, "config.conf"), 'rb') as f:
+                self.config = pickle.load(f)
+        except Exception as e:
+            print(f"Exception caught while trying to load config: {e}")
+
+        if self.verbose:
+            print(f"Loading config: OK.")
+
+    def load_modules(self, path):
+        modules_paths = glob.glob(os.path.join(path, "*.pth"))
+        
+        for module_path in modules_paths:
+            module_id = module_path.split("/")[-1].split(".")[0]
+            try:
+                    self.modules[module_id] = torch.load(module_path)
+            except Exception as e:
+                print(f"Exception caught will trying to load module {module_path}: {e}")
+        
+        if self.verbose:
+            print(f"Loading modules: OK.")
+    
+    def load_pipelines(self, path):
+        try:
+            with open(os.path.join(path, "pipelines.pipe"), 'rb') as f:
+                self.pipelines.update(pickle.load(f))
+        except Exception as e:
+            print(f"Exception caught while trying to load pipelines: {e}")
+
+        if self.verbose:
+            print(f"Loading pipelines: OK.")
+
+    def load_signals(self, path):
+        try:
+            with open(os.path.join(path, "signals.conf"), 'rb') as f:
+                self.stream_handler.update("signals", pickle.load(f))
+        except Exception as e:
+            print(f"Exception caught while trying to load signals: {e}")
+
+        if self.verbose:
+            print(f"Loading signals: OK.")
 
     def train(self, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose_period=None):
         '''
@@ -74,23 +193,34 @@ class ReferentialGame(object):
         
         print("Launching training: ...")
 
-        it = 0
-        it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
-        it_samples = {mode:0 for mode in self.datasets} # counting the number of multi-round
-        it_steps = {mode:0 for mode in self.datasets} # taking into account multi round... counting the number of sample shown to the agents.
+        it_datasamples = self.stream_handler['signals:it_datasamples']
+        if it_datasamples is None:  it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
+        it_samples = self.stream_handler['signals:it_samples']
+        if it_samples is None:  it_samples = {mode:0 for mode in self.datasets} # counting the number of multi-round
+        it_steps = self.stream_handler['signals:it_steps']
+        if it_steps is None:    it_steps = {mode:0 for mode in self.datasets} # taking into account multi round... counting the number of sample shown to the agents.
         
+        init_curriculum_nbr_distractors = self.stream_handler["signals:curriculum_nbr_distractors"]
+        if init_curriculum_nbr_distractors is None:
+            init_curriculum_nbr_distractors = 1
         if 'use_curriculum_nbr_distractors' in self.config\
             and self.config['use_curriculum_nbr_distractors']:
             windowed_accuracy = 0.0
             window_count = 0
             for mode in self.datasets:
-                self.datasets[mode].setNbrDistractors(1,mode=mode)
+                self.datasets[mode].setNbrDistractors(init_curriculum_nbr_distractors,mode=mode)
             
         pbar = tqdm(total=nbr_epoch)
         if logger is not None:
             self.stream_handler.update("modules:logger:ref", logger)
         
-        for epoch in range(nbr_epoch):
+        init_epoch = self.stream_handler["signals:epoch"]
+        if init_epoch is None: 
+            init_epoch = 0
+        else:
+            pbar.update(init_epoch)
+
+        for epoch in range(init_epoch,nbr_epoch):
             self.stream_handler.update("signals:epoch", epoch)
             pbar.update(1)
             for it_dataset, (mode, data_loader) in enumerate(data_loaders.items()):
@@ -114,6 +244,7 @@ class ReferentialGame(object):
                     self.stream_handler.update("signals:end_of_dataset", end_of_dataset)
                     it_datasamples[mode] += 1
                     it_datasample = it_datasamples[mode]
+                    self.stream_handler.update("signals:it_datasamples", it_datasamples)
                     self.stream_handler.update("signals:global_it_datasample", it_datasample)
                     self.stream_handler.update("signals:it_datasample", idx_stimulus)
                     it = it_datasample
@@ -129,6 +260,7 @@ class ReferentialGame(object):
                     for it_rep in range(nbr_experience_repetition):
                         it_samples[mode] += 1
                         it_sample = it_samples[mode]
+                        self.stream_handler.update("signals:it_samples", it_samples)
                         self.stream_handler.update("signals:global_it_sample", it_sample)
                         self.stream_handler.update("signals:it_sample", it_rep)
                         end_of_repetition_sequence = (it_rep==nbr_experience_repetition-1)
@@ -141,6 +273,7 @@ class ReferentialGame(object):
                             it_steps[mode] += 1
                             it_step = it_steps[mode]
                             
+                            self.stream_handler.update("signals:it_steps", it_steps)
                             self.stream_handler.update("signals:global_it_step", it_step)
                             self.stream_handler.update("signals:it_step", idx_round)
                             
@@ -199,6 +332,7 @@ class ReferentialGame(object):
                         if 'use_curriculum_nbr_distractors' in self.config\
                             and self.config['use_curriculum_nbr_distractors']:
                             nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
+                            self.stream_handler.update("signals:curriculum_nbr_distractors", nbr_distractors)
                             logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_step)
                             logger.add_scalar( "{}/CurriculumWindowedAcc".format(mode), windowed_accuracy, it_step)
                         
@@ -248,10 +382,12 @@ class ReferentialGame(object):
 
                 if logger is not None:
                     logger.switch_epoch()
+                    
+                # //------------------------------------------------------------//
+                # //------------------------------------------------------------//
+                # //------------------------------------------------------------//
 
-                # //------------------------------------------------------------//
-                # //------------------------------------------------------------//
-                # //------------------------------------------------------------//
+            self.save(path=self.save_path)
 
             # //------------------------------------------------------------//
             # //------------------------------------------------------------//

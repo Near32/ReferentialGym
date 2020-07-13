@@ -18,6 +18,7 @@ def main():
   parser = argparse.ArgumentParser(description="LSTM Disentangled Agents: ST-GS Language Emergence.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestDisentangled")
+  parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
     choices=["Sort-of-CLEVR",
@@ -796,7 +797,19 @@ def main():
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
 
-  refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
+  if args.restore:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      load_path=save_path,
+      save_path=save_path,
+    )
+  else:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      save_path=save_path,
+    )
 
   # In[22]:
 

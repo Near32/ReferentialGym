@@ -16,9 +16,12 @@ import torchvision.transforms as T
 
 def main():
   parser = argparse.ArgumentParser(description="LSTM Disentangled Agents :: ST-GS + Vocabulary Grounding :: Language Emergence.")
-  parser.add_argument("--no_vocabulary_grounding", action="store_true", default=False)
+  parser.add_argument("--listener_vocabulary_grounding", action="store_true", default=False)
+  parser.add_argument("--speaker_vocabulary_grounding", action="store_true", default=False)
+  parser.add_argument("--simple_vgl", action="store_true", default=False)
   parser.add_argument("--seed", type=int, default=0)
-  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestDisentangled")
+  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestDisentangledVocabularyGrounding")
+  parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
     choices=["Sort-of-CLEVR",
@@ -392,8 +395,13 @@ def main():
   save_path = "./"
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
-  if args.no_vocabulary_grounding:
-    save_path += "NoVocabularyGrounding/"
+  if args.listener_vocabulary_grounding:
+    save_path += "ListenerVocabularyGrounding/"
+  if args.speaker_vocabulary_grounding:
+    save_path += "SpeakerVocabularyGrounding/"
+  if args.simple_vgl:
+    save_path += "Simple/"
+  save_path += "SpeakerSentenceEmbeddingV1/"
   save_path += f"{args.dataset}+DualLabeled/"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
@@ -643,7 +651,7 @@ def main():
     )
 
   # Vocabulary grounding:
-  if not(args.no_vocabulary_grounding):
+  if args.listener_vocabulary_grounding:
     vgl_id = "vocabulary_grounding_loss_0"
     vgl_config = copy.deepcopy(agent_config)
     vgl_config.update(
@@ -680,6 +688,45 @@ def main():
     )
 
     print(modules[vgl_id])
+
+  # Speaker Vocabulary grounding:
+  if args.speaker_vocabulary_grounding:
+    vgl_speaker_id = "vocabulary_grounding_loss_speaker_0"
+    vgl_speaker_config = copy.deepcopy(agent_config)
+    vgl_speaker_config.update(
+      {
+        "architecture":               "MLP",
+        "symbol_embedding_size":      agent_config["symbol_embedding_size"],
+        "feature_dim":                agent_config["symbol_processing_nbr_hidden_units"],
+        "fc_hidden_units":            [256] if args.simple_vgl else ["BN256", "BN256", "BN256"],
+        "dropout_prob":               0.0,
+
+        "positional_encoder_dropout": 0.5,
+      }
+    )
+    vgl_speaker_stream_ids = {
+        "logger":"modules:logger:ref",
+        "logs_dict":"logs_dict",
+        "losses_dict":"losses_dict",
+        "epoch":"signals:epoch",
+        "it_rep":"signals:it_sample",
+        "it_comm_round":"signals:it_step",
+        "mode":"signals:mode",
+
+        "agent":"modules:current_speaker:ref:ref_agent",
+        "features":"modules:current_speaker:ref:ref_agent:features",
+        "sentences_logits":"modules:current_speaker:sentences_logits",
+        "sentences_one_hot":"modules:current_speaker:sentences_one_hot",
+        "sentences_widx":"modules:current_speaker:sentences_widx",          
+    }
+
+    modules[vgl_speaker_id] = rg_modules.build_VocabularyGroundingLossModule(
+      id=vgl_speaker_id,
+      config=vgl_speaker_config,
+      input_stream_ids=vgl_speaker_stream_ids
+    )
+
+    print(modules[vgl_speaker_id])
 
   
   ## Pipelines:
@@ -803,8 +850,10 @@ def main():
   pipelines["referential_game"].append(population_handler_id)
   pipelines["referential_game"].append(current_speaker_id)
   pipelines["referential_game"].append(current_listener_id)
-  if not(args.no_vocabulary_grounding):
+  if args.listener_vocabulary_grounding:
     pipelines["referential_game"].append(vgl_id)
+  if args.speaker_vocabulary_grounding:
+    pipelines["referential_game"].append(vgl_speaker_id)
   
   pipelines[optim_id] = []
   if args.homoscedastic_multitasks_loss:
@@ -842,8 +891,20 @@ def main():
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
 
-  refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
-
+  if args.restore:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      load_path=save_path,
+      save_path=save_path,
+    )
+  else:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      save_path=save_path,
+    )
+  
   # In[22]:
 
   refgame.train(nbr_epoch=nbr_epoch,

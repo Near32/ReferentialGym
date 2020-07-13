@@ -8,7 +8,10 @@ from .referential_game import ReferentialGame
 import copy 
 
 
-def make(config, dataset_args):
+def make(config, 
+         dataset_args,
+         load_path=None,
+         save_path=None):
     """
     Create a ReferentialGame with all the different evalutation modes,
     that are specified by the `dataset_args`'s `mode` entry.
@@ -47,8 +50,13 @@ def make(config, dataset_args):
 
     modules = config.pop("modules")
     pipelines = config.pop("pipelines")
-    rg_instance = ReferentialGame(datasets=rg_datasets, 
-                                  config=config,
-                                  modules=modules,
-                                  pipelines=pipelines)
+    rg_instance = ReferentialGame(
+        datasets=rg_datasets, 
+        config=config,
+        modules=modules,
+        pipelines=pipelines,
+        load_path=load_path,
+        save_path=save_path
+    )
+    
     return rg_instance

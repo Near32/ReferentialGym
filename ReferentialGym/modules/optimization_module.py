@@ -1,5 +1,7 @@
 from typing import Dict, List 
 
+import os 
+
 import torch
 import torch.nn as nn
 import torch.optim as optim 
@@ -74,6 +76,12 @@ class OptimizationModule(Module):
                                       lr=self.config["learning_rate"], 
                                       betas=(0.9, 0.999), 
                                       eps=self.config["adam_eps"])
+
+    def save(self, path):
+      torch.save(self.optimizer.state_dict(), os.path.join(path, self.id+".module"))
+
+    def load(self, path):
+      self.optimizer.load_state_dict(torch.load(os.path.join(path, self.id+".module")))
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """

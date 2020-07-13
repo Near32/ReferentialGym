@@ -30,7 +30,8 @@ class CurrentAgentModule(Module):
         return self.ref_agent.clone()
 
     def save(self, path):
-        self.ref_agent.save(path=path)
+        if self.ref_agent is not None:
+            self.ref_agent.save(path=path)
 
     def _tidyup(self):
         self.ref_agent._tidyup()
