@@ -283,6 +283,9 @@ class ModelResNet18(models.ResNet):
         feat_dim = self.feat_map_dim-1
         num_ftrs = self.feat_map_depth * feat_dim * feat_dim
         
+        if self.feature_dim == -1:
+            self.feature_dim = num_ftrs
+            
         self.fc = layer_init(nn.Linear(num_ftrs, self.feature_dim), w_scale=math.sqrt(2))
     
     def _compute_feature_shape(self, input_dim, nbr_layer):

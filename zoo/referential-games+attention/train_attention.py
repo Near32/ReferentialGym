@@ -15,8 +15,9 @@ import torchvision.transforms as T
 
 
 def main():
-  parser = argparse.ArgumentParser(description='LSTM CNN Agents: ST-GS Language Emergence.')
+  parser = argparse.ArgumentParser(description='Attention LSTM CNN Agents: ST-GS Language Emergence.')
   parser.add_argument('--seed', type=int, default=0)
+  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="")
   parser.add_argument('--use_cuda', action='store_true', default=False)
   parser.add_argument('--dataset', type=str, 
     choices=['Sort-of-CLEVR',
@@ -40,9 +41,12 @@ def main():
              'Santoro2017-CLEVR-CoordCNN3x3',
              'Santoro2017-CLEVR-EntityPrioredCNN3x3',
              'Santoro2017-CLEVR-CNN7x4x4x3',
+
+             'ResNet18-3',
+             'pretrained-ResNet18-3',
              ], 
     help='model architecture to train',
-    default="BN+Coord4CNN3x3")
+    default="BN+CNN3x3")
   parser.add_argument('--graphtype', type=str,
     choices=['straight_through_gumbel_softmax',
              'reinforce',
@@ -55,7 +59,7 @@ def main():
              'obverter'],
     help='type of graph to use during training of the speaker and listener.',
     default='straight_through_gumbel_softmax')
-  parser.add_argument('--max_sentence_length', type=int, default=5)
+  parser.add_argument('--max_sentence_length', type=int, default=20)
   parser.add_argument('--vocab_size', type=int, default=100)
   parser.add_argument('--optimizer_type', type=str, 
     choices=[
@@ -78,15 +82,16 @@ def main():
       "AttentionSpeaker",
       "AttentionListener"
       ],
-    default="AttentionSpeaker")
+    default="AttentionListener")
   parser.add_argument('--lr', type=float, default=1e-4)
-  parser.add_argument('--epoch', type=int, default=10000)
+  parser.add_argument('--epoch', type=int, default=1875)
   parser.add_argument('--metric_epoch_period', type=int, default=20)
   parser.add_argument('--dataloader_num_worker', type=int, default=4)
   parser.add_argument('--metric_fast', action='store_true', default=False)
-  parser.add_argument('--batch_size', type=int, default=2)
+  parser.add_argument('--batch_size', type=int, default=8)
   parser.add_argument('--mini_batch_size', type=int, default=128)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
   parser.add_argument('--nbr_experience_repetition', type=int, default=1)
   parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
@@ -95,20 +100,23 @@ def main():
   parser.add_argument('--nbr_train_distractors', type=int, default=47)
   parser.add_argument('--resizeDim', default=32, type=int,help='input image resize')
   parser.add_argument('--st_gs_inv_tau0', type=float, default=0.2)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--visual_decoder_nbr_steps', type=int, default=1)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--attention_speaker_soft_attention', action='store_true', default=False)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--attention_listener_soft_attention', action='store_true', default=False)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--attention_st_gs_inv_tau0', type=float, default=0.5)
   parser.add_argument('--attention_visual_encoder_use_coord4', action='store_true', default=False)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--attention_full_focus_scheme', action='store_true', default=False)
+  # TODO : vary the following parameter to study its effects...
   parser.add_argument('--shared_architecture', action='store_true', default=False)
-  parser.add_argument('--same_head', action='store_true', default=False)
   parser.add_argument('--with_baseline', action='store_true', default=False)
   parser.add_argument('--homoscedastic_multitasks_loss', action='store_true', default=False)
   parser.add_argument('--use_curriculum_nbr_distractors', action='store_true', default=False)
   parser.add_argument('--use_feat_converter', action='store_true', default=False)
-  parser.add_argument('--detached_heads', action='store_true', default=False)
-  parser.add_argument('--test_id_analogy', action='store_true', default=False)
   parser.add_argument('--distractor_sampling', type=str,
     choices=[ "uniform",
               "similarity-0.98",
@@ -160,10 +168,14 @@ def main():
              'combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N', #Sparse 4 Attributes: 192 test / 1344 train
             ],
     help='train/test split strategy',
-    # INTER:
-    default='combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N')
-    # EXTRA:
+    # INTER2:
+    #default='combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N')
+    # EXTRA2:
     #default='combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N')
+    # INTER3:
+    #default='combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N')
+    # EXTRA3:
+    default='combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N')
   parser.add_argument('--fast', action='store_true', default=False, 
     help='Disable the deterministic CuDNN. It is likely to make the computation faster.')
   
@@ -246,8 +258,6 @@ def main():
 
   transform_degrees = 45
   transform_translate = (0.25, 0.25)
-
-  multi_head_detached = args.detached_heads 
 
   rg_config = {
       "observability":            "partial",
@@ -521,7 +531,7 @@ def main():
     agent_config['visual_decoder_mlp_dropout_prob'] = 0.0
 
 
-  elif 'CNN' in agent_config['architecture']:
+  elif 'CNN' in agent_config['architecture'] or 'ResNet' in agent_config['architecture']:
     rg_config['use_feat_converter'] = False
     agent_config['use_feat_converter'] = False
     
@@ -582,14 +592,14 @@ def main():
     agent_config['visual_decoder_nbr_rnn_layers'] = 1
 
     agent_config['visual_decoder_mlp_dropout_prob'] = 0.0
-    
-
   else:
     raise NotImplementedError
 
 
-  #TestAttention/
-  save_path = f"./TestMinimalVocab/{args.dataset}+DualLabeled/{'Attached' if not(multi_head_detached) else 'Detached'}Heads"
+  save_path = "./"
+  if args.parent_folder != '':
+    save_path += args.parent_folder+'/'
+  save_path += f"{args.dataset}+DualLabeled"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
@@ -669,12 +679,12 @@ def main():
   save_path += f"/{args.optimizer_type}/"
 
   if 'reinforce' in args.graphtype:
-    save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
+    save_path += f'REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
+    save_path += f"Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
   else:
-    save_path += f"withPopulationHandlerModule/STGS-{args.agent_type}-LSTM-CNN-Agent/"
+    save_path += f"STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
   if 'Attention' in args.agent_type and 'AttentionSpeaker' not in args.agent_type:
     save_path += f"{'Soft' if args.attention_listener_soft_attention else ''}AttentionSteps{args.visual_decoder_nbr_steps}"
@@ -685,14 +695,6 @@ def main():
 
   save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"
   
-  
-  if args.same_head:
-    save_path += "same_head/"
-
-  if args.test_id_analogy:
-    save_path += 'withAnalogyTest/'
-  else:
-    save_path += 'NoAnalogyTest/'
   
   save_path += f'DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
@@ -827,11 +829,11 @@ def main():
   population_handler_id = "population_handler_0"
   population_handler_config = rg_config
   population_handler_stream_ids = {
-    "modules:current_speaker":"current_speaker_streams_dict",
-    "modules:current_listener":"current_listener_streams_dict",
-    "signals:epoch":"epoch",
-    "signals:mode":"mode",
-    "signals:global_it_datasample":"global_it_datasample",
+    "current_speaker_streams_dict":"modules:current_speaker",
+    "current_listener_streams_dict":"modules:current_listener",
+    "epoch":"signals:epoch",
+    "mode":"signals:mode",
+    "global_it_datasample":"signals:global_it_datasample",
   }
 
   # Current Speaker:
@@ -911,12 +913,12 @@ def main():
 
   speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
   speaker_factor_vae_disentanglement_metric_input_stream_ids = {
-    'modules:current_speaker:ref:ref_agent:cnn_encoder':'model',
-    'modules:current_speaker:ref:ref_agent:features':'representations',
-    'current_dataloader:sample:speaker_experiences':'experiences', 
-    'current_dataloader:sample:speaker_exp_latents':'latent_representations', 
-    'current_dataloader:sample:speaker_exp_latents_values':'latent_values_representations',
-    'current_dataloader:sample:speaker_indices':'indices', 
+    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_speaker:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
   }
   speaker_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=speaker_factor_vae_disentanglement_metric_id,
@@ -937,12 +939,12 @@ def main():
 
   listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
   listener_factor_vae_disentanglement_metric_input_stream_ids = {
-    'modules:current_listener:ref:ref_agent:cnn_encoder':'model',
-    'modules:current_listener:ref:ref_agent:features':'representations',
-    'current_dataloader:sample:listener_experiences':'experiences', 
-    'current_dataloader:sample:listener_exp_latents':'latent_representations', 
-    'current_dataloader:sample:listener_exp_latents_values':'latent_values_representations',
-    'current_dataloader:sample:listener_indices':'indices', 
+    "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_listener:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:listener_experiences", 
+    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:listener_exp_latents_values",
+    "indices":"current_dataloader:sample:listener_indices", 
   }
   listener_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
     id=listener_factor_vae_disentanglement_metric_id,

@@ -99,6 +99,20 @@ class RNNListener(DiscriminativeListener):
         '''
         raise NotImplementedError
 
+    def embed_sentences(self, sentences):
+        """
+        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+        :returns embedded_sentences: Tensor of shape `(batch_size, max_sentence_length, symbol_embedding_size)` containing the padded sequence of embedded symbols.
+        """
+        batch_size = sentences.shape[0]
+        # (batch_size, max_sentence_length, self.vocab_size)
+        sentences = sentences.view((-1, self.vocab_size))
+        embedded_symbols = self.symbol_encoder(sentences) 
+        # (batch_size*max_sentence_length, self.kwargs['symbol_embedding_size'])
+        embedded_sentences = embedded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))
+        # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
+        return embedded_sentences
+
     def _sense(self, experiences, sentences=None):
         r"""
         Infers features from the experiences that have been provided.
@@ -150,15 +164,12 @@ class RNNListener(DiscriminativeListener):
 
         # Consume the sentences:
         # (batch_size, max_sentence_length, self.vocab_size)
-        sentences = sentences.view((-1, self.vocab_size))
-        encoded_symbols = self.symbol_encoder(sentences) 
-        # (batch_size*max_sentence_length, self.kwargs['symbol_embedding_size'])
-        encoded_sentences = encoded_symbols.view((batch_size, -1, self.kwargs['symbol_embedding_size']))
+        embedded_sentences = self.embed_sentences(sentences)
         # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
         
         # We initialize the rnn_states to either None, if it is not multi-round, or:
         states = self.rnn_states
-        rnn_outputs, self.rnn_states = self.symbol_processing(encoded_sentences, states)          
+        rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
         '''
         init_rnn_state = self.symbol_processing_learnable_initial_state.expand(
             batch_size,
@@ -173,7 +184,7 @@ class RNNListener(DiscriminativeListener):
         
         """
         rnn_states = None
-        rnn_outputs, next_rnn_states = self.symbol_processing(encoded_sentences, rnn_states)          
+        rnn_outputs, next_rnn_states = self.symbol_processing(embedded_sentences, rnn_states)          
         """
 
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
