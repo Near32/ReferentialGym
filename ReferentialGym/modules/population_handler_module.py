@@ -55,6 +55,8 @@ class PopulationHandlerModule(Module):
                                                     input_stream_ids=input_stream_ids)
         
         print("Create Agents: ...")
+
+        self.verbose = config["verbose"]
         
         # Agents:
         if 'cultural_speaker_substrate_size' not in self.config:
@@ -220,6 +222,7 @@ class PopulationHandlerModule(Module):
                 for agent in self.meta_agents.values():
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
 
+        # Reset agent(s):
         if 'train' in mode \
             and 'cultural_pressure_it_period' in self.config\
             and self.config["cultural_pressure_it_period"] is not None \
@@ -229,7 +232,7 @@ class PopulationHandlerModule(Module):
                 if 'S' in self.config['cultural_reset_strategy']:
                     weights = [ it-self.agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in self.speakers] 
                     idx_speaker2reset = random.choices( range(len(self.speakers)), weights=weights)[0]
-                elif 'L' in self.config['cultural_reset_strategy']:
+                if 'L' in self.config['cultural_reset_strategy']:
                     weights = [ it-self.agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in self.listeners] 
                     idx_listener2reset = random.choices( range(len(self.listeners)), weights=weights)[0]
                 else:
@@ -239,7 +242,7 @@ class PopulationHandlerModule(Module):
             else: #uniform
                 if 'S' in self.config['cultural_reset_strategy']:
                     idx_speaker2reset = random.randint(0,len(self.speakers)-1)
-                elif 'L' in self.config['cultural_reset_strategy']:
+                if 'L' in self.config['cultural_reset_strategy']:
                     idx_listener2reset = random.randint(0,len(self.listeners)-1)
                 else:
                     idx_agent2reset = random.randint(0,2*len(self.listeners)-1)
@@ -252,7 +255,9 @@ class PopulationHandlerModule(Module):
                 else:
                     self.speakers[idx_speaker2reset].reset()
                 self.agents_stats[self.speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
-                print("Agent Speaker {} has just been resetted.".format(self.speakers[idx_speaker2reset].agent_id))
+                
+                if self.verbose:
+                    print("Agent Speaker {} has just been resetted.".format(self.speakers[idx_speaker2reset].agent_id))
             
             if 'L' in self.config['cultural_reset_strategy']:
                 if 'meta' in self.config['cultural_reset_strategy']:
@@ -262,7 +267,8 @@ class PopulationHandlerModule(Module):
                 else:
                     self.listeners[idx_listener2reset].reset()
                 self.agents_stats[self.listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
-                print("Agent  Listener {} has just been resetted.".format(self.listeners[idx_listener2reset].agent_id))
+                if self.verbose:
+                    print("Agent  Listener {} has just been resetted.".format(self.listeners[idx_listener2reset].agent_id))
 
             if 'L' not in self.config['cultural_reset_strategy'] and 'S' not in self.config['cultural_reset_strategy']:
                 if idx_agent2reset < len(self.listeners):
@@ -277,7 +283,9 @@ class PopulationHandlerModule(Module):
                 else:
                     agents[idx_agent2reset].reset()
                     self.agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
-                print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
+                
+                if self.verbose:
+                    print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
     
     def _reptile_step(self, learner, reptile_learner, nbr_grad_steps=1, verbose=False) :
         k = 1.0/float(nbr_grad_steps)

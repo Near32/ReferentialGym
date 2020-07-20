@@ -33,11 +33,14 @@ class ReferentialGame(object):
                  pipelines={}, 
                  load_path=None, 
                  save_path=None,
-                 verbose=False):
+                 verbose=False,
+                 save_epoch_interval=None):
         '''
 
         '''
         self.verbose = verbose
+        self.save_epoch_interval = save_epoch_interval
+
         self.load_path= load_path
         self.save_path = save_path
 
@@ -386,8 +389,9 @@ class ReferentialGame(object):
                 # //------------------------------------------------------------//
                 # //------------------------------------------------------------//
                 # //------------------------------------------------------------//
-
-            self.save(path=self.save_path)
+            if self.save_epoch_interval is not None\
+             and epoch % self.save_epoch_interval == 0:
+                self.save(path=self.save_path)
 
             # //------------------------------------------------------------//
             # //------------------------------------------------------------//

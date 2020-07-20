@@ -18,6 +18,7 @@ def main():
   parser = argparse.ArgumentParser(description="LSTM Disentangled Agents: ST-GS Language Emergence.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestDisentangled")
+  parser.add_argument("--verbose", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
@@ -94,12 +95,18 @@ def main():
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=4)
-  # Cultural Bottleneck:
+  # ILM:
   parser.add_argument("--iterated_learning_scheme", action="store_true", default=False)
   parser.add_argument("--iterated_learning_period", type=int, default=4)
   parser.add_argument("--iterated_learning_rehearse_MDL", action="store_true", default=False)
   parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
   
+  # Cultural Bottleneck:
+  parser.add_argument("--cultural_pressure_it_period", type=int, default=None)
+  parser.add_argument("--cultural_speaker_substrate_size", type=int, default=1)
+  parser.add_argument("--cultural_listener_substrate_size", type=int, default=1)
+  parser.add_argument("--cultural_reset_strategy", type=str, default="uniformSL") #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+      
   # Dataset Hyperparameters:
   parser.add_argument("--train_test_split_strategy", type=str, 
     choices=["combinatorial2-Y-2-8-X-2-8-Orientation-40-N-Scale-6-N-Shape-3-N", # Exp : DoRGsFurtherDise interweaved split simple XY normal             
@@ -259,10 +266,10 @@ def main():
       "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
       "agent_loss_type":          args.agent_loss_type, #"NLL"
 
-      "cultural_pressure_it_period": None,
-      "cultural_speaker_substrate_size":  1,
-      "cultural_listener_substrate_size":  1,
-      "cultural_reset_strategy":  "oldestL", # "uniformSL" #"meta-oldestL-SGD"
+      "cultural_pressure_it_period": args.cultural_pressure_it_period,
+      "cultural_speaker_substrate_size":  args.cultural_speaker_substrate_size,
+      "cultural_listener_substrate_size":  args.cultural_listener_substrate_size,
+      "cultural_reset_strategy":  args.cultural_reset_strategy, #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
       "cultural_reset_meta_learning_rate":  1e-3,
 
       # Obverter's Cultural Bottleneck:
@@ -429,7 +436,9 @@ def main():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  if rg_config['cultural_pressure_it_period'] != 'None':  
+  if rg_config['cultural_pressure_it_period'] != 'None' \
+    or rg_config['cultural_speaker_substrate_size'] != 1 \
+    or rg_config['cultural_listener_substrate_size'] != 1:  
     save_path += '-S{}L{}-{}-Reset{}'.\
       format(rg_config['cultural_speaker_substrate_size'], 
       rg_config['cultural_listener_substrate_size'],
@@ -606,7 +615,8 @@ def main():
 
   # Population:
   population_handler_id = "population_handler_0"
-  population_handler_config = rg_config
+  population_handler_config = copy.deepcopy(rg_config)
+  population_handler_config["verbose"] = args.verbose
   population_handler_stream_ids = {
     "current_speaker_streams_dict":"modules:current_speaker",
     "current_listener_streams_dict":"modules:current_listener",
