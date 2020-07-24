@@ -132,8 +132,8 @@ def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_
     Episode ends if the decisions are correct 
     (or if the max number of round is achieved, but this is handled outside of this function).
     """
-    done = (sampled_decision_idx == target_decision_idx)
-    r = done.float()*torch.ones_like(target_decision_idx)
+    done = guessed_right = (sampled_decision_idx == target_decision_idx)
+    r = guessed_right.float()
     if multi_round:
         r -= 0.1
     return -r, done
@@ -250,9 +250,13 @@ def compute_reinforce_losses(agent,
     config = kwargs["config"]
     it_rep = kwargs["it_rep"]
     it_comm_round = kwargs["it_comm_round"]
+    mode = input_streams_dict["mode"]
+
+    batch_size = kwargs["batch_size"]
 
     # then it is the last round, we can compute the loss:
     exp_size = len(agent.exp_buffer)
+    r = kwargs["r"]
     R = torch.zeros_like(r)
     returns = []
     for r in reversed(agent.exp_buffer.r[:exp_size]):
@@ -274,7 +278,7 @@ def compute_reinforce_losses(agent,
     for it_round in range(learning_signal.shape[1]):
         agent.log_dict[f"{agent.agent_id}/learning_signal_{it_round}"] = learning_signal[:,it_round].mean()
     
-    formatted_baseline = 0.0
+    formatted_baseline = torch.zeros_like(ls)
     if "baseline_reduced" in config["graphtype"].lower():
         if agent.training:
             agent.learning_signal_baseline = \
@@ -286,7 +290,8 @@ def compute_reinforce_losses(agent,
         for it_round in range(learning_signal.shape[1]):
             agent.log_dict[f"{agent.agent_id}/learning_signal_baseline_{it_round}"] = \
                 agent.learning_signal_baseline[it_round].mean()    
-    
+    formatted_baseline = formatted_baseline.detach()
+
     # Deterministic:
     listener_decision_loss_deterministic = -learning_signal.sum(dim=-1)
     # (batch_size, )
@@ -300,13 +305,20 @@ def compute_reinforce_losses(agent,
         # (batch_size, )
         listener_decision_loss = listener_decision_loss_deterministic+listener_decision_loss_stochastic
         
-    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, listener_decision_loss]
+    #losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, listener_decision_loss]
     
-    # Decision Entropy loss:
-    decision_entropy = torch.cat(agent.exp_buffer.decision_entrs[:exp_size], dim=-1).mean(dim=-1)
+    # (Listener) Decision Entropy (loss):
+    decision_entropy = torch.cat(agent.exp_buffer.decision_entrs[:exp_size], dim=-1)
     # (batch_size, )
-    agent.log_dict[f"{agent.agent_id}/decision_entropy"] = decision_entropy.mean()
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/decision_entropy"] = decision_entropy
     
+
+    listener_decision_entropy_loss_coeff = 0.0
+    if "max_entr" in config["graphtype"]:
+        listener_decision_entropy_loss_coeff = 1e0
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/listener_decision_entropy_loss"] = [listener_decision_entropy_loss_coeff, -decision_entropy]
+    
+    # Speaker Policy Loss:
     speaker_sentences_log_probs = torch.cat(agent.exp_buffer.speaker_sentences_log_probs[:exp_size], dim=-1)
     # (batch_size, max_sentence_length, nbr_communication_round)
     # The log likelihood of each sentences is the sum (in log space) over each next token prediction:
@@ -314,7 +326,7 @@ def compute_reinforce_losses(agent,
     # (batch_size, nbr_communication_round)
     speaker_policy_loss = -(speaker_sentences_log_probs * (ls.detach()-formatted_baseline)).sum(dim=-1)
     # (batch_size, )
-    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_policy_loss"] = [-1.0, speaker_policy_loss]
+    #losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_policy_loss"] = [-1.0, speaker_policy_loss]
     
     # Speaker Entropy loss:
     speaker_entropy_loss = -torch.cat(agent.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
@@ -329,6 +341,11 @@ def compute_reinforce_losses(agent,
     if "max_entr" in config["graphtype"]:
         speaker_entropy_loss_coeff = 1e3
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_loss"] = [speaker_entropy_loss_coeff, speaker_entropy_loss]
+    
+
+    listener_decision_log_probs = torch.cat(agent.exp_buffer.decision_log_probs[:exp_size], dim=-1)
+    policy_loss = -(ls.detach()-formatted_baseline)*(speaker_sentences_log_probs+listener_decision_log_probs)
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, policy_loss]
     
     if exp_size > 1:
         #TODO: propagate from speaker to listener!!!
@@ -409,10 +426,14 @@ def discriminative_reinforce_referential_game_loss(agent,
                                            target_decision_idx=target_decision_idx,
                                            multi_round=input_streams_dict["multi_round"])
     # Frame the learning loss as penalty:
-    r = -learning_signal
+    #r = -learning_signal
+    # Frame the learning loss as reward:
+    r = learning_signal
 
-    # Where are the actual token (different from padding):
-    speaker_sentences_token_mask = (input_streams_dict["sentences_widx"] != agent.vocab_pad_idx)
+    # Where are the actual token (until first eos_symbol):
+    speaker_sentences_token_mask = (((input_streams_dict["sentences_widx"]==agent.vocab_stop_idx).cumsum(1)>0)==0).float()
+    # Includes EoS:
+    speaker_sentences_token_mask += (input_streams_dict["sentences_widx"]==agent.vocab_stop_idx).float()
     # (batch_size, max_sentence_length, 1)
     
     ## ---------------------------------------------------------------------------
@@ -421,30 +442,24 @@ def discriminative_reinforce_referential_game_loss(agent,
     # Compute sentences log_probs:
     speaker_sentences_logits = input_streams_dict["sentences_logits"]
     # (batch_size, max_sentence_length, vocab_size)
-    pad_token_logit = torch.zeros_like(speaker_sentences_logits[0][0]).unsqueeze(0)
-    pad_token_logit[:, agent.vocab_pad_idx] = 1.0
-    # (1, vocab_size,)
-
-    for b in range(len(speaker_sentences_logits)):
-        remainder = agent.kwargs["max_sentence_length"] - len(speaker_sentences_logits[b])
-        if remainder > 0:
-            speaker_sentences_logits[b] = torch.cat([speaker_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
-        speaker_sentences_logits[b] = speaker_sentences_logits[b].unsqueeze(0)
-    speaker_sentences_logits = torch.cat(speaker_sentences_logits, dim=0)
-
-    speaker_sentences_log_probs = F.log_softmax(speaker_sentences_logits, dim=-1)
+    ## Mask values after eos token:
+    speaker_sentences_widx = input_streams_dict["sentences_widx"].long()
+    # (batch_size, max_sentence_length, 1)
+    token_until_eos_mask = (((speaker_sentences_widx==agent.vocab_stop_idx).cumsum(1) > 0)==0)
+    # Excludes the EoS token...
+    # (batch_size, max_sentence_length, 1)
+    #speaker_sentences_probs = speaker_sentences_logits.softmax(dim=-1)
+    speaker_sentences_probs = speaker_sentences_logits.exp()
     # (batch_size, max_sentence_length, vocab_size)
-    speaker_sentences_probs = speaker_sentences_log_probs.softmax(dim=-1)
-    # (batch_size, max_sentence_length, vocab_size)
-    speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
-        index=input_streams_dict["sentences_widx"].long())
+    speaker_sentences_log_probs = speaker_sentences_logits.gather(dim=-1, 
+        index=speaker_sentences_widx)
     # (batch_size, max_sentence_length, 1)
     speaker_sentences_probs = speaker_sentences_probs.gather(dim=-1, 
-        index=input_streams_dict["sentences_widx"].long())
+        index=speaker_sentences_widx)
     # (batch_size, max_sentence_length, 1)
     
     # Entropy:
-    speaker_sentences_entrs = -(speaker_sentences_probs * speaker_sentences_log_probs)
+    speaker_sentences_entrs = -(token_until_eos_mask*speaker_sentences_probs * speaker_sentences_log_probs)
     # (batch_size, max_sentence_length, 1)
     
     ## ---------------------------------------------------------------------------
@@ -455,23 +470,17 @@ def discriminative_reinforce_referential_game_loss(agent,
     listener_sentences_token_mask = None 
 
     if input_streams_dict["multi_round"]:  
-        # Where are the actual token (different from padding):
-        listener_sentences_token_mask = (outputs_dict["sentences_widx"] != agent.vocab_pad_idx)
+        ## Mask values after eos token:
+        listener_sentences_widx = input_streams_dict["sentences_widx"].long()
+        token_until_eos_mask = (((listener_sentences_widx==agent.vocab_stop_idx).cumsum(1) > 0)==0)
+        # Excludes the EoS token...
         # (batch_size, max_sentence_length, 1)
-        
         listener_sentences_logits = outputs_dict["sentences_logits"]
         # (batch_size, max_sentence_length, vocab_size)
-        for b in range(len(listener_sentences_logits)):
-            remainder = agent.kwargs["max_sentence_length"] - len(listener_sentences_logits[b])
-            if remainder > 0:
-                listener_sentences_logits[b] = torch.cat([listener_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
-            listener_sentences_logits[b] = listener_sentences_logits[b].unsqueeze(0)
-        listener_sentences_logits = torch.cat(listener_sentences_logits, dim=0)
-        listener_sentences_log_probs = F.log_softmax(listener_sentences_logits, dim=-1)
+        #listener_sentences_probs = listener_sentences_logits.softmax(dim=-1)
+        listener_sentences_probs = listener_sentences_logits.exp()
         # (batch_size, max_sentence_length, vocab_size)
-        listener_sentences_probs = listener_sentences_log_probs.softmax(dim=-11)
-        # (batch_size, max_sentence_length, vocab_size)
-        listener_sentences_log_probs = listener_sentences_log_probs.gather(dim=-1, 
+        listener_sentences_log_probs = listener_sentences_logits.gather(dim=-1, 
             index=outputs_dict["sentences_widx"].long())
         # (batch_size, max_sentence_length, 1)
         listener_sentences_probs = listener_sentences_probs.gather(dim=-1, 
@@ -479,8 +488,10 @@ def discriminative_reinforce_referential_game_loss(agent,
         # (batch_size, max_sentence_length, 1)
         
         # Entropy:
-        listener_sentences_entrs = -(listener_sentences_probs * listener_sentences_log_probs)
+        listener_sentences_entrs = -(token_until_eos_mask*listener_sentences_probs * listener_sentences_log_probs)
         # (batch_size, max_sentence_length, 1)
+        import ipdb; ipdb.set_trace()
+        # check shape...
                 
     ## ---------------------------------------------------------------------------
     # Record data:
@@ -513,7 +524,9 @@ def discriminative_reinforce_referential_game_loss(agent,
             logs_dict=logs_dict,
             config=config,
             it_rep=it_rep,
-            it_comm_round=it_comm_round
+            it_comm_round=it_comm_round,
+            r=r,
+            batch_size=batch_size
         )
         agent.exp_buffer.reset()
                     
@@ -548,8 +561,8 @@ class DiscriminativeListener(Listener):
         if "reinforce" in self.kwargs["graphtype"]:
             # REINFORCE algorithm:
             self.gamma = 0.99
-            #self.learning_signal_pred_fn = penalize_multi_round_binary_loss_fn
-            self.learning_signal_pred_fn = havrylov_hinge_learning_signal
+            self.learning_signal_pred_fn = penalize_multi_round_binary_reward_fn
+            #self.learning_signal_pred_fn = havrylov_hinge_learning_signal
             self.exp_buffer = ExperienceBuffer(capacity=self.kwargs["nbr_communication_round"]*2,
                                                keys=["speaker_sentences_entrs",
                                                      "speaker_sentences_token_mask",

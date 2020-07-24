@@ -36,6 +36,7 @@ class RNNSpeaker(Speaker):
 
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
+        self.force_eos = self.kwargs["force_eos"]
 
         self.normalization = nn.BatchNorm1d(num_features=self.kwargs['symbol_processing_nbr_hidden_units'])
         
@@ -137,6 +138,7 @@ class RNNSpeaker(Speaker):
         
         return self.features 
 
+    """
     def _utter(self, features, sentences=None):
         '''
         TODO: update this description...
@@ -208,12 +210,12 @@ class RNNSpeaker(Speaker):
                 sentences_one_hots[b].append(prediction_one_hot)
                 
                 # next inputs:
-                """
+                '''
                 #inputs = self.symbol_encoder(outputs).unsqueeze(1)
                 inputs = self.symbol_encoder.weight[:, prediction.long()].reshape((1,1,-1))
                 # (batch_size, 1, kwargs['symbol_embedding_size'])
                 inputs = self.symbol_encoder_dropout(inputs)
-                """
+                '''
                 inputs = self.embed_sentences(prediction_one_hot.reshape(1,1,-1))
                 # (batch_size, 1, kwargs['symbol_embedding_size'])
 
@@ -252,6 +254,125 @@ class RNNSpeaker(Speaker):
         sentences_widx = torch.cat(sentences_widx, dim=0)
         # (batch_size, max_sentence_length, 1)
         if self.embedding_tf_final_outputs.is_cuda: sentences_widx = sentences_widx.cuda()
+
+
+        return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots, self.embedding_tf_final_outputs.squeeze() 
+    """
+
+    def _utter(self, features, sentences=None):
+        '''
+        TODO: update this description...
+        Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
+        
+        :param features: Tensor of shape `(batch_size, *self.obs_shape[:2], feature_dim)`.
+        :param sentences: None, or Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+        
+        :returns:
+            - word indices: Tensor of shape `(batch_size, max_sentence_length, 1)` of type `long` containing the indices of the words that make up the sentences.
+            - logits: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits.
+            - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
+        '''
+        batch_size = features.size(0)
+        # (batch_size, nbr_distractors+1, nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
+        # Forward pass:
+        self.embedding_tf_final_outputs = self.normalization(features.reshape(-1, self.kwargs['symbol_processing_nbr_hidden_units']))
+        self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, self.kwargs['nbr_distractors']+1, -1))
+        # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+
+        sentences_hidden_states = list()
+        sentences_widx = list()
+        sentences_logits = list()
+        sentences_one_hots = list()
+        
+        bemb = self.embedding_tf_final_outputs.reshape((1, batch_size, -1))
+        # (batch_size, 1, kwargs['temporal_encoder_nbr_hidden_units'])
+        init_rnn_state = bemb
+        # (batch_size, hidden_layer*num_directions=1, 
+        # kwargs['temporal_encoder_nbr_hidden_units']=kwargs['symbol_processing_nbr_hidden_units'])
+        if 'lstm' in self.rnn_type:
+            rnn_states = (init_rnn_state, torch.zeros_like(init_rnn_state))
+        else:
+            rnn_states = init_rnn_state
+
+        # SoS token is given as initial input:
+        '''
+        # Assuming SoS is part of the vocabulary:
+        inputs = self.symbol_encoder.weight[:, self.vocab_start_idx].reshape((1,1,-1))
+        '''
+        # Assuming SoS is not part of the vocabulary:
+        inputs = self.sos_symbol.repeat(batch_size, 1, 1)
+        #(batch_size, 1, self.kwargs['symbol_embedding_size']))
+        if self.embedding_tf_final_outputs.is_cuda: inputs = inputs.cuda()
+        
+        max_sentence_length = self.max_sentence_length
+        if self.force_eos:
+            max_sentence_length -= 1
+
+        for token_idx in range(max_sentence_length):
+            rnn_outputs, next_rnn_states = self.symbol_processing(inputs, rnn_states )
+            # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+            # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+
+            sentences_hidden_states.append(rnn_outputs)
+            
+            outputs = self.symbol_decoder(rnn_outputs.reshape(batch_size,-1))
+            # (batch_size, vocab_size)
+            
+            token_logits = torch.log_softmax(outputs, dim=-1)
+            # (batch_size, vocab_size)
+            token_dist = torch.distributions.Categorical(logits=token_logits)
+            # (batch_size, vocab_size)
+            
+            if self.training:
+                sampled_token = token_dist.sample().reshape(-1,1)
+                # (batch_size,1)
+            else:
+                sampled_token = token_logits.argmax(dim=-1).reshape(-1,1)
+                # (batch_size,1)
+            
+            sentences_widx.append(sampled_token)
+            # (batch_size, 1)
+            sentences_logits.append(token_logits)
+            #sentences_logits.append(token_dist.log_probs(sampled_token))
+            # (batch_size, vocab_size)
+            
+            token_one_hot = nn.functional.one_hot(sampled_token.long(), num_classes=self.vocab_size).view((-1, self.vocab_size))
+            # (batch_size, vocab_size)
+            sentences_one_hots.append(token_one_hot)
+            # (batch_size, vocab_size)
+            
+            # Bookkeeping:
+            ## next inputs:
+            inputs = self.embed_sentences(token_one_hot.reshape(batch_size, 1, -1))
+            # (batch_size, 1, kwargs['symbol_embedding_size'])
+            ## next rnn_states:
+            rnn_states = next_rnn_states
+        
+        if self.force_eos:
+            eos_idx = self.vocab_stop_idx*torch.ones_like(sentences_widx[0])
+            # (batch_size, 1)
+            zeros = torch.zeros_like(sentences_logits[0])
+            # (batch_size, vocab_size)
+            sentences_widx.append(eos_idx)
+            eos_one_hot = nn.functional.one_hot(eos_idx.view(-1,1).long(), num_classes=self.vocab_size).view((-1, self.vocab_size))
+            # (batch_size, vocab_size)
+            sentences_one_hots.append(eos_one_hot)
+            sentences_logits.append(zeros)
+
+            sentences_hidden_states.append(bemb.permute(1, 0, 2))
+            
+
+        sentences_hidden_states = torch.stack(sentences_hidden_states, dim=1)
+        # (batch_size, max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
+        sentences_widx = torch.stack(sentences_widx, dim=1)
+        # (batch_size, max_sentence_length, 1)
+        sentences_logits = torch.stack(sentences_logits, dim=1)
+        # (batch_size, max_sentence_length, vocab_size)
+        sentences_one_hots = torch.stack(sentences_one_hots, dim=1)
+        # (batch_size, max_sentence_length, vocab_size)
+
+        #if self.embedding_tf_final_outputs.is_cuda: sentences_widx = sentences_widx.cuda()
 
 
         return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots, self.embedding_tf_final_outputs.squeeze() 

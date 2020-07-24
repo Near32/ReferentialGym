@@ -20,6 +20,7 @@ def main():
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestDisentangled")
   parser.add_argument("--verbose", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
+  parser.add_argument("--force_eos", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
     choices=["Sort-of-CLEVR",
@@ -38,7 +39,16 @@ def main():
     default="BN+MLP")
   parser.add_argument("--graphtype", type=str,
     choices=["straight_through_gumbel_softmax",
-             "obverter"],
+             "obverter",
+             "reinforce",
+             "baseline_reduced_reinforce",
+             "normalized_reinforce",
+             "baseline_reduced_normalized_reinforce",
+             "max_entr_reinforce",
+             "baseline_reduced_max_entr_reinforce",
+             "baseline_reduced_normalized_max_entr_reinforce",
+             "argmax_reinforce",
+             ],
     help="type of graph to use during training of the speaker and listener.",
     default="straight_through_gumbel_softmax")
   parser.add_argument("--max_sentence_length", type=int, default=20)
@@ -260,6 +270,7 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
+      "force_eos":               args.force_eos,
       "symbol_embedding_size":    256, #64
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
@@ -402,6 +413,8 @@ def main():
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
   if args.shared_architecture:
     save_path += "/shared_architecture"
+  if args.force_eos:
+    save_path += "/forced_eos"
   save_path += f"/TrainNOTF_TestNOTF/"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
@@ -478,6 +491,10 @@ def main():
     save_path += '+Homo'
   
   save_path += f"/{args.optimizer_type}/"
+
+  if 'reinforce' in args.graphtype:
+    #save_path += f'/REINFORCE_EntropyCoeffNeg1m0/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/ActualProbWithExpOverLogit/TokenMaskReg/'
+    save_path += f'/EntropyCoeffNeg1m3/LSRLLoss/TEST/NegPG/'
 
   if 'obverter' in args.graphtype:
     save_path += f"withPopulationHandlerModule/Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"

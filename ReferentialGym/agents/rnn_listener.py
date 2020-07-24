@@ -139,6 +139,25 @@ class RNNListener(DiscriminativeListener):
         
         return self.features
 
+    def find_sentence_lengths(self, sentences):
+        """
+        Adapted from:
+        https://github.com/facebookresearch/EGG/blob/2e2d42e73f50af0ce70ab22e1ff77bf3a38ab6ef/egg/core/util.py#L267
+
+        :param sentences:   Tensor of shape `(batch_size, max_sentence_length, vocab_size)` 
+                            containing one-hot-encoded symbols.
+        :returns: Tensor of shape `(batch_size,)` containing lengths of sentences until the first EoS token, included!
+                    NOTE: we include the EoS token to guarantee non-negative sentence lenghts...
+
+        """
+        # Assumes eos_token idx==0:
+        sentences_token_idx = (sentences*torch.arange(self.vocab_size).to(sentences.device)).sum(-1)
+        #(batch_size, max_sentence_length)
+        eos_mask = (sentences_token_idx==0)
+        lengths = ((eos_mask.cumsum(-1)>0)<=0).sum(-1)
+        #(batch_size, )
+        return lengths.add_(1).clamp_(max=self.max_sentence_length)
+
     def _reason(self, sentences, features):
         """
         Reasons about the features and sentences to yield the target-prediction logits.
@@ -167,9 +186,20 @@ class RNNListener(DiscriminativeListener):
         embedded_sentences = self.embed_sentences(sentences)
         # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
         
+        sentence_lengths = self.find_sentence_lengths(sentences)
+        #(batch_size, )
+        
+        packed_embedded_sentences = nn.utils.rnn.pack_padded_sequence(
+            embedded_sentences, 
+            sentence_lengths, 
+            batch_first=True, 
+            enforce_sorted=False
+        )
+        
         # We initialize the rnn_states to either None, if it is not multi-round, or:
         states = self.rnn_states
-        rnn_outputs, self.rnn_states = self.symbol_processing(embedded_sentences, states)          
+        rnn_outputs, self.rnn_states = self.symbol_processing(packed_embedded_sentences, states)    
+        rnn_outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(rnn_outputs,batch_first=True)
         '''
         init_rnn_state = self.symbol_processing_learnable_initial_state.expand(
             batch_size,
@@ -217,7 +247,7 @@ class RNNListener(DiscriminativeListener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
 
-        #TODO: why would this be needed already?? Apparently in case of descriptive mode, cf obverter...
+        #TODO: Apparently needed in case of descriptive mode, cf obverter...
         '''
         not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
         if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
