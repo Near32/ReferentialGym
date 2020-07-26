@@ -15,9 +15,12 @@ import torchvision.transforms as T
 
 
 def main():
-  parser = argparse.ArgumentParser(description="LSTM CNN Agents: Obverter Language Emergence.")
+  parser = argparse.ArgumentParser(description="Obverter Agents: Language Emergence.")
   parser.add_argument("--seed", type=int, default=0)
-  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="")
+  parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
+  parser.add_argument("--verbose", action="store_true", default=False)
+  parser.add_argument("--restore", action="store_true", default=False)
+  parser.add_argument("--force_eos", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
   parser.add_argument("--dataset", type=str, 
     choices=["Sort-of-CLEVR",
@@ -45,7 +48,7 @@ def main():
              "Santoro2017-CLEVR-CNN7x4x4x3",
              ], 
     help="model architecture to train",
-    default="Santoro2017-CLEVR-CNN")
+    default="BN+CNN3x3")
   parser.add_argument("--graphtype", type=str,
     choices=["straight_through_gumbel_softmax",
              "reinforce",
@@ -79,7 +82,7 @@ def main():
       "EoSPriored",
       ],
     default="Baseline")
-  parser.add_argument("--lr", type=float, default=1e-4)
+  parser.add_argument("--lr", type=float, default=6e-4)
   parser.add_argument("--epoch", type=int, default=1875)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
@@ -117,11 +120,17 @@ def main():
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=4)
-  # Cultural Bottleneck:
+  # ILM:
   parser.add_argument("--iterated_learning_scheme", action="store_true", default=False)
   parser.add_argument("--iterated_learning_period", type=int, default=4)
   parser.add_argument("--iterated_learning_rehearse_MDL", action="store_true", default=False)
   parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
+  
+  # Cultural Bottleneck:
+  parser.add_argument("--cultural_pressure_it_period", type=int, default=None)
+  parser.add_argument("--cultural_speaker_substrate_size", type=int, default=1)
+  parser.add_argument("--cultural_listener_substrate_size", type=int, default=1)
+  parser.add_argument("--cultural_reset_strategy", type=str, default="uniformSL") #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
   
   # Dataset Hyperparameters:
   parser.add_argument("--train_test_split_strategy", type=str, 
@@ -156,9 +165,13 @@ def main():
              "combinatorial4-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-1-S3-Shape-3-N", #Sparse 4 Attributes: 192 test / 1344 train
             ],
     help="train/test split strategy",
-    # INTER3:
+    # INTER 2:
+    #default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
+    # EXTRA 2:
+    #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N")
+    # INTER 3:
     default="combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N")
-    # EXTRA:
+    # EXTRA 3:
     #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N")
   parser.add_argument("--fast", action="store_true", default=False, 
     help="Disable the deterministic CuDNN. It is likely to make the computation faster.")
@@ -195,7 +208,7 @@ def main():
   
   args = parser.parse_args()
   print(args)
-
+  
   if args.object_centric:
     assert args.egocentric
 
@@ -282,24 +295,26 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
+      "force_eos":               args.force_eos,
       "symbol_embedding_size":    256, #64
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
       "agent_loss_type":          args.agent_loss_type, #"NLL"
 
-      "cultural_pressure_it_period": None,
-      "cultural_speaker_substrate_size":  1,
-      "cultural_listener_substrate_size":  1,
-      "cultural_reset_strategy":  "oldestL", # "uniformSL" #"meta-oldestL-SGD"
+      "cultural_pressure_it_period": args.cultural_pressure_it_period,
+      "cultural_speaker_substrate_size":  args.cultural_speaker_substrate_size,
+      "cultural_listener_substrate_size":  args.cultural_listener_substrate_size,
+      "cultural_reset_strategy":  args.cultural_reset_strategy, #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
       "cultural_reset_meta_learning_rate":  1e-3,
 
-      # Obverter's Cultural Bottleneck:
+      # Cultural Bottleneck:
       "iterated_learning_scheme": args.iterated_learning_scheme,
       "iterated_learning_period": args.iterated_learning_period,
       "iterated_learning_rehearse_MDL": args.iterated_learning_rehearse_MDL,
       "iterated_learning_rehearse_MDL_factor": args.iterated_learning_rehearse_MDL_factor,
       
+      # Obverter Hyperparameters:
       "obverter_stop_threshold":  args.obverter_threshold_to_stop_message_generation,  #0.0 if not in use.
       "obverter_nbr_games_per_round": args.obverter_nbr_games_per_round,
 
@@ -710,7 +725,9 @@ def main():
   if rg_config['with_mdl_principle']:
     save_path += '-MDL{}'.format(rg_config['mdl_principle_factor'])
   
-  if rg_config['cultural_pressure_it_period'] != 'None':  
+  if rg_config['cultural_pressure_it_period'] != 'None' \
+    or rg_config['cultural_speaker_substrate_size'] != 1 \
+    or rg_config['cultural_listener_substrate_size'] != 1:  
     save_path += '-S{}L{}-{}-Reset{}'.\
       format(rg_config['cultural_speaker_substrate_size'], 
       rg_config['cultural_listener_substrate_size'],
@@ -755,7 +772,7 @@ def main():
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG/"
+    save_path += f"Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
   else:
     save_path += f"STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
@@ -866,7 +883,8 @@ def main():
 
   # Population:
   population_handler_id = "population_handler_0"
-  population_handler_config = rg_config
+  population_handler_config = copy.deepcopy(rg_config)
+  population_handler_config["verbose"] = args.verbose
   population_handler_stream_ids = {
     "current_speaker_streams_dict":"modules:current_speaker",
     "current_listener_streams_dict":"modules:current_listener",
@@ -1046,7 +1064,19 @@ def main():
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
 
-  refgame = ReferentialGym.make(config=rg_config, dataset_args=dataset_args)
+  if args.restore:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      load_path=save_path,
+      save_path=save_path,
+    )
+  else:
+    refgame = ReferentialGym.make(
+      config=rg_config, 
+      dataset_args=dataset_args,
+      save_path=save_path,
+    )
 
   # In[22]:
 
