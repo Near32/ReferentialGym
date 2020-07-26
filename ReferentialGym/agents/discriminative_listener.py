@@ -17,7 +17,7 @@ from .listener import Listener
 def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
     target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
     # (batch_size, 1)
-    
+
     distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
         for pb_dl, tidx in zip(decision_logits, target_decision_idx)]
     distractors_decision_logits = torch.cat(
@@ -56,17 +56,22 @@ def discriminative_st_gs_referential_game_loss(agent,
     decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-    if "obverter" in config["graphtype"].lower():
-        sentences_lengths = torch.sum(-(input_streams_dict["sentences_widx"].squeeze(-1)-agent.vocab_size).sign(), dim=-1).long()
-        # (batch_size,) 
-        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
-            final_decision_logits.shape[0],
-            1,
-            final_decision_logits.shape[2]
-        )
-        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
-    else:
-        final_decision_logits = final_decision_logits[:,-1]
+    
+    # (batch_size,) 
+    sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
+    #(batch_size, max_sentence_length)
+    eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
+    lengths = ((eos_mask.cumsum(-1)>0)<=0).sum(-1)
+    #(batch_size, )
+    sentences_lengths = lengths.add(1).clamp(max=agent.max_sentence_length)
+    #(batch_size, )
+    
+    sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+        final_decision_logits.shape[0],
+        1,
+        final_decision_logits.shape[2]
+    )
+    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     
     if config["agent_loss_type"].lower() == "nll":
@@ -108,7 +113,7 @@ def discriminative_st_gs_referential_game_loss(agent,
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+        decision_probs = F.log_softmax(final_decision_logits, dim=-1)
         
         loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
                                               target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
