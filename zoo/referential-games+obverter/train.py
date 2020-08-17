@@ -32,7 +32,10 @@ def main():
     help="dataset to train on.",
     default="dSprites")
   parser.add_argument("--arch", type=str, 
-    choices=["CNN",
+    choices=["BaselineCNN",
+             "BN+BaselineCNN",
+             "BN+3DivBaselineCNN",
+             "CNN",
              "CNN3x3",
              "BN+CNN",
              "BN+CNN3x3",
@@ -48,7 +51,8 @@ def main():
              "Santoro2017-CLEVR-CNN7x4x4x3",
              ], 
     help="model architecture to train",
-    default="BN+CNN3x3")
+    #default="BN+BaselineCNN")
+    default="BN+3xCNN3x3")
   parser.add_argument("--graphtype", type=str,
     choices=["straight_through_gumbel_softmax",
              "reinforce",
@@ -84,7 +88,7 @@ def main():
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
   parser.add_argument("--epoch", type=int, default=1875)
-  parser.add_argument("--metric_epoch_period", type=int, default=20)
+  parser.add_argument("--metric_epoch_period", type=int, default=50)#20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
   parser.add_argument("--metric_fast", action="store_true", default=False)
   parser.add_argument("--batch_size", type=int, default=8)
@@ -97,6 +101,8 @@ def main():
   parser.add_argument("--nbr_test_distractors", type=int, default=63)
   parser.add_argument("--nbr_train_distractors", type=int, default=47)
   parser.add_argument("--resizeDim", default=32, type=int,help="input image resize")
+  parser.add_argument("--symbol_processing_nbr_hidden_units", default=64, type=int,help="GRU cells")
+  parser.add_argument("--symbol_embedding_size", default=256, type=int,help="GRU cells")
   parser.add_argument("--shared_architecture", action="store_true", default=False)
   parser.add_argument("--with_baseline", action="store_true", default=False)
   parser.add_argument("--homoscedastic_multitasks_loss", action="store_true", default=False)
@@ -166,11 +172,11 @@ def main():
             ],
     help="train/test split strategy",
     # INTER 2:
-    #default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
+    default="combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N")
     # EXTRA 2:
     #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-40-N-Scale-6-N-Shape-3-N")
     # INTER 3:
-    default="combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N")
+    #default="combinatorial2-Y-4-2-X-4-2-Orientation-5-2-Scale-6-N-Shape-3-N")
     # EXTRA 3:
     #default="combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N")
   parser.add_argument("--fast", action="store_true", default=False, 
@@ -295,8 +301,8 @@ def main():
       "tau0":                     0.2,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
-      "force_eos":               args.force_eos,
-      "symbol_embedding_size":    256, #64
+      "force_eos":                args.force_eos,
+      "symbol_embedding_size":    args.symbol_embedding_size, #64
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
       "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
@@ -418,104 +424,7 @@ def main():
   agent_config["dropout_prob"] = rg_config["dropout_prob"]
   agent_config["embedding_dropout_prob"] = rg_config["embedding_dropout_prob"]
   
-  if "Santoro2017-SoC" in agent_config["architecture"]:
-    # For a fair comparison between CNN an VAEs:
-    # the CNN is augmented with one final FC layer reducing to the latent space shape.
-    # Need to use feat converter too:
-    #rg_config["use_feat_converter"] = True 
-    #agent_config["use_feat_converter"] = True 
-    
-    # Otherwise, the VAE alone may be augmented:
-    # This approach assumes that the VAE latent dimension size
-    # is acting as a prior which is part of the comparison...
-    rg_config["use_feat_converter"] = False
-    agent_config["use_feat_converter"] = False
-    
-    agent_config["cnn_encoder_channels"] = ["BN32","BN64","BN128","BN256"]
-    if "3x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
-    elif "7x4x4x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
-    else:
-      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
-    agent_config["cnn_encoder_fc_hidden_units"] = [] 
-    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
-    
-    # For a fair comparison between CNN an VAEs:
-    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    # Otherwise:
-    cnn_feature_size = 100
-    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
-    # N.B.: if cnn_encoder_fc_hidden_units is [],
-    # then this last parameter does not matter.
-    # The cnn encoder is not topped by a FC network.
-
-    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["feat_converter_output_size"] = cnn_feature_size
-
-    if "MHDPA" in agent_config["architecture"]:
-      agent_config["mhdpa_nbr_head"] = 4
-      agent_config["mhdpa_nbr_rec_update"] = 1
-      agent_config["mhdpa_nbr_mlp_unit"] = 256
-      agent_config["mhdpa_interaction_dim"] = 128
-
-    agent_config["temporal_encoder_nbr_hidden_units"] = rg_config["nbr_stimulus"]*cnn_feature_size
-    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
-    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
-    agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-  elif "Santoro2017-CLEVR" in agent_config["architecture"]:
-    # For a fair comparison between CNN an VAEs:
-    # the CNN is augmented with one final FC layer reducing to the latent space shape.
-    # Need to use feat converter too:
-    #rg_config["use_feat_converter"] = True 
-    #agent_config["use_feat_converter"] = True 
-    
-    # Otherwise, the VAE alone may be augmented:
-    # This approach assumes that the VAE latent dimension size
-    # is acting as a prior which is part of the comparison...
-    rg_config["use_feat_converter"] = False
-    agent_config["use_feat_converter"] = False
-    
-    agent_config["cnn_encoder_channels"] = ["BN24","BN24","BN24","BN24"]
-    if "3x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
-    elif "7x4x4x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
-    else:
-      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
-    agent_config["cnn_encoder_fc_hidden_units"] = []
-    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
-    
-    # For a fair comparison between CNN an VAEs:
-    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    # Otherwise:
-    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
-    # N.B.: if cnn_encoder_fc_hidden_units is [],
-    # then this last parameter does not matter.
-    # The cnn encoder is not topped by a FC network.
-
-    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["feat_converter_output_size"] = cnn_feature_size
-
-    if "MHDPA" in agent_config["architecture"]:
-      agent_config["mhdpa_nbr_head"] = 4
-      agent_config["mhdpa_nbr_rec_update"] = 1
-      agent_config["mhdpa_nbr_mlp_unit"] = 256
-      agent_config["mhdpa_interaction_dim"] = 128
-
-    agent_config["temporal_encoder_nbr_hidden_units"] = 0
-    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
-    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
-    agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-  elif "3xCNN" in agent_config["architecture"]:
+  if "3xCNN" in agent_config["architecture"]:
     if "BN" in args.arch:
       agent_config["cnn_encoder_channels"] = ["BN32","BN64","BN128"]
     else:
@@ -534,7 +443,7 @@ def main():
     
     # For a fair comparison between CNN an VAEs:
     #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    agent_config["cnn_encoder_feature_dim"] = 256
+    agent_config["cnn_encoder_feature_dim"] = args.symbol_processing_nbr_hidden_units
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
@@ -551,9 +460,83 @@ def main():
     agent_config["temporal_encoder_nbr_hidden_units"] = 0
     agent_config["temporal_encoder_nbr_rnn_layers"] = 0
     agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
+  elif "3DivBaselineCNN" in agent_config["architecture"]:
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
+    
+    if "BN" in args.arch:
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32","BN32","BN32","BN32"]
+    else:
+      agent_config["cnn_encoder_channels"] = [32,32,32,32,32,32,32]
+    
+    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3]
+    agent_config["cnn_encoder_strides"] = [2,1,1,2,1,1,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
+    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
+    
+    # For a fair comparison between CNN an VAEs:
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
+    agent_config["cnn_encoder_feature_dim"] = 256 #args.symbol_processing_nbr_hidden_units
+    # N.B.: if cnn_encoder_fc_hidden_units is [],
+    # then this last parameter does not matter.
+    # The cnn encoder is not topped by a FC network.
+
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = args.symbol_processing_nbr_hidden_units
+
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
+
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
+  
+  elif "BaselineCNN" in agent_config["architecture"]:
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
+    
+    if "BN" in args.arch:
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32","BN32","BN32","BN32","BN32"]
+    else:
+      agent_config["cnn_encoder_channels"] = [32,32,32,32,32,32,32,32]
+    
+    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3,3]
+    agent_config["cnn_encoder_strides"] = [2,1,1,2,1,2,1,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
+    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
+    
+    # For a fair comparison between CNN an VAEs:
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
+    agent_config["cnn_encoder_feature_dim"] = 256 #args.symbol_processing_nbr_hidden_units
+    # N.B.: if cnn_encoder_fc_hidden_units is [],
+    # then this last parameter does not matter.
+    # The cnn encoder is not topped by a FC network.
+
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = args.symbol_processing_nbr_hidden_units
+
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
+
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
+  
   elif "CNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
@@ -576,7 +559,7 @@ def main():
     
     # For a fair comparison between CNN an VAEs:
     #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
+    agent_config["cnn_encoder_feature_dim"] = args.symbol_processing_nbr_hidden_units
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
@@ -593,97 +576,14 @@ def main():
     agent_config["temporal_encoder_nbr_hidden_units"] = 0
     agent_config["temporal_encoder_nbr_rnn_layers"] = 0
     agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-  elif "BetaVAE" in agent_config["architecture"]:
-    agent_config['VAE_lambda'] = args.vae_lambda
-    agent_config['vae_beta'] = args.vae_beta
-    agent_config['factor_vae_gamma'] = args.vae_factor_gamma
-    agent_config['vae_constrainedEncoding'] =  args.vae_constrained_encoding
-    agent_config['vae_use_gaussian_observation_model'] = args.vae_gaussian 
-    agent_config['vae_observation_sigma'] = args.vae_gaussian_sigma
-    agent_config['vae_max_capacity'] = args.vae_max_capacity #1e2
-    agent_config['vae_nbr_epoch_till_max_capacity'] = args.vae_nbr_epoch_till_max_capacity
-
-    agent_config['vae_decoder_conv_dim'] = args.vae_decoder_conv_dim
-    agent_config['vae_decoder_nbr_layer'] = args.vae_decoder_nbr_layer
-    agent_config['vae_nbr_latent_dim'] = args.vae_nbr_latent_dim
-    agent_config['vae_detached_featout'] = args.vae_detached_featout
-    agent_config['vae_use_mu_value'] = args.vae_use_mu_value
-
-    rg_config["use_feat_converter"] = False
-    agent_config["use_feat_converter"] = False
     
-    if "BN" in args.arch:
-      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN64","BN64"]
-    else:
-      agent_config["cnn_encoder_channels"] = [32,32,64,64]
-    
-    if "3x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [3,3,3,3]
-    elif "7x4x4x3" in agent_config["architecture"]:
-      agent_config["cnn_encoder_kernels"] = [7,4,4,3]
-    else:
-      agent_config["cnn_encoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
-    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
-    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
-    
-    # For a fair comparison between CNN an VAEs:
-    agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    #agent_config["cnn_encoder_feature_dim"] = cnn_feature_size
-    # N.B.: if cnn_encoder_fc_hidden_units is [],
-    # then this last parameter does not matter.
-    # The cnn encoder is not topped by a FC network.
-
-    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
-    #agent_config["feat_converter_output_size"] = cnn_feature_size
-    agent_config["feat_converter_output_size"] = 256
-
-    if "MHDPA" in agent_config["architecture"]:
-      agent_config["mhdpa_nbr_head"] = 4
-      agent_config["mhdpa_nbr_rec_update"] = 1
-      agent_config["mhdpa_nbr_mlp_unit"] = 256
-      agent_config["mhdpa_interaction_dim"] = 128
-
-    agent_config["temporal_encoder_nbr_hidden_units"] = 0
-    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
-    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
-    agent_config["symbol_processing_nbr_hidden_units"] = agent_config["temporal_encoder_nbr_hidden_units"]
-    agent_config["symbol_processing_nbr_rnn_layers"] = 1
-
-    ## Decoder:
-    ### CNN:
-    """
-    if "BN" in agent_config["decoder_architecture"]:
-      agent_config["cnn_decoder_channels"] = ["BN64","BN64","BN32","BN32"]
-    else:
-      agent_config["cnn_decoder_channels"] = [64,64,32,32]
-    
-    if "3x3" in agent_config["decoder_architecture"]:
-      agent_config["cnn_decoder_kernels"] = [3,3,3,3]
-    elif "3x4x4x7" in agent_config["decoder_architecture"]:
-      agent_config["cnn_decoder_kernels"] = [3,4,4,7]
-    else:
-      agent_config["cnn_decoder_kernels"] = [4,4,4,4]
-    agent_config["cnn_decoder_strides"] = [2,2,2,2]
-    agent_config["cnn_decoder_paddings"] = [1,1,1,1]
-    
-    ### MLP:
-    if "BN" in agent_config["decoder_architecture"]:
-      agent_config['mlp_decoder_fc_hidden_units'] = ["BN256", "BN256"]
-    else:
-      agent_config['mlp_decoder_fc_hidden_units'] = [256, 256]
-    agent_config['mlp_decoder_fc_hidden_units'].append(40*6)
-    """
-
   else:
     raise NotImplementedError
 
 
-  save_path = "./"
+  save_path = ""
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   save_path += f"{args.dataset}+DualLabeled/"
@@ -796,8 +696,16 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
+  from ReferentialGym.agents import DifferentiableObverterAgent
+  #from ReferentialGym.agents.halfdepr_differentiable_obverter_agent import DifferentiableObverterAgent
+  #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
+  
+  """
+  python -m ipdb -c c train.py --parent_folder /home/kevin/debugging_RG/TestNewObverter/New-PackPad-LearningNotTarget_-OneMinus_+Zeros_DecisionLogits/LearnableTau0-BMM+CosSim+InnerModelGen+AllowedVocabXBatch-DecisionHeads+CategoricalSamplingTrainingOnly+StopPadding/SymbolEmb64+GRU64+CNN64-Decision128/ --use_cuda --fast --seed 13 --obverter_nbr_games_per_round 20 --batch_size 32 --max_sentence_length 5 --vocab_size 10 --epoch 10000 --obverter_threshold_to_stop_message_generation 0.95 --descriptive --descriptive_ratio 0.5 --nbr_train_distractors 0 --symbol_processing_nbr_hidden_units 64 --resizeDim 32 --arch BN+3xCNN3x3 --symbol_embedding_size 64
+  python -m ipdb -c c train.py --parent_folder /home/kevin/debugging_RG/DeprBaseline+EntrNoLogSM+CategoricalTrainingSampling+DilatedCategoricalLogits1e0+LogSMoverDandVX1e0+StopPadding-ZerosLogitPad/
+  """   
+  
   if 'obverter' in args.graphtype:
-    from ReferentialGym.agents import DifferentiableObverterAgent
     speaker = DifferentiableObverterAgent(
       kwargs=agent_config, 
       obs_shape=obs_shape, 

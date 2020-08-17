@@ -97,15 +97,24 @@ class InstantaneousCoordinationMetricModule(Module):
                 # (nbr_element, batch_size may vary.., nbr_stimulus) 
                 #self.listener_indices = np.concatenate(self.listener_indices, axis=0)
                 # (nbr_element, batch_size may vary.., nbr_stimulus)
+                # Account for descriptive mode:
+                non_target_stimulus_idx = (-1)*np.ones((1, 1))
+                self.listener_indices = [
+                    np.concatenate([el, np.tile(non_target_stimulus_idx, reps=(el.shape[0], 1))], axis=-1)
+                    for el in self.listener_indices
+                ]
+                # (nbr_element, batch_size may vary.., nbr_stimulus+1)
+                
                 nbr_element =  len(self.decision_probs)
                 nbr_possible_listener_actions = self.decision_probs[0].shape[-1]
                 nbr_possible_unique_sentences = input_streams_dict["vocab_size"]**input_streams_dict["max_sentence_length"]
                 
                 self.listener_decision_stimulus_indices = [
-                    self.decision_probs[el].max(axis=-1).reshape(-1, 1) 
+                    #self.decision_probs[el].max(axis=-1).reshape(-1, 1) 
+                    self.decision_probs[el].argmax(axis=-1).reshape(-1, 1) 
                     for el in range(nbr_element)
                 ]
-                # (nbr_element, batch_size, 1) 
+                # (nbr_element, batch_size, 1)
                 self.listener_decision_indices = [
                     np.take_along_axis(self.listener_indices[el], self.listener_decision_stimulus_indices[el].astype(int), axis=-1)
                     for el in range(nbr_element)
