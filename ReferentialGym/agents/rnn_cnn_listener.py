@@ -151,9 +151,7 @@ class RNNCNNListener(DiscriminativeListener):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
-        '''
-        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs['max_sentence_length'], 1)))
-        '''
+        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, 1, 1)))
         
         self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
 
@@ -329,7 +327,8 @@ class RNNCNNListener(DiscriminativeListener):
 
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_logits = []
-        for widx in range(rnn_outputs.size(1)):
+        max_sentence_length = rnn_outputs.size(1)
+        for widx in range(max_sentence_length):
             decision_inputs = rnn_outputs[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
             decision_logits_until_widx = []
@@ -349,14 +348,10 @@ class RNNCNNListener(DiscriminativeListener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
 
-        #TODO: why would this be needed already?? Apparently in case of descriptive mode, cf obverter...
-        '''
-        not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
-        if decision_logits.is_cuda: not_target_logit = not_target_logit.cuda()
+        not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
         decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
         # (batch_size, (nbr_distractors+1) )
-        '''
-
+        
         return decision_logits, self.embedding_tf_final_outputs
 
 

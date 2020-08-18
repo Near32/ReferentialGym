@@ -116,7 +116,7 @@ def main():
   parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
-  parser.add_argument("--obverter_nbr_games_per_round", type=int, default=4)
+  parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
   # Cultural Bottleneck:
   parser.add_argument("--iterated_learning_scheme", action="store_true", default=False)
   parser.add_argument("--iterated_learning_period", type=int, default=4)

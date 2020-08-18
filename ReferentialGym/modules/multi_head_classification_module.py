@@ -95,10 +95,10 @@ class MultiHeadClassificationModule(Module):
                "ClassificationModule relies on 'logs_dict' id to record the accuracies.\n\
                 Not found in input_stream_ids."
         assert "mode" in input_stream_ids.keys(),\
-               "ClassificationModule relies on 'mode' key to record the computated losses and accuracies.\n\
+               "ClassificationModule relies on 'mode' key to record the computed losses and accuracies.\n\
                 Not found in input_stream_ids."
         assert "loss_ids" in config.keys(),\
-               "ClassificationModule relies on 'loss_ids' key to record the computated losses and accuracies.\n\
+               "ClassificationModule relies on 'loss_ids' key to record the computed losses and accuracies.\n\
                 Not found in config keys."
         
         super(MultiHeadClassificationModule, self).__init__(id=id, 
@@ -168,7 +168,7 @@ class MultiHeadClassificationModule(Module):
 
             # Accuracy:
             argmax_final_output = final_output.argmax(dim=-1)
-            accuracy = 100.0*(target_idx==argmax_final_output).float().mean()
+            accuracy = 100.0*(target_idx==argmax_final_output).float()
 
             if need_reshaping[key]:
                 loss = loss.reshape(batch_sizes[key],-1).mean(-1)
@@ -185,7 +185,12 @@ class MultiHeadClassificationModule(Module):
 
         # MultiHead Accuracy:
         for key, acc in accuracies.items():
-            logs_dict[f"{mode}/{self.config['loss_ids'][key]}/accuracy"] = acc
+            logs_dict[f"{mode}/{self.config['loss_ids'][key]}/accuracy"] = acc.mean()
+
+        for group_key, keys in self.config['grouped_accuracies'].items():
+            acc = torch.stack([accuracies[key_acc] for key_acc in keys]).mean()
+            logs_dict[f"{mode}/{group_key}/accuracy"] = acc.mean()
+
 
         outputs_stream_dict["losses"] = losses
         outputs_stream_dict["accuracies"] = accuracies

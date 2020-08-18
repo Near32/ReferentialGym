@@ -22,7 +22,7 @@ class ConcatModule(Module):
                  input_stream_keys:List[str]):
 
         input_stream_ids = {
-                ik:f"input_{idx}" 
+                f"input_{idx}":ik
                 for idx, ik in enumerate(input_stream_keys)
             }
 

@@ -18,6 +18,7 @@ from .population_handler_module import build_PopulationHandlerModule, Population
 
 from .one_hot_encoder_module import build_OneHotEncoderModule, OneHotEncoderModule
 from .visual_module import build_VisualModule, VisualModule
+from .language_module import build_LanguageModule, LanguageModule
 
 from .per_epoch_logger_module import build_PerEpochLoggerModule, PerEpochLoggerModule
 from .grad_recorder_module import build_GradRecorderModule, GradRecorderModule
