@@ -624,7 +624,13 @@ def main():
   
   save_path += args.parent_folder+'/'
   save_path += f"SQOOT-RHS{args.nb_train_rhs}"+save_path_dataset if "SQOOT" in args.dataset else f"{args.dataset}"
+  if args.from_utterances:
+    save_path += "+FromUtterances/"
+  
   save_path += "+DualLabeled/"
+
+  if args.with_baseline:
+    save_path += "WithBaseline/"
 
   if args.attached_heads:
     save_path += "AttachedHeads/"
@@ -888,9 +894,11 @@ def main():
     if args.from_utterances:
       lm_id = f"language_module"
       lm_config = {
+        "use_cuda":agent_config["use_cuda"],
         "use_pack_padding":False,
         "use_sentences_one_hot_vectors":True,
-        
+        "rnn_type":"gru",
+
         "vocab_size":agent_config["vocab_size"],
         "symbol_embedding_size":agent_config["symbol_embedding_size"],
         "embedding_dropout_prob":agent_config["embedding_dropout_prob"],
@@ -1377,7 +1385,7 @@ def main():
       modules[lm_id] = rg_modules.build_LanguageModule(
         id=lm_id,
         config=lm_config,
-        input_stream_keys=lm_input_stream_keys)
+        input_stream_ids=lm_input_stream_ids)
       
     modules[fm_id] = rg_modules.build_FlattenModule(
       id=fm_id,

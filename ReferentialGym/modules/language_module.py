@@ -27,7 +27,7 @@ def build_LanguageModule(id:str,
         
     
     rnn_type = config['rnn_type']
-    if 'lstm' in self.rnn_type:
+    if 'lstm' in rnn_type:
         symbol_processing = nn.LSTM(
             input_size=config['symbol_embedding_size'],
             hidden_size=config['symbol_processing_nbr_hidden_units'], 
@@ -36,7 +36,7 @@ def build_LanguageModule(id:str,
             dropout=config['processing_dropout_prob'],
             bidirectional=False
         )
-    elif 'gru' in self.rnn_type:
+    elif 'gru' in rnn_type:
         symbol_processing = nn.GRU(
             input_size=config['symbol_embedding_size'],
             hidden_size=config['symbol_processing_nbr_hidden_units'], 
