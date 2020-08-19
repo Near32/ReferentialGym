@@ -23,18 +23,29 @@ def hasnan(tensor):
         return True
     return False
 
+def reg_nan(param, verbose=False):
+    if param is None or param.data is None: return param
+    nan_indices = torch.isnan(param.data)
+    if verbose and torch.any(nan_indices).item(): 
+        print("WARNING: NaN found in {}.".format(param))
+    param.data[nan_indices] = 0
+    if param.grad is None: return param
+    nan_indices = torch.isnan(param.grad.data)
+    if verbose and torch.any(nan_indices).item(): 
+        print("WARNING: NaN found in the GRADIENT of {}.".format(param))
+    param.grad.data[nan_indices] = 0
+    return param 
+
 def handle_nan(layer, verbose=True):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         nan_indices = torch.isnan(layer._parameters[name].data)
         if verbose and torch.any(nan_indices).item(): 
-            import ipdb; ipdb.set_trace()
             print("WARNING: NaN found in {} of {}.".format(name, layer))
         layer._parameters[name].data[nan_indices] = 0
         if param.grad is None: continue
         nan_indices = torch.isnan(layer._parameters[name].grad.data)
         if verbose and torch.any(nan_indices).item(): 
-            import ipdb; ipdb.set_trace()
             print("WARNING: NaN found in the GRADIENT of {} of {}.".format(name, layer))
         layer._parameters[name].grad.data[nan_indices] = 0
         

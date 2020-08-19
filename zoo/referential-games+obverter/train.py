@@ -112,7 +112,7 @@ def main():
   parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", action="store_true", default=False)
   parser.add_argument("--egocentric", action="store_true", default=False)
-  parser.add_argument("--egocentric_tr_degrees", type=int, default=25)
+  parser.add_argument("--egocentric_tr_degrees", type=int, default=12) #25)
   parser.add_argument("--egocentric_tr_xy", type=float, default=0.0625)
   parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
@@ -123,6 +123,7 @@ def main():
     default="uniform")
   # Obverter Hyperparameters:
   parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
+  parser.add_argument("--obverter_use_decision_head", action="store_true", default=False)
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=4)
@@ -217,7 +218,6 @@ def main():
   
   if args.object_centric:
     assert args.egocentric
-
 
   gaussian = args.vae_gaussian 
   vae_observation_sigma = args.vae_gaussian_sigma
@@ -672,7 +672,7 @@ def main():
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"Obverter{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
+    save_path += f"Obverter{'WithDecisionHead' if args.obverter_use_decision_head else 'WithBMM'}{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
   else:
     save_path += f"STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
@@ -714,6 +714,7 @@ def main():
       agent_id='s0',
       logger=logger,
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      use_decision_head_=args.obverter_use_decision_head,
       differentiable=args.differentiable
     )
   else:
@@ -759,6 +760,7 @@ def main():
       agent_id='l0',
       logger=logger,
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      use_decision_head_=args.obverter_use_decision_head,
       differentiable=args.differentiable
     )
   else:

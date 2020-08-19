@@ -3,7 +3,7 @@ from .networks import ConvolutionalBody, EntityPrioredConvolutionalBody, Convolu
 from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
 
-from .networks import layer_init, hasnan, handle_nan
+from .networks import layer_init, hasnan, handle_nan, reg_nan
 
 from .autoregressive_networks import DeconvolutionalBody
 from .autoregressive_networks import ResNetEncoder, ResNetAvgPooledEncoder, BroadcastingDecoder, ResNetParallelAttentionEncoder, ParallelAttentionBroadcastingDeconvDecoder
