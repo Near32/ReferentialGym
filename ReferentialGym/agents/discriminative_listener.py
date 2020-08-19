@@ -17,7 +17,7 @@ from .listener import Listener
 def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
     target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
     # (batch_size, 1)
-    
+
     distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
         for pb_dl, tidx in zip(decision_logits, target_decision_idx)]
     distractors_decision_logits = torch.cat(
@@ -56,42 +56,62 @@ def discriminative_st_gs_referential_game_loss(agent,
     decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-    if "obverter" in config["graphtype"].lower():
-        sentences_lengths = torch.sum(-(input_streams_dict["sentences_widx"].squeeze(-1)-agent.vocab_size).sign(), dim=-1).long()
-        # (batch_size,) 
-        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
-            final_decision_logits.shape[0],
-            1,
-            final_decision_logits.shape[2]
-        )
-        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
+    
+    # (batch_size,) 
+    sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
+    #(batch_size, max_sentence_length)
+    eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
+    padding_with_eos = (eos_mask.cumsum(-1).sum()>batch_size)
+    # Include first EoS Symbol:
+    if padding_with_eos:
+        token_mask = ((eos_mask.cumsum(-1)>1)<=0)
+        lengths = token_mask.sum(-1)
+        #(batch_size, )
     else:
-        final_decision_logits = final_decision_logits[:,-1]
+        token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+        lengths = token_mask.sum(-1)
+        
+    if not(padding_with_eos):
+        # If excluding first EoS:
+        lengths = lengths.add(1)
+    sentences_lengths = lengths.clamp(max=agent.max_sentence_length)
+    #(batch_size, )
+    
+    sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+        final_decision_logits.shape[0],
+        1,
+        final_decision_logits.shape[2]
+    )
+    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:  
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
             criterion = nn.NLLLoss(reduction="none")
             
             if "obverter_least_effort_loss" in config and config["obverter_least_effort_loss"]:
                 loss = 0.0
                 losses4widx = []
-                for widx in range(decision_probs.size(1)):
-                    dp = decision_probs[:,widx,...]
+                for widx in range(decision_logits.size(1)):
+                    dp = decision_logits[:,widx,...]
                     ls = criterion( dp, sample["target_decision_idx"])
                     loss += config["obverter_least_effort_loss_weights"][widx]*ls 
                     losses4widx.append(ls)
             else:
-                decision_probs = decision_probs[:,-1,...]
-                loss = criterion( decision_probs, sample["target_decision_idx"])
+                #decision_logits = decision_logits[:,-1,...]
+                loss = criterion( decision_logits, sample["target_decision_idx"])
                 # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
         else:   
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
             criterion = nn.NLLLoss(reduction="none")
-            loss = criterion( decision_probs, sample["target_decision_idx"])
+            loss = criterion( decision_logits, sample["target_decision_idx"])
             # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
     elif config["agent_loss_type"].lower() == "ce":
@@ -108,7 +128,11 @@ def discriminative_st_gs_referential_game_loss(agent,
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+        if "obverter" in config["graphtype"]:
+            decision_probs = final_decision_logits
+            final_decision_logits = F.log_softmax(final_decision_logits, dim=-1)
+        else:
+            decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
         
         loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
                                               target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
@@ -116,9 +140,10 @@ def discriminative_st_gs_referential_game_loss(agent,
         # (batch_size, )
         
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
+        outputs_dict["decision_probs"] = decision_probs
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/target_listener_decision_probs"] =\
+         decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
     
-    outputs_dict["decision_probs"] = decision_probs
-
     # Accuracy:
     decision_idx = decision_probs.max(dim=-1)[1]
     acc = (decision_idx==sample["target_decision_idx"]).float()*100
