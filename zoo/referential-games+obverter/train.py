@@ -88,7 +88,7 @@ def main():
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
   parser.add_argument("--epoch", type=int, default=1875)
-  parser.add_argument("--metric_epoch_period", type=int, default=50)#20)
+  parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
   parser.add_argument("--metric_fast", action="store_true", default=False)
   parser.add_argument("--batch_size", type=int, default=8)

@@ -624,6 +624,7 @@ def generate_dataset(root,
                      thickness=1,
                      random_generation=False,
                      nb_samples=None,
+                     care_about_overlap=True,
                     ):
     global colors
     global shapes 
@@ -662,8 +663,6 @@ def generate_dataset(root,
     
     print(nX, nY)
 
-    import ipdb; ipdb.set_trace()
-    
     latent_one_hot_repr_sizes = {
         "color":nb_colors, #similar to id
         "shape":nb_shapes,
@@ -693,13 +692,29 @@ def generate_dataset(root,
         "yes":0,
         "no":1,
         "shape":np.arange(2,nb_shapes+2),
-        "count":np.arange((nb_shapes+2), 
-            (nb_shapes+2)+nb_objects),
-        "distance":np.arange(((nb_shapes+2)+nb_objects), 
-            ((nb_shapes+2)+nb_objects)+max(nX,nY)),
+        "count":np.arange(
+            (nb_shapes+2), 
+            (nb_shapes+2)+nb_objects
+        ),
+        "distance":np.arange(
+            ((nb_shapes+2)+nb_objects), 
+            ((nb_shapes+2)+nb_objects)+max(nX,nY)
+        ),
         "overlap_situation":((nb_shapes+2)+nb_objects)+max(nX,nY),
         "irrelevant_question":((nb_shapes+2)+nb_objects)+max(nX,nY)+1,
     }
+    
+    idx2answer = {}
+    for answer_key, values in answer2idx.items():
+        if isinstance(values, int):
+            idx2answer[values] = answer_key
+        else:
+            init_value = None
+            for value in values:
+                if init_value is None: init_value = value
+                idx2answer[value] = answer_key+str(value-init_value+1)
+        
+
     nb_answers = answer2idx["irrelevant_question"]+1
 
     one_object_latents_ones_hot_size = sum([v for k,v in latent_one_hot_repr_sizes.items()])
@@ -749,7 +764,15 @@ def generate_dataset(root,
                 latent_class_per_obj_list.append(obj_latent_class.copy())
                 latent_values_per_obj_list.append(obj_latent_values.copy())
                 latent_one_hot_per_obj_list.append(obj_latent_one_hot.copy())
-    
+                
+                # Reset:
+                obj_latent_one_hot[one_hot_idx_start_py+yid] = 0
+            
+            # Reset:
+            obj_latent_one_hot[one_hot_idx_start_px+xid] = 0
+        
+        # Reset: done at the beginning of loop...
+
     nbr_images = np.power((nb_shapes*nX*nY), nb_objects)
     dataset = {
         "imgs":[],
@@ -772,6 +795,14 @@ def generate_dataset(root,
 
     if random_generation:
         object_id_to_idx = {oid:np.random.randint(len(latent_class_per_obj_list)) for oid in range(nb_objects)}
+        
+        # Balance the shapes: sample from weighted distribution 
+        # whose weights are inversely proportional to the current number of instances.
+        # TODO:
+        shape_nb_instances = np.zeros(nb_shapes)
+        mean_nb_instances_per_shape = nb_samples*nb_objects // nb_shapes
+        shape_distr = mean_nb_instances_per_shape - shape_nb_instances
+
         ptr_object_id = nb_objects-1
         continuer = True
 
@@ -780,21 +811,40 @@ def generate_dataset(root,
             pbar.update(1)
 
             novel_sample = False 
-            while not novel_sample:
+            overlap = False
+            while not novel_sample or overlap:
                 object_id_to_idx[ptr_object_id] = np.random.randint(len(latent_class_per_obj_list))
-                
+                    
                 object_id_to_latent_values = {oid:latent_values_per_obj_list[oidx].copy() for oid,oidx in object_id_to_idx.items()}
                 object_id_to_latent_classes = {oid:latent_class_per_obj_list[oidx].copy() for oid,oidx in object_id_to_idx.items()}
                 object_id_to_latent_one_hot = {oid:latent_one_hot_per_obj_list[oidx].copy() for oid,oidx in object_id_to_idx.items()}
-                        
+
+                positions = np.stack([lc[2:] for lc in object_id_to_latent_classes.values()])
+                for idx1, p1 in enumerate(positions[:-1]):
+                    for idx2, p2 in enumerate(positions[idx1+1:]):
+                        if all(p1 == p2):
+                            overlap = True 
+                            # let us focus on one of the issue: in case we initialise in a wrong configuration...
+                            ptr_object_id = idx1
+                            break
+                overlap = care_about_overlap and overlap
+                if overlap: 
+                    overlap = False
+                    continue 
+
                 # Setting up the color:
                 for oid in object_id_to_latent_values:
                     object_id_to_latent_classes[oid][0] = oid
                     object_id_to_latent_values[oid][0] = oid
                     object_id_to_latent_one_hot[oid][oid] = 1
 
-                novel_sample = np.stack(list(object_id_to_latent_one_hot.values())) not in dataset['latents_one_hot']
+                latent_one_hot = np.stack(list(object_id_to_latent_one_hot.values()))
+                #latent_values = np.stack(list(object_id_to_latent_values.values()))
+                #latent_classes = np.stack(list(object_id_to_latent_classes.values()))
 
+                novel_sample = latent_one_hot not in dataset['latents_one_hot']
+                
+                
             img_latent_classes = np.stack(list(object_id_to_latent_classes.values()))
             # (nb_objects, 4)
             img_latent_values = np.stack(list(object_id_to_latent_values.values()))
@@ -867,10 +917,10 @@ def generate_dataset(root,
     print('saving datasets...')
     filename = os.path.join(dirs,'sqoot.pickle')
     with  open(filename, 'wb') as f:
-        pickle.dump((dataset, nX, nb_answers, question_size), f)
+        pickle.dump((dataset, nX, nb_answers, question_size, idx2answer), f)
     print('datasets saved at {}'.format(filename))
 
-    return dataset, nX, nb_answers, question_size
+    return dataset, nX, nb_answers, question_size, idx2answer
 
 
 class SQOOTDataset(Dataset):
@@ -938,7 +988,7 @@ class SQOOTDataset(Dataset):
             if not self._check_exists():
                 print('Dataset not found. Let us generate it:')
 
-            dataset, nX, nb_answers, question_size = self._generate(
+            dataset, nX, nb_answers, question_size, idx2answer = self._generate(
                 root=root,
                 nb_r_qs=self.nb_r_qs,
                 nb_nr_qs=self.nb_nr_qs,
@@ -954,10 +1004,11 @@ class SQOOTDataset(Dataset):
         else:
             filepath = os.path.join(self.root, self.file)
             with open(filepath, 'rb') as f:
-              dataset, nX, nb_answers, question_size = pickle.load(f)
+              dataset, nX, nb_answers, question_size, idx2answer = pickle.load(f)
         
         self.nX = nX
         self.nb_answers = nb_answers
+        self.idx2answer = idx2answer
         self.question_size = question_size
         self.train = train 
         #TODO handle dataset... train test split with combinatorial
@@ -1296,9 +1347,14 @@ class SQOOTDataset(Dataset):
 
         self.targets = self.targets[self.indices]
 
-
         print('Dataset loaded : OK.')
     
+    def _generate_all(self):
+        pbar = tqdm(total=len(self))
+        for idx in range(len(self)):
+            pbar.update(1)
+            self._generate_datapoint(idx=idx)
+
     def _generate_datapoint(self, idx):
         latents_values = self.latents_values[idx].reshape(self.nb_objects, -1)
         latents_one_hot = self.latents_one_hot[idx].reshape(self.nb_objects, -1)

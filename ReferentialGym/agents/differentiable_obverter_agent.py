@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .discriminative_listener import DiscriminativeListener
-from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan
+from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
 from ..utils import gumbel_softmax
 
 use_decision_head = False
@@ -568,12 +568,13 @@ class DifferentiableObverterAgent(DiscriminativeListener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
         
-        #TODO: find out whether use learning not target logit is anything interesting or not...:
+        if not(use_decision_head): 
+            decision_logits = torch.sigmoid(decision_logits)
+            # It is important to scale them withing a treshold, and not let them explode out of grasp
+        
         if self.kwargs['descriptive']: # or kwargs is not None
             if use_one_minus_max_prob:
-                if not(use_decision_head): 
-                    decision_logits = torch.sigmoid(decision_logits)
-                    # It is important to scale them withing a treshold, and not let them explode out of grasp
+                #TODO: find out whether use learning not target logit is anything interesting or not...:
                 max_decision_probs, mdp_idx = decision_logits.max(dim=-1, keepdim=True)
                 # (batch_size, max_sentence_length, 1)
                 # Actually a prob...
@@ -986,7 +987,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # (batch_size, 1)
             sentences_logits[:,token_idx] = masked_token_logits
             # (batch_size, vocab_size)
-            
+
             assert all(masked_sampled_token < vocab_size)
             token_one_hot = nn.functional.one_hot(
                 masked_sampled_token.long(), 

@@ -82,6 +82,7 @@ def discriminative_st_gs_referential_game_loss(agent,
         1,
         final_decision_logits.shape[2]
     )
+    
     final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     

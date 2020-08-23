@@ -348,9 +348,10 @@ class RNNCNNListener(DiscriminativeListener):
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
 
-        not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
-        decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
-        # (batch_size, (nbr_distractors+1) )
+        if self.kwargs["descriptive"]:
+            not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
+            decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
+            # (batch_size, (nbr_distractors+2) )
         
         return decision_logits, self.embedding_tf_final_outputs
 

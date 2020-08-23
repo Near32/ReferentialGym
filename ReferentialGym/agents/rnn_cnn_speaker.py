@@ -377,7 +377,6 @@ class RNNCNNSpeaker(Speaker):
                 token_idx +=1
             # Embed the sentence:
             # Padding token:
-            '''
             # Assumes that the sentences are padded with STOP token:
             while len(sentences_widx[b]) < self.max_sentence_length:
                 sentences_widx[b].append((self.vocab_stop_idx)*torch.ones_like(prediction))
@@ -385,7 +384,8 @@ class RNNCNNSpeaker(Speaker):
             # Assumes that the sentences are padded with PAD token:
             while len(sentences_widx[b]) < self.max_sentence_length:
                 sentences_widx[b].append((self.vocab_pad_idx)*torch.ones_like(prediction))
-
+            '''
+            
             sentences_hidden_states[b] = torch.cat(sentences_hidden_states[b], dim=0)
             # (sentence_length<=max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
             sentences_widx[b] = torch.cat([ word_idx.view((1,1,-1)) for word_idx in sentences_widx[b]], dim=1)
@@ -395,6 +395,7 @@ class RNNCNNSpeaker(Speaker):
             sentences_one_hots[b] = torch.cat(sentences_one_hots[b], dim=0) 
             # (sentence_length<=max_sentence_length, vocab_size)
 
+        #sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         sentences_one_hots = nn.utils.rnn.pad_sequence(sentences_one_hots, batch_first=True, padding_value=0.0).float()
         # (batch_size, sentence_length<=max_sentence_length, vocab_size)
         

@@ -86,6 +86,7 @@ def main():
   parser.add_argument('--batch_size', type=int, default=32)
   parser.add_argument('--mini_batch_size', type=int, default=128)
   parser.add_argument('--dropout_prob', type=float, default=0.0)
+  parser.add_argument('--gumbel_softmax_tau0', type=float, default=0.2)
   parser.add_argument('--emb_dropout_prob', type=float, default=0.8)
   parser.add_argument('--nbr_experience_repetition', type=int, default=1)
   parser.add_argument('--nbr_train_dataset_repetition', type=int, default=1)
@@ -177,8 +178,8 @@ def main():
   if args.object_centric:
     assert args.egocentric
 
-  if args.from_utterances:
-    assert not args.with_baseline
+  #if args.from_utterances:
+  #  assert not args.with_baseline
 
   gaussian = args.vae_gaussian 
   vae_observation_sigma = args.vae_gaussian_sigma
@@ -259,7 +260,7 @@ def main():
       "nbr_stimulus":             1,
 
       "graphtype":                args.graphtype,
-      "tau0":                     0.2,
+      "tau0":                     args.gumbel_softmax_tau0,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
       "symbol_embedding_size":    256, #64
@@ -574,7 +575,7 @@ def main():
     
     generate = False
     random_generation = True
-    img_size = 64
+    img_size = 128 #64
     nb_objects = args.nb_sqoot_objects #2
     nb_shapes = args.nb_sqoot_shapes
 
@@ -585,8 +586,8 @@ def main():
     nb_question_types = 3
     question_size = nb_objects+nb_shapes+nb_question_types+max(nb_nr_qs, nb_r_qs, nb_brq_qs)
     
-    fontScale=0.5
-    thickness=1#1
+    fontScale= 1.0 #0.5
+    thickness= 2 #1
 
     '''
     Exp0 : 
@@ -931,7 +932,7 @@ def main():
     ]
   
     if args.with_baseline:
-      fm_input_stream_keys.append(f"modules:{baseline_vm_id}:ref:encoder:features")
+      fm_input_stream_keys.append(f"modules:{baseline_vm_id}:ref:features")
 
     # Batch shape is omitted in the definition of new shape...
     rrm_id = "reshaperepeat0"
@@ -1097,6 +1098,15 @@ def main():
         "mode":"signals:mode",
       }
 
+      cmm_config = {
+        "labels": [i for i in range(n_answers)],
+        "input_labels": {"predicted_labels_0": "ReferentialGame"},
+      }
+
+      cmm_input_stream_ids = {}
+      cmm_input_stream_ids[f"predicted_labels_0" ] = f"modules:mhcm:predicted_labels"
+      cmm_input_stream_ids[f"groundtruth_labels_0" ] = f"modules:mhcm:groundtruth_labels"
+      
       group_keys = []
       for subtype_id in range(nb_r_qs):
         loss_id = f"{mhcm_r_id}_{subtype_id}"
@@ -1110,7 +1120,7 @@ def main():
         mhcm_input_stream_ids[f"inputs_{subtype_id}" ] = f"modules:concat_relational_{subtype_id}:output_0"
         mhcm_input_stream_ids[f"targets_{subtype_id}"] = f"modules:squeeze_qas:output_{2*subtype_id+1}"#1~2*nb_r_qs-1:2 (questions are interweaved...)
       mhcm_config['grouped_accuracies']["overall_relational"] = group_keys
-        
+  
       group_keys = []
       for subtype_id in range(nb_nr_qs):
         loss_id = f"{mhcm_nr_id}_{subtype_id}"
@@ -1138,7 +1148,7 @@ def main():
         mhcm_input_stream_ids[key_id] = f"modules:concat_binary_relational_query_{subtype_id}:output_0"
         mhcm_input_stream_ids[f"targets_{nb_r_qs + nb_nr_qs + subtype_id}"] = f"modules:squeeze_qas:output_{2*nb_r_qs+2*nb_nr_qs+2*subtype_id+1}"#1~2*nb_r_qs-1:2 (questions are interweaved...)
       mhcm_config['grouped_accuracies']["overall_binary_relational_query"] = group_keys
-      
+
     else:
       raise NotImplementedError
       for subtype_id in range(max(nb_r_qs, nb_nr_qs, nb_brq_qs)):
@@ -1255,6 +1265,15 @@ def main():
           "mode":"signals:mode",
         }
 
+        b_cmm_config = {
+          "labels": [i for i in range(n_answers)],
+          "input_labels": {"predicted_labels_0": "Baseline"},
+        }
+
+        b_cmm_input_stream_ids = {}
+        b_cmm_input_stream_ids[f"predicted_labels_0" ] = f"modules:baseline_mhcm:predicted_labels"
+        b_cmm_input_stream_ids[f"groundtruth_labels_0" ] = f"modules:baseline_mhcm:groundtruth_labels"
+
         group_keys = []
         for subtype_id in range(nb_r_qs):
           loss_id = f"{b_mhcm_r_id}_{subtype_id}"
@@ -1299,7 +1318,6 @@ def main():
         
       else:
         raise NotImplementedError
-
         for subtype_id in range(max(nb_r_qs, nb_nr_qs, nb_brq_qs)):
           if subtype_id < nb_r_qs:
             b_mhcm_r_id[subtype_id] = f"baseline_mhcm_relational_{subtype_id}"
@@ -1421,8 +1439,14 @@ def main():
       modules["mhcm"] = rg_modules.build_MultiHeadClassificationModule(
         id="mhcm", 
         config=mhcm_config,
-          input_stream_ids=mhcm_input_stream_ids)
+        input_stream_ids=mhcm_input_stream_ids)
+
+      modules["cmm"] = rg_modules.build_ConfusionMatrixMetricModule(
+        id="cmm",
+        config=cmm_config, 
+        input_stream_ids=cmm_input_stream_ids)
     else:
+      raise NotImplementedError
       for subtype_id in range(max(nb_nr_qs, nb_r_qs, nb_brq_qs)):
         if subtype_id < nb_r_qs:
           modules[mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
@@ -1463,8 +1487,16 @@ def main():
         modules["baseline_mhcm"] = rg_modules.build_MultiHeadClassificationModule(
         id="baseline_mhcm", 
         config=b_mhcm_config,
-          input_stream_ids=b_mhcm_input_stream_ids)
+        input_stream_ids=b_mhcm_input_stream_ids)
+
+
+        modules["baseline_cmm"] = rg_modules.build_ConfusionMatrixMetricModule(
+          id="baseline_cmm",
+          config=b_cmm_config,
+          input_stream_ids=b_cmm_input_stream_ids,
+        )
       else:
+        raise NotImplementedError
         for subtype_id in range(max(nb_nr_qs, nb_r_qs, nb_brq_qs)):
           if subtype_id < nb_r_qs:
             modules[b_mhcm_r_id[subtype_id]] = rg_modules.build_MultiHeadClassificationModule(
@@ -1596,6 +1628,33 @@ def main():
   )
   modules[listener_factor_vae_disentanglement_metric_id] = listener_factor_vae_disentanglement_metric_module
 
+  if args.with_baseline:
+    baseline_factor_vae_disentanglement_metric_id = "baseline_factor_vae_disentanglement_metric"
+    baseline_factor_vae_disentanglement_metric_input_stream_ids = {
+      "model":f"modules:{baseline_vm_id}:ref:cnn_encoder",
+      "representations":f"modules:{baseline_vm_id}:ref:features",
+      "experiences":"current_dataloader:sample:listener_experiences", 
+      "latent_representations":"current_dataloader:sample:listener_exp_latents", 
+      "latent_values_representations":"current_dataloader:sample:listener_exp_latents_values",
+      "indices":"current_dataloader:sample:listener_indices", 
+    }
+    baseline_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
+      id=baseline_factor_vae_disentanglement_metric_id,
+      input_stream_ids=baseline_factor_vae_disentanglement_metric_input_stream_ids,
+      config = {
+        "epoch_period":args.metric_epoch_period,
+        "batch_size":64,#5,
+        "nbr_train_points":10000,#3000,
+        "nbr_eval_points":5000,#2000,
+        "resample":False,
+        "threshold":5e-2,#0.0,#1.0,
+        "random_state_seed":args.seed,
+        "verbose":False,
+        "active_factors_only":True,
+      }
+    )
+    modules[baseline_factor_vae_disentanglement_metric_id] = baseline_factor_vae_disentanglement_metric_module
+
   logger_id = "per_epoch_logger"
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
@@ -1638,6 +1697,7 @@ def main():
 
       pipelines["mhcm"] = [
         "mhcm",
+        "cmm",
       ]
 
       #Baseline:
@@ -1658,8 +1718,10 @@ def main():
         
         pipelines["baseline_mhcm"] = [
           "baseline_mhcm",
+          "baseline_cmm",
         ]
     else:
+      raise NotImplementedError
       for subtype_id in range(max(nb_r_qs, nb_nr_qs, nb_brq_qs)):
         if subtype_id < nb_r_qs:
           pipelines[mhcm_r_id[subtype_id]] = [
@@ -1707,6 +1769,8 @@ def main():
   '''
   pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+  if args.with_baseline: 
+    pipelines[optim_id].append(baseline_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(inst_coord_metric_id)
   if 'dSprites' in args.dataset:  pipelines[optim_id].append(dsprites_latent_metric_id)

@@ -5,6 +5,8 @@ from ..networks import layer_init
 from ..utils import gumbel_softmax
 from .agent import Agent 
 
+assume_padding_with_eos = True
+
 
 def sentence_length_logging_hook(agent,
                                  losses_dict,
@@ -21,14 +23,26 @@ def sentence_length_logging_hook(agent,
     speaker_sentences_logits = outputs_dict["sentences_logits"]
     speaker_sentences_widx = outputs_dict["sentences_widx"]
 
+    if 'speaker' not in agent.role: return
+    
     # Sentence Lengths:
-    """
-    #if "obverter" in input_streams_dict["graphtype"].lower():
-    sentence_lengths = torch.sum(-(speaker_sentences_widx.squeeze(-1)-agent.vocab_size).sign(), dim=-1).reshape(batch_size,-1)
-    sentence_length = sentence_lengths.mean()
-    """
-    sentence_lengths = (speaker_sentences_widx < (agent.vocab_pad_idx))
-    sentence_lengths = sentence_lengths.reshape(batch_size,-1).float().sum(-1)
+    eos_mask = (speaker_sentences_widx.squeeze(-1)==agent.vocab_stop_idx)
+    padding_with_eos = assume_padding_with_eos #(eos_mask.cumsum(-1).sum()>batch_size)
+    # Include first EoS Symbol:
+    if padding_with_eos:
+        token_mask = ((eos_mask.cumsum(-1)>1)<=0)
+        lengths = token_mask.sum(-1)
+        #(batch_size, )
+    else:
+        token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+        lengths = token_mask.sum(-1)
+        
+    if not(padding_with_eos):
+        # If excluding first EoS:
+        lengths = lengths.add(1)
+    sentence_lengths = lengths.clamp(max=agent.max_sentence_length).float()
+    #(batch_size, )
+    
     sentence_length = sentence_lengths.mean()
     
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config["max_sentence_length"]

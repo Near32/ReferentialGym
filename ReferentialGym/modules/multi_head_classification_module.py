@@ -149,6 +149,9 @@ class MultiHeadClassificationModule(Module):
 
         losses = {}
         accuracies = {}
+        predicted_labels = {}
+        groundtruth_labels = {}
+
         for ii, (key,inp) in enumerate(inputs.items()):
             if self.config["same_head"]:    ih = 0
             else:   ih = ii
@@ -176,6 +179,9 @@ class MultiHeadClassificationModule(Module):
             losses[key] = loss
             accuracies[key] = accuracy
 
+            predicted_labels[self.config['loss_ids'][key]] = argmax_final_output.cpu().detach().numpy()
+            groundtruth_labels[self.config['loss_ids'][key]] = target_idx.cpu().detach().numpy()
+
         losses_dict = input_streams_dict["losses_dict"]
         logs_dict = input_streams_dict["logs_dict"] 
         
@@ -194,5 +200,8 @@ class MultiHeadClassificationModule(Module):
 
         outputs_stream_dict["losses"] = losses
         outputs_stream_dict["accuracies"] = accuracies
+
+        outputs_stream_dict["predicted_labels"] = predicted_labels
+        outputs_stream_dict["groundtruth_labels"] = groundtruth_labels
 
         return outputs_stream_dict

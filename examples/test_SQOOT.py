@@ -15,10 +15,12 @@ def main():
   random.seed(seed)
   # # Hyperparameters:
 
+  egocentric = True 
+
   # In[23]:
   nbr_epoch = 100
   cnn_feature_size = 512 # 128 512 #1024
-  stimulus_resize_dim = 32 #64 #28
+  stimulus_resize_dim = 64 #32
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -26,8 +28,11 @@ def main():
                               normalize_rgb_values=normalize_rgb_values,
                               rgb_scaler=rgb_scaler)
 
-  transform_degrees = 45
-  transform_translate = (0.25, 0.25)
+  transform_degrees = 6
+  transform_translate = (0.0625, 0.0625)
+
+  from ReferentialGym.datasets.utils import AddEgocentricInvariance
+  ego_inv_transform = AddEgocentricInvariance()
 
   rg_config = {
       "observability":            "partial",
@@ -136,6 +141,32 @@ def main():
       "test_transform":             transform,
   }
 
+  if egocentric:
+    rg_config["train_transform"]= T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+    rg_config["test_transform"]=  T.Compose(
+      [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     resample=False, 
+                     fillcolor=0),
+        transform
+      ]
+    )
+
   # # Dataset:
 
   '''
@@ -150,6 +181,7 @@ def main():
 
   generate = False
   random_generation = True
+  
   """
   img_size = 64
   nb_objects = 3 #2
@@ -157,17 +189,17 @@ def main():
 
   train_nb_rhs = 2
   """
-  img_size = 64
-  nb_objects = 3 #2
-  nb_shapes = 8
+  img_size = 128 #64
+  nb_objects = 5 #2
+  nb_shapes = 36
 
-  train_nb_rhs = 4
+  train_nb_rhs = 2
 
   # If divided by 2, then not enough positions...
   #thickness=2
   #fontScale=0.5
-  fontScale=0.5
-  thickness=1#1
+  fontScale=1.0 #0.5
+  thickness=2#1
   
   '''
   Exp0 : 
@@ -187,7 +219,7 @@ def main():
 
   #train_split_strategy = 'combinatorial1-Y-1-N-X-1-N-2IWP_Shape-1-N' 
   train_split_strategy = None #'uniformBinaryRelationalQuery' 
-  nb_samples = 256 #int(1e3)
+  nb_samples = 512 #int(1e3)
   
   # Normally dense: 
   #train_split_strategy = 'combinatorial1-Y-1-N-X-1-N-2IWP_Shape-1-N' 
