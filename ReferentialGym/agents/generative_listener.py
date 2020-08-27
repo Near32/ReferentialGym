@@ -52,6 +52,20 @@ def generative_st_gs_referential_game_loss(agent,
 
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
+    elif config["agent_loss_type"].lower() == "mse":
+        # Reconstruction loss :
+        generative_output = generative_output.reshape(batch_size,-1)
+        loss = F.mse_loss(
+            input=generative_output,
+            target=target_output,
+            reduction="none").mean(-1)
+        # (batch_size, )
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
+    
+        output_distr = torch.distributions.Bernoulli(torch.sigmoid(generative_output))
+        neg_log_lik = -output_distr.log_prob(target_output)
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
+        
     elif config["agent_loss_type"].lower() == "ce":
         # Reconstruction loss :
         assert(len(generative_output.shape)==3)

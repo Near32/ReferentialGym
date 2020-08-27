@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .discriminative_listener import DiscriminativeListener
+from .generative_listener import GenerativeListener
 from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 
 
-class RNNCNNListener(DiscriminativeListener):
+class RNNCNNGenerativeListener(GenerativeListener):
     def __init__(self,
                  kwargs, 
                  obs_shape, 
@@ -24,7 +24,15 @@ class RNNCNNListener(DiscriminativeListener):
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         :param rnn_type: String specifying the type of RNN to use, either 'gru' or 'lstm'.
         """
-        super(RNNCNNListener, self).__init__(obs_shape, vocab_size, max_sentence_length, agent_id, logger, kwargs)
+        super(RNNCNNGenerativeListener, self).__init__(
+            obs_shape=obs_shape, 
+            vocab_size=vocab_size, 
+            max_sentence_length=max_sentence_length, 
+            agent_id=agent_id, 
+            logger=logger,
+            kwargs=kwargs,
+        )
+        
         self.use_sentences_one_hot_vectors = True 
         self.kwargs = kwargs 
 
@@ -151,9 +159,37 @@ class RNNCNNListener(DiscriminativeListener):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
-        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, 1, 1)))
+        '''
+        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs['max_sentence_length'], 1)))
+        '''
         
         self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
+
+        # Decoder:
+        decoder_input_shape = [self.kwargs['symbol_processing_nbr_hidden_units']]
+        decoder_output_shape = self.obs_shape[2:]
+        MHDPANbrHead=4
+        MHDPANbrRecUpdate=1
+        MHDPANbrMLPUnit=512
+        MHDPAInteractionDim=128
+        if 'cnn_decoder' in self.kwargs:
+            self.cnn_decoder = self.kwargs['cnn_decoder']
+        else:
+            self.cnn_decoder = choose_architecture(architecture=self.kwargs['decoder_architecture'],
+                                                   kwargs=self.kwargs,
+                                                   input_shape=decoder_input_shape,
+                                                   output_shape=decoder_output_shape,
+                                                   nbr_channels_list=self.kwargs['cnn_decoder_channels'],
+                                                   kernels=self.kwargs['cnn_decoder_kernels'],
+                                                   strides=self.kwargs['cnn_decoder_strides'],
+                                                   paddings=self.kwargs['cnn_decoder_paddings'],
+                                                   dropout=self.kwargs['dropout_prob'],
+                                                   MHDPANbrHead=MHDPANbrHead,
+                                                   MHDPANbrRecUpdate=MHDPANbrRecUpdate,
+                                                   MHDPANbrMLPUnit=MHDPANbrMLPUnit,
+                                                   MHDPAInteractionDim=MHDPAInteractionDim)
+
+        self.generate_intermediary_outputs = False 
 
         self.reset()
 
@@ -164,9 +200,6 @@ class RNNCNNListener(DiscriminativeListener):
         self._reset_rnn_states()
 
     def _tidyup(self):
-        """
-        Called at the agent level at the end of the `compute` function.
-        """
         self.embedding_tf_final_outputs = None
 
         if isinstance(self.cnn_encoder, BetaVAE):
@@ -175,10 +208,6 @@ class RNNCNNListener(DiscriminativeListener):
             self.buffer_cnn_output_dict = dict()
 
     def _compute_tau(self, tau0, h):
-        '''
-        invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
-        return invtau
-        '''
         raise NotImplementedError
 
     def _sense(self, experiences, sentences=None):
@@ -261,11 +290,13 @@ class RNNCNNListener(DiscriminativeListener):
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
-        batch_size = features.size(0)
-        nbr_distractors_po = features.size(1)        
-        # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
-        # Forward pass:
-        if self.embedding_tf_final_outputs is None:
+        batch_size = sentences.size(0)
+        
+        # TODO implement reasoning that makes us of the distractor stimuli.
+        if features is not None:
+            nbr_distractors_po = features.size(1)        
+            # (batch_size, nbr_distractors+1, nbr_stimulus, feature_dim)
+            # Forward pass:
             if self.temporal_feature_encoder: 
                 features = features.view(-1, *(features.size()[2:]))
                 # (batch_size*(nbr_distractors+1), nbr_stimulus, kwargs['cnn_encoder_feature_dim'])
@@ -288,6 +319,8 @@ class RNNCNNListener(DiscriminativeListener):
                 self.embedding_tf_final_outputs = self.normalization(features.reshape((-1, self.kwargs['temporal_encoder_nbr_hidden_units'])))
                 self.embedding_tf_final_outputs = self.embedding_tf_final_outputs.reshape((batch_size, nbr_distractors_po, -1))
                 # (batch_size, (nbr_distractors+1), kwargs['temporal_encoder_nbr_hidden_units'])
+        else:
+            self.embedding_tf_final_outputs = None 
 
         # Consume the sentences:
         # (batch_size, max_sentence_length, self.vocab_size)
@@ -298,8 +331,11 @@ class RNNCNNListener(DiscriminativeListener):
         # (batch_size, max_sentence_length, self.kwargs['symbol_embedding_size'])
         
         # We initialize the rnn_states to either None, if it is not multi-round, or:
+        # TODO: find a strategy for multiround...
+        '''
         states = self.rnn_states
         rnn_outputs, self.rnn_states = self.symbol_processing(encoded_sentences, states)          
+        '''
         '''
         init_rnn_state = self.symbol_processing_learnable_initial_state.expand(
             batch_size,
@@ -311,12 +347,9 @@ class RNNCNNListener(DiscriminativeListener):
             torch.zeros_like(init_rnn_state)
         )
         '''
-        
-        """
         rnn_states = None
         rnn_outputs, next_rnn_states = self.symbol_processing(encoded_sentences, rnn_states)          
-        """
-
+        
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
@@ -324,36 +357,26 @@ class RNNCNNListener(DiscriminativeListener):
         if self.projection_normalization is not None:
             rnn_outputs = self.projection_normalization(rnn_outputs.reshape((batch_size, -1)))
             rnn_outputs = rnn_outputs.reshape((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
-
-        # Compute the decision: following each hidden/output vector from the rnn:
-        decision_logits = []
-        max_sentence_length = rnn_outputs.size(1)
-        for widx in range(max_sentence_length):
-            decision_inputs = rnn_outputs[:,widx,...]
-            # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
-            decision_logits_until_widx = []
-            for b in range(batch_size):
-                bemb = self.embedding_tf_final_outputs[b]
-                # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 
-                # kwargs['temporal_encoder_nbr_hidden_units']==kwargs['symbol_processing_nbr_hidden_units'])
-                bdin = decision_inputs[b].unsqueeze(1)
-                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-                dl = torch.matmul( bemb, bdin).view((1,-1))
-                # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
-                decision_logits_until_widx.append(dl)
-            decision_logits_until_widx = torch.cat(decision_logits_until_widx, dim=0)
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_logits.append(decision_logits_until_widx.unsqueeze(1))
-            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        decision_logits = torch.cat(decision_logits, dim=1)
-        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )           
-
-        if self.kwargs["descriptive"]:
-            not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
-            decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
-            # (batch_size, (nbr_distractors+2) )
         
-        return decision_logits, self.embedding_tf_final_outputs
+        self.rnn_outputs = rnn_outputs[:,-1,...]
+        # (batch_size, self.kwargs['symbol_embedding_size'])
+        
+        # Generate the outputs: following each hidden/output vector from the rnn:
+        rnn_output_length = rnn_outputs.size(1)
+        generative_outputs = []
+        for widx in range(rnn_output_length):
+            if not(self.generate_intermediary_outputs) and widx < rnn_output_length-1: continue 
+            
+            decoder_inputs = rnn_outputs[:,widx,...]
+            # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+            generative_outputs_until_widx = self.cnn_decoder(decoder_inputs)
+            # (batch_size, *obs_shape )
+            generative_outputs.append(generative_outputs_until_widx.unsqueeze(1))
+            # (batch_size, 1, *obs_shape )
+        self.generative_outputs = torch.cat(generative_outputs, dim=1)
+        # (batch_size, ?max_sentence_length?, *obs_shape)           
+
+        return self.generative_outputs, self.embedding_tf_final_outputs
 
 
     def _utter(self, features, sentences):

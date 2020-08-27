@@ -6,7 +6,7 @@ from .rnn_cnn_generative_listener import RNNCNNGenerativeListener
 from ..networks import choose_architecture, layer_init, hasnan, BetaVAE
 
 
-class LSTMCNNGenerativeListener(RNNCNNGenerativeListener):
+class GRUCNNGenerativeListener(RNNCNNGenerativeListener):
     def __init__(self,
                  kwargs, 
                  obs_shape, 
@@ -22,13 +22,13 @@ class LSTMCNNGenerativeListener(RNNCNNGenerativeListener):
         :param agent_id: str defining the ID of the agent over the population.
         :param logger: None or somee kind of logger able to accumulate statistics per agent.
         """
-        super(LSTMCNNGenerativeListener, self).__init__(
+        super(GRUCNNGenerativeListener, self).__init__(
             obs_shape=obs_shape, 
             vocab_size=vocab_size, 
             max_sentence_length=max_sentence_length, 
             agent_id=agent_id, 
             logger=logger, 
             kwargs=kwargs,
-            rnn_type='lstm',
+            rnn_type='gru',
         )
         
