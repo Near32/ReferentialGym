@@ -8,6 +8,7 @@ from .sort_of_CLEVR_dataset import SortOfCLEVRDataset
 from .extended_sort_of_CLEVR_dataset import XSortOfCLEVRDataset
 #from .ah_so_CLEVR_dataset import AhSoCLEVRDataset
 from .spatial_queries_on_object_tuples_dataset import SQOOTDataset 
+from ._3d_shapes_pybullet_dataset import _3DShapesPyBulletDataset 
 
 try:
 	import minerl
