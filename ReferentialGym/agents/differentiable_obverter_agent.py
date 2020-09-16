@@ -6,9 +6,9 @@ from .discriminative_listener import DiscriminativeListener
 from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
 from ..utils import gumbel_softmax
 
-use_decision_head = False
+use_decision_head = True
 
-bmm = True
+bmm = False
 normalize = True 
 
 inner_model = True

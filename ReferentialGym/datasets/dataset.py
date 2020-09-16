@@ -83,6 +83,10 @@ class Dataset(torchDataset):
         '''
         Samples target experience and distractor experiences according to the distractor sampling scheme.
         
+        TODO: In object_centric/class_centric mode, if some distractors are sampled, then it is important to sample
+        them from a list of indices that exclude the elements of the class the target belongs to.
+        So far, object_centric mode is only used without distractors.
+
         :params idx: int, index of the experiences to use as a target.
         :returns:
             - `output_dict`: Dict of elements: 

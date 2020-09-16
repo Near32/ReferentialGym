@@ -429,9 +429,8 @@ def generate_dataset(root,
         
         # Reset: done at the beginning of the loop...
 
-    nbr_images = nb_shapes*nb_colors*nb_samples
     dataset = {
-        "imgs":[],
+        "imgs":{},
         "latents_values":img_latent_values,
         "latents_classes":img_latent_class,
         "latents_one_hot":img_latent_one_hot,
@@ -497,7 +496,7 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.latents_one_hot = np.asarray(dataset['latents_one_hot'])
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         
-        self.imgs = {} #np.asarray(dataset['imgs'])
+        self.imgs = dataset['imgs']
         
         self.targets = np.zeros(len(self.latents_classes))
         for idx, latent_cls in enumerate(self.latents_classes):
@@ -676,15 +675,9 @@ class _3DShapesPyBulletDataset(Dataset) :
                 
                 # From shape to colors:
                 shapes = {
-                    shape_id:np.arange(0,self.nb_colors)
-                    for shape_id in range(self.nb_shapes)
+                    shape_id:np.roll(np.arange(0,self.nb_colors), shift=idx)
+                    for idx, shape_id in enumerate(range(self.nb_shapes))
                 }
-                
-                # Preserve actual RNG state:
-                original_rng_state = np.random.get_state()
-                np.random.seed(shuffle_seed)
-                for possible_colors in shapes.values(): np.random.shuffle(possible_colors)
-                np.random.set_state(original_rng_state)
                 
                 test_nb_possible_colors = self.nb_colors-self.train_nb_possible_colors
                 self.training_shape_2_possible_colors = {
@@ -787,20 +780,37 @@ class _3DShapesPyBulletDataset(Dataset) :
 
             print(f"Dataset Size: {len(self.indices)} out of {len(self.latents_values)}: {100*len(self.indices)/len(self.latents_values)}%.")
 
+        """
         self.latents_values = self.latents_values[self.indices]
         self.latents_classes = self.latents_classes[self.indices]
         self.latents_one_hot = self.latents_one_hot[self.indices]
 
         self.test_latents_mask = self.test_latents_mask[self.indices]
         self.targets = self.targets[self.indices]
+        """
 
         #self._generate_all()
 
         print('Dataset loaded : OK.')
     
+    def _save_generated_dataset(self):
+
+        dataset = {
+            "imgs":self.imgs,
+            "latents_values":self.latents_values,
+            "latents_classes":self.latents_classes,
+            "latents_one_hot":self.latents_one_hot,
+        }
+
+        print('saving datasets...')
+        filename = os.path.join(self.root,self.file)
+        with  open(filename, 'wb') as f:
+            pickle.dump((dataset, self.nb_shapes, self.nb_colors, self.nb_samples, self.sampled_positions, self.sampled_orientation), f)
+        print('Datasets saved at {}'.format(filename))
+
     def _generate_all(self):
-        pbar = tqdm(total=len(self))
-        for idx in range(len(self)):
+        pbar = tqdm(total=)
+        for idx in range(self.indices):
             pbar.update(1)
             self._generate_datapoint(idx=idx)
 
@@ -822,6 +832,13 @@ class _3DShapesPyBulletDataset(Dataset) :
         )
 
         self.imgs[idx] = rgb_img
+
+        if all([index in self.imgs for index in self.indices]):
+            self._save_generated_dataset()
+            # will only be called once, when the last element has just been generated, 
+            # since this whole function will never be called again after all elements
+            # are generated...
+
         
     def __len__(self) -> int:
         return len(self.indices)
@@ -890,16 +907,18 @@ class _3DShapesPyBulletDataset(Dataset) :
         if idx >= len(self):
             idx = idx%len(self)
 
-        latent_value = torch.from_numpy(self.getlatentvalue(idx))
-        latent_class = torch.from_numpy(self.getlatentclass(idx))
-        latent_one_hot = torch.from_numpy(self.getlatentonehot(idx))
-        test_latents_mask = torch.from_numpy(self.gettestlatentmask(idx))
+        trueidx = self.indices[idx]
 
-        if idx not in self.imgs:    
-            self._generate_datapoint(idx=idx)
+        latent_value = torch.from_numpy(self.getlatentvalue(trueidx))
+        latent_class = torch.from_numpy(self.getlatentclass(trueidx))
+        latent_one_hot = torch.from_numpy(self.getlatentonehot(trueidx))
+        test_latents_mask = torch.from_numpy(self.gettestlatentmask(trueidx))
 
-        img = self.imgs[idx]
-        target = self.getclass(idx)
+        if trueidx not in self.imgs:    
+            self._generate_datapoint(idx=trueidx)
+
+        img = self.imgs[trueidx]
+        target = self.getclass(trueidx)
                 
         #img = (img*255).astype('uint8').transpose((2,1,0))
         img = img.transpose((2,1,0))
