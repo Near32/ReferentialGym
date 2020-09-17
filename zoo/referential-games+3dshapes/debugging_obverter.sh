@@ -10,7 +10,8 @@ New+Normalize-PackPad+innerModel-LearningNotTarget+OneMinuxMaxProb\
 --descriptive --descriptive_ratio 0.5 \
 --max_sentence_length 20 --vocab_size 5 --epoch 10000 \
 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \
---object_centric --nbr_train_distractors 0 --nbr_test_distractors 0
+--object_centric --nbr_train_distractors 0 --nbr_test_distractors 0 \
+--obverter_use_decision_head
 
 #--egocentric --object_centric
 
