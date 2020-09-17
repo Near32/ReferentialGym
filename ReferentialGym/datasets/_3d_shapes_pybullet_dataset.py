@@ -72,6 +72,7 @@ def generate_datapoint(
     nb_samples,
     sampled_positions,
     sampled_orientation,
+    physicsClient,
     ):
     '''
     :param latent_one_hot: Numpy Array of shape (nb_objects, latent_one_hot_size)
@@ -83,6 +84,7 @@ def generate_datapoint(
     :param nb_samples: Integer number of possible sampled camera position.
     :param sampled_positions: List of Numpy Array of shape (3,) describing the position of the object for each sample index.
     :param sampled_orientation: List of float describing the Y-axis orientation of the object for each sample index.
+    :param physicsClient: Integer identifying the physicsClient used by PyBullet.
     '''
     global colors
     global shapes 
@@ -105,12 +107,10 @@ def generate_datapoint(
     cam_target = np.zeros(3)
     cam_up = np.zeros(3);   cam_up[1] = -1.0
 
-    def generate(shapeId, position, orientation, color, server_type=pb.DIRECT):
-        physicsClient = pb.connect(server_type)
-
+    def generate(shapeId, position, orientation, color, physicsClient):
         datapath = pb_d.getDataPath()
         pb.setAdditionalSearchPath(datapath)
-        pb.resetSimulation() #pb.RESET_USE_DEFORMABLE_WORLD)
+        pb.resetSimulation(physicsClient) #pb.RESET_USE_DEFORMABLE_WORLD)
         pb.setGravity(0, 0, -9.81)
 
         planeId = pb.loadURDF("plane.urdf", [0,0,0])
@@ -307,7 +307,8 @@ def generate_datapoint(
         shapeId=obj_shape,
         position=obj_position,
         orientation=obj_orientation,
-        color=obj_color
+        color=obj_color,
+        physicsClient=physicsClient,
     )
 
     def render(size=img_size,
@@ -470,7 +471,8 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.train = train 
         self.generate = generate
         self.transform = transform 
-
+        
+        self.physicsClient = None
         if generate or not self._check_exists():
             if not self._check_exists():
                 print('Dataset not found. Let us generate it:')
@@ -819,6 +821,9 @@ class _3DShapesPyBulletDataset(Dataset) :
         latents_one_hot = self.latents_one_hot[idx]
         latents_classes = self.latents_classes[idx]
         
+        if self.physicsClient is None:
+            self.physicsClient = pb.connect(pb.DIRECT)
+
         rgb_img = generate_datapoint(
             latent_one_hot=latents_one_hot, 
             latent_values=latents_values,
@@ -828,7 +833,8 @@ class _3DShapesPyBulletDataset(Dataset) :
             nb_colors=self.nb_colors,
             nb_samples=self.nb_samples,
             sampled_positions=self.sampled_positions,
-            sampled_orientation=self.sampled_orientation
+            sampled_orientation=self.sampled_orientation,
+            physicsClient=self.physicsClient,
         )
 
         self.imgs[idx] = rgb_img
