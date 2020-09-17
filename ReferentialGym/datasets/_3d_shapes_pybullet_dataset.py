@@ -809,7 +809,7 @@ class _3DShapesPyBulletDataset(Dataset) :
         print('Datasets saved at {}'.format(filename))
 
     def _generate_all(self):
-        pbar = tqdm(total=)
+        pbar = tqdm(total=len(self.indices))
         for idx in range(self.indices):
             pbar.update(1)
             self._generate_datapoint(idx=idx)
