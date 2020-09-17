@@ -794,13 +794,19 @@ class _3DShapesPyBulletDataset(Dataset) :
         print('Dataset loaded : OK.')
     
     def _save_generated_dataset(self):
-
-        dataset = {
-            "imgs":self.imgs,
-            "latents_values":self.latents_values,
-            "latents_classes":self.latents_classes,
-            "latents_one_hot":self.latents_one_hot,
-        }
+        if self._check_exists():
+            filepath = os.path.join(self.root, self.file)
+            with open(filepath, 'rb') as f:
+              dataset, _, _, _, _, _ = pickle.load(f)
+            
+            dataset["imgs"].update(self.imgs)
+        else:
+            dataset = {
+                "imgs":self.imgs,
+                "latents_values":self.latents_values,
+                "latents_classes":self.latents_classes,
+                "latents_one_hot":self.latents_one_hot,
+            }
 
         print('saving datasets...')
         filename = os.path.join(self.root,self.file)
@@ -833,7 +839,7 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         self.imgs[idx] = rgb_img
 
-        if all([index in self.imgs for index in self.indices]):
+        if all([(index in self.imgs) for index in self.indices]):
             self._save_generated_dataset()
             # will only be called once, when the last element has just been generated, 
             # since this whole function will never be called again after all elements
