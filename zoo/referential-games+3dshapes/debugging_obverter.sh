@@ -6,7 +6,7 @@ New+Normalize-PackPad+innerModel-LearningNotTarget+OneMinuxMaxProb\
 --use_cuda --seed 0 \
 --obverter_nbr_games_per_round 20 --obverter_threshold_to_stop_message_generation 0.95 \
 --emb_dropout_prob 0.0 --dropout_prob 0.0 --use_sentences_one_hot_vectors \
---batch_size 50 --resizeDim 128 --arch BaselineCNN \
+--batch_size 256 --mini_batch_size 256 --resizeDim 128 --arch BaselineCNN \
 --descriptive --descriptive_ratio 0.5 \
 --max_sentence_length 20 --vocab_size 5 --epoch 10000 \
 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \
