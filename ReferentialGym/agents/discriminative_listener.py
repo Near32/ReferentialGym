@@ -56,7 +56,8 @@ def discriminative_st_gs_referential_game_loss(agent,
     decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-    
+    nbr_distractors_po = decision_logits.shape[-1]
+
     # (batch_size,) 
     sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
     #(batch_size, max_sentence_length)
@@ -87,8 +88,13 @@ def discriminative_st_gs_referential_game_loss(agent,
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     
     if config["agent_loss_type"].lower() == "nll":
-        if config["descriptive"]:  
-            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+        if config["descriptive"]:
+            # Then nbr_descriptors_po = nbr_descriptor+1 (target) +1 (not_target output)  
+            if nbr_distractors_po > 1: 
+                decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+            else:
+                decision_logits = final_decision_logits.log()
+                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )            
             criterion = nn.NLLLoss(reduction="none")
             
             if "obverter_least_effort_loss" in config and config["obverter_least_effort_loss"]:

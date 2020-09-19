@@ -7,6 +7,8 @@ from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
 from ..utils import gumbel_softmax
 
 use_decision_head = True
+not_always_argmax = False 
+LogSoftmaxAfterLogOnSigmoid = False 
 
 bmm = False
 normalize = True 
@@ -592,8 +594,10 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # Account for the possibility that the packpadded sentences are ALL smaller than max_sentence_length:
             msl = decision_logits.shape[1]
             decision_logits = torch.cat([decision_logits+stability_eps, not_target_logit[:,:msl]], dim=-1 )
+            # (batch_size, max_sentence_length, (nbr_distractors+2))
         
         return decision_logits, embedding_tf_final_outputs
+        # If use_decision_heads, decision_logits is actually the probabilities...
 
 
     def _utter(self, features, sentences):
@@ -834,6 +838,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
 
                 decision_logits, _ = agent._reason(sentences=sentences,features=bemb, kwargs=kwargs)
                 # (batch_size*allowed_vocab_size, max_sentence_length/1, nbr_distractors_po)
+                # Output of Sigmoid if use_decision_heads...
                 next_rnn_states = kwargs["next_rnn_states"]
                 rnn_outputs = kwargs["rnn_outputs"]
 
@@ -932,7 +937,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             
             # values for each token are now compared: 
             # the token that yield the greatest advantage over not-stimulus will be chosen
-            target_decision_logits = target_decision_logits.log_softmax(dim=-1)
+            if LogSoftmaxAfterLogOnSigmoid :
+                target_decision_logits = target_decision_logits.log_softmax(dim=-1)
             # (batch_size, allowed_vocab_size, )
             
             token_logits = reg_nan(target_decision_logits)
@@ -946,7 +952,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 token_dist = torch.distributions.Categorical(logits=token_logits)
             # (batch_size, vocab_size)
             
-            if True: #agent.training:
+            if not_always_argmax: #agent.training:
                 sampled_token = token_dist.sample().reshape(-1,1)
                 # (batch_size,1)
             else:
