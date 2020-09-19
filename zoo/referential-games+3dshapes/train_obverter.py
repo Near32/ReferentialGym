@@ -577,7 +577,7 @@ def main():
   save_path_dataset = ''
   if '3DShapesPyBullet' in args.dataset:
     generate = False
-    img_size = 64 #64
+    img_size = 128 #64
     nb_shapes = args.nb_3dshapespybullet_shapes
     nb_colors = args.nb_3dshapespybullet_colors
     nb_samples = args.nb_3dshapespybullet_samples
