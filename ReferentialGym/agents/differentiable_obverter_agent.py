@@ -7,6 +7,7 @@ from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
 from ..utils import gumbel_softmax
 
 use_decision_head = True
+nbr_head_outputs = 2
 not_always_argmax = False 
 LogSoftmaxAfterLogOnSigmoid = False 
 
@@ -267,8 +268,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 #nn.BatchNorm1d(num_features=128),
                 nn.Dropout(p=self.kwargs["dropout_prob"]),
                 nn.ReLU(),
-                nn.Linear(128,1),
-                nn.Sigmoid()
+                nn.Linear(128, nbr_head_outputs),
+                #nn.Sigmoid()
             )
 
         if self.use_sentences_one_hot_vectors:
@@ -540,7 +541,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
                 # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
                 
-                decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po))
+                decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, nbr_head_outputs))
+                # (batch_size, nbr_distractors_po, nbr_head_outputs)
             else:
                 """
                 decision_inputs = rnn_outputs[:,widx,...].unsqueeze(-1)
@@ -566,38 +568,54 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 """
                 
             decision_logits.append(decision_logits_until_widx.unsqueeze(1))
-            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            # (batch_size, 1, (nbr_distractors+1) 
+            # / ? (descriptive mode depends on the role of the agent),
+            # nodim / nbr_head_outputs )
         decision_logits = torch.cat(decision_logits, dim=1)
-        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        # (batch_size, max_sentence_length, (nbr_distractors+1)
+        # / ? (descriptive mode depends on the role of the agent),
+        # nodim / nbr_head_outputs )
         
         if not(use_decision_head): 
             decision_logits = torch.sigmoid(decision_logits)
             # It is important to scale them withing a treshold, and not let them explode out of grasp
         
         if self.kwargs['descriptive']: # or kwargs is not None
-            if use_one_minus_max_prob:
-                #TODO: find out whether use learning not target logit is anything interesting or not...:
-                max_decision_probs, mdp_idx = decision_logits.max(dim=-1, keepdim=True)
-                # (batch_size, max_sentence_length, 1)
-                # Actually a prob...
-                not_target_logit = 1-max_decision_probs+stability_eps #1e-3
-                # (batch_size, max_sentence_length, 1)
-            else:
-                if use_decision_head:
-                    not_target_logit = 1-decision_logits
+            if nbr_head_outputs == 1 or not(use_decision_head):
+                if use_one_minus_max_prob 
+                    #TODO: find out whether use learning not target logit is anything interesting or not...:
+                    max_decision_probs, mdp_idx = decision_logits.max(dim=-1, keepdim=True)
+                    # (batch_size, max_sentence_length, 1)
+                    # Actually a prob...
+                    not_target_logit = 1-max_decision_probs+stability_eps #1e-3
+                    # (batch_size, max_sentence_length, 1)
                 else:
-                    if not(self.use_learning_not_target_logit):
-                        l_shape = decision_logits.size()
-                        not_target_logit = torch.zeros( *l_shape[:2], 1).to(decision_logits.device)
+                    if use_decision_head:
+                        not_target_logit = 1-decision_logits
                     else:
-                        not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
-            # Account for the possibility that the packpadded sentences are ALL smaller than max_sentence_length:
-            msl = decision_logits.shape[1]
-            decision_logits = torch.cat([decision_logits+stability_eps, not_target_logit[:,:msl]], dim=-1 )
-            # (batch_size, max_sentence_length, (nbr_distractors+2))
-        
+                        if not(self.use_learning_not_target_logit):
+                            l_shape = decision_logits.size()
+                            not_target_logit = torch.zeros( *l_shape[:2], 1).to(decision_logits.device)
+                        else:
+                            not_target_logit = self.not_target_logits_per_token.repeat(batch_size, 1, 1)
+                # Account for the possibility that the packpadded sentences are ALL smaller than max_sentence_length:
+                msl = decision_logits.shape[1]
+                decision_logits = torch.cat([decision_logits+stability_eps, not_target_logit[:,:msl]], dim=-1 )
+                # (batch_size, max_sentence_length, (nbr_distractors+2))
+            elif nbr_head_outputs==2:
+                possible_targets = decision_logits[...,0]
+                # (batch_size, max_sentence_length, (nbr_distractors+1), )
+                import ipdb; ipdb.set_trace()                
+                not_target = decision_logits[...,1].max(dim=-1, keepdim=True)[0]
+                # (batch_size, max_sentence_length, 1)                
+                decision_logits = torch.cat([possible_targets, not_target], dim=-1 )
+                # (batch_size, max_sentence_length, (nbr_distractors+2))
+                # Regularization to make those values actual probabilities...
+                decision_logits = torch.softmax(decision_logits, dim=-1)
+            else:
+                raise NotImplementedError
         return decision_logits, embedding_tf_final_outputs
-        # If use_decision_heads, decision_logits is actually the probabilities...
+        # If use_decision_head, decision_logits is actually the probabilities...
 
 
     def _utter(self, features, sentences):
@@ -838,7 +856,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
 
                 decision_logits, _ = agent._reason(sentences=sentences,features=bemb, kwargs=kwargs)
                 # (batch_size*allowed_vocab_size, max_sentence_length/1, nbr_distractors_po)
-                # Output of Sigmoid if use_decision_heads...
+                # Output of Sigmoid if use_decision_head...
                 next_rnn_states = kwargs["next_rnn_states"]
                 rnn_outputs = kwargs["rnn_outputs"]
 

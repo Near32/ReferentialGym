@@ -1,7 +1,7 @@
 python -m ipdb -c c train_obverter.py \
 --parent_folder ./debug/Sept16/\
 New+Normalize-PackPad+innerModel-LearningNotTarget+OneMinuxMaxProb\
-/Tau1e0-BMM-CosSim+DecisionHeads1+SigmoidDecisionHeads+Normalize+InnerModelGen+OneMinuxMaxProb+StopPadding-WholeSentence-\
+/Tau1e0-BMM-CosSim+DecisionHeads2-SigmoidDecisionHeads+Normalize+InnerModelGen+OneMinuxMaxProb+StopPadding-WholeSentence-\
 UseStopWord+StabEps1m8-LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+ArgmaxSamplingAlways\
 /SymbolEmb64+GRU64+CNN256+Decision128/ \
 --use_cuda --seed 0 \
