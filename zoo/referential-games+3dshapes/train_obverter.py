@@ -38,6 +38,7 @@ def main():
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
   parser.add_argument("--arch", type=str, 
     choices=["BaselineCNN",
+             "ShortBaselineCNN",
              "BN+BaselineCNN",
              "CNN",
              "CNN3x3",
@@ -463,6 +464,34 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
   
+  elif "ShortBaselineCNN" in agent_config["architecture"]:
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
+    
+    agent_config["cnn_encoder_channels"] = ["BN20","BN20","BN20","BN20","BN20"]
+    
+    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3]
+    agent_config["cnn_encoder_strides"] = [2,2,2,2,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1,1]
+    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
+    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
+    
+    # For a fair comparison between CNN an VAEs:
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
+    agent_config["cnn_encoder_feature_dim"] = 50 #args.symbol_processing_nbr_hidden_units
+    # N.B.: if cnn_encoder_fc_hidden_units is [],
+    # then this last parameter does not matter.
+    # The cnn encoder is not topped by a FC network.
+
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = args.symbol_processing_nbr_hidden_units
+
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
+
   elif "BaselineCNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False

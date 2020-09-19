@@ -7,14 +7,14 @@ UseStopWord+StabEps1m8-LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+ArgmaxSamplingAlwa
 --use_cuda --seed 0 \
 --obverter_nbr_games_per_round 20 --obverter_threshold_to_stop_message_generation 0.95 \
 --emb_dropout_prob 0.0 --dropout_prob 0.0 --use_sentences_one_hot_vectors \
---batch_size 50 --mini_batch_size 256 --resizeDim 128 --arch BaselineCNN \
+--batch_size 50 --mini_batch_size 256 --resizeDim 128 --arch ShortBaselineCNN \
 --descriptive --descriptive_ratio 0.5 \
 --max_sentence_length 20 --vocab_size 5 --epoch 10000 \
 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \
 --object_centric --nbr_train_distractors 0 --nbr_test_distractors 0 \
 --obverter_use_decision_head \
 --agent_loss_type NLL \
---metric_fast --metric_period 20
+--metric_fast --metric_epoch_period 20
 
 #--egocentric
 
