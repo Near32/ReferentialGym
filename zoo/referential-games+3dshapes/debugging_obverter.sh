@@ -5,9 +5,9 @@ New+Normalize-PackPad+innerModel-LearningNotTarget+OneMinuxMaxProb\
 UseStopWord+StabEps1m8-LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+ArgmaxSamplingAlways\
 /SymbolEmb64+GRU64+CNN256+Decision128/ \
 --use_cuda --seed 0 \
---obverter_nbr_games_per_round 20 --obverter_threshold_to_stop_message_generation 0.95 \
+--obverter_nbr_games_per_round 8 --obverter_threshold_to_stop_message_generation 0.95 \
 --emb_dropout_prob 0.0 --dropout_prob 0.0 --use_sentences_one_hot_vectors \
---batch_size 50 --mini_batch_size 256 --resizeDim 128 --arch ShortBaselineCNN \
+--batch_size 128 --mini_batch_size 256 --resizeDim 128 --arch ShortBaselineCNN \
 --descriptive --descriptive_ratio 0.5 \
 --max_sentence_length 20 --vocab_size 5 --epoch 10000 \
 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \

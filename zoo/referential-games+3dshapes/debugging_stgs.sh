@@ -2,7 +2,7 @@ python -m ipdb -c c train_stgs.py \
 --parent_folder ./debug/Sept16/STGS/\
 --use_cuda --seed 0 \
 --emb_dropout_prob 0.0 --dropout_prob 0.0 --use_sentences_one_hot_vectors \
---batch_size 50 --mini_batch_size 256 --resizeDim 128 --arch ShortBaselineCNN \
+--batch_size 128 --mini_batch_size 256 --resizeDim 128 --arch ShortBaselineCNN \
 --descriptive --descriptive_ratio 0.5 \
 --max_sentence_length 20 --vocab_size 5 --epoch 10000 \
 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \

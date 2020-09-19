@@ -818,8 +818,9 @@ class _3DShapesPyBulletDataset(Dataset) :
 
     def _generate_all(self):
         pbar = tqdm(total=len(self.indices))
-        for idx in range(self.indices):
+        for idx in self.indices:
             pbar.update(1)
+            if idx in self.imgs:    continue
             self._generate_datapoint(idx=idx)
 
     def _generate_datapoint(self, idx):
