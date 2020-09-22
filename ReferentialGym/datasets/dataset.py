@@ -58,14 +58,18 @@ class Dataset(torchDataset):
     def sample(self, 
                idx: int = None, 
                from_class: List[int] = None, 
-               excepts: List[int] = None, 
+               excepts: List[int] = None,
+               excepts_class: List[int]=None, 
                target_only: bool = False) -> Dict[str,object]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
         If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
-        :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+        :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
+                            to identifies classes to sample from.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
+        :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
+                            to identifies classes to not sample from.
         :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
 
         :returns:
@@ -131,7 +135,15 @@ class Dataset(torchDataset):
             retain_target = torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']
             # Target experience is excluded from the experiences yielded to the listener:
             if not retain_target:
-                new_target_for_listener_sample_d = self.sample(idx=None, from_class=from_class, target_only=True, excepts=[idx])
+                # Sample a new element for the listener to consider.
+                # Different from the target element in itself, but also in its class:
+                new_target_for_listener_sample_d = self.sample(
+                    idx=None, 
+                    from_class=from_class, 
+                    target_only=True, 
+                    excepts=[idx], 
+                    excepts_class=[exp_labels[0]]
+                )
                 # Adding batch dimension:
                 for k,v in new_target_for_listener_sample_d.items():
                     if not(isinstance(v, torch.Tensor)):    

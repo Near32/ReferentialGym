@@ -61,13 +61,17 @@ class DualLabeledDataset(Dataset):
                idx: int = None, 
                from_class: List[int] = None, 
                excepts: List[int] = None, 
+               excepts_class: List[int]=None, 
                target_only: bool = False) -> Dict[str,object]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
         If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
-        :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+        :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
+                            to identifies classes to sample from.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
+        :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
+                            to identifies classes to not sample from.
         :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
 
         :returns:
@@ -94,7 +98,11 @@ class DualLabeledDataset(Dataset):
             set_indices = set()
             for class_idx in from_class:
                 set_indices = set_indices.union(set(classes[class_idx]))
-            
+
+            if excepts_class is not None:
+                for class_idx in excepts_class:
+                    set_indices = set_indices.difference(set(classes[class_idx]))
+
             if excepts is not None:
                 set_indices = set_indices.difference(excepts)
                 
