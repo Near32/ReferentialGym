@@ -148,7 +148,7 @@ class PerEpochLoggerModule(Module):
               logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
               
-              logger.add_histogram(f"PerEpoch/{key}", values, epoch)
+              #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
               # Remove the value form the logs_dict if it is present:

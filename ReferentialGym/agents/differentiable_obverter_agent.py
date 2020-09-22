@@ -582,7 +582,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
         
         if self.kwargs['descriptive']: # or kwargs is not None
             if nbr_head_outputs == 1 or not(use_decision_head):
-                if use_one_minus_max_prob 
+                if use_one_minus_max_prob:
                     #TODO: find out whether use learning not target logit is anything interesting or not...:
                     max_decision_probs, mdp_idx = decision_logits.max(dim=-1, keepdim=True)
                     # (batch_size, max_sentence_length, 1)
@@ -605,7 +605,6 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             elif nbr_head_outputs==2:
                 possible_targets = decision_logits[...,0]
                 # (batch_size, max_sentence_length, (nbr_distractors+1), )
-                import ipdb; ipdb.set_trace()                
                 not_target = decision_logits[...,1].max(dim=-1, keepdim=True)[0]
                 # (batch_size, max_sentence_length, 1)                
                 decision_logits = torch.cat([possible_targets, not_target], dim=-1 )
