@@ -63,6 +63,24 @@ def entropy_logging_hook(agent,
     speaker_sentences_logits = outputs_dict["sentences_logits"]
     speaker_sentences_widx = outputs_dict["sentences_widx"]
     
+    # Sentence Lengths:
+    eos_mask = (speaker_sentences_widx.squeeze(-1)==agent.vocab_stop_idx)
+    padding_with_eos = assume_padding_with_eos #(eos_mask.cumsum(-1).sum()>batch_size)
+    # Include first EoS Symbol:
+    if padding_with_eos:
+        token_mask = ((eos_mask.cumsum(-1)>1)<=0)
+        lengths = token_mask.sum(-1)
+        #(batch_size, )
+    else:
+        token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+        lengths = token_mask.sum(-1)
+        
+    if not(padding_with_eos):
+        # If excluding first EoS:
+        lengths = lengths.add(1)
+    sentence_lengths = lengths.clamp(max=agent.max_sentence_length).float()
+    #(batch_size, )
+    
     # Compute Sentence Entropies:
     sentences_log_probs = [
         s_logits.reshape(-1,agent.vocab_size).log_softmax(dim=-1) 
@@ -80,6 +98,9 @@ def entropy_logging_hook(agent,
     # (batch_size, )
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/Entropy"] = entropies_per_sentence.mean().item()
 
+    perplexities_per_sentence = speaker_sentences_log_probs.exp().pow(1.0/sentence_lengths)
+    # (batch_size, )
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLengthNormalizedPerplexity"] = perplexities_per_sentence.mean().item()
 
 def entropy_regularization_loss_hook(agent,
                                      losses_dict,

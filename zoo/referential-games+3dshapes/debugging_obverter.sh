@@ -1,8 +1,8 @@
 python -m ipdb -c c train_obverter.py \
---parent_folder ./debug/Sept16/\
+--parent_folder ./debug/Sept23/HalfNew/\
 New+Normalize-PackPad+innerModel-LearningNotTarget+OneMinuxMaxProb\
 /Tau1e0-BMM-CosSim+DecisionHeads2-SigmoidDecisionHeads+Normalize+InnerModelGen+OneMinuxMaxProb+StopPadding-WholeSentence-\
-UseStopWord+StabEps1m8-LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+ArgmaxSamplingAlways\
+UseStopWord+StabEps1m8+LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+AlwaysArgmax\
 /SymbolEmb64+GRU64+CNN256+Decision128/ \
 --use_cuda --seed 0 \
 --obverter_nbr_games_per_round 8 --obverter_threshold_to_stop_message_generation 0.95 \
@@ -14,7 +14,7 @@ UseStopWord+StabEps1m8-LogSoftmaxAfterLogOnSigmoid+ScaleNL1e4+ArgmaxSamplingAlwa
 --object_centric --nbr_train_distractors 0 --nbr_test_distractors 0 \
 --obverter_use_decision_head \
 --agent_loss_type NLL \
---metric_fast --metric_epoch_period 20
+--metric_fast --metric_epoch_period 5
 
 #--egocentric
 

@@ -705,8 +705,8 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  from ReferentialGym.agents import DifferentiableObverterAgent
-  #from ReferentialGym.agents.halfdepr_differentiable_obverter_agent import DifferentiableObverterAgent
+  #from ReferentialGym.agents import DifferentiableObverterAgent
+  from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
   #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
   
   """
