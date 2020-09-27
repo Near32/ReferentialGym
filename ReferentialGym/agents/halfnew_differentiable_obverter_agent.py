@@ -10,7 +10,7 @@ use_decision_head = True
 nbr_head_outputs = 2
 not_always_argmax = False ; always_categorical_sampling = False
 
-LogSoftmaxAfterLogOnSigmoid = True
+LogSoftmaxAfterLogOnSigmoid = False
 
 bmm = False
 normalize = True 

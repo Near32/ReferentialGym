@@ -32,7 +32,7 @@ def main():
              ], 
     help="dataset to train on.",
     default="3DShapesPyBullet")
-  parser.add_argument('--nb_3dshapespybullet_shapes', type=float, default=5)
+  parser.add_argument('--nb_3dshapespybullet_shapes', type=int, default=5)
   parser.add_argument('--nb_3dshapespybullet_colors', type=int, default=8)
   parser.add_argument('--nb_3dshapespybullet_train_colors', type=int, default=6)
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
@@ -363,8 +363,8 @@ def main():
   
   ## Train set:
   train_split_strategy = args.train_test_split_strategy
-  test_split_strategy = train_split_strategy
-  
+  test_split_strategy = args.train_test_split_strategy
+
   ## Agent Configuration:
   agent_config = copy.deepcopy(rg_config)
   agent_config["use_cuda"] = rg_config["use_cuda"]
@@ -583,7 +583,8 @@ def main():
     nb_samples = args.nb_3dshapespybullet_samples
     nb_train_colors = args.nb_3dshapespybullet_train_colors
     train_split_strategy = f'compositional-40-nb_train_colors_{nb_train_colors}' 
-  
+    test_split_strategy = train_split_strategy
+
     root = './datasets/3DShapePyBullet-dataset'
     root += f'imgS{img_size}-shapes{nb_shapes}-colors{nb_colors}-samples{nb_samples}'
     save_path_dataset = f'3DShapePyBullet-dataset-imgS{img_size}-shapes{nb_shapes}-colors{nb_colors}-samples{nb_samples}'

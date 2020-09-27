@@ -229,11 +229,7 @@ class ReferentialGame(object):
             for it_dataset, (mode, data_loader) in enumerate(data_loaders.items()):
                 self.stream_handler.update("current_dataset:ref", self.datasets[mode])
                 self.stream_handler.update("signals:mode", mode)
-                counterGames = 0
-                total_sentences = []
-                total_nbr_unique_stimulus = 0
-                epoch_acc = []
-
+                
                 end_of_epoch_dataset = (it_dataset==len(data_loaders)-1)
                 self.stream_handler.update("signals:end_of_epoch_dataset", end_of_epoch_dataset)
                 
@@ -268,8 +264,6 @@ class ReferentialGame(object):
                         self.stream_handler.update("signals:it_sample", it_rep)
                         end_of_repetition_sequence = (it_rep==nbr_experience_repetition-1)
                         self.stream_handler.update("signals:end_of_repetition_sequence", end_of_repetition_sequence)
-                        
-                        batch_size = len(sample['speaker_experiences'])
                         
                         # TODO: implement a multi_round_communicatioin module ?
                         for idx_round in range(self.config['nbr_communication_round']):

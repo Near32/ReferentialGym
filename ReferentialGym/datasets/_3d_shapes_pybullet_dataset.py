@@ -52,13 +52,13 @@ colors = [
 ]
 
 shapes = [
-    'teddy',
-    'duck',
     'cylinder',
     'capsule',
     'sphere',
     'cube',
     'torus',
+    'teddy',
+    'duck',
 ]
 
 

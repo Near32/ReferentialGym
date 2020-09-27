@@ -46,13 +46,13 @@ class DualLabeledDataset(Dataset):
         self.mode = newmode
 
     def __len__(self) -> int:
-        if self.mode == 'test':
+        if 'test' in self.mode:
             return len(self.datasets['test'])
         else:
             return len(self.datasets['train'])
     
     def getNbrClasses(self) -> int:
-        if self.mode =='test':
+        if 'test' in self.mode:
             return self.nbr_classes
         else:
             return len(self.train_classes)
