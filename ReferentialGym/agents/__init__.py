@@ -18,6 +18,8 @@ from .rnn_listener import RNNListener
 from .rnn_cnn_listener import RNNCNNListener
 from .lstm_cnn_listener import LSTMCNNListener
 from .gru_cnn_listener import GRUCNNListener
+from .mlp_rnn_cnn_listener import MLPRNNCNNListener
+from .mlp_gru_cnn_listener import MLPGRUCNNListener
 
 from .attention_lstm_cnn_listener import AttentionLSTMCNNListener
 from .transcoding_lstm_cnn_listener import TranscodingLSTMCNNListener
