@@ -297,6 +297,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
         self.reset()
 
     def reset(self):
+        # TODO: verify that initialization of decision head is not an issue:
+        #self.decision_head.apply(layer_init)
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None
@@ -564,8 +566,9 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # (batch_size, max_sentence_length, 1)                
             decision_logits = torch.cat([possible_targets, not_target], dim=-1 )
             # (batch_size, max_sentence_length, (nbr_distractors+2))
-            # NOW: Regularization to make those values actual log probabilities...
-            decision_logits = torch.log_softmax(decision_logits, dim=-1)
+        
+        # NOW: Regularization to make those values actual log probabilities...
+        decision_logits = torch.log_softmax(decision_logits, dim=-1)
         
         return decision_logits, embedding_tf_final_outputs
         #NOMORE: If use_decision_head, decision_logits is actually the probabilities...
