@@ -11,7 +11,7 @@ python train_stgs_mlp_gru.py \
 --object_centric --nbr_train_distractors $5 --nbr_test_distractors $5 \
 --obverter_use_decision_head \
 --agent_loss_type NLL \
---metric_fast --metric_epoch_period 200 \
+--metric_epoch_period 200 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 8 \
 --nb_3dshapespybullet_samples 100 --nb_3dshapespybullet_train_colors 7 \
 --lr 6e-4
