@@ -17,13 +17,13 @@ normalize = True
 
 inner_model = True
 use_one_minus_max_prob = True
-whole_sentence = False
+whole_sentence = True
 
 packpadding = False 
 assume_padding_with_eos = True
 
 stability_eps = 1e-8
-scale_negative_logit = -1e4
+scale_negative_logit = 0.0 #-1e4
 use_stop_word_in_compute_sentence = False 
 
 
@@ -184,6 +184,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                                                paddings=self.kwargs['cnn_encoder_paddings'],
                                                fc_hidden_units_list=self.kwargs['cnn_encoder_fc_hidden_units'],
                                                dropout=self.kwargs['dropout_prob'],
+                                               non_linearities=self.kwargs['cnn_encoder_non_linearities'],
                                                MHDPANbrHead=MHDPANbrHead,
                                                MHDPANbrRecUpdate=MHDPANbrRecUpdate,
                                                MHDPANbrMLPUnit=MHDPANbrMLPUnit,
@@ -544,6 +545,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
             
             decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, nbr_head_outputs))
+            # Linear output...
             # (batch_size, nbr_distractors_po, nbr_head_outputs)
                 
             decision_logits.append(decision_logits_until_widx.unsqueeze(1))
@@ -562,11 +564,12 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # (batch_size, max_sentence_length, 1)                
             decision_logits = torch.cat([possible_targets, not_target], dim=-1 )
             # (batch_size, max_sentence_length, (nbr_distractors+2))
-            # Regularization to make those values actual probabilities...
-            #decision_logits = torch.softmax(decision_logits, dim=-1)
+            # NOW: Regularization to make those values actual log probabilities...
+            decision_logits = torch.log_softmax(decision_logits, dim=-1)
         
         return decision_logits, embedding_tf_final_outputs
         #NOMORE: If use_decision_head, decision_logits is actually the probabilities...
+        # NOW: actual logits:log_softmax...
 
 
     def _utter(self, features, sentences):
@@ -623,6 +626,36 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             allowed_vocab_size = self.vocab_size
 
         # Utter the next sentences:
+        """
+        wl_next_sentences_hidden_states, \
+        wl_next_sentences_widx, \
+        wl_next_sentences_logits, \
+        wl_next_sentences_one_hots = DifferentiableObverterAgent._compute_sentence(
+            features_embedding=self.embedding_tf_final_outputs,
+            target_idx=predicted_target_idx,
+            symbol_encoder=self.symbol_encoder,
+            symbol_processing=self.symbol_processing,
+            init_rnn_states=None, #self.rnn_states,
+            allowed_vocab_size=allowed_vocab_size,
+            vocab_size=self.vocab_size,
+            max_sentence_length=self.max_sentence_length,
+            nbr_distractors_po=nbr_distractors_po,
+            rnn_output_size=self.kwargs["symbol_processing_nbr_hidden_units"],
+            operation=operation,
+            force_eos=self.force_eos,
+            vocab_stop_idx=self.vocab_stop_idx,
+            use_obverter_threshold_to_stop_message_generation=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
+            use_stop_word=use_stop_word_in_compute_sentence,
+            _compute_tau=self._compute_tau,
+            not_target_logits_per_token=self.not_target_logits_per_token if self.use_learning_not_target_logit else None,
+            use_sentences_one_hot_vectors=self.use_sentences_one_hot_vectors,
+            training=self.training,
+            agent=self,
+            logger=self.logger,
+            whole_sentence=True)
+        """
+
+
         next_sentences_hidden_states, \
         next_sentences_widx, \
         next_sentences_logits, \
@@ -672,6 +705,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                           training=False,
                           agent=None,
                           logger=None):
+                          #whole_sentence=False):
         """
         Compute sentences using the obverter approach, adapted to referential game variants following the
         descriptive approach described in the work of [Choi et al., 2018](http://arxiv.org/abs/1804.02341).
@@ -732,7 +766,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             vocab_idx = torch.zeros((allowed_vocab_size,1)).long()
             # (allowed_vocab, 1)
             for i in range(allowed_vocab_size): vocab_idx[i] = i
-        if features_embedding.is_cuda: vocab_idx = vocab_idx.cuda()
+        
+        vocab_idx = vocab_idx.to(features_embedding.device)
 
         embedded_vocab = symbol_encoder(vocab_idx).view((allowed_vocab_size,1,-1))
         # Embedding: (batch_size=allowed_vocab_size, 1, kwargs['symbol_embedding_size'])
@@ -742,16 +777,22 @@ class DifferentiableObverterAgent(DiscriminativeListener):
         # (batch_size*allowed_vocab_size, 1, kwargs['symbol_embedding_size'])
         
         vocab_idx = vocab_idx.reshape((allowed_vocab_size,1,-1))
+        # (allowed_vocab_size, 1, vocab_size)
         vocab_idx = vocab_idx.unsqueeze(0).repeat((batch_size,1,1,1))
-        # (batch_size, allowed_vocab_size, 1, 1/ 10 if one_hot)
+        # (batch_size, allowed_vocab_size, 1, vocab_size)
         vocab_idx = vocab_idx.reshape((batch_size*allowed_vocab_size,-1))
-        # (batch_size*allowed_vocab_size, 1 / 10 if one_hot)
+        # (batch_size*allowed_vocab_size, vocab_size)
         
         sentences_hidden_states = list()
         sentences_widx = vocab_stop_idx*torch.ones((batch_size, max_sentence_length, 1)).to(features_embedding.device).long() #list()
         sentences_logits = torch.zeros((batch_size, max_sentence_length, vocab_size)).to(features_embedding.device) #list()
+        # PREVIOUSLY:
+        #sentences_one_hots = torch.zeros((batch_size, max_sentence_length, vocab_size)).to(features_embedding.device) #list()
+        # NOW: filling up the sentence with eos token:
         sentences_one_hots = torch.zeros((batch_size, max_sentence_length, vocab_size)).to(features_embedding.device) #list()
-        
+        # (batch_size, max_sentence_length, vocab_size)
+        sentences_one_hots[..., vocab_stop_idx] = 1.0
+
         bemb = features_embedding.reshape((batch_size, nbr_distractors_po, -1))
         # (batch_size, (nbr_distractors+1), cnn_encoder_feature_shape)
 
@@ -771,7 +812,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
         
         initial_token_logits = torch.zeros(batch_size, vocab_size)
         initial_full_vocab_rnn_outputs = torch.zeros(batch_size, vocab_size, symbol_processing_nbr_hidden_units)
-        
+        # (batch_size, vocab_size, hidden_size)
+
         # Generation can be stopped if the confidence is above a given threshold.
         # In that case, we record eos symbols at every following token position.
         mask_record_generation = torch.ones(batch_size,1).to(bemb.device)
@@ -787,18 +829,27 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 rnn_states = (hs, cs)
                 '''
                 rnn_states = states.repeat(1,allowed_vocab_size, 1)
+                # (1, batch_size*allowed_vocab_size, hidden_size)
             else :
                 rnn_states = states
 
             
             if inner_model:
                 if whole_sentence:
-                    sentences = sentences_widx.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1)
-                    # (batch_size, allowed_vocab_size, max_sentence_length, 1)
-                    sentences = sentences.reshape(batch_size*allowed_vocab_size, max_sentence_length, -1)
-                    # (batch_size*allowed_vocab_size, max_sentence_length, 1)
+                    if use_sentences_one_hot_vectors:
+                        sentences = sentences_one_hots.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1)
+                        # (batch_size, allowed_vocab_size, max_sentence_length, vocab_size)
+                        sentences = sentences.reshape(batch_size*allowed_vocab_size, max_sentence_length, -1)
+                        # (batch_size*allowed_vocab_size, max_sentence_length, vocab_size)
+                    else:
+                        sentences = sentences_widx.unsqueeze(1).repeat(1, allowed_vocab_size, 1, 1)
+                        # (batch_size, allowed_vocab_size, max_sentence_length, 1)
+                        sentences = sentences.reshape(batch_size*allowed_vocab_size, max_sentence_length, -1)
+                        # (batch_size*allowed_vocab_size, max_sentence_length, 1)
                     sentences[:,token_idx] = vocab_idx
                     # (batch_size*allowed_vocab_size, max_sentence_length, 1)
+                    # or (batch_size*allowed_vocab_size, max_sentence_length, vocab_size) if use_sentences_one_hot_vectors
+                    # vocab_idx is of the required shape.
                     kwargs = {"rnn_states":None}
                 else:
                     sentences = vocab_idx.unsqueeze(1)
@@ -809,7 +860,9 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 # (batch_size*allowed_vocab_size, max_sentence_length/1, nbr_distractors_po)
                 #NOMORE: Actually a probability:
                 #NOMORE: Output of Sigmoid if use_decision_head and nbr head outputs ==1, or softmax if nbr_head_outputs ===2...
+                # NOW: actual logits: log_softmax output
                 next_rnn_states = kwargs["next_rnn_states"]
+                # (1, batch_size*allowed_vocab_size, hidden_size)
                 rnn_outputs = kwargs["rnn_outputs"]
 
                 rnn_outputs = rnn_outputs.reshape(batch_size, allowed_vocab_size, -1, symbol_processing_nbr_hidden_units)
@@ -820,6 +873,8 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                     # (batch_size, allowed_vocab_size, symbol_processing_nbr_hidden_units)
                     decision_logits = decision_logits[:,token_idx]
                     # (batch_size*allowed_vocab_size, nbr_distractors_po)
+                    #NOW: next_rnn_states = rnn_outputs.unsqueeze(0)
+                    # (1, batch_size*allowed_vocab_size, hidden_size)                    
                 else:
                     # Selecting only the last element of the sequence, but technically it should be the only one:
                     rnn_outputs = rnn_outputs[:,:,-1,...]
@@ -828,14 +883,20 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                     # (batch_size*allowed_vocab_size, nbr_distractors_po)
 
                 decision_logits = decision_logits.reshape(batch_size, allowed_vocab_size, -1)
+                # NOW actual log softmax logit
                 # (batch_size, allowed_vocab_size, nbr_distractors_po)
             
             if use_decision_head or use_one_minus_max_prob:
                 #inner_model_output_probs = decision_logits.reshape(batch_size, allowed_vocab_size, -1)
-                inner_model_output_probs = decision_logits.reshape(batch_size, allowed_vocab_size, -1).softmax(dim=-1)
-                #decision_logits = torch.log(decision_logits)
-                # (batch_size, allowed_vocab_size, nbr_distractors_po )
+                
+                # PREVIOUSLY:
+                #inner_model_output_probs = decision_logits.reshape(batch_size, allowed_vocab_size, -1).softmax(dim=-1)
+                # NOW:
+                inner_model_output_probs = torch.exp(decision_logits.reshape(batch_size, allowed_vocab_size, -1))
+                
                 target_decision_logits = decision_logits.gather(index=btarget_idx, dim=-1).reshape((batch_size, allowed_vocab_size))
+                # (batch_size, allowed_vocab_size, )
+                target_decision_probs = inner_model_output_probs.gather(index=btarget_idx, dim=-1).reshape((batch_size, allowed_vocab_size))
                 # (batch_size, allowed_vocab_size, )
             
             # values for each token are now compared: 
@@ -845,6 +906,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             # (batch_size, allowed_vocab_size, )
             
             token_logits = reg_nan(target_decision_logits)
+            token_probs = reg_nan(target_decision_probs)
             if use_one_minus_max_prob:
                 # Log of probabilities of the token yielding the target stimulus.
                 # but they are not summing to one over all the tokens...
@@ -853,17 +915,23 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 token_dist = torch.distributions.Categorical(logits=token_logits)
             else:
                 token_dist = torch.distributions.Categorical(logits=token_logits)
+                #token_dist_with_probs = torch.distributions.Categorical(probs=token_probs)
             # (batch_size, vocab_size)
             
             if (not_always_argmax and agent.training) or always_categorical_sampling:
                 sampled_token = token_dist.sample().reshape(-1,1)
                 # (batch_size,1)
             else:
-                sampled_token = token_logits.argmax(dim=-1).reshape(-1,1)
+                # Previously:
+                #sampled_token = token_logits.argmax(dim=-1).reshape(-1,1)
+                # NOW: with probs, like in benbogin implem
+                sampled_token = token_probs.argmax(dim=-1).reshape(-1,1)
+                sampled_token_prob = token_probs.max(dim=-1)[0].reshape(-1,1)
                 # (batch_size,1)
 
             
             if allowed_vocab_size < vocab_size:
+                raise NotImplementedError
                 token_logits = initial_token_logits.to(target_decision_logits.device)
                 # (batch_size, vocab_size, )
                 token_logits[:, :allowed_vocab_size] = target_decision_logits
@@ -873,15 +941,23 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             
             if use_decision_head or use_one_minus_max_prob: 
                 # (batch_size, allowed_vocab_size, nbr_distractors_po )
+                # Previously:
+                """
                 token_probs = inner_model_output_probs.gather(index=btarget_idx, dim=-1).reshape((batch_size, allowed_vocab_size))
                 if torch.any(btarget_idx!=0):
-                    import ipdb; ipdb.set_trace()
-
+                   import ipdb; ipdb.set_trace()
+                
                 # (batch_size, allowed_vocab_size, )
                 sampled_token_prob = token_probs.gather(index=sampled_token.long(), dim=-1)
                 # (batch_size,1)
-                token_logits = token_probs.log()
-            
+                """
+                # NOW:
+                token_probs = sampled_token_prob
+                # (batch_size,1)
+                
+                token_logits = reg_nan(token_probs.log())
+                # (batch_size,1)
+                
             # Filter for batch element that are still being generated:
             # If we are no longer generating token for a given batch element, then we sample SoS token:
             masked_sampled_token = sampled_token*mask_record_generation + (1-mask_record_generation)*vocab_stop_idx
@@ -899,22 +975,31 @@ class DifferentiableObverterAgent(DiscriminativeListener):
                 num_classes=vocab_size).view((-1, vocab_size))
             # (batch_size, vocab_size)
             #sentences_one_hots.append(token_one_hot)
-            sentences_one_hots[:,token_idx] = token_one_hot
             # (batch_size, vocab_size)
+            sentences_one_hots[:,token_idx] = token_one_hot
+            # (batch_size, max_sentence_length, vocab_size)
             
             full_vocab_rnn_outputs = initial_full_vocab_rnn_outputs.to(token_logits.device)
+            # (batch_size, vocab_size, hidden_size)
             full_vocab_rnn_outputs[:,:allowed_vocab_size,...] = rnn_outputs.reshape((batch_size, allowed_vocab_size, -1))
+            # (batch_size, vocab_size, hidden_size)
             sentences_hidden_states.append(full_vocab_rnn_outputs)
-            
+            # (batch_size, vocab_size, hidden_size)
+        
 
             #Bookkeeping:
             ## next rnn_states:
             #states = [st[-1, sampled_token].view((1,1,-1)) for st in next_rnn_states]
 
             # Selecting over hidden_layer*directions: then reshaping:
-            states = next_rnn_states[-1].view((batch_size, allowed_vocab_size, -1))
+            #PREVIOUSLY, to handle whole setence: states = next_rnn_states[-1].reshape((batch_size, allowed_vocab_size, -1))
+            #NOW:  (1, batch_size*allowed_vocab_size, hidden_size)
+            states = next_rnn_states.reshape((batch_size, allowed_vocab_size, -1))
             # (batch_size, allowed_vocab_size, kwargs['symbol_processing_nbr_hidden_units'])
-            states = states.gather(index=sampled_token.unsqueeze(-1).repeat(1, 1, symbol_processing_nbr_hidden_units).long(), dim=1).view((1, batch_size, -1))
+            states = states.gather(
+                index=sampled_token.unsqueeze(-1).repeat(1, 1, symbol_processing_nbr_hidden_units).long(), 
+                dim=1
+            ).view((1, batch_size, -1))
             # (1, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
             
             ## Mask controlling whether we record the following token generated or not:
@@ -950,7 +1035,7 @@ class DifferentiableObverterAgent(DiscriminativeListener):
             sentences_hidden_states.append(torch.zeros_like(sentences_hidden_states[-1]))
 
         sentences_hidden_states = torch.stack(sentences_hidden_states, dim=1)
-        # (batch_size, max_sentence_length, kwargs['symbol_preprocessing_nbr_hidden_units'])
+        # (batch_size, max_sentence_length, vocab_size, kwargs['symbol_preprocessing_nbr_hidden_units'])
         
         #sentences_one_hots = torch.stack(sentences_one_hots, dim=1)
         # (batch_size, max_sentence_length, vocab_size)

@@ -29,3 +29,4 @@ from .dsprites_per_latent_accuracy_metric_module import build_dSpritesPerLatentA
 from .confusion_matrix_metric_module import build_ConfusionMatrixMetricModule, ConfusionMatrixMetricModule
 
 from .vocabulary_grounding_loss_module import build_VocabularyGroundingLossModule, VocabularyGroundingLossModule 
+from .obverter_datasampling_module import ObverterDatasamplingModule 

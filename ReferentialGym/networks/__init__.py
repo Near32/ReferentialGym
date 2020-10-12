@@ -26,6 +26,7 @@ def choose_architecture( architecture,
                          strides=None, 
                          paddings=None,
                          dropout=0.0,
+                         non_linearities=[nn.ReLU],
                          MHDPANbrHead=4,
                          MHDPANbrRecUpdate=1,
                          MHDPANbrMLPUnit=512,
@@ -80,7 +81,8 @@ def choose_architecture( architecture,
                                          paddings=paddings,
                                          fc_hidden_units=fc_hidden_units_list,
                                          use_coordconv=use_coordconv,
-                                         dropout=dropout)
+                                         dropout=dropout,
+                                         non_linearities=non_linearities)
     elif 'DCNN' in architecture:
         use_coordconv = None
         if 'coord2' in architecture.lower():

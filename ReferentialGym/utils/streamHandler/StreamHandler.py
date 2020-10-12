@@ -57,7 +57,7 @@ class StreamHandler(object):
             module_input_stream_dict = self._serve_module(module)    
             module_output_stream_dict = module.compute(input_streams_dict=module_input_stream_dict)
             for stream_id, stream_data in module_output_stream_dict.items():
-                if "globals:" in stream_id:
+                if ":" in stream_id:
                     self.update(stream_id, stream_data)
                 else:
                     self.update(f"modules:{module_id}:{stream_id}", stream_data)

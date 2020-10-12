@@ -217,6 +217,8 @@ class ReferentialGame(object):
         if logger is not None:
             self.stream_handler.update("modules:logger:ref", logger)
         
+        self.stream_handler.update("signals:use_cuda", self.config['use_cuda'])
+        
         init_epoch = self.stream_handler["signals:epoch"]
         if init_epoch is None: 
             init_epoch = 0

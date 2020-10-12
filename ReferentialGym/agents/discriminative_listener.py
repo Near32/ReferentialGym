@@ -89,6 +89,7 @@ def discriminative_st_gs_referential_game_loss(agent,
     
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:
+            """
             # Then nbr_descriptors_po = nbr_descriptor+1 (target) +1 (not_target output)  
             if nbr_distractors_po > 1: 
                 decision_logits = F.log_softmax( final_decision_logits, dim=-1)
@@ -109,6 +110,16 @@ def discriminative_st_gs_referential_game_loss(agent,
                 #decision_logits = decision_logits[:,-1,...]
                 loss = criterion( decision_logits, sample["target_decision_idx"])
                 # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
+            """
+            decision_logits = final_decision_logits
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )            
+            criterion = nn.NLLLoss(reduction="none")
+            
+            #decision_logits = decision_logits[:,-1,...]
+            loss = criterion( decision_logits, sample["target_decision_idx"])
+            # (batch_size, )
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
         else:   
@@ -135,15 +146,15 @@ def discriminative_st_gs_referential_game_loss(agent,
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        if "obverter" in config["graphtype"]:
-            decision_probs = final_decision_logits
-            final_decision_logits = F.log_softmax(final_decision_logits, dim=-1)
-        else:
-            decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
+        decision_logits = final_decision_logits
+        decision_probs = decision_logits.exp()
+        #decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
         
-        loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
-                                              target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
-                                              multi_round=input_streams_dict["multi_round"])
+        loss, _ = havrylov_hinge_learning_signal(
+            decision_logits=decision_logits,
+            target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
+            multi_round=input_streams_dict["multi_round"]
+        )
         # (batch_size, )
         
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    

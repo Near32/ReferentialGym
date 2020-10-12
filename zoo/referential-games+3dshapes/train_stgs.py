@@ -18,6 +18,7 @@ def main():
   parser = argparse.ArgumentParser(description="STGS Agents: Language Emergence on 3DShapesPyBullet Dataset.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
+  parser.add_argument("--use_obverter_sampling", action="store_true", default=False)
   parser.add_argument("--verbose", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--force_eos", action="store_true", default=False)
@@ -32,7 +33,7 @@ def main():
              ], 
     help="dataset to train on.",
     default="3DShapesPyBullet")
-  parser.add_argument('--nb_3dshapespybullet_shapes', type=float, default=5)
+  parser.add_argument('--nb_3dshapespybullet_shapes', type=int, default=5)
   parser.add_argument('--nb_3dshapespybullet_colors', type=int, default=8)
   parser.add_argument('--nb_3dshapespybullet_train_colors', type=int, default=6)
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
@@ -65,7 +66,7 @@ def main():
     help="type of graph to use during training of the speaker and listener.",
     default="straight_through_gumbel_softmax")
   parser.add_argument("--max_sentence_length", type=int, default=20)
-  parser.add_argument("--vocab_size", type=int, default=100)#5)
+  parser.add_argument("--vocab_size", type=int, default=5)
   parser.add_argument("--optimizer_type", type=str, 
     choices=[
       "adam",
@@ -109,7 +110,7 @@ def main():
   parser.add_argument("--use_curriculum_nbr_distractors", action="store_true", default=False)
   parser.add_argument("--use_feat_converter", action="store_true", default=False)
   parser.add_argument("--descriptive", action="store_true", default=False)
-  parser.add_argument("--descriptive_ratio", type=float, default=0.5)
+  parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", action="store_true", default=False)
   parser.add_argument("--egocentric", action="store_true", default=False)
   parser.add_argument("--egocentric_tr_degrees", type=int, default=12) #25)
@@ -473,6 +474,7 @@ def main():
     agent_config["cnn_encoder_kernels"] = [3,3,3,3,3]
     agent_config["cnn_encoder_strides"] = [2,2,2,2,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -504,6 +506,7 @@ def main():
     agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3,3]
     agent_config["cnn_encoder_strides"] = [2,1,1,2,1,2,1,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -546,6 +549,7 @@ def main():
       agent_config["cnn_encoder_kernels"] = [4,4,4,4]
     agent_config["cnn_encoder_strides"] = [2,2,2,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -584,7 +588,7 @@ def main():
     nb_train_colors = args.nb_3dshapespybullet_train_colors
     train_split_strategy = f'compositional-40-nb_train_colors_{nb_train_colors}' 
     test_split_strategy = train_split_strategy
-    
+
     root = './datasets/3DShapePyBullet-dataset'
     root += f'imgS{img_size}-shapes{nb_shapes}-colors{nb_colors}-samples{nb_samples}'
     save_path_dataset = f'3DShapePyBullet-dataset-imgS{img_size}-shapes{nb_shapes}-colors{nb_colors}-samples{nb_samples}'
@@ -594,6 +598,10 @@ def main():
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   save_path += f"{args.dataset}+DualLabeled/"
+  
+  if args.use_obverter_sampling:
+    save_path += "WithObverterSampling/"
+
   if args.egocentric:
     save_path += f"Egocentric-Rot{args.egocentric_tr_degrees}-XY{args.egocentric_tr_xy}/"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
@@ -706,8 +714,8 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  from ReferentialGym.agents import DifferentiableObverterAgent
-  #from ReferentialGym.agents.halfdepr_differentiable_obverter_agent import DifferentiableObverterAgent
+  #from ReferentialGym.agents import DifferentiableObverterAgent
+  from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
   #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
   
   """
@@ -715,15 +723,28 @@ def main():
   python -m ipdb -c c train.py --parent_folder /home/kevin/debugging_RG/DeprBaseline+EntrNoLogSM+CategoricalTrainingSampling+DilatedCategoricalLogits1e0+LogSMoverDandVX1e0+StopPadding-ZerosLogitPad/
   """   
   
-  from ReferentialGym.agents import LSTMCNNSpeaker
-  speaker = LSTMCNNSpeaker(
-    kwargs=agent_config, 
-    obs_shape=obs_shape, 
-    vocab_size=vocab_size, 
-    max_sentence_length=max_sentence_length,
-    agent_id='s0',
-    logger=logger
-  )
+  if 'obverter' in args.graphtype:
+    speaker = DifferentiableObverterAgent(
+      kwargs=agent_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='s0',
+      logger=logger,
+      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      use_decision_head_=args.obverter_use_decision_head,
+      differentiable=args.differentiable
+    )
+  elif 'Baseline' in args.agent_type:
+    from ReferentialGym.agents import LSTMCNNSpeaker
+    speaker = LSTMCNNSpeaker(
+      kwargs=agent_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='s0',
+      logger=logger
+    )
   print("Speaker:", speaker)
 
   listener_config = copy.deepcopy(agent_config)
@@ -737,15 +758,28 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
-  from ReferentialGym.agents import LSTMCNNListener
-  listener = LSTMCNNListener(
-    kwargs=listener_config, 
-    obs_shape=obs_shape, 
-    vocab_size=vocab_size, 
-    max_sentence_length=max_sentence_length,
-    agent_id='l0',
-    logger=logger
-  )
+  if 'obverter' in args.graphtype:
+    listener = DifferentiableObverterAgent(
+      kwargs=listener_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='l0',
+      logger=logger,
+      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+      use_decision_head_=args.obverter_use_decision_head,
+      differentiable=args.differentiable
+    )
+  else:
+    from ReferentialGym.agents import LSTMCNNListener
+    listener = LSTMCNNListener(
+      kwargs=listener_config, 
+      obs_shape=obs_shape, 
+      vocab_size=vocab_size, 
+      max_sentence_length=max_sentence_length,
+      agent_id='l0',
+      logger=logger
+    )
   print("Listener:", listener)
 
   # # Dataset:
@@ -787,6 +821,11 @@ def main():
 
   from ReferentialGym import modules as rg_modules
 
+  # Sampler:
+  if args.use_obverter_sampling:
+    obverter_sampling_id = "obverter_sampling_0"
+    obverter_sampling_config = {"batch_size": rg_config["batch_size"]}
+
   # Population:
   population_handler_id = "population_handler_0"
   population_handler_config = copy.deepcopy(rg_config)
@@ -805,6 +844,9 @@ def main():
   # Current Listener:
   current_listener_id = "current_listener"
 
+  if args.use_obverter_sampling:
+    modules[obverter_sampling_id] = rg_modules.ObverterDatasamplingModule(id=obverter_sampling_id,config=obverter_sampling_config)
+  
   modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
       id=population_handler_id,
       prototype_speaker=speaker,
@@ -931,7 +973,12 @@ def main():
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
 
-  pipelines["referential_game"] = [
+  if args.use_obverter_sampling:
+    pipelines["referential_game"] = [obverter_sampling_id]
+  else:
+    pipelines["referential_game"] = []
+
+  pipelines["referential_game"] += [
     population_handler_id,
     current_speaker_id,
     current_listener_id

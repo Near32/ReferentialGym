@@ -42,6 +42,20 @@ class DualLabeledDataset(Dataset):
 
         self.nbr_classes = len(self.test_classes.keys())
     
+    def _get_class_from_idx(self, idx):
+        dataset = self.datasets['train']
+        sampling_idx = idx 
+        if sampling_idx>=len(dataset):
+            dataset = self.datasets['test']
+            sampling_idx -= len(self.datasets['train'])
+
+        if hasattr(dataset, 'getclass'):
+            cl = dataset.getclass(sampling_idx)
+        else :
+            _, cl = dataset[sampling_idx]
+        
+        return cl 
+
     def set_mode(self, newmode='train'):
         self.mode = newmode
 
@@ -93,8 +107,15 @@ class DualLabeledDataset(Dataset):
         not_enough_elements = False
         while test:
             if from_class is None or not_enough_elements:
-                from_class = list(classes.keys())
-                
+                from_class = set(classes.keys())
+            
+            # If object_centric, then make sure the distractors
+            # are not sampled from the target's class:
+            if idx is not None and self.kwargs['object_centric']:
+                class_of_idx = self._get_class_from_idx(idx)
+                if class_of_idx in from_class:
+                    from_class.remove(class_of_idx)
+
             set_indices = set()
             for class_idx in from_class:
                 set_indices = set_indices.union(set(classes[class_idx]))
@@ -111,12 +132,8 @@ class DualLabeledDataset(Dataset):
 
             if idx is not None and not target_only:
                 # i.e. if we are not trying to resample the target stimulus...
-                try:
+                if idx in set_indices:
                     set_indices.remove(idx)
-                except Exception as e:
-                    print("Exception caught during removal of the target index:")
-                    print(e)
-                    import ipdb; ipdb.set_trace()
                 indices.append(idx)
             else:
                 # i.e. if we are only sampling the target stimulus:

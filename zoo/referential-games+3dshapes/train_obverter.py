@@ -18,6 +18,7 @@ def main():
   parser = argparse.ArgumentParser(description="Obverter Agents: Language Emergence on 3DShapesPyBullet Dataset.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
+  parser.add_argument("--use_obverter_sampling", action="store_true", default=False)
   parser.add_argument("--verbose", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--force_eos", action="store_true", default=False)
@@ -473,6 +474,7 @@ def main():
     agent_config["cnn_encoder_kernels"] = [3,3,3,3,3]
     agent_config["cnn_encoder_strides"] = [2,2,2,2,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -504,6 +506,7 @@ def main():
     agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3,3]
     agent_config["cnn_encoder_strides"] = [2,1,1,2,1,2,1,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -546,6 +549,7 @@ def main():
       agent_config["cnn_encoder_kernels"] = [4,4,4,4]
     agent_config["cnn_encoder_strides"] = [2,2,2,2]
     agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
@@ -594,6 +598,10 @@ def main():
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   save_path += f"{args.dataset}+DualLabeled/"
+  
+  if args.use_obverter_sampling:
+    save_path += "WithObverterSampling/"
+
   if args.egocentric:
     save_path += f"Egocentric-Rot{args.egocentric_tr_degrees}-XY{args.egocentric_tr_xy}/"
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"
@@ -813,6 +821,11 @@ def main():
 
   from ReferentialGym import modules as rg_modules
 
+  # Sampler:
+  if args.use_obverter_sampling:
+    obverter_sampling_id = "obverter_sampling_0"
+    obverter_sampling_config = {"batch_size": rg_config["batch_size"]}
+
   # Population:
   population_handler_id = "population_handler_0"
   population_handler_config = copy.deepcopy(rg_config)
@@ -831,6 +844,9 @@ def main():
   # Current Listener:
   current_listener_id = "current_listener"
 
+  if args.use_obverter_sampling:
+    modules[obverter_sampling_id] = rg_modules.ObverterDatasamplingModule(id=obverter_sampling_id,config=obverter_sampling_config)
+  
   modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
       id=population_handler_id,
       prototype_speaker=speaker,
@@ -957,7 +973,12 @@ def main():
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
 
-  pipelines["referential_game"] = [
+  if args.use_obverter_sampling:
+    pipelines["referential_game"] = [obverter_sampling_id]
+  else:
+    pipelines["referential_game"] = []
+
+  pipelines["referential_game"] += [
     population_handler_id,
     current_speaker_id,
     current_listener_id

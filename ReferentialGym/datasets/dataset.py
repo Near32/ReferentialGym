@@ -66,10 +66,8 @@ class Dataset(torchDataset):
         If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
         If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
         :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
-                            to identifies classes to sample from.
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
-        :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
-                            to identifies classes to not sample from.
+        :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
         :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
 
         :returns:
@@ -152,7 +150,12 @@ class Dataset(torchDataset):
                 
         # Object-Centric or Stimulus-Centric?
         if retain_target and self.kwargs['object_centric']:
-            new_target_for_listener_sample_d = self.sample(idx=None, from_class=[exp_labels[0]], target_only=True)
+            new_target_for_listener_sample_d = self.sample(
+                idx=None, 
+                from_class=[exp_labels[0]],
+                excepts=[idx],  # Make sure to not sample the actual target!
+                target_only=True
+            )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
                 if not(isinstance(v, torch.Tensor)):    

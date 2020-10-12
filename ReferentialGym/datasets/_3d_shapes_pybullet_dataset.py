@@ -792,6 +792,26 @@ class _3DShapesPyBulletDataset(Dataset) :
         """
 
         #self._generate_all()
+        self.same_color_indices = {}
+        self.same_shape_indices = {}
+        self.latents_to_possible_indices = {}
+        for idx, trueidx in enumerate(self.indices):
+            latents = self.getlatentclass(idx)
+            # color, shape, sample
+            color_id = latents[0]
+            shape_id = latents[1]
+            if color_id not in self.same_color_indices:
+                self.same_color_indices[color_id] = []
+            self.same_color_indices[color_id].append(idx)
+            if shape_id not in self.same_shape_indices:
+                self.same_shape_indices[shape_id] = []
+            self.same_shape_indices[shape_id].append(idx)
+            
+            if color_id not in self.latents_to_possible_indices:
+                self.latents_to_possible_indices[color_id] = {}
+            if shape_id not in self.latents_to_possible_indices[color_id]:
+                self.latents_to_possible_indices[color_id][shape_id] = []
+            self.latents_to_possible_indices[color_id][shape_id].append(idx)
 
         print('Dataset loaded : OK.')
     
@@ -882,31 +902,36 @@ class _3DShapesPyBulletDataset(Dataset) :
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        target = self.targets[idx]
+        trueidx = self.indices[idx]
+        target = self.targets[trueidx]
         return target
 
     def getlatentvalue(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        latent_value = self.latents_values[idx]
+        trueidx = self.indices[idx]
+        latent_value = self.latents_values[trueidx]
         return latent_value
 
     def getlatentclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        latent_class = self.latents_classes[idx]
+        trueidx = self.indices[idx]
+        latent_class = self.latents_classes[trueidx]
         return latent_class
 
     def getlatentonehot(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        latent_one_hot = self.latents_one_hot[idx]
+        trueidx = self.indices[idx]
+        latent_one_hot = self.latents_one_hot[trueidx]
         return latent_one_hot
 
     def gettestlatentmask(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        test_latents_mask = self.test_latents_mask[idx]
+        trueidx = self.indices[idx]
+        test_latents_mask = self.test_latents_mask[trueidx]
         return test_latents_mask
 
     def __getitem__(self, idx):
@@ -922,16 +947,16 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         trueidx = self.indices[idx]
 
-        latent_value = torch.from_numpy(self.getlatentvalue(trueidx))
-        latent_class = torch.from_numpy(self.getlatentclass(trueidx))
-        latent_one_hot = torch.from_numpy(self.getlatentonehot(trueidx))
-        test_latents_mask = torch.from_numpy(self.gettestlatentmask(trueidx))
+        latent_value = torch.from_numpy(self.getlatentvalue(idx))
+        latent_class = torch.from_numpy(self.getlatentclass(idx))
+        latent_one_hot = torch.from_numpy(self.getlatentonehot(idx))
+        test_latents_mask = torch.from_numpy(self.gettestlatentmask(idx))
 
         if trueidx not in self.imgs:    
             self._generate_datapoint(idx=trueidx)
 
         img = self.imgs[trueidx]
-        target = self.getclass(trueidx)
+        target = self.getclass(idx)
                 
         #img = (img*255).astype('uint8').transpose((2,1,0))
         img = img.transpose((2,1,0))

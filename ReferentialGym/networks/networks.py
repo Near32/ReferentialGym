@@ -447,7 +447,7 @@ class ConvolutionalBody(nn.Module):
                  paddings=[0], 
                  fc_hidden_units=None,
                  dropout=0.0, 
-                 non_linearities=[nn.LeakyReLU],
+                 non_linearities=[nn.ReLU],
                  use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).

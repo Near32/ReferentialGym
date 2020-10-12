@@ -1,4 +1,4 @@
-from .dataset import Dataset
+from .dataset import Dataset, shuffle
 from .dict_dataset_wrapper import DictDatasetWrapper 
 from .labeled_dataset import LabeledDataset
 from .dual_labeled_dataset import DualLabeledDataset
