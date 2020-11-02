@@ -618,7 +618,7 @@ def main():
     save_path += f"/dSprites{train_test_strategy}"
   elif '3DShapesPyBullet' in args.dataset: 
     train_test_strategy = f"-{train_split_strategy}"
-    save_path += save_path_dataset
+    save_path += save_path_dataset+train_test_strategy
   
   save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']}C-Rep{rg_config['nbr_experience_repetition']}"
   

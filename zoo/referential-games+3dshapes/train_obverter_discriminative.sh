@@ -1,5 +1,5 @@
 python train_obverter.py \
---parent_folder ./Obverter/ReLU/HardObjectCentric/\
+--parent_folder ./Obverter/Sytematicity/ReLU/HardObjectCentric/\
 Tau1e0+DecisionHeads2+Normalize+InnerModelGen+OneMinusMaxProb+StopPadding+WholeSentence\
 +StabEps1m8+ScaleNL0+AlwaysArgmax\
 /SymbolEmb64+GRU64+CNN256+Decision128/ \
@@ -15,7 +15,7 @@ Tau1e0+DecisionHeads2+Normalize+InnerModelGen+OneMinusMaxProb+StopPadding+WholeS
 --agent_loss_type NLL \
 --metric_epoch_period 200 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 8 \
---nb_3dshapespybullet_samples 100 --nb_3dshapespybullet_train_colors 7 \
+--nb_3dshapespybullet_samples 100 --nb_3dshapespybullet_train_colors $6 \
 --lr 6e-4 &
 
 #--metric_fast

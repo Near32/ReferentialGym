@@ -1,5 +1,5 @@
 python train_stgs.py \
---parent_folder ./STGS/LogSM/ReLU/HardObjectCentric/\
+--parent_folder ./STGS-run2/LogSM/ReLU/HardObjectCentric/\
 /SymbolEmb64+GRU64+CNN256+Decision128/ \
 --use_cuda --seed $1 \
 --obverter_nbr_games_per_round 20 --obverter_threshold_to_stop_message_generation 0.95 \
