@@ -742,6 +742,7 @@ def main():
   # Population:
   population_handler_id = "population_handler_0"
   population_handler_config = rg_config
+  population_handler_config["verbose"] = False
   population_handler_stream_ids = {
     "current_speaker_streams_dict":"modules:current_speaker",
     "current_listener_streams_dict":"modules:current_listener",
