@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferentialGym.utils package &#8212; ReferentialGym  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ReferentialGym.utils.statsLogger package" href="ReferentialGym.utils.statsLogger.html" />
+    <link rel="prev" title="ReferentialGym.networks package" href="ReferentialGym.networks.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.statsLogger.html" title="ReferentialGym.utils.statsLogger package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.networks.html" title="ReferentialGym.networks package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" accesskey="U">ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="referentialgym-utils-package">
+<h1>ReferentialGym.utils package<a class="headerlink" href="#referentialgym-utils-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="ReferentialGym.utils.statsLogger.html">ReferentialGym.utils.statsLogger package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.statsLogger.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.statsLogger.html#module-ReferentialGym.utils.statsLogger.statsLogger">ReferentialGym.utils.statsLogger.statsLogger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.statsLogger.html#module-ReferentialGym.utils.statsLogger">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ReferentialGym.utils.streamHandler.html">ReferentialGym.utils.streamHandler package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.streamHandler.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.streamHandler.html#module-ReferentialGym.utils.streamHandler.StreamHandler">ReferentialGym.utils.streamHandler.StreamHandler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ReferentialGym.utils.streamHandler.html#module-ReferentialGym.utils.streamHandler">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.utils.utils">
+<span id="referentialgym-utils-utils-module"></span><h2>ReferentialGym.utils.utils module<a class="headerlink" href="#module-ReferentialGym.utils.utils" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.gumbel_softmax">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">gumbel_softmax</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">logits</span></em>, <em class="sig-param"><span class="n">tau</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">hard</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">eps</span><span class="o">=</span><span class="default_value">1e-10</span></em>, <em class="sig-param"><span class="n">dim</span><span class="o">=</span><span class="default_value">- 1</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.gumbel_softmax" title="Permalink to this definition">¶</a></dt>
+<dd><p>Samples from the <a class="reference external" href="https://arxiv.org/abs/1611.00712https://arxiv.org/abs/1611.01144">Gumbel-Softmax distribution</a> and optionally discretizes.</p>
+<dl>
+<dt>Args:</dt><dd><p>logits: <cite>[…, num_features]</cite> unnormalized log probabilities
+tau: non-negative scalar temperature
+hard: if <code class="docutils literal notranslate"><span class="pre">True</span></code>, the returned samples will be discretized as one-hot vectors,</p>
+<blockquote>
+<div><p>but will be differentiated as if it is the soft sample in autograd</p>
+</div></blockquote>
+<p>dim (int): A dimension along which softmax will be computed. Default: -1.</p>
+</dd>
+<dt>Returns:</dt><dd><p>Sampled tensor of same shape as <cite>logits</cite> from the Gumbel-Softmax distribution.
+If <code class="docutils literal notranslate"><span class="pre">hard=True</span></code>, the returned samples will be one-hot, otherwise they will
+be probability distributions that sum to 1 across <cite>dim</cite>.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The main trick for <cite>hard</cite> is to do  <cite>y_hard - y_soft.detach() + y_soft</cite></p>
+<p>It achieves two things:
+- makes the output value exactly one-hot
+(since we add then subtract y_soft value)
+- makes the gradient equal to y_soft gradient
+(since we strip all other gradients)</p>
+</div>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.utils.utils.StraightThroughGumbelSoftmaxLayer">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">StraightThroughGumbelSoftmaxLayer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_dim</span></em>, <em class="sig-param"><span class="n">inv_tau0</span><span class="o">=</span><span class="default_value">0.5</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.StraightThroughGumbelSoftmaxLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.utils.utils.StraightThroughGumbelSoftmaxLayer.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">logits</span></em>, <em class="sig-param"><span class="n">param</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.StraightThroughGumbelSoftmaxLayer.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.cardinality">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">cardinality</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.cardinality" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.compute_levenshtein_distance">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">compute_levenshtein_distance</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">s1</span></em>, <em class="sig-param"><span class="n">s2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.compute_levenshtein_distance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.compute_cosine_sim">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">compute_cosine_sim</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">v1</span></em>, <em class="sig-param"><span class="n">v2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.compute_cosine_sim" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.compute_levenshtein_distance_for_idx_over_comprange">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">compute_levenshtein_distance_for_idx_over_comprange</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">idx</span></em>, <em class="sig-param"><span class="n">comprange</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.compute_levenshtein_distance_for_idx_over_comprange" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.compute_cosine_sim_for_idx_over_comprange">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">compute_cosine_sim_for_idx_over_comprange</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">idx</span></em>, <em class="sig-param"><span class="n">comprange</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.compute_cosine_sim_for_idx_over_comprange" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.compute_topographic_similarity_parallel">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">compute_topographic_similarity_parallel</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">comprange</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_workers</span><span class="o">=</span><span class="default_value">32</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.compute_topographic_similarity_parallel" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.utils.utils.query_vae_latent_space">
+<code class="sig-prename descclassname">ReferentialGym.utils.utils.</code><code class="sig-name descname">query_vae_latent_space</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">omodel</span></em>, <em class="sig-param"><span class="n">sample</span></em>, <em class="sig-param"><span class="n">path</span></em>, <em class="sig-param"><span class="n">test</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">full</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">idxoffset</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">suffix</span><span class="o">=</span><span class="default_value">''</span></em>, <em class="sig-param"><span class="n">use_cuda</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.utils.utils.query_vae_latent_space" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.utils">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-ReferentialGym.utils" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">ReferentialGym.utils package</a><ul>
+<li><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.utils.utils">ReferentialGym.utils.utils module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.utils">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="ReferentialGym.networks.html"
+                        title="previous chapter">ReferentialGym.networks package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="ReferentialGym.utils.statsLogger.html"
+                        title="next chapter">ReferentialGym.utils.statsLogger package</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/ReferentialGym.utils.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.utils.statsLogger.html" title="ReferentialGym.utils.statsLogger package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.networks.html" title="ReferentialGym.networks package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Kevin Denamganaï.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 3.0.4.
+    </div>
+  </body>
+</html>

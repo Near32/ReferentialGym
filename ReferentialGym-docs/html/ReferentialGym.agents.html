@@ -1,0 +1,1865 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferentialGym.agents package &#8212; ReferentialGym  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ReferentialGym.datasets package" href="ReferentialGym.datasets.html" />
+    <link rel="prev" title="ReferentialGym package" href="ReferentialGym.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.datasets.html" title="ReferentialGym.datasets package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.html" title="ReferentialGym package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" accesskey="U">ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="referentialgym-agents-package">
+<h1>ReferentialGym.agents package<a class="headerlink" href="#referentialgym-agents-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.agents.agent">
+<span id="referentialgym-agents-agent-module"></span><h2>ReferentialGym.agents.agent module<a class="headerlink" href="#module-ReferentialGym.agents.agent" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.agent.vae_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.agent.</code><code class="sig-name descname">vae_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.vae_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.agent.maxl1_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.agent.</code><code class="sig-name descname">maxl1_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.maxl1_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.agent.Agent">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.agent.</code><code class="sig-name descname">Agent</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">obs_shape</span><span class="o">=</span><span class="default_value">[1, 1, 1, 32, 32]</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">kwargs</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">role</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="ReferentialGym.modules.html#ReferentialGym.modules.module.Module" title="ReferentialGym.modules.module.Module"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.modules.module.Module</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.get_input_stream_keys">
+<code class="sig-name descname">get_input_stream_keys</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.get_input_stream_keys" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.get_input_stream_ids">
+<code class="sig-name descname">get_input_stream_ids</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.get_input_stream_ids" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.clone">
+<code class="sig-name descname">clone</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">clone_id</span><span class="o">=</span><span class="default_value">'a0'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.clone" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.save">
+<code class="sig-name descname">save</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">path</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.save" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent._log">
+<code class="sig-name descname">_log</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">log_dict</span></em>, <em class="sig-param"><span class="n">batch_size</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent._log" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.register_hook">
+<code class="sig-name descname">register_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">hook</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.register_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">graphtype</span><span class="o">=</span><span class="default_value">'straight_through_gumbel_softmax'</span></em>, <em class="sig-param"><span class="n">tau0</span><span class="o">=</span><span class="default_value">0.2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.forward" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>multi_round</strong> – Boolean defining whether to utter a sentence back or not.</p></li>
+<li><p><strong>graphtype</strong> – String defining the type of symbols used in the output sentence:
+- <cite>‘categorical’</cite>: one-hot-encoded symbols.
+- <cite>‘gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.
+- <cite>‘straight_through_gumbel_softmax’</cite>: improved continuous relaxation…
+- <cite>‘obverter’</cite>: obverter training scheme…</p></li>
+<li><p><strong>tau0</strong> – Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.agent.Agent.compute">
+<code class="sig-name descname">compute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">input_streams_dict</span><span class="p">:</span> <span class="n">Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.agents.agent.Agent.compute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the losses and return them along with the produced outputs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>input_streams_dict</strong> – <p>Dict that should contain, at least, the following keys and values:
+- <cite>‘sentences_logits’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits over symbols.
+- <cite>‘sentences_widx’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> containing the padded sequence of symbols’ indices.
+- <cite>‘sentences_one_hot’</cite>: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.
+- <cite>‘experiences’</cite>: Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+- <cite>‘exp_latents’</cite>: Tensor of shape <cite>(batch_size, nbr_latent_dimensions)</cite>.
+- <cite>‘multi_round’</cite>: Boolean defining whether to utter a sentence back or not.
+- <cite>‘graphtype’</cite>: String defining the type of symbols used in the output sentence:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>’categorical’</cite>: one-hot-encoded symbols.</p></li>
+<li><p><cite>’gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.</p></li>
+<li><p><cite>’straight_through_gumbel_softmax’</cite>: improved continuous relaxation…</p></li>
+<li><p><cite>’obverter’</cite>: obverter training scheme…</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><cite>’tau0’</cite>: Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+<li><p><cite>’sample’</cite>: Dict that contains the speaker and listener experiences as well as the target index.</p></li>
+<li><p><cite>’config’</cite>: Dict of hyperparameters to the referential game.</p></li>
+<li><p><cite>’mode’</cite>: String that defines what mode we are in, e.g. ‘train’ or ‘test’. Those keywords are expected.</p></li>
+<li><p><cite>’it’</cite>: Integer specifying the iteration number of the current function call.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.attention_lstm_cnn_listener">
+<span id="referentialgym-agents-attention-lstm-cnn-listener-module"></span><h2>ReferentialGym.agents.attention_lstm_cnn_listener module<a class="headerlink" href="#module-ReferentialGym.agents.attention_lstm_cnn_listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.attention_lstm_cnn_listener.</code><code class="sig-name descname">AttentionLSTMCNNListener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd><p>invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+return invtau</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the stimuli so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id1"><span class="problematic" id="id2">`</span></a>(batch_size, -1, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> 
+containing the padded sequence of (potentially one-hot-encoded) symbols.
+NOTE: max_sentence_length may be different from self.max_sentence_lenght 
+as the padding is padding by batch and only care about the maximal 
+sentence length of said batch.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.attention_lstm_cnn_listener.AttentionLSTMCNNListener._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.caption_speaker">
+<span id="referentialgym-agents-caption-speaker-module"></span><h2>ReferentialGym.agents.caption_speaker module<a class="headerlink" href="#module-ReferentialGym.agents.caption_speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.caption_speaker.CaptionSpeaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.caption_speaker.</code><code class="sig-name descname">CaptionSpeaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.caption_speaker.CaptionSpeaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.speaker.Speaker" title="ReferentialGym.agents.speaker.Speaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.speaker.Speaker</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.caption_speaker.CaptionSpeaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.caption_speaker.CaptionSpeaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.caption_speaker.CaptionSpeaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.caption_speaker.CaptionSpeaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.caption_speaker.CaptionSpeaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">stimuli</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.caption_speaker.CaptionSpeaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the stimuli that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>stimuli</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+<cite>stimuli[:, 0]</cite> is assumed as the target stimulus, while the others are distractors, if any.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id3"><span class="problematic" id="id4">`</span></a>(batch_size, <a href="#id5"><span class="problematic" id="id6">*</span></a>(self.obs_shape[:2]), feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.caption_speaker.CaptionSpeaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.caption_speaker.CaptionSpeaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.categorical_obverter_agent">
+<span id="referentialgym-agents-categorical-obverter-agent-module"></span><h2>ReferentialGym.agents.categorical_obverter_agent module<a class="headerlink" href="#module-ReferentialGym.agents.categorical_obverter_agent" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.categorical_obverter_agent.</code><code class="sig-name descname">CategoricalObverterAgent</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'o0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.listener.Listener" title="ReferentialGym.agents.listener.Listener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.listener.Listener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id7"><span class="problematic" id="id8">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._compute_sentence">
+<code class="sig-name descname">_compute_sentence</code><span class="sig-paren">(</span><em class="sig-param">target_idx</em>, <em class="sig-param">symbol_encoder</em>, <em class="sig-param">symbol_processing</em>, <em class="sig-param">symbol_decoder</em>, <em class="sig-param">decision_decoder</em>, <em class="sig-param">init_rnn_states=None</em>, <em class="sig-param">vocab_size=10</em>, <em class="sig-param">max_sentence_length=14</em>, <em class="sig-param">nbr_distractors_po=1</em>, <em class="sig-param">operation=&lt;built-in method max of type object&gt;</em>, <em class="sig-param">vocab_stop_idx=0</em>, <em class="sig-param">use_obverter_threshold_to_stop_message_generation=False</em>, <em class="sig-param">use_stop_word=False</em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.categorical_obverter_agent.CategoricalObverterAgent._compute_sentence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute sentences using the obverter approach, adapted to referential game variants following the
+descriptive approach described in the work of [Choi et al., 2018](<a class="reference external" href="http://arxiv.org/abs/1804.02341">http://arxiv.org/abs/1804.02341</a>).</p>
+<p>In descriptive mode, <cite>nbr_distractors_po=1</cite> and <cite>target_idx=torch.zeros((batch_size,1))</cite>, 
+thus the algorithm behaves exactly like in Choi et al. (2018).
+Otherwise, the the likelyhoods for the target experience of being chosen by the decision module 
+is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
+this likelyhood over the sentence’s next word.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features_embedding</strong> – Tensor of (temporal) features embedding of shape <cite>(batch_size, *self.obs_shape)</cite>.</p></li>
+<li><p><strong>target_idx</strong> – Tensor of indices of the target experiences of shape <cite>(batch_size, 1)</cite>.</p></li>
+<li><p><strong>symbol_encoder</strong> – torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.</p></li>
+<li><p><strong>symbol_processing</strong> – torch.nn.Module used to generate the sentences.</p></li>
+<li><p><strong>symbol_decoder</strong> – torch.nn.Module used to decode the embeddings generated by the <cite>:param symbol_processing:</cite> module.</p></li>
+<li><p><strong>decision_decoder</strong> – torch.nn.Module used to output the decision over the experiences.</p></li>
+<li><p><strong>init_rnn_states</strong> – None or Tuple of Tensors to initialize the symbol_processing’s rnn states.</p></li>
+<li><p><strong>vocab_size</strong> – int, size of the vocabulary.</p></li>
+<li><p><strong>max_sentence_length</strong> – int, maximal length for each generated sentences.</p></li>
+<li><p><strong>nbr_distractors_po</strong> – int, number of distractors and target, i.e. <a href="#id9"><span class="problematic" id="id10">`</span></a>nbr_distractors+1.</p></li>
+<li><p><strong>operation</strong> – Function, expect <cite>torch.max</cite> or <cite>torch.min</cite>.</p></li>
+<li><p><strong>vocab_stop_idx</strong> – int, index of the STOP symbol in the vocabulary.</p></li>
+<li><p><strong>use_obverter_threshold_to_stop_message_generation</strong> – boolean, or float that specifies whether to stop the 
+message generation when the decision module’s 
+output probability is abobe a given threshold 
+(or below it if the operation is <cite>torch.min</cite>).
+If it is a float, then it is the value of the threshold.</p></li>
+<li><p><strong>use_stop_word</strong> – boolean that specifies whether to use one of the word in the vocabulary with a pre-defined meaning,
+that is that it is a STOP token, thus effictively ending the symbol generation for the current sentence.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sentences_widx: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], 1)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the indices of the chosen words.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_logits: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the logits of words over the decision module’s potential to choose the target experience as output.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_one_hots: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the sentences as one-hot-encoded word vectors.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.differentiable_obverter_agent">
+<span id="referentialgym-agents-differentiable-obverter-agent-module"></span><h2>ReferentialGym.agents.differentiable_obverter_agent module<a class="headerlink" href="#module-ReferentialGym.agents.differentiable_obverter_agent" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.sentence_length_logging_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.differentiable_obverter_agent.</code><code class="sig-name descname">sentence_length_logging_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.sentence_length_logging_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.differentiable_obverter_agent.</code><code class="sig-name descname">DifferentiableObverterAgent</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'o0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">use_sentences_one_hot_vectors</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">differentiable</span><span class="o">=</span><span class="default_value">True</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py attribute">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent.symbol_processing">
+<code class="sig-name descname">symbol_processing</code><em class="property"> = None</em><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent.symbol_processing" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>if self.use_sentences_one_hot_vectors:</dt><dd><p>#self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs[‘symbol_processing_nbr_hidden_units’], bias=False)
+self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs[‘symbol_embedding_size’], bias=False)</p>
+</dd>
+<dt>else:</dt><dd><p>#self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs[‘symbol_processing_nbr_hidden_units’], padding_idx=self.vocab_size)
+self.symbol_encoder = nn.Embedding(self.vocab_size+2, self.kwargs[‘symbol_embedding_size’], padding_idx=self.vocab_size)</p>
+</dd>
+</dl>
+<p>self.symbol_decoder = nn.ModuleList()
+self.symbol_decoder.append(nn.Linear(self.kwargs[‘symbol_processing_nbr_hidden_units’], self.vocab_size))
+if self.kwargs[‘dropout_prob’]: self.symbol_decoder.append(nn.Dropout(p=self.kwargs[‘dropout_prob’]))</p>
+<p>self.tau_fc = layer_init(nn.Linear(self.kwargs[‘temporal_encoder_nbr_hidden_units’], 1 , bias=False))</p>
+<p>self.not_target_logits_per_token = nn.Parameter(torch.ones((1,self.kwargs[‘max_sentence_length’])))
+self.register_parameter(name=’not_target_logits_per_token’, param=self.not_target_logits_per_token)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id11"><span class="problematic" id="id12">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._compute_sentence">
+<code class="sig-name descname">_compute_sentence</code><span class="sig-paren">(</span><em class="sig-param">target_idx</em>, <em class="sig-param">symbol_encoder</em>, <em class="sig-param">symbol_processing</em>, <em class="sig-param">symbol_decoder</em>, <em class="sig-param">init_rnn_states=None</em>, <em class="sig-param">allowed_vocab_size=10</em>, <em class="sig-param">vocab_size=10</em>, <em class="sig-param">max_sentence_length=14</em>, <em class="sig-param">nbr_distractors_po=1</em>, <em class="sig-param">operation=&lt;built-in method max of type object&gt;</em>, <em class="sig-param">vocab_stop_idx=0</em>, <em class="sig-param">use_obverter_threshold_to_stop_message_generation=False</em>, <em class="sig-param">use_stop_word=False</em>, <em class="sig-param">_compute_tau=None</em>, <em class="sig-param">not_target_logits_per_token=None</em>, <em class="sig-param">use_sentences_one_hot_vectors=False</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_obverter_agent.DifferentiableObverterAgent._compute_sentence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute sentences using the obverter approach, adapted to referential game variants following the
+descriptive approach described in the work of [Choi et al., 2018](<a class="reference external" href="http://arxiv.org/abs/1804.02341">http://arxiv.org/abs/1804.02341</a>).</p>
+<p>In descriptive mode, <cite>nbr_distractors_po=1</cite> and <cite>target_idx=torch.zeros((batch_size,1))</cite>, 
+thus the algorithm behaves exactly like in Choi et al. (2018).
+Otherwise, the the likelyhoods for the target experience of being chosen by the decision module 
+is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
+this likelyhood over the sentence’s next word.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features_embedding</strong> – Tensor of (temporal) features embedding of shape <cite>(batch_size, *self.obs_shape)</cite>.</p></li>
+<li><p><strong>target_idx</strong> – Tensor of indices of the target experiences of shape <cite>(batch_size, 1)</cite>.</p></li>
+<li><p><strong>symbol_encoder</strong> – torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.</p></li>
+<li><p><strong>symbol_processing</strong> – torch.nn.Module used to generate the sentences.</p></li>
+<li><p><strong>symbol_decoder</strong> – torch.nn.Module used to decode the embeddings generated by the <cite>:param symbol_processing:</cite> module.</p></li>
+<li><p><strong>init_rnn_states</strong> – None or Tuple of Tensors to initialize the symbol_processing’s rnn states.</p></li>
+<li><p><strong>vocab_size</strong> – int, size of the vocabulary.</p></li>
+<li><p><strong>max_sentence_length</strong> – int, maximal length for each generated sentences.</p></li>
+<li><p><strong>nbr_distractors_po</strong> – int, number of distractors and target, i.e. <a href="#id13"><span class="problematic" id="id14">`</span></a>nbr_distractors+1.</p></li>
+<li><p><strong>operation</strong> – Function, expect <cite>torch.max</cite> or <cite>torch.min</cite>.</p></li>
+<li><p><strong>vocab_stop_idx</strong> – int, index of the STOP symbol in the vocabulary.</p></li>
+<li><p><strong>use_obverter_threshold_to_stop_message_generation</strong> – boolean, or float that specifies whether to stop the 
+message generation when the decision module’s 
+output probability is abobe a given threshold 
+(or below it if the operation is <cite>torch.min</cite>).
+If it is a float, then it is the value of the threshold.</p></li>
+<li><p><strong>use_stop_word</strong> – boolean that specifies whether to use one of the word in the vocabulary with a pre-defined meaning,
+that is that it is a STOP token, thus effictively ending the symbol generation for the current sentence.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sentences_widx: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], 1)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the indices of the chosen words.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_logits: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the logits of words over the decision module’s potential to choose the target experience as output.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_one_hots: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the sentences as one-hot-encoded word vectors.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.differentiable_relational_obverter">
+<span id="referentialgym-agents-differentiable-relational-obverter-module"></span><h2>ReferentialGym.agents.differentiable_relational_obverter module<a class="headerlink" href="#module-ReferentialGym.agents.differentiable_relational_obverter" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.differentiable_relational_obverter.</code><code class="sig-name descname">DifferentiableRelationalObverterAgent</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'o0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">emb</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id15"><span class="problematic" id="id16">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._makeVisualXYTSfeatures">
+<code class="sig-name descname">_makeVisualXYTSfeatures</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._makeVisualXYTSfeatures" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._makeSymbolicXYTSfeatures">
+<code class="sig-name descname">_makeSymbolicXYTSfeatures</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._makeSymbolicXYTSfeatures" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, nbr_distractors_po, nbr_stimulus, mm_ponderer_depth_dim=thought_space_depth_dim+5, ..nbr_visual_entity..)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._compute_sentence">
+<code class="sig-name descname">_compute_sentence</code><span class="sig-paren">(</span><em class="sig-param">features</em>, <em class="sig-param">target_idx</em>, <em class="sig-param">_reason=None</em>, <em class="sig-param">allowed_vocab_size=10</em>, <em class="sig-param">vocab_size=10</em>, <em class="sig-param">max_sentence_length=14</em>, <em class="sig-param">operation=&lt;built-in method max of type object&gt;</em>, <em class="sig-param">vocab_stop_idx=0</em>, <em class="sig-param">use_obverter_threshold_to_stop_message_generation=False</em>, <em class="sig-param">use_stop_word=False</em>, <em class="sig-param">_compute_tau=None</em>, <em class="sig-param">not_target_logits_per_token=None</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.differentiable_relational_obverter.DifferentiableRelationalObverterAgent._compute_sentence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute sentences using the obverter approach, adapted to referential game variants following the
+descriptive approach described in the work of [Choi et al., 2018](<a class="reference external" href="http://arxiv.org/abs/1804.02341">http://arxiv.org/abs/1804.02341</a>).</p>
+<p>In descriptive mode, <cite>nbr_distractors_po=1</cite> and <cite>target_idx=torch.zeros((batch_size,1))</cite>, 
+thus the algorithm behaves exactly like in Choi et al. (2018).
+Otherwise, the the likelyhoods for the target experience of being chosen by the decision module 
+is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
+this likelyhood over the sentence’s next word.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of (temporal) features embedding of shape <cite>(batch_size, *self.obs_shape)</cite>.</p></li>
+<li><p><strong>target_idx</strong> – Tensor of indices of the target experiences of shape <cite>(batch_size, 1)</cite>.</p></li>
+<li><p><strong>_reason</strong> – Function used to reason about the visual and textual entities.</p></li>
+<li><p><strong>vocab_size</strong> – int, size of the vocabulary.</p></li>
+<li><p><strong>max_sentence_length</strong> – int, maximal length for each generated sentences.</p></li>
+<li><p><strong>operation</strong> – Function, expect <cite>torch.max</cite> or <cite>torch.min</cite>.</p></li>
+<li><p><strong>vocab_stop_idx</strong> – int, index of the STOP symbol in the vocabulary.</p></li>
+<li><p><strong>use_obverter_threshold_to_stop_message_generation</strong> – boolean, or float that specifies whether to stop the 
+message generation when the decision module’s 
+output probability is abobe a given threshold 
+(or below it if the operation is <cite>torch.min</cite>).
+If it is a float, then it is the value of the threshold.</p></li>
+<li><p><strong>use_stop_word</strong> – boolean that specifies whether to use one of the word in the vocabulary with a pre-defined meaning,
+that is that it is a STOP token, thus effictively ending the symbol generation for the current sentence.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sentences_widx: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], 1)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the indices of the chosen words.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_logits: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the logits of words over the decision module’s potential to choose the target experience as output.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_one_hots: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the sentences as one-hot-encoded word vectors.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.discriminative_listener">
+<span id="referentialgym-agents-discriminative-listener-module"></span><h2>ReferentialGym.agents.discriminative_listener module<a class="headerlink" href="#module-ReferentialGym.agents.discriminative_listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.discriminative_listener.havrylov_hinge_learning_signal">
+<code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">havrylov_hinge_learning_signal</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">decision_logits</span></em>, <em class="sig-param"><span class="n">target_decision_idx</span></em>, <em class="sig-param"><span class="n">sampled_decision_idx</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.havrylov_hinge_learning_signal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.discriminative_listener.discriminative_st_gs_referential_game_loss">
+<code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">discriminative_st_gs_referential_game_loss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.discriminative_st_gs_referential_game_loss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.discriminative_listener.penalize_multi_round_binary_reward_fn">
+<code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">penalize_multi_round_binary_reward_fn</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sampled_decision_idx</span></em>, <em class="sig-param"><span class="n">target_decision_idx</span></em>, <em class="sig-param"><span class="n">decision_logits</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.penalize_multi_round_binary_reward_fn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the reward and done boolean of the current timestep.
+Episode ends if the decisions are correct 
+(or if the max number of round is achieved, but this is handled outside of this function).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">ExperienceBuffer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">capacity</span></em>, <em class="sig-param"><span class="n">keys</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">circular_keys</span><span class="o">=</span><span class="default_value">{'succ_s': 's'}</span></em>, <em class="sig-param"><span class="n">circular_offsets</span><span class="o">=</span><span class="default_value">{'succ_s': 1}</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.add_key">
+<code class="sig-name descname">add_key</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">key</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.add_key" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.add">
+<code class="sig-name descname">add</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.add" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.pop">
+<code class="sig-name descname">pop</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.pop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Output a data dict of the latest ‘complete’ data experience.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.cat">
+<code class="sig-name descname">cat</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">keys</span></em>, <em class="sig-param"><span class="n">indices</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.cat" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.ExperienceBuffer.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">batch_size</span></em>, <em class="sig-param"><span class="n">keys</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.ExperienceBuffer.sample" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.discriminative_listener.compute_reinforce_losses">
+<code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">compute_reinforce_losses</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.compute_reinforce_losses" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.discriminative_listener.discriminative_reinforce_referential_game_loss">
+<code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">discriminative_reinforce_referential_game_loss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.discriminative_reinforce_referential_game_loss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.discriminative_listener.</code><code class="sig-name descname">DiscriminativeListener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">kwargs</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.listener.Listener" title="ReferentialGym.agents.listener.Listener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.listener.Listener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>exp</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id17"><span class="problematic" id="id18">`</span></a>(batch_size, <a href="#id19"><span class="problematic" id="id20">*</span></a>(self.obs_shape[:2]), feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.discriminative_listener.DiscriminativeListener.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">graphtype</span><span class="o">=</span><span class="default_value">'straight_through_gumbel_softmax'</span></em>, <em class="sig-param"><span class="n">tau0</span><span class="o">=</span><span class="default_value">0.2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener.forward" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>multi_round</strong> – Boolean defining whether to utter a sentence back or not.</p></li>
+<li><p><strong>graphtype</strong> – String defining the type of symbols used in the output sentence:
+- <cite>‘categorical’</cite>: one-hot-encoded symbols.
+- <cite>‘gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.
+- <cite>‘straight_through_gumbel_softmax’</cite>: improved continuous relaxation…
+- <cite>‘obverter’</cite>: obverter training scheme…</p></li>
+<li><p><strong>tau0</strong> – Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.eos_priored_lstm_cnn_speaker">
+<span id="referentialgym-agents-eos-priored-lstm-cnn-speaker-module"></span><h2>ReferentialGym.agents.eos_priored_lstm_cnn_speaker module<a class="headerlink" href="#module-ReferentialGym.agents.eos_priored_lstm_cnn_speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.eos_priored_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.eos_priored_lstm_cnn_speaker.</code><code class="sig-name descname">eos_priored_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.eos_priored_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.eos_priored_lstm_cnn_speaker.</code><code class="sig-name descname">EoSPrioredLSTMCNNSpeaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'s0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.speaker.Speaker" title="ReferentialGym.agents.speaker.Speaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.speaker.Speaker</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id21"><span class="problematic" id="id22">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.eos_priored_lstm_cnn_speaker.EoSPrioredLSTMCNNSpeaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO: update this description…
+Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.generative_listener">
+<span id="referentialgym-agents-generative-listener-module"></span><h2>ReferentialGym.agents.generative_listener module<a class="headerlink" href="#module-ReferentialGym.agents.generative_listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.generative_listener.havrylov_hinge_learning_signal">
+<code class="sig-prename descclassname">ReferentialGym.agents.generative_listener.</code><code class="sig-name descname">havrylov_hinge_learning_signal</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">decision_logits</span></em>, <em class="sig-param"><span class="n">target_decision_idx</span></em>, <em class="sig-param"><span class="n">sampled_decision_idx</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.generative_listener.havrylov_hinge_learning_signal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.generative_listener.generative_st_gs_referential_game_loss">
+<code class="sig-prename descclassname">ReferentialGym.agents.generative_listener.</code><code class="sig-name descname">generative_st_gs_referential_game_loss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.generative_listener.generative_st_gs_referential_game_loss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.generative_listener.GenerativeListener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.generative_listener.</code><code class="sig-name descname">GenerativeListener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">kwargs</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.generative_listener.GenerativeListener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.listener.Listener" title="ReferentialGym.agents.listener.Listener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.listener.Listener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.generative_listener.GenerativeListener.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">graphtype</span><span class="o">=</span><span class="default_value">'straight_through_gumbel_softmax'</span></em>, <em class="sig-param"><span class="n">tau0</span><span class="o">=</span><span class="default_value">0.2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.generative_listener.GenerativeListener.forward" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>multi_round</strong> – Boolean defining whether to utter a sentence back or not.</p></li>
+<li><p><strong>graphtype</strong> – String defining the type of symbols used in the output sentence:
+- <cite>‘categorical’</cite>: one-hot-encoded symbols.
+- <cite>‘gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.
+- <cite>‘straight_through_gumbel_softmax’</cite>: improved continuous relaxation…
+- <cite>‘obverter’</cite>: obverter training scheme…</p></li>
+<li><p><strong>tau0</strong> – Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.listener">
+<span id="referentialgym-agents-listener-module"></span><h2>ReferentialGym.agents.listener module<a class="headerlink" href="#module-ReferentialGym.agents.listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.listener.Listener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.listener.</code><code class="sig-name descname">Listener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">kwargs</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.agent.Agent" title="ReferentialGym.agents.agent.Agent"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.agent.Agent</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener._reset_rnn_states">
+<code class="sig-name descname">_reset_rnn_states</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener._reset_rnn_states" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>exp</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id23"><span class="problematic" id="id24">`</span></a>(batch_size, <a href="#id25"><span class="problematic" id="id26">*</span></a>(self.obs_shape[:2]), feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.listener.Listener._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.listener.Listener._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.lstm_cnn_listener">
+<span id="referentialgym-agents-lstm-cnn-listener-module"></span><h2>ReferentialGym.agents.lstm_cnn_listener module<a class="headerlink" href="#module-ReferentialGym.agents.lstm_cnn_listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.lstm_cnn_listener.</code><code class="sig-name descname">LSTMCNNListener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py attribute">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.symbol_processing">
+<code class="sig-name descname">symbol_processing</code><em class="property"> = None</em><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.symbol_processing" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>self.symbol_processing_learnable_initial_state = nn.Parameter(</dt><dd><p>torch.zeros(1,1,self.kwargs[‘symbol_processing_nbr_hidden_units’])</p>
+</dd>
+</dl>
+<p>)</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.tau_fc">
+<code class="sig-name descname">tau_fc</code><em class="property"> = None</em><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.tau_fc" title="Permalink to this definition">¶</a></dt>
+<dd><p>self.not_target_logits_per_token = nn.Parameter(torch.ones((1, self.kwargs[‘max_sentence_length’], 1)))</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd><p>invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+return invtau</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the stimuli so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id27"><span class="problematic" id="id28">`</span></a>(batch_size, -1, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> 
+containing the padded sequence of (potentially one-hot-encoded) symbols.
+NOTE: max_sentence_length may be different from self.max_sentence_lenght 
+as the padding is padding by batch and only care about the maximal 
+sentence length of said batch.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_listener.LSTMCNNListener._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.lstm_cnn_speaker">
+<span id="referentialgym-agents-lstm-cnn-speaker-module"></span><h2>ReferentialGym.agents.lstm_cnn_speaker module<a class="headerlink" href="#module-ReferentialGym.agents.lstm_cnn_speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.lstm_cnn_speaker.</code><code class="sig-name descname">LSTMCNNSpeaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'s0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.speaker.Speaker" title="ReferentialGym.agents.speaker.Speaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.speaker.Speaker</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id29"><span class="problematic" id="id30">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.lstm_cnn_speaker.LSTMCNNSpeaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO: update this description…
+Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.multi_head_lstm_cnn_speaker">
+<span id="referentialgym-agents-multi-head-lstm-cnn-speaker-module"></span><h2>ReferentialGym.agents.multi_head_lstm_cnn_speaker module<a class="headerlink" href="#module-ReferentialGym.agents.multi_head_lstm_cnn_speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.multi_head_lstm_cnn_speaker.</code><code class="sig-name descname">MultiHeadLSTMCNNSpeaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">multi_head_config</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'s0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.speaker.Speaker" title="ReferentialGym.agents.speaker.Speaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.speaker.Speaker</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id31"><span class="problematic" id="id32">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.multi_head_lstm_cnn_speaker.MultiHeadLSTMCNNSpeaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO: update this description…
+Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.obverter_agent">
+<span id="referentialgym-agents-obverter-agent-module"></span><h2>ReferentialGym.agents.obverter_agent module<a class="headerlink" href="#module-ReferentialGym.agents.obverter_agent" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.obverter_agent.</code><code class="sig-name descname">ObverterAgent</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'o0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id33"><span class="problematic" id="id34">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) *temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.obverter_agent.ObverterAgent._compute_sentence">
+<code class="sig-name descname">_compute_sentence</code><span class="sig-paren">(</span><em class="sig-param">target_idx</em>, <em class="sig-param">symbol_encoder</em>, <em class="sig-param">symbol_processing</em>, <em class="sig-param">symbol_decoder</em>, <em class="sig-param">init_rnn_states=None</em>, <em class="sig-param">vocab_size=10</em>, <em class="sig-param">max_sentence_length=14</em>, <em class="sig-param">nbr_distractors_po=1</em>, <em class="sig-param">operation=&lt;built-in method max of type object&gt;</em>, <em class="sig-param">vocab_stop_idx=0</em>, <em class="sig-param">use_obverter_threshold_to_stop_message_generation=False</em>, <em class="sig-param">use_stop_word=False</em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.obverter_agent.ObverterAgent._compute_sentence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute sentences using the obverter approach, adapted to referential game variants following the
+descriptive approach described in the work of [Choi et al., 2018](<a class="reference external" href="http://arxiv.org/abs/1804.02341">http://arxiv.org/abs/1804.02341</a>).</p>
+<p>In descriptive mode, <cite>nbr_distractors_po=1</cite> and <cite>target_idx=torch.zeros((batch_size,1))</cite>, 
+thus the algorithm behaves exactly like in Choi et al. (2018).
+Otherwise, the the likelyhoods for the target experience of being chosen by the decision module 
+is considered solely and the algorithm aims at maximizing/minimizing (following :param operation:) 
+this likelyhood over the sentence’s next word.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features_embedding</strong> – Tensor of (temporal) features embedding of shape <cite>(batch_size, *self.obs_shape)</cite>.</p></li>
+<li><p><strong>target_idx</strong> – Tensor of indices of the target experiences of shape <cite>(batch_size, 1)</cite>.</p></li>
+<li><p><strong>symbol_encoder</strong> – torch.nn.Module used to embed vocabulary indices into vocabulary embeddings.</p></li>
+<li><p><strong>symbol_processing</strong> – torch.nn.Module used to generate the sentences.</p></li>
+<li><p><strong>symbol_decoder</strong> – torch.nn.Module used to decode the embeddings generated by the <cite>:param symbol_processing:</cite> module.</p></li>
+<li><p><strong>init_rnn_states</strong> – None or Tuple of Tensors to initialize the symbol_processing’s rnn states.</p></li>
+<li><p><strong>vocab_size</strong> – int, size of the vocabulary.</p></li>
+<li><p><strong>max_sentence_length</strong> – int, maximal length for each generated sentences.</p></li>
+<li><p><strong>nbr_distractors_po</strong> – int, number of distractors and target, i.e. <a href="#id35"><span class="problematic" id="id36">`</span></a>nbr_distractors+1.</p></li>
+<li><p><strong>operation</strong> – Function, expect <cite>torch.max</cite> or <cite>torch.min</cite>.</p></li>
+<li><p><strong>vocab_stop_idx</strong> – int, index of the STOP symbol in the vocabulary.</p></li>
+<li><p><strong>use_obverter_threshold_to_stop_message_generation</strong> – boolean, or float that specifies whether to stop the 
+message generation when the decision module’s 
+output probability is abobe a given threshold 
+(or below it if the operation is <cite>torch.min</cite>).
+If it is a float, then it is the value of the threshold.</p></li>
+<li><p><strong>use_stop_word</strong> – boolean that specifies whether to use one of the word in the vocabulary with a pre-defined meaning,
+that is that it is a STOP token, thus effictively ending the symbol generation for the current sentence.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sentences_widx: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], 1)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the indices of the chosen words.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_logits: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the logits of words over the decision module’s potential to choose the target experience as output.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>sentences_one_hots: List[Tensor] of length <cite>batch_size</cite> with shapes <cite>(1, sentences_lenght[b], vocab_size)</cite> where <cite>b</cite> is the batch index.</dt><dd><p>It represents the sentences as one-hot-encoded word vectors.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.speaker">
+<span id="referentialgym-agents-speaker-module"></span><h2>ReferentialGym.agents.speaker module<a class="headerlink" href="#module-ReferentialGym.agents.speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.agents.speaker.sentence_length_logging_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">sentence_length_logging_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.sentence_length_logging_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.speaker.entropy_logging_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">entropy_logging_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.entropy_logging_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.speaker.entropy_regularization_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">entropy_regularization_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.entropy_regularization_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.speaker.mdl_principle_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">mdl_principle_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.mdl_principle_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.agents.speaker.oov_loss_hook">
+<code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">oov_loss_hook</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">agent</span></em>, <em class="sig-param"><span class="n">losses_dict</span></em>, <em class="sig-param"><span class="n">input_streams_dict</span></em>, <em class="sig-param"><span class="n">outputs_dict</span></em>, <em class="sig-param"><span class="n">logs_dict</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.oov_loss_hook" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.agents.speaker.Speaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.speaker.</code><code class="sig-name descname">Speaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'s0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">kwargs</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.agent.Agent" title="ReferentialGym.agents.agent.Agent"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.agent.Agent</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker._reset_rnn_states">
+<code class="sig-name descname">_reset_rnn_states</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker._reset_rnn_states" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+<cite>experiences[:, 0]</cite> is assumed as the target experience, while the others are distractors, if any.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id37"><span class="problematic" id="id38">`</span></a>(batch_size, <a href="#id39"><span class="problematic" id="id40">*</span></a>(self.obs_shape[:2]), feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.speaker.Speaker.forward">
+<code class="sig-name descname">forward</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">multi_round</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">graphtype</span><span class="o">=</span><span class="default_value">'straight_through_gumbel_softmax'</span></em>, <em class="sig-param"><span class="n">tau0</span><span class="o">=</span><span class="default_value">0.2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.speaker.Speaker.forward" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+<cite>experiences[:,0]</cite> is assumed as the target experience, while the others are distractors, if any.</p></li>
+<li><p><strong>multi_round</strong> – Boolean defining whether to utter a sentence back or not.</p></li>
+<li><p><strong>graphtype</strong> – String defining the type of symbols used in the output sentence:
+- <cite>‘categorical’</cite>: one-hot-encoded symbols.
+- <cite>‘gumbel_softmax’</cite>: continuous relaxation of a categorical distribution.
+- <cite>‘straight_through_gumbel_softmax’</cite>: improved continuous relaxation…
+- <cite>‘obverter’</cite>: obverter training scheme…</p></li>
+<li><p><strong>tau0</strong> – Float, temperature with which to apply gumbel-softmax estimator.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.transcoding_lstm_cnn_listener">
+<span id="referentialgym-agents-transcoding-lstm-cnn-listener-module"></span><h2>ReferentialGym.agents.transcoding_lstm_cnn_listener module<a class="headerlink" href="#module-ReferentialGym.agents.transcoding_lstm_cnn_listener" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.transcoding_lstm_cnn_listener.</code><code class="sig-name descname">TranscodingLSTMCNNListener</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'l0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.discriminative_listener.DiscriminativeListener" title="ReferentialGym.agents.discriminative_listener.DiscriminativeListener"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.discriminative_listener.DiscriminativeListener</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd><p>invtau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+return invtau</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the stimuli so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id41"><span class="problematic" id="id42">`</span></a>(batch_size, -1, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._reason">
+<code class="sig-name descname">_reason</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sentences</span></em>, <em class="sig-param"><span class="n">features</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._reason" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and sentences to yield the target-prediction logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> 
+containing the padded sequence of (potentially one-hot-encoded) symbols.
+NOTE: max_sentence_length may be different from self.max_sentence_lenght 
+as the padding is padding by batch and only care about the maximal 
+sentence length of said batch.</p></li>
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>decision_logits: Tensor of shape <cite>(batch_size, self.obs_shape[1])</cite> containing the target-prediction logits.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_listener.TranscodingLSTMCNNListener._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reasons about the features and the listened sentences to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents.transcoding_lstm_cnn_speaker">
+<span id="referentialgym-agents-transcoding-lstm-cnn-speaker-module"></span><h2>ReferentialGym.agents.transcoding_lstm_cnn_speaker module<a class="headerlink" href="#module-ReferentialGym.agents.transcoding_lstm_cnn_speaker" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.agents.transcoding_lstm_cnn_speaker.</code><code class="sig-name descname">TranscodingLSTMCNNSpeaker</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em>, <em class="sig-param"><span class="n">obs_shape</span></em>, <em class="sig-param"><span class="n">vocab_size</span><span class="o">=</span><span class="default_value">100</span></em>, <em class="sig-param"><span class="n">max_sentence_length</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">agent_id</span><span class="o">=</span><span class="default_value">'s0'</span></em>, <em class="sig-param"><span class="n">logger</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.agents.speaker.Speaker" title="ReferentialGym.agents.speaker.Speaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.agents.speaker.Speaker</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker.reset">
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker.reset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._tidyup">
+<code class="sig-name descname">_tidyup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._tidyup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._compute_tau">
+<code class="sig-name descname">_compute_tau</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tau0</span></em>, <em class="sig-param"><span class="n">h</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._compute_tau" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._sense">
+<code class="sig-name descname">_sense</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._sense" title="Permalink to this definition">¶</a></dt>
+<dd><p>Infers features from the experiences that have been provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>experiences</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape)</cite>. 
+Make sure to shuffle the experiences so that the order does not give away the target.</p></li>
+<li><p><strong>sentences</strong> – None or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>features: Tensor of shape <a href="#id43"><span class="problematic" id="id44">`</span></a>(batch_size, -1, nbr_stimulus, feature_dim).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._utter">
+<code class="sig-name descname">_utter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">features</span></em>, <em class="sig-param"><span class="n">sentences</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.agents.transcoding_lstm_cnn_speaker.TranscodingLSTMCNNSpeaker._utter" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO: update this description…
+Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> – Tensor of shape <cite>(batch_size, *self.obs_shape[:2], feature_dim)</cite>.</p></li>
+<li><p><strong>sentences</strong> – None, or Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of (potentially one-hot-encoded) symbols.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>word indices: Tensor of shape <cite>(batch_size, max_sentence_length, 1)</cite> of type <cite>long</cite> containing the indices of the words that make up the sentences.</p></li>
+<li><p>logits: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of logits.</p></li>
+<li><p>sentences: Tensor of shape <cite>(batch_size, max_sentence_length, vocab_size)</cite> containing the padded sequence of one-hot-encoded symbols.</p></li>
+<li><p>temporal features: Tensor of shape <cite>(batch_size, (nbr_distractors+1)*temporal_feature_dim)</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.agents">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-ReferentialGym.agents" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">ReferentialGym.agents package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.agent">ReferentialGym.agents.agent module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.attention_lstm_cnn_listener">ReferentialGym.agents.attention_lstm_cnn_listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.caption_speaker">ReferentialGym.agents.caption_speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.categorical_obverter_agent">ReferentialGym.agents.categorical_obverter_agent module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.differentiable_obverter_agent">ReferentialGym.agents.differentiable_obverter_agent module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.differentiable_relational_obverter">ReferentialGym.agents.differentiable_relational_obverter module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.discriminative_listener">ReferentialGym.agents.discriminative_listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.eos_priored_lstm_cnn_speaker">ReferentialGym.agents.eos_priored_lstm_cnn_speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.generative_listener">ReferentialGym.agents.generative_listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.listener">ReferentialGym.agents.listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.lstm_cnn_listener">ReferentialGym.agents.lstm_cnn_listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.lstm_cnn_speaker">ReferentialGym.agents.lstm_cnn_speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.multi_head_lstm_cnn_speaker">ReferentialGym.agents.multi_head_lstm_cnn_speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.obverter_agent">ReferentialGym.agents.obverter_agent module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.speaker">ReferentialGym.agents.speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.transcoding_lstm_cnn_listener">ReferentialGym.agents.transcoding_lstm_cnn_listener module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents.transcoding_lstm_cnn_speaker">ReferentialGym.agents.transcoding_lstm_cnn_speaker module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.agents">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="ReferentialGym.html"
+                        title="previous chapter">ReferentialGym package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="ReferentialGym.datasets.html"
+                        title="next chapter">ReferentialGym.datasets package</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/ReferentialGym.agents.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.datasets.html" title="ReferentialGym.datasets package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.html" title="ReferentialGym package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Kevin Denamganaï.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 3.0.4.
+    </div>
+  </body>
+</html>
