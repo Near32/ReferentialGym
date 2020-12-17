@@ -1,0 +1,593 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferentialGym.datasets package &#8212; ReferentialGym  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ReferentialGym.modules package" href="ReferentialGym.modules.html" />
+    <link rel="prev" title="ReferentialGym.agents package" href="ReferentialGym.agents.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.modules.html" title="ReferentialGym.modules package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.agents.html" title="ReferentialGym.agents package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" accesskey="U">ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="referentialgym-datasets-package">
+<h1>ReferentialGym.datasets package<a class="headerlink" href="#referentialgym-datasets-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.datasets.CLEVR_dataset">
+<span id="referentialgym-datasets-clevr-dataset-module"></span><h2>ReferentialGym.datasets.CLEVR_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.CLEVR_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.download_preprocess_dataset">
+<code class="sig-prename descclassname">ReferentialGym.datasets.CLEVR_dataset.</code><code class="sig-name descname">download_preprocess_dataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">path</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.download_preprocess_dataset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.ToLongTensor">
+<code class="sig-prename descclassname">ReferentialGym.datasets.CLEVR_dataset.</code><code class="sig-name descname">ToLongTensor</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.ToLongTensor" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.Rescale">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.CLEVR_dataset.</code><code class="sig-name descname">Rescale</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">output_size</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.Rescale" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.ToTensor">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.CLEVR_dataset.</code><code class="sig-name descname">ToTensor</code><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.ToTensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.CLEVR_dataset.</code><code class="sig-name descname">CLEVRDataset</code><span class="sig-paren">(</span><em class="sig-param">root</em>, <em class="sig-param">train=True</em>, <em class="sig-param">transform=Compose(     &lt;ReferentialGym.datasets.CLEVR_dataset.Rescale object&gt;     &lt;ReferentialGym.datasets.CLEVR_dataset.ToTensor object&gt; )</em>, <em class="sig-param">download=False</em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset._check_exists">
+<code class="sig-name descname">_check_exists</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset._check_exists" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset._download">
+<code class="sig-name descname">_download</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset._download" title="Permalink to this definition">¶</a></dt>
+<dd><p>Download and preprocess the Sort-of-CLEVR dataset if it doesn’t exist already.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getVocabSize">
+<code class="sig-name descname">getVocabSize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getVocabSize" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getAnswerVocabSize">
+<code class="sig-name descname">getAnswerVocabSize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getAnswerVocabSize" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.CLEVR_dataset.CLEVRDataset.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.MSCOCO_dataset">
+<span id="referentialgym-datasets-mscoco-dataset-module"></span><h2>ReferentialGym.datasets.MSCOCO_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.MSCOCO_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.MSCOCO_dataset.</code><code class="sig-name descname">MSCOCODataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">annFile</span></em>, <em class="sig-param"><span class="n">transform</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">transfer_learning</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">extract_features</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">data_suffix</span><span class="o">=</span><span class="default_value">'TL.npy'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torchvision.datasets.coco.CocoDetection</span></code></p>
+<p>root (string): Root directory where images are downloaded to.
+annFile (string): Path to json annotation file.
+transform (callable, optional): A function/transform that  takes in an PIL image</p>
+<blockquote>
+<div><p>and returns a transformed version. E.g, <code class="docutils literal notranslate"><span class="pre">transforms.ToTensor</span></code></p>
+</div></blockquote>
+<p>transfer_learning (bool):  Bool that defines whether we use the transfer learning version of the dataset.
+extract_features:   Function that takes only one argument, i.e. the image tensor from</p>
+<blockquote>
+<div><p>feature extraction is attempted.</p>
+</div></blockquote>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.make_tl_dataset">
+<code class="sig-name descname">make_tl_dataset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.make_tl_dataset" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.getlatentvalue">
+<code class="sig-name descname">getlatentvalue</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.MSCOCO_dataset.MSCOCODataset.getlatentvalue" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="referentialgym-datasets-minerl-dataset-module">
+<h2>ReferentialGym.datasets.MineRL_dataset module<a class="headerlink" href="#referentialgym-datasets-minerl-dataset-module" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-ReferentialGym.datasets.dSprites_dataset">
+<span id="referentialgym-datasets-dsprites-dataset-module"></span><h2>ReferentialGym.datasets.dSprites_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.dSprites_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.dSprites_dataset.</code><code class="sig-name descname">dSpritesDataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span><span class="o">=</span><span class="default_value">'./'</span></em>, <em class="sig-param"><span class="n">train</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">transform</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">split_strategy</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py attribute">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.counter_test_threshold">
+<code class="sig-name descname">counter_test_threshold</code><em class="property"> = None</em><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.counter_test_threshold" title="Permalink to this definition">¶</a></dt>
+<dd><p>With regards to designing axises as primitives:</p>
+<p>It implies that all the values on this latent axis are treated as test values
+when combined with a test value on any other latent axis.</p>
+<p>N.B.: it is not possible to test for out-of-distribution values in that context…
+N.B.1: It is required that the number of primitive latent axis be one less than</p>
+<blockquote>
+<div><p>the counter_test_thershold, at most.</p>
+</div></blockquote>
+<p>A number of fillers along this primitive latent axis can then be specified in front
+of the FP pattern…
+Among the effective indices, those with an ordinal lower or equal to the number of
+filler allowed will be part of the training set.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getlatentvalue">
+<code class="sig-name descname">getlatentvalue</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getlatentvalue" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getlatentclass">
+<code class="sig-name descname">getlatentclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.getlatentclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.gettestlatentmask">
+<code class="sig-name descname">gettestlatentmask</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dSprites_dataset.dSpritesDataset.gettestlatentmask" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.dataset">
+<span id="referentialgym-datasets-dataset-module"></span><h2>ReferentialGym.datasets.dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.datasets.dataset.shuffle">
+<code class="sig-prename descclassname">ReferentialGym.datasets.dataset.</code><code class="sig-name descname">shuffle</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">experiences</span></em>, <em class="sig-param"><span class="n">orders</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dataset.shuffle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.dataset.Dataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.dataset.</code><code class="sig-name descname">Dataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dataset.Dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dataset.Dataset.getNbrDistractors">
+<code class="sig-name descname">getNbrDistractors</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">mode</span><span class="o">=</span><span class="default_value">'train'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dataset.Dataset.getNbrDistractors" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dataset.Dataset.setNbrDistractors">
+<code class="sig-name descname">setNbrDistractors</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">nbr_distractors</span></em>, <em class="sig-param"><span class="n">mode</span><span class="o">=</span><span class="default_value">'train'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dataset.Dataset.setNbrDistractors" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dataset.Dataset.getNbrClasses">
+<code class="sig-name descname">getNbrClasses</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#ReferentialGym.datasets.dataset.Dataset.getNbrClasses" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dataset.Dataset.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span><span class="p">:</span> <span class="n">int</span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">from_class</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">excepts</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">target_only</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">False</span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.datasets.dataset.Dataset.sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample an experience from the dataset. Along with relevant distractor experiences.
+If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
+If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
+:param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+:param excepts: None, or List of indices (Integers) that are not considered for sampling.
+:param target_only: bool (default: <cite>False</cite>) defining whether to sample only the target or distractors too.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sample_d: Dict of:</dt><dd><ul>
+<li><p><cite>”experiences”</cite>: Tensor of the sampled experiences.</p></li>
+<li><p><cite>”indices”</cite>: List[int] of the indices of the sampled experiences.</p></li>
+<li><p><cite>”exp_labels”</cite>: List[int] consisting of the indices of the label to which the experiences belong.</p></li>
+<li><p><cite>”exp_latents”</cite>: Tensor representatin the latent of the experience in one-hot-encoded vector form.</p></li>
+<li><p><cite>”exp_latents_values”</cite>: Tensor representatin the latent of the experience in value form.</p></li>
+<li><p>some other keys provided by the dataset used…</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.dict_dataset_wrapper">
+<span id="referentialgym-datasets-dict-dataset-wrapper-module"></span><h2>ReferentialGym.datasets.dict_dataset_wrapper module<a class="headerlink" href="#module-ReferentialGym.datasets.dict_dataset_wrapper" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.dict_dataset_wrapper.DictDatasetWrapper">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.dict_dataset_wrapper.</code><code class="sig-name descname">DictDatasetWrapper</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dataset</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dict_dataset_wrapper.DictDatasetWrapper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dict_dataset_wrapper.DictDatasetWrapper.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dict_dataset_wrapper.DictDatasetWrapper.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.dual_labeled_dataset">
+<span id="referentialgym-datasets-dual-labeled-dataset-module"></span><h2>ReferentialGym.datasets.dual_labeled_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.dual_labeled_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.dual_labeled_dataset.</code><code class="sig-name descname">DualLabeledDataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.datasets.dataset.Dataset" title="ReferentialGym.datasets.dataset.Dataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.datasets.dataset.Dataset</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.set_mode">
+<code class="sig-name descname">set_mode</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">newmode</span><span class="o">=</span><span class="default_value">'train'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.set_mode" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.getNbrClasses">
+<code class="sig-name descname">getNbrClasses</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.getNbrClasses" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span><span class="p">:</span> <span class="n">int</span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">from_class</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">excepts</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">target_only</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">False</span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.datasets.dual_labeled_dataset.DualLabeledDataset.sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample an experience from the dataset. Along with relevant distractor experiences.
+If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
+If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
+:param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+:param excepts: None, or List of indices (Integers) that are not considered for sampling.
+:param target_only: bool (default: <cite>False</cite>) defining whether to sample only the target or distractors too.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sample_d: Dict of:</dt><dd><ul>
+<li><p><cite>”experiences”</cite>: Tensor of the sampled experiences.</p></li>
+<li><p><cite>”indices”</cite>: List[int] of the indices of the sampled experiences.</p></li>
+<li><p><cite>”exp_labels”</cite>: List[int] consisting of the indices of the label to which the experiences belong.</p></li>
+<li><p><cite>”exp_latents”</cite>: Tensor representatin the latent of the experience in one-hot-encoded vector form.</p></li>
+<li><p><cite>”exp_latents_values”</cite>: Tensor representatin the latent of the experience in value form.</p></li>
+<li><p>some other keys provided by the dataset used…</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.extended_sort_of_CLEVR_dataset">
+<span id="referentialgym-datasets-extended-sort-of-clevr-dataset-module"></span><h2>ReferentialGym.datasets.extended_sort_of_CLEVR_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.extended_sort_of_CLEVR_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.generate_dataset">
+<code class="sig-prename descclassname">ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.</code><code class="sig-name descname">generate_dataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">dataset_size</span><span class="o">=</span><span class="default_value">10000</span></em>, <em class="sig-param"><span class="n">img_size</span><span class="o">=</span><span class="default_value">75</span></em>, <em class="sig-param"><span class="n">object_size</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_objects</span><span class="o">=</span><span class="default_value">6</span></em>, <em class="sig-param"><span class="n">nb_nr_qs</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_r_qs</span><span class="o">=</span><span class="default_value">7</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.generate_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inspired by: <a class="reference external" href="https://github.com/kimhc6028/relational-networks/blob/master/sort_of_clevr_generator.py">https://github.com/kimhc6028/relational-networks/blob/master/sort_of_clevr_generator.py</a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.</code><code class="sig-name descname">XSortOfCLEVRDataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">train</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">transform</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">generate</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">dataset_size</span><span class="o">=</span><span class="default_value">10000</span></em>, <em class="sig-param"><span class="n">test_size</span><span class="o">=</span><span class="default_value">2000</span></em>, <em class="sig-param"><span class="n">img_size</span><span class="o">=</span><span class="default_value">75</span></em>, <em class="sig-param"><span class="n">object_size</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_objects</span><span class="o">=</span><span class="default_value">6</span></em>, <em class="sig-param"><span class="n">nb_nr_qs</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_r_qs</span><span class="o">=</span><span class="default_value">7</span></em>, <em class="sig-param"><span class="n">test_id_analogy</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">test_id_analogy_threshold</span><span class="o">=</span><span class="default_value">3</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset._check_exists">
+<code class="sig-name descname">_check_exists</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset._check_exists" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset._generate">
+<code class="sig-name descname">_generate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">dataset_size</span></em>, <em class="sig-param"><span class="n">img_size</span></em>, <em class="sig-param"><span class="n">object_size</span></em>, <em class="sig-param"><span class="n">nb_objects</span></em>, <em class="sig-param"><span class="n">nb_nr_qs</span></em>, <em class="sig-param"><span class="n">nb_r_qs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset._generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate the Sort-of-CLEVR dataset if it doesn’t exist already.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentvalue">
+<code class="sig-name descname">getlatentvalue</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentvalue" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentclass">
+<code class="sig-name descname">getlatentclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentonehot">
+<code class="sig-name descname">getlatentonehot</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.extended_sort_of_CLEVR_dataset.XSortOfCLEVRDataset.getlatentonehot" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.labeled_dataset">
+<span id="referentialgym-datasets-labeled-dataset-module"></span><h2>ReferentialGym.datasets.labeled_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.labeled_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.labeled_dataset.LabeledDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.labeled_dataset.</code><code class="sig-name descname">LabeledDataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.labeled_dataset.LabeledDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#ReferentialGym.datasets.dataset.Dataset" title="ReferentialGym.datasets.dataset.Dataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReferentialGym.datasets.dataset.Dataset</span></code></a></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.labeled_dataset.LabeledDataset.set_mode">
+<code class="sig-name descname">set_mode</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">newmode</span><span class="o">=</span><span class="default_value">'train'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.labeled_dataset.LabeledDataset.set_mode" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.labeled_dataset.LabeledDataset.getNbrClasses">
+<code class="sig-name descname">getNbrClasses</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#ReferentialGym.datasets.labeled_dataset.LabeledDataset.getNbrClasses" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.labeled_dataset.LabeledDataset.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span><span class="p">:</span> <span class="n">int</span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">from_class</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">excepts</span><span class="p">:</span> <span class="n">List<span class="p">[</span>int<span class="p">]</span></span> <span class="o">=</span> <span class="default_value">None</span></em>, <em class="sig-param"><span class="n">target_only</span><span class="p">:</span> <span class="n">bool</span> <span class="o">=</span> <span class="default_value">False</span></em><span class="sig-paren">)</span> &#x2192; Dict<span class="p">[</span>str<span class="p">, </span>object<span class="p">]</span><a class="headerlink" href="#ReferentialGym.datasets.labeled_dataset.LabeledDataset.sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample an experience from the dataset. Along with relevant distractor experiences.
+If :param from_class: is not None, the sampled experiences will belong to the specified class(es).
+If :param excepts: is not None, this function will make sure to not sample from the specified list of exceptions.
+:param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+:param excepts: None, or List of indices (Integers) that are not considered for sampling.
+:param target_only: bool (default: <cite>False</cite>) defining whether to sample only the target or distractors too.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><dl class="simple">
+<dt>sample_d: Dict of:</dt><dd><ul>
+<li><p><cite>”experiences”</cite>: Tensor of the sampled experiences.</p></li>
+<li><p><cite>”indices”</cite>: List[int] of the indices of the sampled experiences.</p></li>
+<li><p><cite>”exp_labels”</cite>: List[int] consisting of the indices of the label to which the experiences belong.</p></li>
+<li><p><cite>”exp_latents”</cite>: Tensor representatin the latent of the experience in one-hot-encoded vector form.</p></li>
+<li><p><cite>”exp_latents_values”</cite>: Tensor representatin the latent of the experience in value form.</p></li>
+<li><p>some other keys provided by the dataset used…</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.sort_of_CLEVR_dataset">
+<span id="referentialgym-datasets-sort-of-clevr-dataset-module"></span><h2>ReferentialGym.datasets.sort_of_CLEVR_dataset module<a class="headerlink" href="#module-ReferentialGym.datasets.sort_of_CLEVR_dataset" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.generate_dataset">
+<code class="sig-prename descclassname">ReferentialGym.datasets.sort_of_CLEVR_dataset.</code><code class="sig-name descname">generate_dataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">dataset_size</span><span class="o">=</span><span class="default_value">10000</span></em>, <em class="sig-param"><span class="n">img_size</span><span class="o">=</span><span class="default_value">75</span></em>, <em class="sig-param"><span class="n">object_size</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_objects</span><span class="o">=</span><span class="default_value">6</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.generate_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inspired by: <a class="reference external" href="https://github.com/kimhc6028/relational-networks/blob/master/sort_of_clevr_generator.py">https://github.com/kimhc6028/relational-networks/blob/master/sort_of_clevr_generator.py</a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.sort_of_CLEVR_dataset.</code><code class="sig-name descname">SortOfCLEVRDataset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">train</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">transform</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">generate</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">dataset_size</span><span class="o">=</span><span class="default_value">10000</span></em>, <em class="sig-param"><span class="n">test_size</span><span class="o">=</span><span class="default_value">2000</span></em>, <em class="sig-param"><span class="n">img_size</span><span class="o">=</span><span class="default_value">75</span></em>, <em class="sig-param"><span class="n">object_size</span><span class="o">=</span><span class="default_value">5</span></em>, <em class="sig-param"><span class="n">nb_objects</span><span class="o">=</span><span class="default_value">6</span></em>, <em class="sig-param"><span class="n">test_id_analogy</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">test_id_analogy_threshold</span><span class="o">=</span><span class="default_value">3</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset._check_exists">
+<code class="sig-name descname">_check_exists</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset._check_exists" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset._generate">
+<code class="sig-name descname">_generate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">root</span></em>, <em class="sig-param"><span class="n">dataset_size</span></em>, <em class="sig-param"><span class="n">img_size</span></em>, <em class="sig-param"><span class="n">object_size</span></em>, <em class="sig-param"><span class="n">nb_objects</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset._generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate the Sort-of-CLEVR dataset if it doesn’t exist already.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getclass">
+<code class="sig-name descname">getclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentvalue">
+<code class="sig-name descname">getlatentvalue</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentvalue" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentclass">
+<code class="sig-name descname">getlatentclass</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentclass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentonehot">
+<code class="sig-name descname">getlatentonehot</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">idx</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.sort_of_CLEVR_dataset.SortOfCLEVRDataset.getlatentonehot" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets.utils">
+<span id="referentialgym-datasets-utils-module"></span><h2>ReferentialGym.datasets.utils module<a class="headerlink" href="#module-ReferentialGym.datasets.utils" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="ReferentialGym.datasets.utils.DictBatch">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">DictBatch</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.DictBatch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt id="ReferentialGym.datasets.utils.DictBatch.pin_memory">
+<code class="sig-name descname">pin_memory</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.DictBatch.pin_memory" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.utils.DictBatch.cuda">
+<code class="sig-name descname">cuda</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.DictBatch.cuda" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="ReferentialGym.datasets.utils.DictBatch.keys">
+<code class="sig-name descname">keys</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.DictBatch.keys" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt id="ReferentialGym.datasets.utils.collate_dict_wrapper">
+<code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">collate_dict_wrapper</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">batch</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.collate_dict_wrapper" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.utils.ResizeNormalize">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">ResizeNormalize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">size</span></em>, <em class="sig-param"><span class="n">use_cuda</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">normalize_rgb_values</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">toPIL</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">rgb_scaler</span><span class="o">=</span><span class="default_value">1.0</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.ResizeNormalize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.utils.AddEgocentricInvariance">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">AddEgocentricInvariance</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">marker_demisize</span><span class="o">=</span><span class="default_value">2</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.AddEgocentricInvariance" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.utils.Rescale">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">Rescale</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">output_size</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.Rescale" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="ReferentialGym.datasets.utils.RescaleNormalize">
+<em class="property">class </em><code class="sig-prename descclassname">ReferentialGym.datasets.utils.</code><code class="sig-name descname">RescaleNormalize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">size</span></em>, <em class="sig-param"><span class="n">use_cuda</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">normalize_rgb_values</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#ReferentialGym.datasets.utils.RescaleNormalize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-ReferentialGym.datasets">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-ReferentialGym.datasets" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">ReferentialGym.datasets package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.CLEVR_dataset">ReferentialGym.datasets.CLEVR_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.MSCOCO_dataset">ReferentialGym.datasets.MSCOCO_dataset module</a></li>
+<li><a class="reference internal" href="#referentialgym-datasets-minerl-dataset-module">ReferentialGym.datasets.MineRL_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.dSprites_dataset">ReferentialGym.datasets.dSprites_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.dataset">ReferentialGym.datasets.dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.dict_dataset_wrapper">ReferentialGym.datasets.dict_dataset_wrapper module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.dual_labeled_dataset">ReferentialGym.datasets.dual_labeled_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.extended_sort_of_CLEVR_dataset">ReferentialGym.datasets.extended_sort_of_CLEVR_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.labeled_dataset">ReferentialGym.datasets.labeled_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.sort_of_CLEVR_dataset">ReferentialGym.datasets.sort_of_CLEVR_dataset module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets.utils">ReferentialGym.datasets.utils module</a></li>
+<li><a class="reference internal" href="#module-ReferentialGym.datasets">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="ReferentialGym.agents.html"
+                        title="previous chapter">ReferentialGym.agents package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="ReferentialGym.modules.html"
+                        title="next chapter">ReferentialGym.modules package</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/ReferentialGym.datasets.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.modules.html" title="ReferentialGym.modules package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="ReferentialGym.agents.html" title="ReferentialGym.agents package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">ReferentialGym  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >ReferentialGym</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="ReferentialGym.html" >ReferentialGym package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Kevin Denamganaï.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 3.0.4.
+    </div>
+  </body>
+</html>
