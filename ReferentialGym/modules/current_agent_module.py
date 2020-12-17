@@ -5,7 +5,7 @@ from ..modules import Module
 
 class CurrentAgentModule(Module):
     def __init__(self, 
-                 id='current_agent', 
+                 id="current_agent", 
                  role=None):
         """
         :param id: str defining the ID of the module.
@@ -26,11 +26,12 @@ class CurrentAgentModule(Module):
     def get_input_stream_ids(self):
         return self.ref_agent.get_input_stream_ids()
 
-    def clone(self, clone_id='a0'):
+    def clone(self, clone_id="a0"):
         return self.ref_agent.clone()
 
     def save(self, path):
-        self.ref_agent.save(path=path)
+        if self.ref_agent is not None:
+            self.ref_agent.save(path=path)
 
     def _tidyup(self):
         self.ref_agent._tidyup()
@@ -41,7 +42,7 @@ class CurrentAgentModule(Module):
     def register_hook(self, hook):
         self.ref_agent.register_hook(hook=hook)
 
-    def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+    def forward(self, sentences, experiences, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -83,6 +84,6 @@ class CurrentAgentModule(Module):
         self.ref_agent.role = self.role
         outputs_dict = self.ref_agent.compute(input_streams_dict=input_streams_dict)
 
-        outputs_dict['ref_agent'] = self.ref_agent
+        outputs_dict["ref_agent"] = self.ref_agent
 
         return outputs_dict

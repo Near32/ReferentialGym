@@ -3,13 +3,15 @@ from .networks import ConvolutionalBody, EntityPrioredConvolutionalBody, Convolu
 from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
 
-from .networks import layer_init, hasnan, handle_nan
+from .networks import layer_init, hasnan, handle_nan, reg_nan
 
+from .autoregressive_networks import DeconvolutionalBody
 from .autoregressive_networks import ResNetEncoder, ResNetAvgPooledEncoder, BroadcastingDecoder, ResNetParallelAttentionEncoder, ParallelAttentionBroadcastingDeconvDecoder
 from .autoregressive_networks import BetaVAE, MONet, ParallelMONet
 
 from .homoscedastic_multitask_loss import HomoscedasticMultiTasksLoss 
 
+import torch.nn as nn 
 import torch.nn.functional as F 
 
 def choose_architecture( architecture, 
@@ -17,12 +19,14 @@ def choose_architecture( architecture,
                          fc_hidden_units_list=None,
                          rnn_hidden_units_list=None,
                          input_shape=None,
+                         output_shape=None,
                          feature_dim=None, 
                          nbr_channels_list=None, 
                          kernels=None, 
                          strides=None, 
                          paddings=None,
                          dropout=0.0,
+                         non_linearities=[nn.ReLU],
                          MHDPANbrHead=4,
                          MHDPANbrRecUpdate=1,
                          MHDPANbrMLPUnit=512,
@@ -33,10 +37,10 @@ def choose_architecture( architecture,
     if 'GRU-RNN' in architecture:
         return GRUBody(input_shape[0], hidden_units=rnn_hidden_units_list, gate=nn.LeakyReLU)
     
-    if architecture == 'MLP':
-        return FCBody(input_shape[0], hidden_units=fc_hidden_units_list, gate=nn.LeakyReLU)
+    if 'MLP' in architecture:
+        return FCBody(input_shape, hidden_units=fc_hidden_units_list, non_linearities=[nn.LeakyReLU])
     
-    if 'CNN' in architecture:
+    if 'CNN' in architecture and 'DCNN' not in architecture:
         use_coordconv = None
         if 'coord2' in architecture.lower():
             use_coordconv = 2 
@@ -77,7 +81,41 @@ def choose_architecture( architecture,
                                          paddings=paddings,
                                          fc_hidden_units=fc_hidden_units_list,
                                          use_coordconv=use_coordconv,
-                                         dropout=dropout)
+                                         dropout=dropout,
+                                         non_linearities=non_linearities)
+    elif 'DCNN' in architecture:
+        use_coordconv = None
+        if 'coord2' in architecture.lower():
+            use_coordconv = 2 
+        if 'coord4' in architecture.lower():
+            use_coordconv = 4 
+            
+        channels = [input_shape[0]] + nbr_channels_list
+        if 'MHDPA' in architecture:
+            raise NotImplementedError
+            """
+            body = ConvolutionalMHDPABody(input_shape=input_shape,
+                                          feature_dim=feature_dim,
+                                          channels=channels,
+                                          kernel_sizes=kernels,
+                                          strides=strides,
+                                          paddings=paddings,
+                                          fc_hidden_units=fc_hidden_units_list,
+                                          dropout=dropout,
+                                          nbrHead=MHDPANbrHead,
+                                          nbrRecurrentSharedLayers=MHDPANbrRecUpdate,
+                                          units_per_MLP_layer=MHDPANbrMLPUnit,
+                                          interaction_dim=MHDPAInteractionDim)
+            """
+        else:
+            body = DeconvolutionalBody(input_shape=input_shape,
+                                       output_shape=output_shape,
+                                       channels=channels,
+                                       kernel_sizes=kernels,
+                                       strides=strides,
+                                       paddings=paddings,
+                                       use_coordconv=use_coordconv,
+                                       dropout=dropout)
 
         
     if 'VGG16' in architecture:
@@ -223,7 +261,7 @@ def choose_architecture( architecture,
             else:
                 channels = [input_shape[0]] + nbr_channels_list
                 encoder = ConvolutionalBody(input_shape=input_shape,
-                                            feature_dim=[feature_dim, latent_dim*2],
+                                            feature_dim=latent_dim*2,
                                             channels=channels,
                                             kernel_sizes=kernels,
                                             strides=strides,

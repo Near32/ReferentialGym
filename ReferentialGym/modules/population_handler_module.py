@@ -4,8 +4,10 @@ import torch
 import torch.nn as nn 
 
 import os
+import pickle
 import copy
 import random 
+import glob
 
 from .module import Module
 
@@ -31,19 +33,19 @@ class PopulationHandlerModule(Module):
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]):
 
-        assert "current_speaker_streams_dict" in input_stream_ids.values(),\
+        assert "current_speaker_streams_dict" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'current_speaker_streams_dict' id.\n\
                 Not found in input_stream_ids."
-        assert "current_listener_streams_dict" in input_stream_ids.values(),\
+        assert "current_listener_streams_dict" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'current_listener_streams_dict' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "epoch" in input_stream_ids.values(),\
+        assert "epoch" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'epoch' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "global_it_datasample" in input_stream_ids.values(),\
+        assert "global_it_datasample" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'global_it_datasample' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "PopulationHandlerModule relies on 'mode' id to compute its pipeline.\n\
                 Not found in input_stream_ids."
 
@@ -53,22 +55,28 @@ class PopulationHandlerModule(Module):
                                                     input_stream_ids=input_stream_ids)
         
         print("Create Agents: ...")
+
+        self.verbose = config["verbose"]
         
         # Agents:
         if 'cultural_speaker_substrate_size' not in self.config:
             self.config['cultural_speaker_substrate_size'] = 1
         nbr_speaker = self.config['cultural_speaker_substrate_size']
         self.speakers = nn.ModuleList()
+        self.dspeakers = dict()
         speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
         for speaker in speakers:
             self.speakers.append(speaker)
+            self.dspeakers[speaker.id] = speaker
         if 'cultural_listener_substrate_size' not in self.config:
             self.config['cultural_listener_substrate_size'] = 1
         nbr_listener = self.config['cultural_listener_substrate_size']
         self.listeners = nn.ModuleList()
+        self.dlisteners = dict()
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
         for listener in listeners:
             self.listeners.append(listener)
+            self.dlisteners[listener.id] = listener
 
         if 'cultural_reset_strategy' in self.config\
             and 'meta' in self.config['cultural_reset_strategy']:
@@ -91,6 +99,100 @@ class PopulationHandlerModule(Module):
         self.previous_epoch = -1
         self.previous_global_it_datasample = -1
         self.counterGames = 0
+
+    def save(self, path):
+        path = os.path.join(path, self.id)
+        os.makedirs(path, exist_ok=True)
+
+        if 'cultural_reset_strategy' in self.config\
+            and 'meta' in self.config['cultural_reset_strategy']:
+            meta_agents_optimizers = self.meta_agents_optimizers
+            self.meta_agents_optimizers = None
+            meta_agents_optimizers_state_dicts = {k: v.state_dict() for k, v in meta_agents_optimizers.items()}
+            torch.save(meta_agents_optimizers_state_dicts, path+".optimizers_state_dict")
+            self.meta_agents_optimizers = meta_agents_optimizers
+            
+            meta_path = os.path.join(path, "meta_agents")
+            os.makedirs(meta_path, exist_ok=True)
+
+            for name, meta_agent in self.meta_agents:
+                meta_agent.save(meta_path, filename=meta_agent.id+".agent")
+        
+        speakers_path = os.path.join(path, "speakers")
+        os.makedirs(speakers_path, exist_ok=True)
+        for speaker in self.speakers:
+            speaker.save(speakers_path, filename=speaker.id+".agent")
+        
+        listeners_path = os.path.join(path, "listeners")
+        os.makedirs(listeners_path, exist_ok=True)
+        for listener in self.listeners:
+            listener.save(listeners_path, filename=listener.id+".agent")
+
+        try:
+            with open(path+"agent_stats.dict", 'wb') as f:
+                pickle.dump(self.agents_stats, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            print(f"Exception caught while trying to save agents stats: {e}")
+
+            
+    def load(self, path):
+        mpath = os.path.join(path, self.id)
+
+        try:
+            with open(mpath+"agent_stats.dict", 'rb') as f:
+                self.agents_stats = pickle.load(f)
+        except Exception as e:
+            print(f"Exception caught while trying to load agents stats: {e}")
+
+        listeners_path = os.path.join(mpath, "listeners")
+        listeners_paths = glob.glob(os.path.join(listeners_path, "*.agent"))
+        for listener_idx, listener_path in enumerate(listener_paths):
+            try:
+                listener = torch.load(listener_path)
+                listener_id = listener.id 
+                if listener_id not in self.dlisteners.keys():
+                    print(f"WARNING: loading a listener that was not there previously...: {listener_id}.")
+                    raise
+                self.dlisteners[meta_agent_id] = listener
+                self.listeners[listener_idx] = listener
+            except Exception as e:
+                print(f"WARNING: exception caught when trying to load listener {listener_id}: {e}")
+
+        speakers_path = os.path.join(mpath, "speakers")
+        speakers_paths = glob.glob(os.path.join(speakers_path, "*.agent"))
+        for speaker_idx, speaker_path in enumerate(speaker_paths):
+            try:
+                speaker = torch.load(speaker_path)
+                speaker_id = speaker.id 
+                if speaker_id not in self.dspeakers.keys():
+                    print(f"WARNING: loading a speaker that was not there previously...: {speaker_id}.")
+                    raise
+                self.dspeakers[meta_agent_id] = speaker
+                self.speakers[speaker_idx] = speaker
+            except Exception as e:
+                print(f"WARNING: exception caught when trying to load speaker {speaker_id}: {e}")
+
+        if 'cultural_reset_strategy' in self.config\
+            and 'meta' in self.config['cultural_reset_strategy']:
+            meta_agents_optimizers_state_dicts = torch.load(mpath+".optimizers_state_dict")
+            for k,v in meta_agents_optimizers_state_dicts.items():
+                try:
+                    self.meta_agents_optimizers[k].load_state_dict(v)
+                except Exception as e:
+                    print(f"WARNING: exception caught when trying to load meta agent optimizer {k}: {e}")
+
+            meta_path = os.path.join(mpath, "meta_agents")
+            meta_agents_paths = glob.glob(os.path.join(meta_path, "*.agent"))
+            
+            for meta_agent_path in meta_agents_paths:
+                try:
+                    meta_agent = torch.load(meta_path)
+                    meta_agent_id = meta_agent.id 
+                    if meta_agent_id not in self.meta_agents.keys():
+                        print(f"WARNING: loading a meta agent that was not there previously...: {meta_agent_id}.")
+                    self.meta_agents[meta_agent_id] = meta_agent
+                except Exception as e:
+                    print(f"WARNING: exception caught when trying to load meta agent {meta_agent_id}: {e}")
 
     def _select_agents(self):
         idx_speaker = random.randint(0,len(self.speakers)-1)
@@ -120,6 +222,7 @@ class PopulationHandlerModule(Module):
                 for agent in self.meta_agents.values():
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
 
+        # Reset agent(s):
         if 'train' in mode \
             and 'cultural_pressure_it_period' in self.config\
             and self.config["cultural_pressure_it_period"] is not None \
@@ -129,7 +232,7 @@ class PopulationHandlerModule(Module):
                 if 'S' in self.config['cultural_reset_strategy']:
                     weights = [ it-self.agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in self.speakers] 
                     idx_speaker2reset = random.choices( range(len(self.speakers)), weights=weights)[0]
-                elif 'L' in self.config['cultural_reset_strategy']:
+                if 'L' in self.config['cultural_reset_strategy']:
                     weights = [ it-self.agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in self.listeners] 
                     idx_listener2reset = random.choices( range(len(self.listeners)), weights=weights)[0]
                 else:
@@ -139,7 +242,7 @@ class PopulationHandlerModule(Module):
             else: #uniform
                 if 'S' in self.config['cultural_reset_strategy']:
                     idx_speaker2reset = random.randint(0,len(self.speakers)-1)
-                elif 'L' in self.config['cultural_reset_strategy']:
+                if 'L' in self.config['cultural_reset_strategy']:
                     idx_listener2reset = random.randint(0,len(self.listeners)-1)
                 else:
                     idx_agent2reset = random.randint(0,2*len(self.listeners)-1)
@@ -152,7 +255,9 @@ class PopulationHandlerModule(Module):
                 else:
                     self.speakers[idx_speaker2reset].reset()
                 self.agents_stats[self.speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
-                print("Agent Speaker {} has just been resetted.".format(self.speakers[idx_speaker2reset].agent_id))
+                
+                if self.verbose:
+                    print("Agent Speaker {} has just been resetted.".format(self.speakers[idx_speaker2reset].agent_id))
             
             if 'L' in self.config['cultural_reset_strategy']:
                 if 'meta' in self.config['cultural_reset_strategy']:
@@ -162,7 +267,8 @@ class PopulationHandlerModule(Module):
                 else:
                     self.listeners[idx_listener2reset].reset()
                 self.agents_stats[self.listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
-                print("Agent  Listener {} has just been resetted.".format(self.listeners[idx_listener2reset].agent_id))
+                if self.verbose:
+                    print("Agent  Listener {} has just been resetted.".format(self.listeners[idx_listener2reset].agent_id))
 
             if 'L' not in self.config['cultural_reset_strategy'] and 'S' not in self.config['cultural_reset_strategy']:
                 if idx_agent2reset < len(self.listeners):
@@ -177,7 +283,9 @@ class PopulationHandlerModule(Module):
                 else:
                     agents[idx_agent2reset].reset()
                     self.agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
-                print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
+                
+                if self.verbose:
+                    print("Agents {} has just been resetted.".format(agents[idx_agent2reset].agent_id))
     
     def _reptile_step(self, learner, reptile_learner, nbr_grad_steps=1, verbose=False) :
         k = 1.0/float(nbr_grad_steps)

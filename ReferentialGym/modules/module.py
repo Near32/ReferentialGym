@@ -26,7 +26,7 @@ class Module(nn.Module):
         return self.input_stream_ids
 
     def compute(self, inputs_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
+        """
         Operates on inputs_dict that is made up of referents to the available stream.
         Make sure that accesses to its element are non-destructive.
 
@@ -37,5 +37,5 @@ class Module(nn.Module):
 
         :returns:
             - outputs_sream_dict: 
-        '''
+        """
         raise NotImplementedError

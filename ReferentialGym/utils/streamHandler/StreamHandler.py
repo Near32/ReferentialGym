@@ -57,7 +57,7 @@ class StreamHandler(object):
             module_input_stream_dict = self._serve_module(module)    
             module_output_stream_dict = module.compute(input_streams_dict=module_input_stream_dict)
             for stream_id, stream_data in module_output_stream_dict.items():
-                if "globals:" in stream_id:
+                if ":" in stream_id:
                     self.update(stream_id, stream_data)
                 else:
                     self.update(f"modules:{module_id}:{stream_id}", stream_data)
@@ -65,7 +65,7 @@ class StreamHandler(object):
     def _serve_module(self, module:object):
         module_input_stream_ids = module.get_input_stream_ids()
         module_input_stream_dict = {}
-        for k_in, k_out in module_input_stream_ids.items():
+        for k_out, k_in in module_input_stream_ids.items():
             module_input_stream_dict[k_out] = self[k_in]
         return module_input_stream_dict
     
@@ -75,6 +75,8 @@ class StreamHandler(object):
 
         :params stream_id: string formatted with ':' between the name of the streaming module/placeholder and the name of the stream.
         '''
+        if stream_id == "None": return None 
+        
         stream_id = stream_id.split(":")
         p_ptr = self.placeholders
         for ptr in stream_id[:-1]:

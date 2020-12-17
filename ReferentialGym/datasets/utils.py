@@ -90,7 +90,8 @@ class AddEgocentricInvariance(object):
     def __call__(self, x):
         x = np.array(x)
         dim = x.shape[-2]
-        marker_colour = x.max()
+        xmax = x.max()
+        marker_colour = 0 if x.mean() > 127 else xmax
         start = int(dim//2-self.marker_demisize)
         end = int(dim//2+self.marker_demisize)
         x[start:end, :, ...] = marker_colour

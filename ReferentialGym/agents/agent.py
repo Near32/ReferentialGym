@@ -1,14 +1,15 @@
 from typing import Dict, List 
 
+import os 
+import random 
+import copy
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
 import numpy as np 
-import random 
-
-import copy
 
 from ..modules import Module
 
@@ -19,10 +20,10 @@ def vae_loss_hook(agent,
                   outputs_dict,
                   logs_dict,
                   **kwargs):
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
     
-    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/{agent.role}/VAE_loss'] = [agent.kwargs['VAE_lambda'], agent.VAE_losses]
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}/VAE_loss"] = [agent.kwargs["VAE_lambda"], agent.VAE_losses]
 
 def maxl1_loss_hook(agent,
                     losses_dict,
@@ -30,22 +31,22 @@ def maxl1_loss_hook(agent,
                     outputs_dict,
                     logs_dict,
                     **kwargs):
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
     
     weight_maxl1_loss = 0.0
     for p in agent.parameters() :
         weight_maxl1_loss += torch.max( torch.abs(p) )
-    outputs_dict['maxl1_loss'] = weight_maxl1_loss        
+    outputs_dict["maxl1_loss"] = weight_maxl1_loss        
 
-    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/{agent.role}_maxl1_weight_loss'] = [1.0, weight_maxl1_loss]
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}_maxl1_weight_loss"] = [1.0, weight_maxl1_loss]
     
 
 
 
 class Agent(Module):
     def __init__(self, 
-                 agent_id='l0', 
+                 agent_id="l0", 
                  obs_shape=[1,1,1,32,32], 
                  vocab_size=100, 
                  max_sentence_length=10, 
@@ -63,49 +64,50 @@ class Agent(Module):
         :param role: str defining the role of the agent, e.g. "speaker"/"listener".
         """
 
-        input_stream_keys = {'speaker':list(), 'listener':list()}
-        input_stream_ids = {'speaker':list(), 'listener':list()}
+        input_stream_ids = {"speaker":list(), "listener":list()}
         
-        input_stream_ids['speaker'] = {
-            'current_dataloader:sample:speaker_experiences':'experiences', 
-            'current_dataloader:sample:speaker_exp_latents':'exp_latents', 
-            'current_dataloader:sample:speaker_exp_latents_values':'exp_latents_values', 
-            'modules:current_listener:sentences_logits':'sentences_logits',
-            'modules:current_listener:sentences_one_hot':'sentences_one_hot',
-            'modules:current_listener:sentences_widx':'sentences_widx', 
-            'config':'config',
-            'config:graphtype':'graphtype',
-            'config:tau0':'tau0',
-            'signals:multi_round':'multi_round',
-            'signals:end_of_epoch_sample':'end_of_epoch_sample',
-            'signals:mode':'mode',
-            'signals:it_sample':'it_rep',
-            'signals:it_step':'it_comm_round',
-            'signals:global_it_step':'global_it_comm_round',
-            'current_dataloader:sample':'sample',
-            'losses_dict':'losses_dict',
-            'logs_dict':'logs_dict',
+        input_stream_ids["speaker"] = {
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "exp_latents":"current_dataloader:sample:speaker_exp_latents", 
+            "exp_latents_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+            "exp_latents_values":"current_dataloader:sample:speaker_exp_latents_values", 
+            "sentences_logits":"modules:current_listener:sentences_logits",
+            "sentences_one_hot":"modules:current_listener:sentences_one_hot",
+            "sentences_widx":"modules:current_listener:sentences_widx", 
+            "config":"config",
+            "graphtype":"config:graphtype",
+            "tau0":"config:tau0",
+            "multi_round":"signals:multi_round",
+            "end_of_epoch_sample":"signals:end_of_epoch_sample",
+            "mode":"signals:mode",
+            "it_rep":"signals:it_sample",
+            "it_comm_round":"signals:it_step",
+            "global_it_comm_round":"signals:global_it_step",
+            "sample":"current_dataloader:sample",
+            "losses_dict":"losses_dict",
+            "logs_dict":"logs_dict",
         }
 
-        input_stream_ids['listener'] = {
-            'current_dataloader:sample:listener_experiences':'experiences', 
-            'current_dataloader:sample:listener_exp_latents':'exp_latents', 
-            'current_dataloader:sample:listener_exp_latents_values':'exp_latents_values', 
-            'modules:current_speaker:sentences_logits':'sentences_logits',
-            'modules:current_speaker:sentences_one_hot':'sentences_one_hot',
-            'modules:current_speaker:sentences_widx':'sentences_widx', 
-            'config':'config',
-            'config:graphtype':'graphtype',
-            'config:tau0':'tau0',
-            'signals:multi_round':'multi_round',
-            'signals:end_of_epoch_sample':'end_of_epoch_sample',
-            'signals:mode':'mode',
-            'signals:it_sample':'it_rep',
-            'signals:it_step':'it_comm_round',
-            'signals:global_it_step':'global_it_comm_round',
-            'current_dataloader:sample':'sample',
-            'losses_dict':'losses_dict',
-            'logs_dict':'logs_dict',
+        input_stream_ids["listener"] = {
+            "experiences":"current_dataloader:sample:listener_experiences", 
+            "exp_latents":"current_dataloader:sample:listener_exp_latents", 
+            "exp_latents_one_hot_encoded":"current_dataloader:sample:listener_exp_latents_one_hot_encoded", 
+            "exp_latents_values":"current_dataloader:sample:listener_exp_latents_values", 
+            "sentences_logits":"modules:current_speaker:sentences_logits",
+            "sentences_one_hot":"modules:current_speaker:sentences_one_hot",
+            "sentences_widx":"modules:current_speaker:sentences_widx", 
+            "config":"config",
+            "graphtype":"config:graphtype",
+            "tau0":"config:tau0",
+            "multi_round":"signals:multi_round",
+            "end_of_epoch_sample":"signals:end_of_epoch_sample",
+            "mode":"signals:mode",
+            "it_rep":"signals:it_sample",
+            "it_comm_round":"signals:it_step",
+            "global_it_comm_round":"signals:global_it_step",
+            "sample":"current_dataloader:sample",
+            "losses_dict":"losses_dict",
+            "logs_dict":"logs_dict",
         }
 
         super(Agent, self).__init__(id=agent_id,
@@ -131,18 +133,15 @@ class Agent(Module):
         self.vocab_pad_idx = self.vocab_size
         
         self.hooks = []
-        if self.kwargs['with_weight_maxl1_loss']:
+        if self.kwargs["with_weight_maxl1_loss"]:
             self.register_hook(maxl1_loss_hook)
 
         self.role = role        
     
-    def get_input_stream_keys(self):
-        return self.input_stream_keys[self.role]
-
     def get_input_stream_ids(self):
         return self.input_stream_ids[self.role]
 
-    def clone(self, clone_id='a0'):
+    def clone(self, clone_id="a0"):
         logger = self.logger
         self.logger = None 
         clone = copy.deepcopy(self)
@@ -151,10 +150,14 @@ class Agent(Module):
         self.logger = logger  
         return clone 
 
-    def save(self, path):
+    def save(self, path, filename=None):
         logger = self.logger
         self.logger = None
-        torch.save(self, path)
+        if filename is None:
+            filepath = path+self.id+".agent"
+        else:
+            filepath = os.path.join(path, filename)
+        torch.save(self, filepath)
         self.logger = logger 
 
     def _tidyup(self):
@@ -164,11 +167,11 @@ class Agent(Module):
         if self.logger is None: 
             return 
 
-        agent_log_dict = {f'{self.agent_id}': dict()}
+        agent_log_dict = {f"{self.agent_id}": dict()}
         for key, data in log_dict.items():
             if data is None:
                 data = [None]*batch_size
-            agent_log_dict[f'{self.agent_id}'].update({f'{key}':data})
+            agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
         
         self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
         
@@ -177,7 +180,14 @@ class Agent(Module):
     def register_hook(self, hook):
         self.hooks.append(hook)
 
-    def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+    def embed_sentences(self, sentence):
+        """
+        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
+        :returns embedded_sentences: Tensor of shape `(batch_size, max_sentence_length, symbol_embedding_size)` containing the padded sequence of embedded symbols.
+        """
+        raise NotImplementedError
+
+    def forward(self, sentences, experiences, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -214,43 +224,47 @@ class Agent(Module):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
-        config = input_streams_dict['config']
-        mode = input_streams_dict['mode']
-        it_rep = input_streams_dict['it_rep']
-        it_comm_round = input_streams_dict['it_comm_round']
-        global_it_comm_round = input_streams_dict['global_it_comm_round']
+        config = input_streams_dict["config"]
+        mode = input_streams_dict["mode"]
+        it_rep = input_streams_dict["it_rep"]
+        it_comm_round = input_streams_dict["it_comm_round"]
+        global_it_comm_round = input_streams_dict["global_it_comm_round"]
         
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
         
-        batch_size = len(input_streams_dict['experiences'])
-
-        input_sentence = input_streams_dict['sentences_widx']
+        input_sentence = input_streams_dict["sentences_widx"]
         if self.use_sentences_one_hot_vectors:
-            input_sentence = input_streams_dict['sentences_one_hot']
+            input_sentence = input_streams_dict["sentences_one_hot"]
 
+        if input_streams_dict["experiences"] is not None:
+            batch_size = input_streams_dict["experiences"].shape[0]
+        else:
+            batch_size = input_sentence.shape[0]
+            
         outputs_dict = self(sentences=input_sentence,
-                           experiences=input_streams_dict['experiences'],
-                           multi_round=input_streams_dict['multi_round'],
-                           graphtype=input_streams_dict['graphtype'],
-                           tau0=input_streams_dict['tau0'])
+                           experiences=input_streams_dict["experiences"],
+                           multi_round=input_streams_dict["multi_round"],
+                           graphtype=input_streams_dict["graphtype"],
+                           tau0=input_streams_dict["tau0"])
 
-        outputs_dict['exp_latents'] = input_streams_dict['exp_latents']
-        outputs_dict['exp_latents_values'] = input_streams_dict['exp_latents_values']
+        outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
+        outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
+        outputs_dict["exp_latents_one_hot_encoded"] = input_streams_dict["exp_latents_one_hot_encoded"]
         self._log(outputs_dict, batch_size=batch_size)
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
 
-        '''
-        if hasattr(self, 'TC_losses'):
-            losses_dict[f'{self.role}/TC_loss'] = [1.0, self.TC_losses]
-        '''
-        if hasattr(self, 'VAE_losses') and vae_loss_hook not in self.hooks:
+        """
+        if hasattr(self, "TC_losses"):
+            losses_dict[f"{self.role}/TC_loss"] = [1.0, self.TC_losses]
+        """
+        if hasattr(self, "VAE_losses") and vae_loss_hook not in self.hooks:
             self.register_hook(vae_loss_hook)
 
-        if hasattr(self,'tau'): 
+        if hasattr(self,"tau"): 
             tau = torch.cat([ t.view((-1)) for t in self.tau], dim=0) if isinstance(self.tau, list) else self.tau
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Tau/{self.agent_id}"] = tau
         
@@ -278,6 +292,6 @@ class Agent(Module):
 
         self._tidyup()
         
-        outputs_dict['losses'] = losses_dict
+        outputs_dict["losses"] = losses_dict
 
         return outputs_dict    

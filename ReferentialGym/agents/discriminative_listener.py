@@ -42,109 +42,152 @@ def discriminative_st_gs_referential_game_loss(agent,
                                                outputs_dict,
                                                logs_dict,
                                                **kwargs):
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
-    config = input_streams_dict['config']
-    mode = input_streams_dict['mode']
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
+    config = input_streams_dict["config"]
+    mode = input_streams_dict["mode"]
 
-    if 'listener' not in agent.role:    return outputs_dict
+    if "listener" not in agent.role:    return outputs_dict
 
-    batch_size = len(input_streams_dict['experiences'])
+    batch_size = len(input_streams_dict["experiences"])
 
-    sample = input_streams_dict['sample']
+    sample = input_streams_dict["sample"]
             
-    decision_logits = outputs_dict['decision']
+    decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-    if 'obverter' in config['graphtype'].lower():
-        sentences_lengths = torch.sum(-(input_streams_dict['sentences_widx'].squeeze(-1)-agent.vocab_size).sign(), dim=-1).long()
-        # (batch_size,) 
-        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
-            final_decision_logits.shape[0],
-            1,
-            final_decision_logits.shape[2]
-        )
-        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
+    nbr_distractors_po = decision_logits.shape[-1]
+
+    # (batch_size,) 
+    sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
+    #(batch_size, max_sentence_length)
+    eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
+    padding_with_eos = (eos_mask.cumsum(-1).sum()>batch_size)
+    # Include first EoS Symbol:
+    if padding_with_eos:
+        token_mask = ((eos_mask.cumsum(-1)>1)<=0)
+        lengths = token_mask.sum(-1)
+        #(batch_size, )
     else:
-        final_decision_logits = final_decision_logits[:,-1]
+        token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+        lengths = token_mask.sum(-1)
+        
+    if not(padding_with_eos):
+        # If excluding first EoS:
+        lengths = lengths.add(1)
+    sentences_lengths = lengths.clamp(max=agent.max_sentence_length)
+    #(batch_size, )
+    
+    sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+        final_decision_logits.shape[0],
+        1,
+        final_decision_logits.shape[2]
+    )
+    
+    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     
-    if config['agent_loss_type'].lower() == 'nll':
-        if config['descriptive']:  
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-            criterion = nn.NLLLoss(reduction='none')
+    if config["agent_loss_type"].lower() == "nll":
+        if config["descriptive"]:
+            """
+            # Then nbr_descriptors_po = nbr_descriptor+1 (target) +1 (not_target output)  
+            if nbr_distractors_po > 1: 
+                decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+            else:
+                decision_logits = final_decision_logits.log()
+                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )            
+            criterion = nn.NLLLoss(reduction="none")
             
-            if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
+            if "obverter_least_effort_loss" in config and config["obverter_least_effort_loss"]:
                 loss = 0.0
                 losses4widx = []
-                for widx in range(decision_probs.size(1)):
-                    dp = decision_probs[:,widx,...]
-                    ls = criterion( dp, sample['target_decision_idx'])
-                    loss += config['obverter_least_effort_loss_weights'][widx]*ls 
+                for widx in range(decision_logits.size(1)):
+                    dp = decision_logits[:,widx,...]
+                    ls = criterion( dp, sample["target_decision_idx"])
+                    loss += config["obverter_least_effort_loss_weights"][widx]*ls 
                     losses4widx.append(ls)
             else:
-                decision_probs = decision_probs[:,-1,...]
-                loss = criterion( decision_probs, sample['target_decision_idx'])
+                #decision_logits = decision_logits[:,-1,...]
+                loss = criterion( decision_logits, sample["target_decision_idx"])
                 # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
+            """
+            decision_logits = final_decision_logits
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )            
+            criterion = nn.NLLLoss(reduction="none")
+            
+            #decision_logits = decision_logits[:,-1,...]
+            loss = criterion( decision_logits, sample["target_decision_idx"])
+            # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
         else:   
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-            criterion = nn.NLLLoss(reduction='none')
-            loss = criterion( decision_probs, sample['target_decision_idx'])
+            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+            criterion = nn.NLLLoss(reduction="none")
+            loss = criterion( decision_logits, sample["target_decision_idx"])
             # (batch_size, )
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
-    elif config['agent_loss_type'].lower() == 'ce':
-        if config['descriptive']:  
+    elif config["agent_loss_type"].lower() == "ce":
+        if config["descriptive"]:  
             raise NotImplementedError
         else:   
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             decision_probs = torch.softmax(final_decision_logits, dim=-1)
-            criterion = nn.CrossEntropyLoss(reduction='none')
-            loss = criterion( final_decision_logits, sample['target_decision_idx'])
+            criterion = nn.CrossEntropyLoss(reduction="none")
+            loss = criterion( final_decision_logits, sample["target_decision_idx"])
             # (batch_size, )
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
-    elif config['agent_loss_type'].lower() == 'hinge':
-        #Havrylov's Hinge loss:
+    elif config["agent_loss_type"].lower() == "hinge":
+        #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+        decision_logits = final_decision_logits
+        decision_probs = decision_logits.exp()
+        #decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
         
-        loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
-                                              target_decision_idx=sample['target_decision_idx'].unsqueeze(1),
-                                              multi_round=input_streams_dict['multi_round'])
+        loss, _ = havrylov_hinge_learning_signal(
+            decision_logits=decision_logits,
+            target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
+            multi_round=input_streams_dict["multi_round"]
+        )
         # (batch_size, )
         
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]    
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
+        outputs_dict["decision_probs"] = decision_probs
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/target_listener_decision_probs"] =\
+         decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
     
-    outputs_dict['decision_probs'] = decision_probs
-
     # Accuracy:
     decision_idx = decision_probs.max(dim=-1)[1]
-    acc = (decision_idx==sample['target_decision_idx']).float()*100
-    logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy'] = acc
-    outputs_dict['accuracy'] = acc
+    acc = (decision_idx==sample["target_decision_idx"]).float()*100
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy"] = acc
+    outputs_dict["accuracy"] = acc
 
 
 def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, decision_logits=None, multi_round=False):
-    '''
+    """
     Computes the reward and done boolean of the current timestep.
     Episode ends if the decisions are correct 
     (or if the max number of round is achieved, but this is handled outside of this function).
-    '''
-    done = (sampled_decision_idx == target_decision_idx)
-    r = done.float()*torch.ones_like(target_decision_idx)
+    """
+    done = guessed_right = (sampled_decision_idx == target_decision_idx)
+    r = guessed_right.float()
     if multi_round:
         r -= 0.1
     return -r, done
 
 
 class ExperienceBuffer(object):
-    def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
-        '''
-        Use a different circular offset['succ_s']=n to implement truncated n-step return...
-        '''
-        if keys is None:    keys = ['s', 'a', 'r', 'non_terminal', 'rnn_state']
+    def __init__(self, capacity, keys=None, circular_keys={"succ_s":"s"}, circular_offsets={"succ_s":1}):
+        """
+        Use a different circular offset["succ_s"]=n to implement truncated n-step return...
+        """
+        if keys is None:    keys = ["s", "a", "r", "non_terminal", "rnn_state"]
         self.keys = keys
         self.circular_keys = circular_keys
         self.circular_offsets = circular_offsets
@@ -169,9 +212,9 @@ class ExperienceBuffer(object):
             self.current_size[k] = min(self.capacity, self.current_size[k]+1)
 
     def pop(self):
-        '''
+        """
         Output a data dict of the latest 'complete' data experience.
-        '''
+        """
         all_keys = self.keys+list(self.circular_keys.keys())
         max_offset = 0
         if len(self.circular_offsets):
@@ -200,7 +243,7 @@ class ExperienceBuffer(object):
     def cat(self, keys, indices=None):
         data = []
         for k in keys:
-            assert k in self.keys or k in self.circular_keys, f'Tried to get value from key {k}, but {k} is not registered.'
+            assert k in self.keys or k in self.circular_keys, f"Tried to get value from key {k}, but {k} is not registered."
             indices_ = indices
             cidx=0
             if k in self.circular_keys: 
@@ -215,8 +258,8 @@ class ExperienceBuffer(object):
                         indices_[idx] = np.random.randint(self.current_size[k]-1-cidx)
                         # propagate to argument:
                         indices[idx] = indices_[idx]
-            '''
-            '''
+            """
+            """
             indices_ = cidx+indices_
             values = v[indices_]
             data.append(values)
@@ -247,12 +290,16 @@ def compute_reinforce_losses(agent,
                              outputs_dict,
                              logs_dict,
                              **kwargs):
-    config = kwargs['config']
-    it_rep = kwargs['it_rep']
-    it_comm_round = kwargs['it_comm_round']
+    config = kwargs["config"]
+    it_rep = kwargs["it_rep"]
+    it_comm_round = kwargs["it_comm_round"]
+    mode = input_streams_dict["mode"]
+
+    batch_size = kwargs["batch_size"]
 
     # then it is the last round, we can compute the loss:
     exp_size = len(agent.exp_buffer)
+    r = kwargs["r"]
     R = torch.zeros_like(r)
     returns = []
     for r in reversed(agent.exp_buffer.r[:exp_size]):
@@ -268,14 +315,14 @@ def compute_reinforce_losses(agent,
     # (batch_size, nbr_communication_round)
     
     ls = learning_signal
-    if 'normalized' in config['graphtype'].lower():
+    if "normalized" in config["graphtype"].lower():
         ls = normalized_learning_signal
 
     for it_round in range(learning_signal.shape[1]):
-        agent.log_dict[f'{agent.agent_id}/learning_signal_{it_round}'] = learning_signal[:,it_round].mean()
+        agent.log_dict[f"{agent.agent_id}/learning_signal_{it_round}"] = learning_signal[:,it_round].mean()
     
-    formatted_baseline = 0.0
-    if 'baseline_reduced' in config['graphtype'].lower():
+    formatted_baseline = torch.zeros_like(ls)
+    if "baseline_reduced" in config["graphtype"].lower():
         if agent.training:
             agent.learning_signal_baseline = \
                 (agent.learning_signal_baseline*agent.learning_signal_baseline_counter+ls.detach().mean(dim=0)) / \
@@ -284,15 +331,16 @@ def compute_reinforce_losses(agent,
         formatted_baseline = agent.learning_signal_baseline.reshape(1,-1).repeat(batch_size,1).to(learning_signal.device)
     
         for it_round in range(learning_signal.shape[1]):
-            agent.log_dict[f'{agent.agent_id}/learning_signal_baseline_{it_round}'] = \
+            agent.log_dict[f"{agent.agent_id}/learning_signal_baseline_{it_round}"] = \
                 agent.learning_signal_baseline[it_round].mean()    
-    
+    formatted_baseline = formatted_baseline.detach()
+
     # Deterministic:
     listener_decision_loss_deterministic = -learning_signal.sum(dim=-1)
     # (batch_size, )
     listener_decision_loss = listener_decision_loss_deterministic
     
-    if 'stochastic' in config['graphtype'].lower():
+    if "stochastic" in config["graphtype"].lower():
         # Stochastic:
         decision_log_probs = torch.cat(agent.exp_buffer.decision_log_probs[:exp_size], dim=-1)
         # (batch_size, nbr_communication_round)
@@ -300,13 +348,20 @@ def compute_reinforce_losses(agent,
         # (batch_size, )
         listener_decision_loss = listener_decision_loss_deterministic+listener_decision_loss_stochastic
         
-    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, listener_decision_loss]
+    #losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, listener_decision_loss]
     
-    # Decision Entropy loss:
-    decision_entropy = torch.cat(agent.exp_buffer.decision_entrs[:exp_size], dim=-1).mean(dim=-1)
+    # (Listener) Decision Entropy (loss):
+    decision_entropy = torch.cat(agent.exp_buffer.decision_entrs[:exp_size], dim=-1)
     # (batch_size, )
-    agent.log_dict[f'{agent.agent_id}/decision_entropy'] = decision_entropy.mean()
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/decision_entropy"] = decision_entropy
     
+
+    listener_decision_entropy_loss_coeff = 0.0
+    if "max_entr" in config["graphtype"]:
+        listener_decision_entropy_loss_coeff = 1e0
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/listener_decision_entropy_loss"] = [listener_decision_entropy_loss_coeff, -decision_entropy]
+    
+    # Speaker Policy Loss:
     speaker_sentences_log_probs = torch.cat(agent.exp_buffer.speaker_sentences_log_probs[:exp_size], dim=-1)
     # (batch_size, max_sentence_length, nbr_communication_round)
     # The log likelihood of each sentences is the sum (in log space) over each next token prediction:
@@ -314,7 +369,7 @@ def compute_reinforce_losses(agent,
     # (batch_size, nbr_communication_round)
     speaker_policy_loss = -(speaker_sentences_log_probs * (ls.detach()-formatted_baseline)).sum(dim=-1)
     # (batch_size, )
-    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_policy_loss'] = [-1.0, speaker_policy_loss]
+    #losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_policy_loss"] = [-1.0, speaker_policy_loss]
     
     # Speaker Entropy loss:
     speaker_entropy_loss = -torch.cat(agent.exp_buffer.speaker_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
@@ -326,9 +381,14 @@ def compute_reinforce_losses(agent,
     # (batch_size, )
     
     speaker_entropy_loss_coeff = 0.0
-    if 'max_entr' in config['graphtype']:
+    if "max_entr" in config["graphtype"]:
         speaker_entropy_loss_coeff = 1e3
-    losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_loss'] = [speaker_entropy_loss_coeff, speaker_entropy_loss]
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/speaker_entropy_loss"] = [speaker_entropy_loss_coeff, speaker_entropy_loss]
+    
+
+    listener_decision_log_probs = torch.cat(agent.exp_buffer.decision_log_probs[:exp_size], dim=-1)
+    policy_loss = -(ls.detach()-formatted_baseline)*(speaker_sentences_log_probs+listener_decision_log_probs)
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, policy_loss]
     
     if exp_size > 1:
         #TODO: propagate from speaker to listener!!!
@@ -344,7 +404,7 @@ def compute_reinforce_losses(agent,
         # (batch_size, nbr_communication_round-1)
         listener_policy_loss = -(listener_sentences_log_probs * (ls[:,1:].detach()-formatted_baseline[:,1:])).sum(dim=-1)
         # (batch_size, )
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_policy_loss'] = [1.0, listener_policy_loss]    
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/listener_policy_loss"] = [1.0, listener_policy_loss]    
     
         # Listener Entropy loss:
         listener_entropy_loss = -torch.cat(agent.exp_buffer.listener_sentences_entrs[:exp_size], dim=-1).permute(0,2,1)
@@ -356,9 +416,9 @@ def compute_reinforce_losses(agent,
         # (batch_size, )
         
         listener_entropy_loss_coeff = 0.0
-        if 'max_entr' in config['graphtype']:
+        if "max_entr" in config["graphtype"]:
             listener_entropy_loss_coeff = -1e0
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/listener_entropy_loss'] = [listener_entropy_loss_coeff, listener_entropy_loss]    
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/listener_entropy_loss"] = [listener_entropy_loss_coeff, listener_entropy_loss]    
 
 
     
@@ -368,16 +428,16 @@ def discriminative_reinforce_referential_game_loss(agent,
                                                    outputs_dict,
                                                    logs_dict,
                                                    **kwargs):
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
-    config = input_streams_dict['config']
-    mode = input_streams_dict['mode']
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
+    config = input_streams_dict["config"]
+    mode = input_streams_dict["mode"]
 
-    batch_size = len(input_streams_dict['experiences'])
+    batch_size = len(input_streams_dict["experiences"])
 
-    sample = input_streams_dict['sample']
+    sample = input_streams_dict["sample"]
             
-    decision_logits = outputs_dict['decision']
+    decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
     
@@ -391,7 +451,7 @@ def discriminative_reinforce_referential_game_loss(agent,
     
     decision_distrs = Categorical(probs=decision_probs) 
     decision_entrs = decision_distrs.entropy()
-    if 'argmax' in config['graphtype'].lower() and not(agent.training):
+    if "argmax" in config["graphtype"].lower() and not(agent.training):
         sampled_decision_idx = final_decision_logits.argmax(dim=-1).unsqueeze(-1)
     else:
         sampled_decision_idx = decision_distrs.sample().unsqueeze(-1)
@@ -402,49 +462,47 @@ def discriminative_reinforce_referential_game_loss(agent,
     # (batch_size, 1)
     
     # Learning signal:
-    target_decision_idx = sample['target_decision_idx'].unsqueeze(1)
+    target_decision_idx = sample["target_decision_idx"].unsqueeze(1)
     # (batch_size, 1)
     learning_signal, done = agent.learning_signal_pred_fn(sampled_decision_idx=sampled_decision_idx,
                                            decision_logits=final_decision_logits,
                                            target_decision_idx=target_decision_idx,
-                                           multi_round=input_streams_dict['multi_round'])
+                                           multi_round=input_streams_dict["multi_round"])
     # Frame the learning loss as penalty:
-    r = -learning_signal
+    #r = -learning_signal
+    # Frame the learning loss as reward:
+    r = learning_signal
 
-    # Where are the actual token (different from padding):
-    speaker_sentences_token_mask = (input_streams_dict['sentences_widx'] != agent.vocab_pad_idx)
+    # Where are the actual token (until first eos_symbol):
+    speaker_sentences_token_mask = (((input_streams_dict["sentences_widx"]==agent.vocab_stop_idx).cumsum(1)>0)==0).float()
+    # Includes EoS:
+    speaker_sentences_token_mask += (input_streams_dict["sentences_widx"]==agent.vocab_stop_idx).float()
     # (batch_size, max_sentence_length, 1)
     
     ## ---------------------------------------------------------------------------
     ## ---------------------------------------------------------------------------
     
     # Compute sentences log_probs:
-    speaker_sentences_logits = input_streams_dict['sentences_logits']
+    speaker_sentences_logits = input_streams_dict["sentences_logits"]
     # (batch_size, max_sentence_length, vocab_size)
-    pad_token_logit = torch.zeros_like(speaker_sentences_logits[0][0]).unsqueeze(0)
-    pad_token_logit[:, agent.vocab_pad_idx] = 1.0
-    # (1, vocab_size,)
-
-    for b in range(len(speaker_sentences_logits)):
-        remainder = agent.kwargs['max_sentence_length'] - len(speaker_sentences_logits[b])
-        if remainder > 0:
-            speaker_sentences_logits[b] = torch.cat([speaker_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
-        speaker_sentences_logits[b] = speaker_sentences_logits[b].unsqueeze(0)
-    speaker_sentences_logits = torch.cat(speaker_sentences_logits, dim=0)
-
-    speaker_sentences_log_probs = F.log_softmax(speaker_sentences_logits, dim=-1)
+    ## Mask values after eos token:
+    speaker_sentences_widx = input_streams_dict["sentences_widx"].long()
+    # (batch_size, max_sentence_length, 1)
+    token_until_eos_mask = (((speaker_sentences_widx==agent.vocab_stop_idx).cumsum(1) > 0)==0)
+    # Excludes the EoS token...
+    # (batch_size, max_sentence_length, 1)
+    #speaker_sentences_probs = speaker_sentences_logits.softmax(dim=-1)
+    speaker_sentences_probs = speaker_sentences_logits.exp()
     # (batch_size, max_sentence_length, vocab_size)
-    speaker_sentences_probs = speaker_sentences_log_probs.softmax(dim=-1)
-    # (batch_size, max_sentence_length, vocab_size)
-    speaker_sentences_log_probs = speaker_sentences_log_probs.gather(dim=-1, 
-        index=input_streams_dict['sentences_widx'].long())
+    speaker_sentences_log_probs = speaker_sentences_logits.gather(dim=-1, 
+        index=speaker_sentences_widx)
     # (batch_size, max_sentence_length, 1)
     speaker_sentences_probs = speaker_sentences_probs.gather(dim=-1, 
-        index=input_streams_dict['sentences_widx'].long())
+        index=speaker_sentences_widx)
     # (batch_size, max_sentence_length, 1)
     
     # Entropy:
-    speaker_sentences_entrs = -(speaker_sentences_probs * speaker_sentences_log_probs)
+    speaker_sentences_entrs = -(token_until_eos_mask*speaker_sentences_probs * speaker_sentences_log_probs)
     # (batch_size, max_sentence_length, 1)
     
     ## ---------------------------------------------------------------------------
@@ -454,48 +512,44 @@ def discriminative_reinforce_referential_game_loss(agent,
     listener_sentences_entrs = None
     listener_sentences_token_mask = None 
 
-    if input_streams_dict['multi_round']:  
-        # Where are the actual token (different from padding):
-        listener_sentences_token_mask = (outputs_dict['sentences_widx'] != agent.vocab_pad_idx)
+    if input_streams_dict["multi_round"]:  
+        ## Mask values after eos token:
+        listener_sentences_widx = input_streams_dict["sentences_widx"].long()
+        token_until_eos_mask = (((listener_sentences_widx==agent.vocab_stop_idx).cumsum(1) > 0)==0)
+        # Excludes the EoS token...
         # (batch_size, max_sentence_length, 1)
-        
-        listener_sentences_logits = outputs_dict['sentences_logits']
+        listener_sentences_logits = outputs_dict["sentences_logits"]
         # (batch_size, max_sentence_length, vocab_size)
-        for b in range(len(listener_sentences_logits)):
-            remainder = agent.kwargs['max_sentence_length'] - len(listener_sentences_logits[b])
-            if remainder > 0:
-                listener_sentences_logits[b] = torch.cat([listener_sentences_logits[b], pad_token_logit.repeat(remainder,1)], dim=0)
-            listener_sentences_logits[b] = listener_sentences_logits[b].unsqueeze(0)
-        listener_sentences_logits = torch.cat(listener_sentences_logits, dim=0)
-        listener_sentences_log_probs = F.log_softmax(listener_sentences_logits, dim=-1)
+        #listener_sentences_probs = listener_sentences_logits.softmax(dim=-1)
+        listener_sentences_probs = listener_sentences_logits.exp()
         # (batch_size, max_sentence_length, vocab_size)
-        listener_sentences_probs = listener_sentences_log_probs.softmax(dim=-11)
-        # (batch_size, max_sentence_length, vocab_size)
-        listener_sentences_log_probs = listener_sentences_log_probs.gather(dim=-1, 
-            index=outputs_dict['sentences_widx'].long())
+        listener_sentences_log_probs = listener_sentences_logits.gather(dim=-1, 
+            index=outputs_dict["sentences_widx"].long())
         # (batch_size, max_sentence_length, 1)
         listener_sentences_probs = listener_sentences_probs.gather(dim=-1, 
-            index=input_streams_dict['sentences_widx'].long())
+            index=input_streams_dict["sentences_widx"].long())
         # (batch_size, max_sentence_length, 1)
         
         # Entropy:
-        listener_sentences_entrs = -(listener_sentences_probs * listener_sentences_log_probs)
+        listener_sentences_entrs = -(token_until_eos_mask*listener_sentences_probs * listener_sentences_log_probs)
         # (batch_size, max_sentence_length, 1)
+        import ipdb; ipdb.set_trace()
+        # check shape...
                 
     ## ---------------------------------------------------------------------------
     # Record data:
     ## ---------------------------------------------------------------------------
     
-    data = {'speaker_sentences_entrs':speaker_sentences_entrs,
-            'speaker_sentences_token_mask':speaker_sentences_token_mask,
-            'speaker_sentences_log_probs':speaker_sentences_log_probs,
-            'listener_sentences_entrs':listener_sentences_entrs,
-            'listener_sentences_token_mask':listener_sentences_token_mask,
-            'listener_sentences_log_probs':listener_sentences_log_probs,
-            'decision_entrs':decision_entrs,
-            'decision_log_probs':decision_log_probs,
-            'r':r,
-            'done':done}
+    data = {"speaker_sentences_entrs":speaker_sentences_entrs,
+            "speaker_sentences_token_mask":speaker_sentences_token_mask,
+            "speaker_sentences_log_probs":speaker_sentences_log_probs,
+            "listener_sentences_entrs":listener_sentences_entrs,
+            "listener_sentences_token_mask":listener_sentences_token_mask,
+            "listener_sentences_log_probs":listener_sentences_log_probs,
+            "decision_entrs":decision_entrs,
+            "decision_log_probs":decision_log_probs,
+            "r":r,
+            "done":done}
 
     agent.exp_buffer.add(data)
 
@@ -504,7 +558,7 @@ def discriminative_reinforce_referential_game_loss(agent,
     ## ---------------------------------------------------------------------------
     
     # Compute losses:
-    if not(input_streams_dict['multi_round']):
+    if not(input_streams_dict["multi_round"]):
         compute_reinforce_losses(
             agent=agent,
             losses_dict=losses_dict,
@@ -513,22 +567,24 @@ def discriminative_reinforce_referential_game_loss(agent,
             logs_dict=logs_dict,
             config=config,
             it_rep=it_rep,
-            it_comm_round=it_comm_round
+            it_comm_round=it_comm_round,
+            r=r,
+            batch_size=batch_size
         )
         agent.exp_buffer.reset()
                     
-    outputs_dict['decision_probs'] = decision_probs
+    outputs_dict["decision_probs"] = decision_probs
 
     # Accuracy:
     decision_idx = decision_probs.max(dim=-1)[1]
-    acc = (decision_idx==sample['target_decision_idx']).float()*100
-    logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy'] = acc
-    outputs_dict['accuracy'] = acc
+    acc = (decision_idx==sample["target_decision_idx"]).float()*100
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy"] = acc
+    outputs_dict["accuracy"] = acc
 
 
 
 class DiscriminativeListener(Listener):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None, kwargs=None):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id="l0", logger=None, kwargs=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_stimuli, sequence_length, *experience_shape)`
                           where, by default, `sequence_length=1` (static stimuli). 
@@ -545,21 +601,21 @@ class DiscriminativeListener(Listener):
                                        logger=logger, 
                                        kwargs=kwargs)
 
-        if 'reinforce' in self.kwargs['graphtype']:
+        if "reinforce" in self.kwargs["graphtype"]:
             # REINFORCE algorithm:
             self.gamma = 0.99
-            #self.learning_signal_pred_fn = penalize_multi_round_binary_loss_fn
-            self.learning_signal_pred_fn = havrylov_hinge_learning_signal
-            self.exp_buffer = ExperienceBuffer(capacity=self.kwargs['nbr_communication_round']*2,
-                                               keys=['speaker_sentences_entrs',
-                                                     'speaker_sentences_token_mask',
-                                                     'speaker_sentences_log_probs',
-                                                     'listener_sentences_entrs',
-                                                     'listener_sentences_log_probs',
-                                                     'decision_entrs',
-                                                     'decision_log_probs',
-                                                     'r',
-                                                     'done'],
+            self.learning_signal_pred_fn = penalize_multi_round_binary_reward_fn
+            #self.learning_signal_pred_fn = havrylov_hinge_learning_signal
+            self.exp_buffer = ExperienceBuffer(capacity=self.kwargs["nbr_communication_round"]*2,
+                                               keys=["speaker_sentences_entrs",
+                                                     "speaker_sentences_token_mask",
+                                                     "speaker_sentences_log_probs",
+                                                     "listener_sentences_entrs",
+                                                     "listener_sentences_log_probs",
+                                                     "decision_entrs",
+                                                     "decision_log_probs",
+                                                     "r",
+                                                     "done"],
                                                circular_keys={}, 
                                                circular_offsets={})
 
@@ -615,7 +671,7 @@ class DiscriminativeListener(Listener):
         """
         raise NotImplementedError
 
-    def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+    def forward(self, sentences, experiences, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -641,7 +697,7 @@ class DiscriminativeListener(Listener):
         next_sentences = None
         temporal_features = None
         
-        if multi_round or ('obverter' in graphtype.lower() and sentences is None):
+        if multi_round or ("obverter" in graphtype.lower() and sentences is None):
             utter_outputs = self._utter(features=features, sentences=sentences)
             if len(utter_outputs) == 5:
                 next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
@@ -650,7 +706,7 @@ class DiscriminativeListener(Listener):
                 next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
                         
             if self.training:
-                if 'gumbel_softmax' in graphtype:    
+                if "gumbel_softmax" in graphtype:    
                     print(f"WARNING: Listener {self.agent_id} is producing messages via a {graphtype}-based graph at the Listener class-level!")
                     if next_sentences_hidden_states is None: 
                         self.tau = self._compute_tau(tau0=tau0)
@@ -664,7 +720,7 @@ class DiscriminativeListener(Listener):
                             # list of size batch_size containing Tensors of shape (sentence_length)
                         tau = self.tau 
                         
-                    straight_through = (graphtype == 'straight_through_gumbel_softmax')
+                    straight_through = (graphtype == "straight_through_gumbel_softmax")
 
                     next_sentences_stgs = []
                     for bidx in range(len(next_sentences_logits)):
@@ -672,7 +728,7 @@ class DiscriminativeListener(Listener):
                         # (sentence_length<=max_sentence_length, vocab_size)
                         tau_in = tau[bidx].view((-1,1))
                         # (1, 1) or (sentence_length, 1)
-                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
+                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs["gumbel_softmax_eps"])
                         
                         next_sentences_stgs.append(stgs)
                         #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
@@ -681,13 +737,13 @@ class DiscriminativeListener(Listener):
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
-        output_dict = {'output': decision_logits,
-                       'decision': decision_logits, 
-                       'sentences_widx':next_sentences_widx, 
-                       'sentences_logits':next_sentences_logits, 
-                       'sentences_one_hot':next_sentences,
-                       #'features':features,
-                       'temporal_features': temporal_features
+        output_dict = {"output": decision_logits,
+                       "decision": decision_logits, 
+                       "sentences_widx":next_sentences_widx, 
+                       "sentences_logits":next_sentences_logits, 
+                       "sentences_one_hot":next_sentences,
+                       #"features":features,
+                       "temporal_features": temporal_features
                        }
         
         if not(multi_round):

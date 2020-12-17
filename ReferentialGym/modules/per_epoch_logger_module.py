@@ -24,46 +24,46 @@ class PerEpochLoggerModule(Module):
 
         if input_stream_ids is None:
             input_stream_ids = {
-                "modules:logger:ref":"logger",
+                "logger":"modules:logger:ref",
                 "losses_dict":"losses_dict",
                 "logs_dict":"logs_dict",
-                "signals:epoch":"epoch",
-                "signals:mode":"mode",
-                "signals:end_of_dataset":"end_of_dataset",  
+                "epoch":"signals:epoch",
+                "mode":"signals:mode",
+                "end_of_dataset":"signals:end_of_dataset",  
                 # boolean: whether the current batch/datasample is the last of the current dataset/mode.
-                "signals:it_datasample":"global_it_datasample",
-                "signals:it_datasample":"it_datasample",
-                "signals:end_of_repetition_sequence":"end_of_repetition_sequence",
+                "global_it_datasample":"signals:it_datasample",
+                "it_datasample":"signals:it_datasample",
+                "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
                 # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
                 # is the last of the current sequence of repetition.
-                "signals:global_it_sample":"global_it_sample",
-                "signals:it_sample":"it_sample",
+                "global_it_sample":"signals:global_it_sample",
+                "it_sample":"signals:it_sample",
                 # step in the sequence of repetitions of the current batch
-                "signals:end_of_communication":"end_of_communication",
+                "end_of_communication":"signals:end_of_communication",
                 # boolean: whether the current communication round is the last of 
                 # the current dialog.
-                "signals:global_it_step":"global_it_step",
-                "signals:it_step":"it_step",
+                "global_it_step":"signals:global_it_step",
+                "it_step":"signals:it_step",
                 # step in the communication round.
             }
 
-        assert "logger" in input_stream_ids.values(),\
+        assert "logger" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'logger' id.\n\
                 Not found in input_stream_ids."
         
-        assert "epoch" in input_stream_ids.values(),\
+        assert "epoch" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'epoch' id.\n\
                 Not found in input_stream_ids."
         
-        assert "mode" in input_stream_ids.values(),\
+        assert "mode" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'mode' id.\n\
                 Not found in input_stream_ids."
         
-        assert "losses_dict" in input_stream_ids.values(),\
+        assert "losses_dict" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'losses_dict' id.\n\
                 Not found in input_stream_ids."
 
-        assert "logs_dict" in input_stream_ids.values(),\
+        assert "logs_dict" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'logs_dict' id.\n\
                 Not found in input_stream_ids."
         
@@ -74,21 +74,21 @@ class PerEpochLoggerModule(Module):
         
         self.storages = {}
 
-        self.end_of_ = [value for key,value in input_stream_ids.items() if 'end_of_' in value]
+        self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
-        '''
+        """
+        """
         outputs_stream_dict = {}
 
-        losses_dict = input_streams_dict['losses_dict']
-        logs_dict = input_streams_dict['logs_dict']
+        losses_dict = input_streams_dict["losses_dict"]
+        logs_dict = input_streams_dict["logs_dict"]
         
-        epoch = input_streams_dict['epoch']
-        mode = input_streams_dict['mode']
-        global_it_step = input_streams_dict['global_it_step']
+        epoch = input_streams_dict["epoch"]
+        mode = input_streams_dict["mode"]
+        global_it_step = input_streams_dict["global_it_step"]
         
-        logger = input_streams_dict['logger']
+        logger = input_streams_dict["logger"]
 
         # Store new data:
         for key,value in logs_dict.items():
@@ -128,19 +128,19 @@ class PerEpochLoggerModule(Module):
                 values,
                 q=50,
                 axis=None,
-                interpolation='nearest'
+                interpolation="nearest"
               )
               q1_value = np.nanpercentile(
                 values,
                 q=25,
                 axis=None,
-                interpolation='lower'
+                interpolation="lower"
               )
               q3_value = np.nanpercentile(
                 values,
                 q=75,
                 axis=None,
-                interpolation='higher'
+                interpolation="higher"
               )
               iqr = q3_value-q1_value
               logger.add_scalar(f"PerEpoch/{key}/Median", median_value, epoch)
@@ -148,7 +148,7 @@ class PerEpochLoggerModule(Module):
               logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
               
-              logger.add_histogram(f"PerEpoch/{key}", values, epoch)
+              #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
               # Remove the value form the logs_dict if it is present:

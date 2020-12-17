@@ -22,7 +22,7 @@ class ConcatModule(Module):
                  input_stream_keys:List[str]):
 
         input_stream_ids = {
-                ik:f"input_{idx}" 
+                f"input_{idx}":ik
                 for idx, ik in enumerate(input_stream_keys)
             }
 
@@ -49,7 +49,7 @@ class ConcatModule(Module):
         '''
         outputs_stream_dict = {}
 
-        outputs_stream_dict['output_0'] = torch.cat(list(input_streams_dict.values()), dim=self.config["dim"])
+        outputs_stream_dict["output_0"] = torch.cat(list(input_streams_dict.values()), dim=self.config["dim"])
         
         return outputs_stream_dict
         

@@ -1,3 +1,5 @@
+from typing import Dict, List 
+
 import math
 import torch
 import torch.nn as nn
@@ -8,6 +10,7 @@ import torchvision
 from torchvision import models
 from torchvision.models.resnet import model_urls, BasicBlock
 
+from ..modules import Module 
 
 def retrieve_output_shape(input, model):
     xin = input.to(model.device)
@@ -20,15 +23,30 @@ def hasnan(tensor):
         return True
     return False
 
+def reg_nan(param, verbose=False):
+    if param is None or param.data is None: return param
+    nan_indices = torch.isnan(param.data)
+    if verbose and torch.any(nan_indices).item(): 
+        print("WARNING: NaN found in {}.".format(param))
+    param.data[nan_indices] = 0
+    if param.grad is None: return param
+    nan_indices = torch.isnan(param.grad.data)
+    if verbose and torch.any(nan_indices).item(): 
+        print("WARNING: NaN found in the GRADIENT of {}.".format(param))
+    param.grad.data[nan_indices] = 0
+    return param 
+
 def handle_nan(layer, verbose=True):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         nan_indices = torch.isnan(layer._parameters[name].data)
-        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in {} of {}.".format(name, layer))
+        if verbose and torch.any(nan_indices).item(): 
+            print("WARNING: NaN found in {} of {}.".format(name, layer))
         layer._parameters[name].data[nan_indices] = 0
         if param.grad is None: continue
         nan_indices = torch.isnan(layer._parameters[name].grad.data)
-        if verbose and torch.any(nan_indices).item(): print("WARNING: NaN found in the GRADIENT of {} of {}.".format(name, layer))
+        if verbose and torch.any(nan_indices).item(): 
+            print("WARNING: NaN found in the GRADIENT of {} of {}.".format(name, layer))
         layer._parameters[name].grad.data[nan_indices] = 0
         
 def layer_init(layer, w_scale=1.0):
@@ -282,20 +300,138 @@ def coord4deconv( sin, sout,kernel_size,stride=2,padding=1,batchNorm=True,bias=F
     return nn.Sequential( *layers )
 
 
-class FCBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
-        super(FCBody, self).__init__()
-        dims = (state_dim, ) + hidden_units
-        self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
-        self.gate = gate
+class FCBody(Module):
+    def __init__(
+        self, 
+        state_dim, 
+        hidden_units=None, 
+        non_linearities=None, 
+        dropout=0.0,
+        id='FCBodyModule_0', 
+        config=None,
+        input_stream_ids=None,
+        use_cuda=False):
+
+        super(FCBody, self).__init__(
+            id=id,
+            type="FCBodyModule",
+            config=config,
+            input_stream_ids=input_stream_ids,
+        )
+        
+        if isinstance(state_dim,int): state_dim = [state_dim]
+
+        if hidden_units is None:
+            if config is not None and  'hidden_units' in config:
+                hidden_units = config['hidden_units']
+
+        dims = state_dim + hidden_units
+        self.dropout = dropout
+
+        if non_linearities is None:
+            if config is not None and 'non_linearities' in config:
+                non_linearities = config['non_linearities']
+
+        self.non_linearities = non_linearities
+        if not isinstance(non_linearities, list):
+            self.non_linearities = [non_linearities] * (len(dims) - 1)
+        else:
+            while len(self.non_linearities) <= (len(dims) - 1):
+                self.non_linearities.append(self.non_linearities[0])
+        
+        self.layers = []
+        in_ch = dims[0]
+        for idx, cfg in enumerate(dims[1:]):
+            add_non_lin = True
+            if idx == len(dims)-2:  add_non_lin = False
+            add_dp = (self.dropout > 0.0)
+            dropout = self.dropout
+            add_bn = False
+            add_ln = False
+            if isinstance(cfg, str) and 'NoNonLin' in cfg:
+                add_non_lin = False
+                cfg = cfg.replace('NoNonLin', '') 
+            if isinstance(cfg, str) and '_DP' in cfg:
+                add_dp = True
+                cfg = cfg.split('_DP')
+                dropout = float(cfg[-1])
+                cfg = cfg[0] 
+                # Assumes 'YX_DPZ'
+                # where Y may be BN/LN/nothing
+                # and X is an integer
+                # and Z is the float dropout value.
+            
+            if isinstance(cfg, str) and 'BN' in cfg:
+                add_bn = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'BNX' where X is an integer...
+            elif isinstance(cfg, str) and 'LN' in cfg:
+                add_ln = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'LNX' where X is an integer...
+            elif isinstance(cfg, str):
+                cfg = int(cfg)
+                dims[idx+1] = cfg
+                
+            layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
+            layer = layer_init(layer, w_scale=math.sqrt(2))
+            in_ch = cfg
+            self.layers.append(layer)
+            if add_bn:
+                self.layers.append(nn.BatchNorm1d(in_ch))
+            if add_ln:
+                # Layer Normalization:
+                # solely about the last dimension of the 4D tensor, i.e. channels...
+                # TODO: It might be necessary to have the possibility to apply this 
+                # normalization over the other dimensions, i.e. width x height...
+                self.layers.append(nn.LayerNorm(in_ch))
+            if add_dp:
+                self.layers.append(nn.Dropout(p=dropout))
+            if add_non_lin:
+                self.layers.append(self.non_linearities[idx]())
+        self.layers = nn.Sequential(*self.layers)
+
         self.feature_dim = dims[-1]
 
+        self.use_cuda = use_cuda
+        if self.use_cuda:
+            self = self.cuda()
+
     def forward(self, x):
-        for idx, layer in enumerate(self.layers):
-            x = layer(x)
-            if idx != len(self.layers)-1:
-                x = self.gate(x)
-        return x
+        self.output = self.layers(x)
+        return self.output
+
+    def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
+        """
+        Operates on inputs_dict that is made up of referents to the available stream.
+        Make sure that accesses to its element are non-destructive.
+
+        :param input_streams_dict: dict of str and data elements that 
+            follows `self.input_stream_ids`'s keywords and are extracted 
+            from `self.input_stream_keys`-named streams.
+
+        :returns:
+            - outputs_stream_dict: 
+        """
+        outputs_stream_dict = {}
+
+        for key, experiences in input_streams_dict.items():
+            batch_size = experiences.size(0)
+            nbr_distractors_po = experiences.size(1)
+            nbr_stimulus = experiences.size(2)
+
+            experiences = experiences.view(batch_size*nbr_distractors_po, -1)
+            if self.use_cuda:   experiences = experiences.cuda()
+
+            features = self.layers(experiences)
+            features = features.reshape(batch_size, nbr_distractors_po, nbr_stimulus, -1)
+            # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
+            
+            outputs_stream_dict[key] = features
+
+        return outputs_stream_dict 
 
     def get_feature_shape(self):
         return self.feature_dim
@@ -311,7 +447,7 @@ class ConvolutionalBody(nn.Module):
                  paddings=[0], 
                  fc_hidden_units=None,
                  dropout=0.0, 
-                 non_linearities=[nn.LeakyReLU],
+                 non_linearities=[nn.ReLU],
                  use_coordconv=None):
         '''
         Default input channels assume a RGB image (3 channels).

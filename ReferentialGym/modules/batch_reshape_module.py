@@ -30,7 +30,7 @@ class BatchReshapeModule(Module):
                 list, then the list is expanded by repeatition.
         '''
         input_stream_ids = {
-                ik:f"input_{idx}" 
+                f"input_{idx}":ik
                 for idx, ik in enumerate(input_stream_keys)
             }
 
@@ -65,7 +65,7 @@ class BatchReshapeModule(Module):
         outputs_stream_dict = {}
 
         for idx, (k, inp) in enumerate(input_streams_dict.items()):
-            outputs_stream_dict[f'output_{idx}'] = inp.reshape(inp.shape[0], *self.new_shape[idx])
+            outputs_stream_dict[f"output_{idx}"] = inp.reshape(inp.shape[0], *self.new_shape[idx])
         
         return outputs_stream_dict
         

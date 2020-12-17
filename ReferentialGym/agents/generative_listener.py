@@ -3,7 +3,6 @@ from typing import Dict, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Categorical
 
 import numpy as np 
 import random 
@@ -13,119 +12,115 @@ import copy
 from .listener import Listener
 
 
-
-def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
-    target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
-    # (batch_size, 1)
-
-    distractors_logits_list = [torch.cat([pb_dl[:tidx.item()], pb_dl[tidx.item()+1:]], dim=0).unsqueeze(0) 
-        for pb_dl, tidx in zip(decision_logits, target_decision_idx)]
-    distractors_decision_logits = torch.cat(
-        distractors_logits_list, 
-        dim=0)
-    # (batch_size, nbr_distractors)
-    
-    loss_element = 1-target_decision_logits+distractors_decision_logits
-    # (batch_size, nbr_distractors)
-    maxloss_element = torch.max(torch.zeros_like(loss_element), loss_element)
-    loss = maxloss_element.sum(dim=1)
-    # (batch_size, )
-
-    done = (target_decision_idx == decision_logits.argmax(dim=-1))
-    
-    return loss, done
-
-
 def generative_st_gs_referential_game_loss(agent,
                                            losses_dict,
                                            input_streams_dict,
                                            outputs_dict,
                                            logs_dict,
                                            **kwargs):
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
-    config = input_streams_dict['config']
-    mode = input_streams_dict['mode']
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
+    config = input_streams_dict["config"]
+    mode = input_streams_dict["mode"]
 
-    batch_size = len(input_streams_dict['experiences'])
+    generative_output = outputs_dict["generative_output"]
+    # (batch_size, seq_length(==1), depth_dim, width_dim, height_dim )
+    batch_size = generative_output.shape[0]
 
-    sample = input_streams_dict['sample']
-            
-    generative_output = outputs_dict['generative_output']
-    final_decision_logits = decision_logits
-    # (batch_size, max_sentence_length / squeezed if not using obverter agent, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-    if 'obverter' in config['graphtype'].lower():
-        sentences_lengths = torch.sum(-(input_streams_dict['sentences_widx'].squeeze(-1)-agent.vocab_size).sign(), dim=-1).long()
-        # (batch_size,) 
-        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
-            final_decision_logits.shape[0],
-            1,
-            final_decision_logits.shape[2]
+
+    target_output = input_streams_dict["target_output"]
+    if target_output is None:
+        sample = input_streams_dict["sample"]
+        target_output = sample["speaker_experiences"]
+
+    target_output = target_output.reshape(batch_size,-1)
+
+    if config["agent_loss_type"].lower() == "bce":
+        # Reconstruction loss :
+        generative_output = generative_output.reshape(batch_size,-1)
+        loss = F.binary_cross_entropy_with_logits(
+            generative_output,
+            target_output,
+            reduction="none").mean(-1)
+        # (batch_size, )
+        neg_log_lik = -torch.distributions.Bernoulli( 
+            torch.sigmoid(generative_output) 
+        ).log_prob(
+            target_output
         )
-        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
-    else:
-        final_decision_logits = final_decision_logits[:,-1]
-    # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
+
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
-    if config['agent_loss_type'].lower() == 'nll':
-        if config['descriptive']:  
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-            criterion = nn.NLLLoss(reduction='none')
-            
-            if 'obverter_least_effort_loss' in config and config['obverter_least_effort_loss']:
-                loss = 0.0
-                losses4widx = []
-                for widx in range(decision_probs.size(1)):
-                    dp = decision_probs[:,widx,...]
-                    ls = criterion( dp, sample['target_decision_idx'])
-                    loss += config['obverter_least_effort_loss_weights'][widx]*ls 
-                    losses4widx.append(ls)
-            else:
-                decision_probs = decision_probs[:,-1,...]
-                loss = criterion( decision_probs, sample['target_decision_idx'])
-                # (batch_size, )
-        else:   
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_probs = F.log_softmax( final_decision_logits, dim=-1)
-            criterion = nn.NLLLoss(reduction='none')
-            loss = criterion( decision_probs, sample['target_decision_idx'])
-            # (batch_size, )
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
+    elif config["agent_loss_type"].lower() == "mse":
+        # Reconstruction loss :
+        generative_output = generative_output.reshape(batch_size,-1)
+        loss = F.mse_loss(
+            input=generative_output,
+            target=target_output,
+            reduction="none").mean(-1)
+        # (batch_size, )
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
-    elif config['agent_loss_type'].lower() == 'ce':
-        if config['descriptive']:  
-            raise NotImplementedError
-        else:   
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_probs = torch.softmax(final_decision_logits, dim=-1)
-            criterion = nn.CrossEntropyLoss(reduction='none')
-            loss = criterion( final_decision_logits, sample['target_decision_idx'])
-            # (batch_size, )
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]
-    
-    elif config['agent_loss_type'].lower() == 'hinge':
-        #Havrylov's Hinge loss:
-        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-        decision_probs = F.log_softmax( final_decision_logits, dim=-1)
+        output_distr = torch.distributions.Bernoulli(torch.sigmoid(generative_output))
+        neg_log_lik = -output_distr.log_prob(target_output)
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
         
-        loss, _ = havrylov_hinge_learning_signal(decision_logits=final_decision_logits,
-                                              target_decision_idx=sample['target_decision_idx'].unsqueeze(1),
-                                              multi_round=input_streams_dict['multi_round'])
+    elif config["agent_loss_type"].lower() == "ce":
+        # Reconstruction loss :
+        assert(len(generative_output.shape)==3)
+        
+        target_output = input_streams_dict["target_output"].reshape(batch_size,-1)
+        
+        n_dim = target_output.shape[-1]
+        n_classes = generative_output.shape[-1]//n_dim
+        
+        generative_output = generative_output.reshape(batch_size,n_classes, n_dim)
+        
+        losses = F.cross_entropy(
+            generative_output,
+            target_output.long(),
+            reduction="none")
+        # (batch_size, n_dim)
+        loss = losses.mean(-1)
         # (batch_size, )
         
-        losses_dict[f'repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss'] = [1.0, loss]    
+        # Accuracy:
+        argmax_generative_output = generative_output.argmax(dim=1)
+        # (batch_size, n_dim)
+        accuracies = (target_output==argmax_generative_output).float()
+        # (batch_size, n_dim)
+        accuracy = accuracies.prod(dim=-1)
+        # (batch_size, )
+        
+        neg_log_lik_classes = [
+            -torch.distributions.Categorical( 
+            torch.softmax(generative_output[...,i],dim=-1) 
+            ).log_prob(target_output[:,i])
+            for i in range(n_dim)
+        ]
+        # (batch_size, n_dim)
+        neg_log_lik = torch.stack(neg_log_lik_classes, dim=-1).mean(-1)
+        # (batch_size, )
+        
+        for idx in range(accuracies.shape[-1]):        
+            logs_dict[
+                f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy/Acc{idx}"] = 100.0*accuracies[:,idx]
+
+        for idx, nll in enumerate(neg_log_lik_classes):        
+            logs_dict[
+                f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik/Dim{idx}"] = nll
+
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_neg_log_lik"] = neg_log_lik
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/generative_referential_game_accuracy"] = 100.0*accuracy
+
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
+    else:
+        raise NotImplementedError
     
-    outputs_dict['decision_probs'] = decision_probs
-
-    # Accuracy:
-    decision_idx = decision_probs.max(dim=-1)[1]
-    acc = (decision_idx==sample['target_decision_idx']).float()*100
-    logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy'] = acc
-    outputs_dict['accuracy'] = acc
-
 
 class GenerativeListener(Listener):
-    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id='l0', logger=None, kwargs=None):
+    def __init__(self,obs_shape, vocab_size=100, max_sentence_length=10, agent_id="l0", logger=None, kwargs=None):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_stimuli, sequence_length, *experience_shape)`
                           where, by default, `sequence_length=1` (static stimuli). 
@@ -142,13 +137,17 @@ class GenerativeListener(Listener):
                                        logger=logger, 
                                        kwargs=kwargs)
 
+        self.input_stream_ids["listener"]["experiences"] = "None"
+        self.input_stream_ids["listener"]["target_output"] = "None"
+            
         self.register_hook(generative_st_gs_referential_game_loss)
         
 
-    def forward(self, sentences, experiences, multi_round=False, graphtype='straight_through_gumbel_softmax', tau0=0.2):
+    def forward(self, sentences, experiences=None, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
+        :param experiences: None, Tensor of shape `(batch_size, *self.obs_shape)`. 
+                        TODO: implement the use of distractors in the reasoning process.
                         Make sure to shuffle the experiences so that the order does not give away the target. 
         :param multi_round: Boolean defining whether to utter a sentence back or not.
         :param graphtype: String defining the type of symbols used in the output sentence:
@@ -158,8 +157,11 @@ class GenerativeListener(Listener):
                     - `'obverter'`: obverter training scheme...
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
-        batch_size = experiences.size(0)
-        features = self._sense(experiences=experiences, sentences=sentences)
+        if experiences is not None:
+            features = self._sense(experiences=experiences, sentences=sentences)
+        else:
+            features = None 
+
         if sentences is not None:
             generative_output, listener_temporal_features = self._reason(sentences=sentences, features=features)
         else:
@@ -171,7 +173,7 @@ class GenerativeListener(Listener):
         next_sentences = None
         temporal_features = None
         
-        if multi_round or ('obverter' in graphtype.lower() and sentences is None):
+        if multi_round or ("obverter" in graphtype.lower() and sentences is None):
             utter_outputs = self._utter(features=features, sentences=sentences)
             if len(utter_outputs) == 5:
                 next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
@@ -180,7 +182,7 @@ class GenerativeListener(Listener):
                 next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
                         
             if self.training:
-                if 'gumbel_softmax' in graphtype:    
+                if "gumbel_softmax" in graphtype:    
                     print(f"WARNING: Listener {self.agent_id} is producing messages via a {graphtype}-based graph at the Listener class-level!")
                     if next_sentences_hidden_states is None: 
                         self.tau = self._compute_tau(tau0=tau0)
@@ -194,7 +196,7 @@ class GenerativeListener(Listener):
                             # list of size batch_size containing Tensors of shape (sentence_length)
                         tau = self.tau 
                         
-                    straight_through = (graphtype == 'straight_through_gumbel_softmax')
+                    straight_through = (graphtype == "straight_through_gumbel_softmax")
 
                     next_sentences_stgs = []
                     for bidx in range(len(next_sentences_logits)):
@@ -202,7 +204,7 @@ class GenerativeListener(Listener):
                         # (sentence_length<=max_sentence_length, vocab_size)
                         tau_in = tau[bidx].view((-1,1))
                         # (1, 1) or (sentence_length, 1)
-                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs['gumbel_softmax_eps'])
+                        stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs["gumbel_softmax_eps"])
                         
                         next_sentences_stgs.append(stgs)
                         #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
@@ -211,13 +213,13 @@ class GenerativeListener(Listener):
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
-        output_dict = {'output': generative_output,
-                       'generative_output':generative_output, 
-                       'sentences_widx':next_sentences_widx, 
-                       'sentences_logits':next_sentences_logits, 
-                       'sentences_one_hot':next_sentences,
-                       #'features':features,
-                       'temporal_features': temporal_features
+        output_dict = {"output": generative_output,
+                       "generative_output":generative_output, 
+                       "sentences_widx":next_sentences_widx, 
+                       "sentences_logits":next_sentences_logits, 
+                       "sentences_one_hot":next_sentences,
+                       #"features":features,
+                       "temporal_features": temporal_features
                        }
         
         if not(multi_round):

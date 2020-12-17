@@ -24,22 +24,22 @@ class dSpritesPerLatentAccuracyMetricModule(Module):
                  input_stream_ids:Dict[str,str]=None):
 
         default_input_stream_ids = {
-            "modules:logger:ref":"logger",
+            "logger":"modules:logger:ref",
             "logs_dict":"logs_dict",
-            "signals:epoch":"epoch",
-            "signals:mode":"mode",
+            "epoch":"signals:epoch",
+            "mode":"signals:mode",
 
-            "signals:end_of_dataset":"end_of_dataset",  
+            "end_of_dataset":"signals:end_of_dataset",  
             # boolean: whether the current batch/datasample is the last of the current dataset/mode.
-            "signals:end_of_repetition_sequence":"end_of_repetition_sequence",
+            "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
             # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
             # is the last of the current sequence of repetition.
-            "signals:end_of_communication":"end_of_communication",
+            "end_of_communication":"signals:end_of_communication",
             # boolean: whether the current communication round is the last of 
             # the current dialog.
             
-            'modules:current_listener:accuracy':'accuracy',
-            'current_dataloader:sample:speaker_exp_test_latents_masks':'test_latents_mask',
+            "accuracy":"modules:current_listener:accuracy",
+            "test_latents_mask":"current_dataloader:sample:speaker_exp_test_latents_masks",
         }
         if input_stream_ids is None:
             input_stream_ids = default_input_stream_ids
@@ -56,22 +56,22 @@ class dSpritesPerLatentAccuracyMetricModule(Module):
         self.accuracies = []
         self.test_latents_masks = []
         
-        self.end_of_ = [value for key,value in input_stream_ids.items() if 'end_of_' in value]
+        self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
-        '''
-        '''
+        """
+        """
         outputs_stream_dict = {}
 
 
-        logs_dict = input_streams_dict['logs_dict']
-        mode = input_streams_dict['mode']
-        epoch = input_streams_dict['epoch']
+        logs_dict = input_streams_dict["logs_dict"]
+        mode = input_streams_dict["mode"]
+        epoch = input_streams_dict["epoch"]
         
-        accuracy = input_streams_dict['accuracy']
+        accuracy = input_streams_dict["accuracy"]
         self.accuracies.append(accuracy.cpu().detach().numpy())
         # (nbr_element++, batch_size (may vary..),) 
-        test_latents_mask = input_streams_dict['test_latents_mask']
+        test_latents_mask = input_streams_dict["test_latents_mask"]
         self.test_latents_masks.append(test_latents_mask.cpu().detach().squeeze().numpy())
         # (nbr_element++, batch_size (may vary..), nbr_latents) 
         
@@ -86,7 +86,7 @@ class dSpritesPerLatentAccuracyMetricModule(Module):
             nbr_latents = self.test_latents_masks[0].shape[-1]
             latents_indices = np.arange(nbr_latents)
 
-            logger = input_streams_dict['logger']
+            logger = input_streams_dict["logger"]
 
             co_occ_count_matrix =  np.zeros((nbr_latents, nbr_latents))
             co_occ_result_matrix = np.zeros((nbr_latents, nbr_latents))
@@ -111,14 +111,14 @@ class dSpritesPerLatentAccuracyMetricModule(Module):
                 joint_p_latents[:,idx_latent] = co_occ_result_matrix[:,idx_latent]/safe_divider[:,idx_latent]
                 marg_p_latents[idx_latent] = joint_p_latents[idx_latent,idx_latent]
                 
-                logs_dict[f'{mode}/{self.id}/dSprites/TestLatentValues/MarginalAccuracy/Latent{idx_latent}'] = marg_p_latents[idx_latent]
+                logs_dict[f"{mode}/{self.id}/dSprites/TestLatentValues/MarginalAccuracy/Latent{idx_latent}"] = marg_p_latents[idx_latent]
                 
                 nbr_test4latent = co_occ_count_matrix[idx_latent+1:, idx_latent].sum()
                 if nbr_test4latent == 0:    continue
                 
                 for idx_latent2 in range(nbr_latents):
                     if idx_latent2 > idx_latent:
-                        logs_dict[f'{mode}/{self.id}/dSprites/TestLatentValues/JointAccuracy/Latent-{idx_latent}-{idx_latent2}'] = joint_p_latents[idx_latent2, idx_latent]
+                        logs_dict[f"{mode}/{self.id}/dSprites/TestLatentValues/JointAccuracy/Latent-{idx_latent}-{idx_latent2}"] = joint_p_latents[idx_latent2, idx_latent]
             
             self.accuracies = []  
             self.test_latents_mask = []
