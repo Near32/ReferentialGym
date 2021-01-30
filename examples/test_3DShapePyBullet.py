@@ -1,4 +1,5 @@
 import random
+import os
 import numpy as np
 import cv2 
 
@@ -172,13 +173,13 @@ def main():
   random_generation = True
   
   img_size = 64
-  nb_shapes = 5
-  nb_colors = 8
-  nb_samples = 100
+  nb_shapes = 7
+  nb_colors = 3
+  nb_samples = 2
   
-  #train_split_strategy = 'combinatorial2-Shape-1-2-Color-1-2-Sample-1-N' 
-  nb_train_colors = 6
-  train_split_strategy = f'compositional-40-nb_train_colors_{nb_train_colors}' 
+  nb_train_colors = 2 #6
+  suffle_seed = '40'
+  train_split_strategy = f'compositional-{shuffle_seed}-nb_train_colors_{nb_train_colors}' 
   #train_split_strategy = None #'uniformBinaryRelationalQuery' 
   
   ## Test set:
@@ -216,7 +217,10 @@ def main():
 
   train_i = 0
   test_i = 0
+  old_train_i = -1
   continuer = True
+  os.makedirs("./3DShapes_datawrite", exist_ok=True)
+
   while continuer :
     train_i = train_i % len(train_dataset)
     test_i = test_i % len(test_dataset)
@@ -236,11 +240,10 @@ def main():
     
     cv2.imshow('test', test_img )
     
-    while True :
+    while True:
       key = cv2.waitKey()
       if key == ord('q'):
         continuer = False
-        #import ipdb; ipdb.set_trace()
         break
       if key == ord('n') :
         train_i += 1
@@ -254,7 +257,17 @@ def main():
       if key == ord('j') :
         test_i -= 1
         break
-
+      
+      if key == ord('s') and old_train_i!=train_i:
+        cv2.imwrite(f"./3DShapes_datawrite/train_{train_i}.png", 255*train_img)
+        cv2.imwrite(f"./3DShapes_datawrite/test_{test_i}.png", 255*test_img)
+        
+        old_train_i=train_i
+        train_i+=1
+        test_i+=1
+        if train_i==0:
+          continuer = False
+        break
 
 if __name__ == '__main__':
     main()

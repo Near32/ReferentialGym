@@ -19,8 +19,6 @@ import pickle
 # http://alumni.media.mit.edu/~wad/color/numbers.html      
 # without white...
 colors = [
-#Black
-(0, 0, 0),
 #Red
 (173, 35, 35), 
 #Blue
@@ -31,6 +29,8 @@ colors = [
 (129, 74, 25), 
 #Purple
 (129, 38, 192), 
+#Black
+(0, 0, 0),
 #Lt. Gray
 (160, 160, 160), 
 #Lt. Green
@@ -110,7 +110,9 @@ def generate_datapoint(
     def generate(shapeId, position, orientation, color, physicsClient):
         datapath = pb_d.getDataPath()
         pb.setAdditionalSearchPath(datapath)
+
         pb.resetSimulation(physicsClient) #pb.RESET_USE_DEFORMABLE_WORLD)
+        
         pb.setGravity(0, 0, -9.81)
 
         planeId = pb.loadURDF("plane.urdf", [0,0,0])
@@ -121,18 +123,14 @@ def generate_datapoint(
             frame_offset_orientation =np.zeros(3);
             frame_offset_position = [0, 0, 0]
             meshScale = [2.0,2.0,2.0]
-            torusVisualId = pb.createVisualShape(
-                shapeType=pb.GEOM_MESH,
-                fileName="torus.obj", 
-                rgbaColor=color,
-                meshScale=meshScale, 
-                visualFramePosition=frame_offset_position,
-                visualFrameOrientation=frame_offset_orientation 
-            )
-
+            
+            torus_path = os.path.join(os.path.dirname(__file__), "data/torus.obj") 
+            torusVisualId = pb.createVisualShape(shapeType=pb.GEOM_MESH,fileName=torus_path, rgbaColor=color,meshScale=meshScale, visualFramePosition=frame_offset_position,visualFrameOrientation=frame_offset_orientation )
+            
+            
             torusCollisionId = pb.createCollisionShape(
                 shapeType=pb.GEOM_MESH,
-                fileName="torus.obj", 
+                fileName=torus_path,
                 meshScale=meshScale, 
                 collisionFramePosition=frame_offset_position,
                 collisionFrameOrientation=frame_offset_orientation
