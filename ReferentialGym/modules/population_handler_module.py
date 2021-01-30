@@ -54,7 +54,7 @@ class PopulationHandlerModule(Module):
                                                     config=config,
                                                     input_stream_ids=input_stream_ids)
         
-        print("Create Agents: ...")
+        print("Create Population of Agents: ...")
 
         self.verbose = config["verbose"]
         
@@ -94,7 +94,7 @@ class PopulationHandlerModule(Module):
         for agent in self.listeners:
             self.agents_stats[agent.agent_id] = {'reset_iterations':[0], 'selection_iterations':[]}
         
-        print("Create Agents: OK.")
+        print("Create Population of Agents: OK.")
 
         self.previous_epoch = -1
         self.previous_global_it_datasample = -1

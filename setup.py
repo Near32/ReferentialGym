@@ -30,10 +30,11 @@ setup(
 
     install_requires=['pip',
                       'tqdm',
-            		      'Cython',
+            		      #'Cython',
                       'numpy',
                       'scipy',
                       'scikit-image',
+                      'scikit-learn==0.23',
 		                  'h5py',
                       'opencv-python',
                       'torch==1.4',
