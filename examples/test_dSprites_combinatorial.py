@@ -121,7 +121,7 @@ def main():
   # In[23]:
   nbr_epoch = 100
   cnn_feature_size = 512 # 128 512 #1024
-  stimulus_resize_dim = 32 #64 #28
+  stimulus_resize_dim = 64 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -227,7 +227,7 @@ def main():
       "test_transform":             transform,
   }
 
-  if True:
+  if False:
     rg_config["train_transform"]= T.Compose(
       [
         ego_inv_transform,
@@ -256,7 +256,7 @@ def main():
       
   # INTER SIMPLE X+Y
   # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
-  #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: simple splitted XY X 16/ Y 16/ --> 256 test / 768 train 
@@ -284,7 +284,7 @@ def main():
   
   # EXTRA MULTI3 X+Y+Orientation
   #COMB2 Sparse: simple splitted XYOrientation X 4/ Y 4/ Orientation 4/ --> 256 test / 256 train 
-  train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N' 
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N' 
     
 
   # INTER MULTI:
@@ -373,6 +373,7 @@ def main():
 
   train_i = 0
   test_i = 0
+  old_train_i = -1
   continuer = True
   while continuer :
     train_i = train_i % len(train_dataset)
@@ -393,7 +394,8 @@ def main():
     
     cv2.imshow('test', test_img )
     
-    while True :
+    inner = True
+    while inner :
       key = cv2.waitKey()
       if key == ord('q'):
         continuer = False
@@ -410,6 +412,22 @@ def main():
       if key == ord('j') :
         test_i -= 1
         break
+      elif old_train_i!=train_i:
+        cv2.imwrite(f"./dSprites_datawrite/train_{train_i}.png", 255*train_img)
+        cv2.imwrite(f"./dSprites_datawrite/test_{test_i}.png", 255*test_img)
+        
+        old_train_i=train_i
+        train_i+=1
+        test_i+=1
+        #if key == ord('s'):
+        """
+        cv2.imwrite(f"./dSprites_datawrite/{train_split_strategy}/train_{train_i}.png", train_img)
+        cv2.imwrite(f"./dSprites_datawrite/{train_split_strategy}/test_{test_i}.png", test_img)
+        """
+        if train_i==0:
+          continuer = False
+        
+        inner=False
 
 
 if __name__ == '__main__':
