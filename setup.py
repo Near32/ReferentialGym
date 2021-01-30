@@ -28,22 +28,22 @@ setup(
     packages=find_packages(),
     zip_safe=False,
 
-    install_requires=['pip',
-                      'tqdm',
-            		      #'Cython',
-                      'numpy',
-                      'scipy',
-                      'scikit-image',
-                      'scikit-learn==0.23',
-		                  'h5py',
-                      'opencv-python',
-                      'torch==1.4',
-                      'torchvision==0.5.0',
-                      'tensorboardX',
-                      'matplotlib',
-                      'docopt',
-                      'pycocotools'
-                      ] + test_requirements,
+    install_requires=[
+	'tqdm',
+        #'Cython',
+	'numpy',
+	'scipy',
+	'scikit-image',
+	'scikit-learn==0.23',
+	'h5py',
+	'opencv-python',
+	'torch>=1.4',
+	'torchvision>=0.5.0',
+	'tensorboardX',
+	'matplotlib',
+	'docopt',
+	'pycocotools'
+	] + test_requirements,
 
     python_requires=">=3.6",
 )
