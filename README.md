@@ -21,7 +21,9 @@ See [Adding a new dataset](docs/adding-a-new-dataset.md).
 + Provides state-of-the-art language emergence algorithms based on referential game variants that can be configured at will by the users.
 + Provides common implementations of various metrics, e.g. topographic similarity as a [compositionality metric](https://arxiv.org/abs/1804.03984), [causal influence of communication](https://arxiv.org/abs/1903.05168) metric, [FactorVAE](https://arxiv.org/abs/1802.05983)'s disentanglement metric ...
 
-## Documentation
+## Documentation 
+
+Tutorial: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Near32/ReferentialGym/blob/master/examples/tutorial.ipynb)
 
 All relevant documentation can be found [here](https://near32.github.io/ReferentialGym/html/index.html) and in the above-mentioned paper. Refer to source code for more specific documentation.
 
