@@ -59,21 +59,21 @@ class MultiHeadRegressionModule(Module):
                  input_stream_ids:Dict[str,str],
                  final_fn:nn.Module=nn.Softmax(dim=-1)):
 
-        assert("inputs" in input_stream_ids.keys(), 
+        assert "inputs" in input_stream_ids.keys(),\
                "MultiHeadRegressionModule relies on 'inputs' id to start its pipeline.\n\
-                Not found in input_stream_ids.")
-        assert("targets" in input_stream_ids.keys(), 
+                Not found in input_stream_ids."
+        assert "targets" in input_stream_ids.keys(),\
                "MultiHeadRegressionModule relies on 'targets' id to compute its pipeline.\n\
-                Not found in input_stream_ids.")
-        assert("losses_dict" in input_stream_ids.keys(), 
+                Not found in input_stream_ids."
+        assert "losses_dict" in input_stream_ids.keys(),\
                "MultiHeadRegressionModule relies on 'losses_dict' id to record the computated losses.\n\
-                Not found in input_stream_ids.")
-        assert("logs_dict" in input_stream_ids.keys(), 
+                Not found in input_stream_ids."
+        assert "logs_dict" in input_stream_ids.keys(),\
                "MultiHeadRegressionModule relies on 'logs_dict' id to record the accuracies.\n\
-                Not found in input_stream_ids.")
-        assert("loss_id" in config.keys(), 
+                Not found in input_stream_ids."
+        assert "loss_id" in config.keys(),\
                "MultiHeadRegressionModule relies on 'loss_id' key to record the computated losses and accuracies.\n\
-                Not found in config keys.")
+                Not found in config keys."
 
         super(MultiHeadRegressionModule, self).__init__(id=id,
                                                         type="MultiHeadRegressionModule",

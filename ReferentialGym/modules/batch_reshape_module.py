@@ -34,9 +34,9 @@ class BatchReshapeModule(Module):
                 for idx, ik in enumerate(input_stream_keys)
             }
 
-        assert("new_shape" in config, 
+        assert "new_shape" in config,\
                "BatchReshapeModule relies on 'new_shape' list.\n\
-                Not found in config.")
+                Not found in config."
 
         super(BatchReshapeModule, self).__init__(id=id,
                                                  type="BatchReshapeModule",

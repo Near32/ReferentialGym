@@ -35,9 +35,9 @@ class SqueezeModule(Module):
                 for idx, ik in enumerate(input_stream_keys)
             }
 
-        assert("dim" in config, 
+        assert "dim" in config,\
                "SqueezeModule relies on 'dim' value.\n\
-                Not found in config.")
+                Not found in config."
         
         super(SqueezeModule, self).__init__(id=id,
                                             type="SqueezeModule",

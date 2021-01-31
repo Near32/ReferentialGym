@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 import torch
 from torch.utils.data import Dataset 
 import os
+import copy
 
 import numpy as np
 import pybullet as pb 

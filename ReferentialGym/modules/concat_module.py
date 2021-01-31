@@ -26,9 +26,9 @@ class ConcatModule(Module):
                 for idx, ik in enumerate(input_stream_keys)
             }
 
-        assert("dim" in config, 
+        assert "dim" in config,\
                "ConcatModule relies on 'dim' value.\n\
-                Not found in config.")
+                Not found in config."
         
         super(ConcatModule, self).__init__(id=id,
                                            type="ConcatModule",
