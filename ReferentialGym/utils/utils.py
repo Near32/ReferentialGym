@@ -11,6 +11,7 @@ from tqdm import tqdm
 import itertools
 from concurrent.futures import ProcessPoolExecutor
 
+eps = 1e-8
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
@@ -141,10 +142,11 @@ def compute_levenshtein_distance(s1, s2):
 
 
 def compute_cosine_sim(v1, v2):
+    global eps
     v1 = v1.reshape(-1)
     v2 = v2.reshape(-1)
-    v1_norm = LA.norm(v1)
-    v2_norm = LA.norm(v2)
+    v1_norm = LA.norm(v1)+eps
+    v2_norm = LA.norm(v2)+eps
     cos_sim = np.matmul(v1/v1_norm,(v2/v2_norm).transpose())
     return cos_sim
 

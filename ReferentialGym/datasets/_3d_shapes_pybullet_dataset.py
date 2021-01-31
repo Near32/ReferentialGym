@@ -18,7 +18,7 @@ import pickle
 # Reproducing: 
 # http://alumni.media.mit.edu/~wad/color/numbers.html      
 # without white...
-colors = [
+original_colors = [
 #Red
 (173, 35, 35), 
 #Blue
@@ -51,7 +51,7 @@ colors = [
 (87, 87, 87), 
 ]
 
-shapes = [
+original_shapes = [
     'cylinder',
     'capsule',
     'sphere',
@@ -86,9 +86,11 @@ def generate_datapoint(
     :param sampled_orientation: List of float describing the Y-axis orientation of the object for each sample index.
     :param physicsClient: Integer identifying the physicsClient used by PyBullet.
     '''
-    global colors
-    global shapes 
-    
+    global original_colors
+    global original_shapes 
+    colors = copy.deepcopy(original_colors)
+    shapes = copy.deepcopy(original_shapes)
+
     color_id = latent_classes[0]
     obj_color = [float(colors[color_id][0])/255,float(colors[color_id][1])/255,float(colors[color_id][2])/255, 1.0]
 
@@ -355,8 +357,11 @@ def generate_dataset(root,
                      nb_shapes=5,
                      nb_colors=5,
                      ):
-    global colors
-    global shapes 
+    global original_colors
+    global original_shapes 
+    colors = copy.deepcopy(original_colors)
+    shapes = copy.deepcopy(original_shapes)
+    
     dirs = root 
     
     assert nb_shapes <= len(shapes) and nb_colors <= len(colors)
