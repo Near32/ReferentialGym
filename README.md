@@ -23,7 +23,9 @@ See [Adding a new dataset](docs/adding-a-new-dataset.md).
 
 ## Documentation 
 
-Tutorial: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Near32/ReferentialGym/blob/master/examples/tutorial.ipynb)
+Tutorials: 
+* Getting Started: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Near32/ReferentialGym/blob/master/examples/tutorial-getting-started.ipynb)
+* Create New Modules:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Near32/ReferentialGym/blob/master/examples/tutorial-create-new-modules.ipynb)
 
 All relevant documentation can be found [here](https://near32.github.io/ReferentialGym/html/index.html) and in the above-mentioned paper. Refer to source code for more specific documentation.
 
