@@ -52,13 +52,18 @@ colors = [
 ]
 
 shapes = [
+    'r2d2',
+    'table',
+    'racecar',
+    'tray',
+    'lego',
+    'torus',
+    'teddy',
+    'duck',
     'cylinder',
     'capsule',
     'sphere',
     'cube',
-    'torus',
-    'teddy',
-    'duck',
 ]
 
 
@@ -145,6 +150,77 @@ def generate_datapoint(
                 basePosition=position,
                 baseOrientation=pb.getQuaternionFromEuler(orientation) 
             )
+
+        elif 'r2d2' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 2.0
+            
+            r2d2 = pb.loadURDF(
+                fileName="franka_panda/panda.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=4.0
+            )
+
+            pb.changeVisualShape(r2d2, -1, rgbaColor=color)
+
+        elif 'table' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 0.0
+            
+            table = pb.loadURDF(
+                fileName="table/table.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=3.0
+            )
+
+            pb.changeVisualShape(table, -1, rgbaColor=color)    
+
+        elif 'racecar' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 0.5
+            
+            racecar = pb.loadURDF(
+                fileName="racecar/racecar.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=10.0
+            )
+
+            pb.changeVisualShape(racecar, 0, rgbaColor=color)   
+
+        elif 'lego' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 1.0
+            #position = [0,0,2]
+            
+            legoId = pb.loadURDF(
+                fileName="lego/lego.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=80.0
+            )
+
+            pb.changeVisualShape(legoId, -1, rgbaColor=color)
+
+        elif 'tray' in shapeId:
+            #orientation[0] = np.pi/2
+            #position[2] += 0.5
+            
+            trayId = pb.loadURDF(
+                fileName="tray/tray.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=6.0
+            )
+
+            pb.changeVisualShape(trayId, -1, rgbaColor=color)
 
         elif 'teddy' in shapeId:
             orientation[0] = np.pi/2
@@ -815,6 +891,30 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         print('Dataset loaded : OK.')
     
+    def sample_factors(self, num, random_state):
+        """
+        Sample a batch of factors Y.
+        """
+        #self.factors_indices = random_state.randint(low=0, high=len(self.latents_classes), size=(num,))
+        self.factors_indices = random_state.choice(self.indices, size=(num,), replace=True)
+        factors = np.stack(self.latents_classes[self.factors_indices], axis=0)
+        return factors
+    
+    def sample_observations_from_factors(self, factors, random_state):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        images = [self.imgs[idx] for idx in self.factors_indices]
+        images = [im.transpose((2,1,0)) for im in images]
+        images = [Image.fromarray(im, mode='RGB') for im in images]
+
+        if self.transform is not None:
+            images = [self.transform(im) for im in images]
+        
+        images = torch.stack(images, dim=0)
+        
+        return images
+
     def _save_generated_dataset(self):
         if self._check_exists():
             filepath = os.path.join(self.root, self.file)
@@ -832,10 +932,13 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         print('saving datasets...')
         filename = os.path.join(self.root,self.file)
-        with  open(filename, 'wb') as f:
-            pickle.dump((dataset, self.nb_shapes, self.nb_colors, self.nb_samples, self.sampled_positions, self.sampled_orientation), f)
-        print('Datasets saved at {}'.format(filename))
-
+        try:
+            with  open(filename, 'wb') as f:
+                    pickle.dump((dataset, self.nb_shapes, self.nb_colors, self.nb_samples, self.sampled_positions, self.sampled_orientation), f)
+            print('Datasets saved at {}'.format(filename))
+        except Exception as e:
+            print(f"Exception caught when trying to save the dataset: {e}")
+            
     def _generate_all(self):
         pbar = tqdm(total=len(self.indices))
         for idx in self.indices:

@@ -163,15 +163,16 @@ class Agent(Module):
     def _tidyup(self):
         pass 
     
-    def _log(self, log_dict, batch_size):
+    def _log(self, log_dict, batch_size, it_rep=0):
         if self.logger is None: 
             return 
 
-        agent_log_dict = {f"{self.agent_id}": dict()}
+        entry_id = f"{self.agent_id}/rep{it_rep}"
+        agent_log_dict = {entry_id: dict()}
         for key, data in log_dict.items():
             if data is None:
                 data = [None]*batch_size
-            agent_log_dict[f"{self.agent_id}"].update({f"{key}":data})
+            agent_log_dict[entry_id].update({f"{key}":data})
         
         self.logger.add_dict(agent_log_dict, batch=True, idx=self.log_idx) 
         
@@ -251,7 +252,7 @@ class Agent(Module):
         outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
         outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
         outputs_dict["exp_latents_one_hot_encoded"] = input_streams_dict["exp_latents_one_hot_encoded"]
-        self._log(outputs_dict, batch_size=batch_size)
+        self._log(outputs_dict, batch_size=batch_size, it_rep=it_rep)
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//

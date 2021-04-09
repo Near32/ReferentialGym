@@ -7,6 +7,7 @@ import copy
 from ..modules import Module
 from ..datasets import shuffle, collate_dict_wrapper
 
+exclude = True 
 
 class ObverterDatasamplingModule(Module):
     def __init__(self, 
@@ -57,6 +58,8 @@ class ObverterDatasamplingModule(Module):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
+        global exclude 
+
         outputs_dict = {}
 
 
@@ -74,8 +77,6 @@ class ObverterDatasamplingModule(Module):
             # Make the descriptive ratio no longer effective:
             dataset.kwargs["descriptive"] = False 
 
-            idxconverter = train_dataset.indices
-            
             batch = []
             n_same = int(0.25*self.batch_size)
             n_same_shape = int(0.3*self.batch_size)
@@ -94,7 +95,14 @@ class ObverterDatasamplingModule(Module):
                         if idx != speaker_idx
                     ]
                 )
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=True))
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=True
+                    )
+                )
 
             for i in range(n_same_shape):
                 speaker_idx = np.random.randint(len(dataset))
@@ -103,8 +111,24 @@ class ObverterDatasamplingModule(Module):
                 shape_id = latents_class[1]
                 choice_set = copy.deepcopy(train_dataset.same_shape_indices[shape_id])
                 choice_set.remove(speaker_idx)
+                
+                # remove the speaker color:
+                if exclude:
+                    for idx in train_dataset.same_color_indices[speaker_color_id]:
+                        if idx in choice_set:   choice_set.remove(idx)
+                
                 listener_idx = np.random.choice(choice_set)
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=False))
+                listener_color_id= train_dataset.getlatentclass(listener_idx)[0]
+                same = (speaker_color_id == listener_color_id)
+
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same,
+                    )
+                )
 
             for i in range(n_same_color):
                 speaker_idx = np.random.randint(len(dataset))
@@ -113,8 +137,24 @@ class ObverterDatasamplingModule(Module):
                 speaker_shape_id = latents_class[1]
                 choice_set = copy.deepcopy(train_dataset.same_color_indices[color_id])
                 choice_set.remove(speaker_idx)
+                
+                # remove the speaker shape:
+                if exclude:
+                    for idx in train_dataset.same_shape_indices[speaker_shape_id]:
+                        if idx in choice_set:   choice_set.remove(idx)
+                
                 listener_idx = np.random.choice(choice_set)
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=False))
+                listener_shape_id= train_dataset.getlatentclass(listener_idx)[1]
+                same = (speaker_shape_id == listener_shape_id)
+
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same,
+                    )
+                )
 
             for i in range(n_random):
                 speaker_idx = np.random.randint(len(dataset))
@@ -129,7 +169,14 @@ class ObverterDatasamplingModule(Module):
                 
                 same = (speaker_shape_id == listener_shape_id) and (speaker_color_id == listener_color_id)
                 
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=same))
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same
+                    )
+                )
 
             new_sample = self.collate_fn(batch)
             

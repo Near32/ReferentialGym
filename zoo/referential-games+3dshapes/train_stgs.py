@@ -13,6 +13,9 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as T 
 
+import logging
+logging.disable(logging.WARNING)
+
 
 def main():
   parser = argparse.ArgumentParser(description="STGS Agents: Language Emergence on 3DShapesPyBullet Dataset.")
@@ -39,6 +42,8 @@ def main():
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
   parser.add_argument("--arch", type=str, 
     choices=["BaselineCNN",
+             "SmallBaselineCNN",
+             "BN+SmallBaselineCNN",
              "ShortBaselineCNN",
              "BN+BaselineCNN",
              "CNN",
@@ -88,10 +93,13 @@ def main():
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
+  parser.add_argument("--gradient_clip", action="store_true", default=False)
+  parser.add_argument("--gradient_clip_threshold", type=float, default=1.0)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
   parser.add_argument("--metric_fast", action="store_true", default=False)
+  parser.add_argument("--metric_resample", action="store_true", default=False)
   parser.add_argument("--batch_size", type=int, default=50)
   parser.add_argument("--mini_batch_size", type=int, default=256)
   parser.add_argument("--dropout_prob", type=float, default=0.0)
@@ -135,9 +143,23 @@ def main():
   parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
   # Cultural Bottleneck:
   parser.add_argument("--cultural_pressure_it_period", type=int, default=None)
+  parser.add_argument("--cultural_reset_meta_learning_rate", type=float, default=1e-3)
   parser.add_argument("--cultural_speaker_substrate_size", type=int, default=1)
   parser.add_argument("--cultural_listener_substrate_size", type=int, default=1)
-  parser.add_argument("--cultural_reset_strategy", type=str, default="uniformSL") #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+  parser.add_argument(
+    "--cultural_reset_strategy", 
+    type=str, 
+    default="uniformSL",
+    choices=[
+      "uniformS",
+      "uniformL",  
+      "uniformSL",
+      "metaS",
+      "metaL",  
+      "metaSL",
+    ],
+  ) 
+  #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
   
   # Dataset Hyperparameters:
   parser.add_argument("--train_test_split_strategy", type=str, 
@@ -277,7 +299,7 @@ def main():
       "cultural_speaker_substrate_size":  args.cultural_speaker_substrate_size,
       "cultural_listener_substrate_size":  args.cultural_listener_substrate_size,
       "cultural_reset_strategy":  args.cultural_reset_strategy, #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
-      "cultural_reset_meta_learning_rate":  1e-3,
+      "cultural_reset_meta_learning_rate":  args.cultural_reset_meta_learning_rate,
 
       # Cultural Bottleneck:
       "iterated_learning_scheme": args.iterated_learning_scheme,
@@ -302,8 +324,8 @@ def main():
       "dropout_prob":             args.dropout_prob,
       "embedding_dropout_prob":   args.emb_dropout_prob,
       
-      "with_gradient_clip":       False,
-      "gradient_clip":            1e0,
+      "with_gradient_clip":       args.gradient_clip,
+      "gradient_clip":            args.gradient_clip_threshold,
       
       "use_homoscedastic_multitasks_loss": args.homoscedastic_multitasks_loss,
 
@@ -494,6 +516,44 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
+  elif "SmallBaselineCNN" in agent_config["architecture"]:
+    rg_config["use_feat_converter"] = False
+    agent_config["use_feat_converter"] = False
+    
+    if "BN" in args.arch:
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32"]
+    else:
+      agent_config["cnn_encoder_channels"] = [32,32,32,32]
+    
+    agent_config["cnn_encoder_kernels"] = [8,3,3,3]
+    agent_config["cnn_encoder_strides"] = [4,2,2,1]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
+    agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
+    agent_config["cnn_encoder_fc_hidden_units"] = [128,] 
+    # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
+    
+    # For a fair comparison between CNN an VAEs:
+    #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
+    agent_config["cnn_encoder_feature_dim"] = 64 #args.symbol_processing_nbr_hidden_units
+    # N.B.: if cnn_encoder_fc_hidden_units is [],
+    # then this last parameter does not matter.
+    # The cnn encoder is not topped by a FC network.
+
+    agent_config["cnn_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["feat_converter_output_size"] = args.symbol_processing_nbr_hidden_units
+
+    if "MHDPA" in agent_config["architecture"]:
+      agent_config["mhdpa_nbr_head"] = 4
+      agent_config["mhdpa_nbr_rec_update"] = 1
+      agent_config["mhdpa_nbr_mlp_unit"] = 256
+      agent_config["mhdpa_interaction_dim"] = 128
+
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
+  
   elif "BaselineCNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
@@ -598,6 +658,7 @@ def main():
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   save_path += f"{args.dataset}+DualLabeled/"
+  save_path += "/MetricEPS1m5/"
   
   if args.use_obverter_sampling:
     save_path += "WithObverterSampling/"
@@ -609,7 +670,7 @@ def main():
     save_path += "/shared_architecture"
   save_path += f"Dropout{rg_config['dropout_prob']}_DPEmb{rg_config['embedding_dropout_prob']}"
   save_path += f"_BN_{rg_config['agent_learning']}/"
-  save_path += f"{rg_config['agent_loss_type']}"
+  save_path += f"{rg_config['agent_loss_type']}/"
   
   if 'dSprites' in args.dataset: 
     train_test_strategy = f"-{test_split_strategy}"
@@ -671,6 +732,9 @@ def main():
     rg_config['agent_architecture'],
     f"/{'Detached' if args.vae_detached_featout else ''}beta{vae_beta}-factor{factor_vae_gamma}" if 'BetaVAE' in rg_config['agent_architecture'] else ''
   )
+
+  if args.gradient_clip:
+    save_path += f"_gradClip{args.gradient_clip_threshold}"
 
   if 'MONet' in rg_config['agent_architecture'] or 'BetaVAE' in rg_config['agent_architecture']:
     save_path += f"beta{vae_beta}-factor{factor_vae_gamma}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
@@ -816,6 +880,8 @@ def main():
   else:
     raise NotImplementedError 
   
+  import ipdb; ipdb.set_trace()
+
   ## Modules:
   modules = {}
 
@@ -875,6 +941,7 @@ def main():
     "learning_rate":args.lr,
     "optimizer_type":args.optimizer_type,
     "with_gradient_clip":rg_config["with_gradient_clip"],
+    "gradient_clip":rg_config["gradient_clip"],
     "adam_eps":rg_config["adam_eps"],
   }
 
@@ -943,6 +1010,32 @@ def main():
   )
   modules[speaker_factor_vae_disentanglement_metric_id] = speaker_factor_vae_disentanglement_metric_module
 
+  speaker_modularity_disentanglement_metric_id = "speaker_modularity_disentanglement_metric"
+  speaker_modularity_disentanglement_metric_input_stream_ids = {
+    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_speaker:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
+    id=speaker_modularity_disentanglement_metric_id,
+    input_stream_ids=speaker_modularity_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":10000,
+      "nbr_eval_points":5000,
+      "resample":False,
+      #"resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_modularity_disentanglement_metric_id] = speaker_modularity_disentanglement_metric_module
+
   listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
   listener_factor_vae_disentanglement_metric_input_stream_ids = {
     "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
@@ -969,6 +1062,32 @@ def main():
   )
   modules[listener_factor_vae_disentanglement_metric_id] = listener_factor_vae_disentanglement_metric_module
 
+  listener_modularity_disentanglement_metric_id = "listener_modularity_disentanglement_metric"
+  listener_modularity_disentanglement_metric_input_stream_ids = {
+    "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
+    "representations":"modules:current_listener:ref:ref_agent:features",
+    "experiences":"current_dataloader:sample:listener_experiences", 
+    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
+    "indices":"current_dataloader:sample:listener_indices", 
+  }
+  listener_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
+    id=listener_modularity_disentanglement_metric_id,
+    input_stream_ids=listener_modularity_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":10000,
+      "nbr_eval_points":5000,
+      "resample":False,
+      #"resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
+
   logger_id = "per_epoch_logger"
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
@@ -994,6 +1113,8 @@ def main():
   """
   pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
   pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+  pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+  pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
   pipelines[optim_id].append(topo_sim_metric_id)
   pipelines[optim_id].append(inst_coord_metric_id)
   if 'dSprites' in args.dataset:  pipelines[optim_id].append(dsprites_latent_metric_id)

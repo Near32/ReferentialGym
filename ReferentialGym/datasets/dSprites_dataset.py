@@ -322,7 +322,27 @@ class dSpritesDataset(Dataset) :
         del self.metadata
 
         print('Dataset loaded : OK.')
-        
+    
+    def sample_factors(self, num, random_state):
+        """
+        Sample a batch of factors Y.
+        """
+        self.factors_indices = random_state.randint(low=0, high=len(self.latents_classes), size=(num,))
+        factors = np.stack(self.latents_classes[self.factors_indices], axis=0)
+        import ipdb; ipdb.set_trace()
+        return factors
+    
+    def sample_observations_from_factors(self, factors, random_state):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        images = [Image.fromarray((im*255).astype('uint8')) for im in self.imgs[self.factors_indices]]
+        if self.transform is not None:
+            images = [self.transform(im) for im in images]
+        images = np.stack(images, axis=0)
+        import ipdb; ipdb.set_trace()
+        return images
+
     def __len__(self) -> int:
         return len(self.indices)
 

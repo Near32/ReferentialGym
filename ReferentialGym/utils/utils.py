@@ -11,6 +11,7 @@ from tqdm import tqdm
 import itertools
 from concurrent.futures import ProcessPoolExecutor
 
+eps = 1e-20
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
@@ -141,10 +142,11 @@ def compute_levenshtein_distance(s1, s2):
 
 
 def compute_cosine_sim(v1, v2):
+    global eps
     v1 = v1.reshape(-1)
     v2 = v2.reshape(-1)
-    v1_norm = LA.norm(v1)
-    v2_norm = LA.norm(v2)
+    v1_norm = LA.norm(v1)+eps
+    v2_norm = LA.norm(v2)+eps
     cos_sim = np.matmul(v1/v1_norm,(v2/v2_norm).transpose())
     return cos_sim
 
@@ -168,13 +170,15 @@ def compute_topographic_similarity_parallel(sentences,features,comprange=100, ma
     executor = ProcessPoolExecutor(max_workers=max_workers)
     indices = list(range(len(sentences)))
     levs = []
-    for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_levs in zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange))):
         for l in idx1_levs: 
             levs.append(l)
 
     indices = list(range(len(features)))
     cossims = []
-    for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_cossims in zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange))):
         for c in idx1_cossims: 
             cossims.append(c)
     

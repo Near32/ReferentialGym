@@ -297,16 +297,17 @@ class ReferentialGame(object):
                             if "referential_game" not in pipe_id:
                                 self.stream_handler.serve(pipeline)
                         
-                        
                         losses = self.stream_handler["losses_dict"]
-                        loss = sum( [l[-1] for l in losses.values()])
+                        loss = sum( [l.mean() for l in losses.values()])
                         logs_dict = self.stream_handler["logs_dict"]
                         acc_keys = [k for k in logs_dict.keys() if '/referential_game_accuracy' in k]
                         if len(acc_keys):
                             acc = logs_dict[acc_keys[-1]].mean()
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
-                            descr = 'Epoch {} :: {} Iteration {}/{} :: Loss {} = {}'.format(epoch+1, mode, idx_stimulus+1, len(data_loader), it+1, loss.item())
+                            descr = f"Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
+                            if isinstance(loss, torch.Tensor): loss = loss.item()
+                            descr += f" (Rep:{it_rep+1}/{nbr_experience_repetition}):: Loss {it+1} = {loss}"
                             pbar.set_description_str(descr)
                         
                         self.stream_handler.reset("losses_dict")

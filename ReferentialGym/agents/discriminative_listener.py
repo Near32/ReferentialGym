@@ -737,16 +737,17 @@ class DiscriminativeListener(Listener):
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
-        output_dict = {"output": decision_logits,
-                       "decision": decision_logits, 
-                       "sentences_widx":next_sentences_widx, 
-                       "sentences_logits":next_sentences_logits, 
-                       "sentences_one_hot":next_sentences,
-                       #"features":features,
-                       "temporal_features": temporal_features
-                       }
+        self.output_dict = {
+            "output": decision_logits,
+            "decision": decision_logits, 
+            "sentences_widx":next_sentences_widx, 
+            "sentences_logits":next_sentences_logits, 
+            "sentences_one_hot":next_sentences,
+            #"features":features,
+            "temporal_features": temporal_features
+        }
         
         if not(multi_round):
             self._reset_rnn_states()
 
-        return output_dict 
+        return self.output_dict 
