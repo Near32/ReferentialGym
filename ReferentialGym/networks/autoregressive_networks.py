@@ -672,15 +672,39 @@ class ParallelAttentionBroadcastingDeconvDecoder(nn.Module) :
     def forward(self,z) :
         return self.decode(z)
 
-
+# Very Important:
+# Making the TotalCorrelationDiscriminator an object
+# rather than an nn.Module prevents the optimization_module
+# from gathering its parameters and optimizing for them.
+# Rather, optimization is handled internally whenever the 
+# mode is training.
 class TotalCorrelationDiscriminator(object):
     def __init__(self, VAE):
         self.latent_dim = VAE.latent_dim
-        tc_discriminator_hidden_units = [2*self.latent_dim]*4+[2]
-        self.discriminator = FCBody(state_dim=self.latent_dim,
-                                    hidden_units=tc_discriminator_hidden_units,
-                                    non_linearities=[nn.LeakyReLU])
-        self.optimizer = optim.Adam(self.discriminator.parameters(), lr=1e-4)
+        #tc_discriminator_hidden_units = [2*self.latent_dim]*4+[2]
+        # Sizes from 2*1000 to 6*1000 were found valuable in Appendix A:
+        tc_discriminator_hidden_units = [1000]*4+[2]
+        self.discriminator = FCBody(
+            state_dim=self.latent_dim,
+            hidden_units=tc_discriminator_hidden_units,
+            non_linearities=[nn.LeakyReLU]
+        )
+        
+        # Hyperparameters of the optimiser are found in 
+        # [Kim and Mnih, 2018, "Disentangling by Factorising"]'s
+        # appendix A.
+        # Expecting batch size of 64.
+        # ... remembering that the independence
+        # testing trick is as good as the batch size
+        # is sufficiently large (compared to the size of the dataset).  
+        self.optimizer = optim.Adam(
+            self.discriminator.parameters(), 
+            lr=1e-4,
+            betas=[0.5,0.9],
+        )
+
+        print("TotalCorrelationDiscriminator:")
+        print(self.discriminator)
 
     def __call__(self, z):
         if z.is_cuda: 
@@ -952,7 +976,15 @@ class BetaVAE(nn.Module) :
             #(b, )            
 
             soft_Dz = torch.softmax(Dz, dim=-1)
-            self.vae_modularity = 1-(soft_Dz[:,0]-soft_Dz[:,1])
+            # logit 0: probability for the input to come from the model.
+            # logit 1: probability for the input to come from the permutated generator.
+            # ==> When the model has a highly modular output, the discriminator should
+            # not be able to discriminate with the permutated generator, and therefore output
+            # high probability for logit 1 (and low for logit 0).
+            # i.e. the model has modularity as high as logit 1 is high and logit 0 is low :
+            self.vae_modularity = (1+soft_Dz[:,1]-soft_Dz[:,0])/2
+            #PREVIOUSLY:
+            #self.vae_modularity = 1-(soft_Dz[:,0]-soft_Dz[:,1])
 
             # TC Discriminator:
             z = self.z.detach()

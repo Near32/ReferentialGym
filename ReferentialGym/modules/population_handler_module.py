@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import torch
 import torch.nn as nn 
+import torch.optim as optim 
 
 import os
 import pickle
@@ -85,8 +86,8 @@ class PopulationHandlerModule(Module):
             for agent in [prototype_speaker, prototype_listener]: 
                 if type(agent) not in self.meta_agents:
                     self.meta_agents[type(agent)] = agent.clone(clone_id=f'meta_{agent.agent_id}')
-                    #self.meta_agents_optimizers[type(agent)] = optim.Adam(meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'], eps=self.config['adam_eps'])
-                    self.meta_agents_optimizers[type(agent)] = optim.SGD(meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'])
+                    #self.meta_agents_optimizers[type(agent)] = optim.Adam(self.meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'], eps=self.config['adam_eps'])
+                    self.meta_agents_optimizers[type(agent)] = optim.SGD(self.meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'])
 
         self.agents_stats = dict()
         for agent in self.speakers:
@@ -97,8 +98,9 @@ class PopulationHandlerModule(Module):
         print("Create Population of Agents: OK.")
 
         self.previous_epoch = -1
-        self.previous_global_it_datasample = -1
-        self.counterGames = 0
+        self.previous_global_it_datasample = {}
+        self.counterGames = -1
+        self.counterRounds = -1
 
     def save(self, path):
         path = os.path.join(path, self.id)
@@ -201,13 +203,17 @@ class PopulationHandlerModule(Module):
         speaker = self.speakers[idx_speaker]
         listener = self.listeners[idx_listener]
         
-        self.agents_stats[speaker.agent_id]['selection_iterations'].append(self.previous_global_it_datasample)
-        self.agents_stats[listener.agent_id]['selection_iterations'].append(self.previous_global_it_datasample)
-
+        self.agents_stats[speaker.agent_id]['selection_iterations'].append(
+            sum(self.previous_global_it_datasample.values())
+        )
+        self.agents_stats[listener.agent_id]['selection_iterations'].append(
+            sum(self.previous_global_it_datasample.values())
+        )
+        
         return speaker, listener
 
     def bookkeeping(self, mode, epoch):
-        it = self.previous_global_it_datasample
+        it = sum(self.previous_global_it_datasample.values())
         
         if epoch != self.previous_epoch:
             self.previous_epoch = epoch
@@ -218,16 +224,16 @@ class PopulationHandlerModule(Module):
                 agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
             
             if 'cultural_reset_strategy' in self.config\
-                and 'meta' in self.config['cultural_reset_strategy']:
+            and 'meta' in self.config['cultural_reset_strategy']:
                 for agent in self.meta_agents.values():
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
 
         # Reset agent(s):
         if 'train' in mode \
-            and 'cultural_pressure_it_period' in self.config\
-            and self.config["cultural_pressure_it_period"] is not None \
-            and self.previous_global_it_datasample % self.config['cultural_pressure_it_period'] == 0:
-            #and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
+        and 'cultural_pressure_it_period' in self.config\
+        and self.config["cultural_pressure_it_period"] is not None \
+        and sum(self.previous_global_it_datasample.values()) % self.config['cultural_pressure_it_period'] == 0:
+        #and (idx_stimuli+len(data_loader)*epoch) % self.config['cultural_pressure_it_period'] == 0:
             if 'oldest' in self.config['cultural_reset_strategy']:
                 if 'S' in self.config['cultural_reset_strategy']:
                     weights = [ it-self.agents_stats[agent.agent_id]['reset_iterations'][-1] for agent in self.speakers] 
@@ -295,12 +301,13 @@ class PopulationHandlerModule(Module):
             nbrParams += 1
             if lrp.grad is not None:
                 nbrUpdatedParams += 1
-                lrp.grad.data.copy_( k*(lp.data-lrp.data) )
+                lrp.grad.data.copy_( k*(lp.data.cpu()-lrp.data.cpu()) )
             else:
-                lrp.grad = k*(lp.data-lrp.data)
+                lrp.grad = k*(lp.data.cpu()-lrp.data.cpu())
                 if verbose:
                     print("Parameter {} has not been updated...".format(name))
-        print("Meta-cultural learning step :: {}/{} updated params.".format(nbrUpdatedParams, nbrParams))
+        if verbose:
+            print("Meta-cultural learning step :: {}/{} updated params.".format(nbrUpdatedParams, nbrParams))
         return 
 
     def _apply_meta_update(self, meta_learner, meta_optimizer, learner):
@@ -335,10 +342,13 @@ class PopulationHandlerModule(Module):
         mode = input_streams_dict['mode']
         global_it_datasample = input_streams_dict['global_it_datasample']
         
-        if global_it_datasample != self.previous_global_it_datasample:
+        if mode not in self.previous_global_it_datasample:
+            self.previous_global_it_datasample[mode] = -1
+            
+        if global_it_datasample != self.previous_global_it_datasample[mode]:
             self.bookkeeping(mode=mode, epoch=epoch)
 
-            self.previous_global_it_datasample = global_it_datasample
+            self.previous_global_it_datasample[mode] = global_it_datasample
             
             if 'train' in mode:
                 self.counterGames += 1
@@ -348,6 +358,7 @@ class PopulationHandlerModule(Module):
                     if not('obverter_nbr_games_per_round' in self.config):
                         self.config['obverter_nbr_games_per_round'] = 1 
                     if  self.counterGames%self.config['obverter_nbr_games_per_round']==0:
+                        self.counterRounds += 1
                         # Invert the roles:
                         self.speakers, self.listeners = (self.listeners, self.speakers)
                         # Make it obvious to the stream handler:
@@ -363,7 +374,7 @@ class PopulationHandlerModule(Module):
         
             new_speaker, new_listener = self._select_agents()
             
-            if 'train' in mode: 
+            if 'train' in mode:
                 new_speaker.train()
                 new_listener.train()
             else:
@@ -379,6 +390,7 @@ class PopulationHandlerModule(Module):
             if self.config['use_cuda']:
                 input_streams_dict["current_speaker_streams_dict"]["ref"] = input_streams_dict["current_speaker_streams_dict"]["ref"].cuda()
                 input_streams_dict["current_listener_streams_dict"]["ref"] = input_streams_dict["current_listener_streams_dict"]["ref"].cuda() 
-
+            
+        outputs_stream_dict["signals:obverter_round_iteration"] = self.counterRounds
 
         return outputs_stream_dict

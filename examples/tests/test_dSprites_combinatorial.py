@@ -107,6 +107,35 @@ def plot(train_dataset, test_dataset):
       axes.append(ax)
   plt.show()
 
+  fig = plt.figure()
+  axes = []
+  idxcurrentgraph = 0
+  for line in range(nbr_lines):
+    for row in range(nbr_rows):
+      idxcurrentgraph += 1
+      ax = fig.add_subplot(nbr_lines*100+nbr_rows*10+idxcurrentgraph)#, projection='3d')
+      ax.scatter(
+        df['X'][:nbr_train], 
+        df['Y'][:nbr_train], 
+        #df['Orientation'][:nbr_train], 
+        c='skyblue', s=200
+      )
+      ax.scatter(
+        df['X'][nbr_train:], 
+        df['Y'][nbr_train:], 
+        #df['Orientation'][nbr_train:], 
+        c='red', s=100
+      )
+      #ax.view_init(125, 35)
+      #ax.view_init(145, 45)
+      #ax.view_init(145, -135)
+      #ax.view_init(-175, 145)
+      ax.set_xlabel('position X')
+      ax.set_ylabel('position Y')
+      #ax.set_zlabel('Orientaiton')
+      axes.append(ax)
+  plt.show()
+
   return
 
 
@@ -256,7 +285,7 @@ def main():
       
   # INTER SIMPLE X+Y
   # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
-  #train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
+  train_split_strategy = 'combinatorial2-Y-4-2-X-4-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: simple splitted XY X 16/ Y 16/ --> 256 test / 768 train 
@@ -284,7 +313,7 @@ def main():
   
   # EXTRA MULTI3 X+Y+Orientation
   #COMB2 Sparse: simple splitted XYOrientation X 4/ Y 4/ Orientation 4/ --> 256 test / 256 train 
-  train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N' 
+  #train_split_strategy = 'combinatorial2-Y-4-S4-X-4-S4-Orientation-5-S4-Scale-6-N-Shape-3-N' 
     
 
   # INTER MULTI:
@@ -369,7 +398,7 @@ def main():
   train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
   test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
 
-  if False: plot(train_dataset, test_dataset)
+  if True: plot(train_dataset, test_dataset)
 
   train_i = 0
   test_i = 0

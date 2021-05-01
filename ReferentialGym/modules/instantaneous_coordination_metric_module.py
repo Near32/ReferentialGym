@@ -45,12 +45,13 @@ class InstantaneousCoordinationMetricModule(Module):
             "decision_probs":"modules:current_listener:decision_probs",
             "listener_indices":"current_dataloader:sample:listener_indices",
         }
+        
         if input_stream_ids is None:
             input_stream_ids = default_input_stream_ids
         else:
-            for default_stream, default_id in default_input_stream_ids.items():
-                if default_id not in input_stream_ids.values():
-                    input_stream_ids[default_stream] = default_id
+            for default_id, default_stream in default_input_stream_ids.items():
+                if default_id not in input_stream_ids:
+                    input_stream_ids[default_id] = default_stream
 
         super(InstantaneousCoordinationMetricModule, self).__init__(id=id,
                                                  type="InstantaneousCoordinationMetricModule",
@@ -74,15 +75,16 @@ class InstantaneousCoordinationMetricModule(Module):
         epoch = input_streams_dict["epoch"]
         
         if epoch % self.config["epoch_period"] == 0:
-            sentences_widx = input_streams_dict["sentences_widx"]
-            self.sentences_widx.append(sentences_widx.cpu().detach().long().numpy())
-            # (1, batch_size, max_sentence_length, 1) 
-            decision_probs = input_streams_dict["decision_probs"]
-            self.decision_probs.append(decision_probs.cpu().detach().numpy())
-            # (1, batch_size, nbr_stimulus) 
-            listener_indices = input_streams_dict["listener_indices"]
-            self.listener_indices.append(listener_indices.cpu().detach().long().numpy())
-            # (1, batch_size, nbr_stimulus) 
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                sentences_widx = input_streams_dict["sentences_widx"]
+                self.sentences_widx.append(sentences_widx.cpu().detach().long().numpy())
+                # (1, batch_size, max_sentence_length, 1) 
+                decision_probs = input_streams_dict["decision_probs"]
+                self.decision_probs.append(decision_probs.cpu().detach().numpy())
+                # (1, batch_size, nbr_stimulus) 
+                listener_indices = input_streams_dict["listener_indices"]
+                self.listener_indices.append(listener_indices.cpu().detach().long().numpy())
+                # (1, batch_size, nbr_stimulus) 
 
             # Is it the end of the epoch?
             end_of_epoch = all([
@@ -90,7 +92,9 @@ class InstantaneousCoordinationMetricModule(Module):
               for key in self.end_of_]
             )
             
-            if end_of_epoch:
+            not_empty = len(self.decision_probs) > 0
+
+            if end_of_epoch and not_empty:
                 # self.sentences_widx = np.concatenate(self.sentences_widx, axis=0)
                 # (nbr_element, batch_size may vary.., nbr_stimulus) 
                 #self.decision_probs = np.concatenate(self.decision_probs, axis=0)

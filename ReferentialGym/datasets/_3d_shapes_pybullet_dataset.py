@@ -20,46 +20,55 @@ import pickle
 # http://alumni.media.mit.edu/~wad/color/numbers.html      
 # without white...
 original_colors = [
+#White
+(255, 255, 255),
 #Red
 (173, 35, 35), 
 #Blue
 (42, 75, 215), 
 #Green
 (29, 105, 20), 
+#Yellow
+(255, 238, 51), 
+#Magenta
+(255, 0, 255), 
+#Cyan
+(0, 255, 255), #(41, 208, 208), 
+#Gray
+(127, 127, 127), 
 #Brown
 (129, 74, 25), 
 #Purple
 (129, 38, 192), 
+# #Lt. Gray
+# (160, 160, 160), 
+# #Lt. Green
+# (129, 197, 122), 
+# #Lt. Blue
+(157, 175, 255), 
 #Black
 (0, 0, 0),
-#Lt. Gray
-(160, 160, 160), 
-#Lt. Green
-(129, 197, 122), 
-#Lt. Blue
-(157, 175, 255), 
-#Cyan
-(41, 208, 208), 
 #Orange
 (255, 146, 51), 
-#Yellow
-(255, 238, 51), 
 #Tan
 (233, 222, 187), 
 #Pink
 (55, 205, 243), 
-#Dk. Gray
-(87, 87, 87), 
 ]
 
 original_shapes = [
     'cylinder',
-    'capsule',
     'sphere',
     'cube',
     'torus',
-    'teddy',
+    'capsule',
     'duck',
+    'teddy',
+    'lego',
+    'table',
+    'r2d2',
+    'racecar',
+    'tray',
 ]
 
 
@@ -146,6 +155,77 @@ def generate_datapoint(
                 basePosition=position,
                 baseOrientation=pb.getQuaternionFromEuler(orientation) 
             )
+
+        elif 'r2d2' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 2.0
+            
+            r2d2 = pb.loadURDF(
+                fileName="franka_panda/panda.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=4.0
+            )
+
+            pb.changeVisualShape(r2d2, -1, rgbaColor=color)
+
+        elif 'table' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 0.0
+            
+            table = pb.loadURDF(
+                fileName="table/table.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=3.0
+            )
+
+            pb.changeVisualShape(table, -1, rgbaColor=color)    
+
+        elif 'racecar' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 0.5
+            
+            racecar = pb.loadURDF(
+                fileName="racecar/racecar.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=10.0
+            )
+
+            pb.changeVisualShape(racecar, 0, rgbaColor=color)   
+
+        elif 'lego' in shapeId:
+            #orientation[0] = np.pi/2
+            position[2] += 1.0
+            #position = [0,0,2]
+            
+            legoId = pb.loadURDF(
+                fileName="lego/lego.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=80.0
+            )
+
+            pb.changeVisualShape(legoId, -1, rgbaColor=color)
+
+        elif 'tray' in shapeId:
+            #orientation[0] = np.pi/2
+            #position[2] += 0.5
+            
+            trayId = pb.loadURDF(
+                fileName="tray/tray.urdf", 
+                basePosition=position,
+                baseOrientation=pb.getQuaternionFromEuler(orientation),
+                #rgbaColor=rgbaColor,
+                globalScaling=6.0
+            )
+
+            pb.changeVisualShape(trayId, -1, rgbaColor=color)
 
         elif 'teddy' in shapeId:
             orientation[0] = np.pi/2
@@ -499,6 +579,8 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.latents_values = np.asarray(dataset['latents_values'])
         #(color, shape, sample_id) :
         self.latents_classes = np.asarray(dataset['latents_classes'])
+        import ipdb; ipdb.set_trace()
+        # check shape ohe to be size x dim :
         self.latents_one_hot = np.asarray(dataset['latents_one_hot'])
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         
@@ -817,8 +899,82 @@ class _3DShapesPyBulletDataset(Dataset) :
                 self.latents_to_possible_indices[color_id][shape_id] = []
             self.latents_to_possible_indices[color_id][shape_id].append(idx)
 
+        self.latents_classes_2_idx = { 
+            tuple(lc.tolist()): idx 
+            for idx,lc in enumerate(self.latents_classes)
+        }
+        
         print('Dataset loaded : OK.')
+
+        #self.counter_saving = 0
+        self._generate_all()
+
+    def sample_factors(self, num, random_state=None):
+        """
+        Sample a batch of factors Y.
+        """
+        if random_state is not None:
+            factors_indices = random_state.choice(self.indices, size=(num,), replace=True)
+        else:
+            factors_indices = np.random.choice(self.indices, size=(num,), replace=True)
+        
+        factors = np.stack(self.latents_classes[factors_indices], axis=0)
+
+        return factors
     
+    def sample_latents_values_from_factors(self, factors, random_state=None):
+        """
+        Sample a batch of latents_values X given a batch of factors Y.
+        """
+        self.factors_indices = [] 
+        
+        for factor in factors:
+            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
+
+        latents_values = [lv for lv in self.latents_values[self.factors_indices]]
+        
+        return latents_values
+
+    def sample_latents_ohe_from_factors(self, factors, random_state=None):
+        """
+        Sample a batch of latents_values X given a batch of factors Y.
+        """
+        self.factors_indices = [] 
+        
+        for factor in factors:
+            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
+
+        import ipdb; ipdb.set_trace()
+        # check that factors ohe are as expected give factors:
+        latents_ohe = [lohe for lohe in self.latents_one_hot[self.factors_indices]]
+        
+        return latents_ohe
+        
+    
+    def sample_observations_from_factors(self, factors, random_state=None):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        self.factors_indices = [] 
+        
+        for factor in factors:
+            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
+
+        #images = [self.imgs[idx] for idx in self.factors_indices]
+        images = []
+        for idx in self.factors_indices:
+            if idx not in self.imgs:    self._generate_datapoint(idx=idx)
+            images.append(self.imgs[idx])
+        images = [im.transpose((2,1,0)) for im in images]
+        images = [Image.fromarray(im, mode='RGB') for im in images]
+
+        if self.transform is not None:
+            images = [self.transform(im) for im in images]
+        
+        images = torch.stack(images, dim=0)
+        
+        return images
+
     def _save_generated_dataset(self):
         if self._check_exists():
             filepath = os.path.join(self.root, self.file)
@@ -836,16 +992,21 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         print('saving datasets...')
         filename = os.path.join(self.root,self.file)
-        with  open(filename, 'wb') as f:
-            pickle.dump((dataset, self.nb_shapes, self.nb_colors, self.nb_samples, self.sampled_positions, self.sampled_orientation), f)
-        print('Datasets saved at {}'.format(filename))
+        try:
+            with  open(filename, 'wb') as f:
+                    pickle.dump((dataset, self.nb_shapes, self.nb_colors, self.nb_samples, self.sampled_positions, self.sampled_orientation), f)
+            print('Datasets saved at {}'.format(filename))
+        except Exception as e:
+            print(f"Exception caught when trying to save the dataset: {e}")
 
     def _generate_all(self):
-        pbar = tqdm(total=len(self.indices))
-        for idx in self.indices:
+        size = len(self.latents_classes)
+        pbar = tqdm(total=size)
+        for idx in range(size):
             pbar.update(1)
             if idx in self.imgs:    continue
             self._generate_datapoint(idx=idx)
+        self._save_generated_dataset()
 
     def _generate_datapoint(self, idx):
         latents_values = self.latents_values[idx]
@@ -870,12 +1031,17 @@ class _3DShapesPyBulletDataset(Dataset) :
 
         self.imgs[idx] = rgb_img
 
+        """
         if all([(index in self.imgs) for index in self.indices]):
-            self._save_generated_dataset()
-            # will only be called once, when the last element has just been generated, 
-            # since this whole function will never be called again after all elements
-            # are generated...
-
+            if self.counter_saving==0:
+                self.counter_saving = 100
+                self._save_generated_dataset()
+                # will only be called once, when the last element has just been generated, 
+                # since this whole function will never be called again after all elements
+                # are generated...
+            else:
+                self.counter_saving = min(self.counter_saving-1,0)
+        """
         
     def __len__(self) -> int:
         return len(self.indices)

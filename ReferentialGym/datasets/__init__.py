@@ -26,4 +26,7 @@ except Exception as e:
 from .dSprites_dataset import dSpritesDataset
 from .MSCOCO_dataset import MSCOCODataset 
 
+from .prioritized_replay_buffer import PrioritizedReplayBuffer 
+from .prioritized_sampler import PrioritizedSampler 
+from .prioritized_batch_sampler import PrioritizedBatchSampler 
 from .utils import collate_dict_wrapper, ResizeNormalize, RescaleNormalize

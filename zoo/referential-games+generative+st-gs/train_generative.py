@@ -462,6 +462,7 @@ def main():
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   save_path += f"{args.dataset}+DualLabeled/"
+  save_path += "/MetricEPS1m5/"
   if args.symbolic:
     save_path += f"Symbolic/"
   save_path += f"{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}_CNN{cnn_feature_size}to{args.vae_nbr_latent_dim}"

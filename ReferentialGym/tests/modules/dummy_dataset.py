@@ -1,65 +1,51 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
+
+import sys
+import random
+import numpy as np 
+import argparse 
+import copy
+
 import torch
 from torch.utils.data import Dataset 
-import os
-import numpy as np
-import copy
-import random
 from PIL import Image 
 
 
-class dSpritesDataset(Dataset) :
-    def __init__(self, root='./', train=True, transform=None, split_strategy=None) :
+class DummyDataset(Dataset) :
+    def __init__(self, train=True, transform=None, split_strategy=None, nbr_latents=10, nbr_values_per_latent=10) :
         '''
         :param split_strategy: str 
             e.g.: 'divider-10-offset-0'
         '''
+        self.nbr_latents = nbr_latents
+        self.nbr_values_per_latent = nbr_values_per_latent
+        self.dataset_size = np.power(nbr_values_per_latent, nbr_latents)
         self.train = train
-        self.root = os.path.join(root, 'dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')
         self.transform = transform
         self.split_strategy = split_strategy
 
 
         # Load dataset
-        dataset_zip = np.load(self.root, encoding='latin1', allow_pickle=True)
-        #data = np.load(root, encoding='latin1')
-        #data = torch.from_numpy(data['imgs']).unsqueeze(1).float())
-        print('Keys in the dataset:')
-        for k in dataset_zip.keys(): print(k)
-        self.imgs = dataset_zip['imgs']
-        self.latents_values = dataset_zip['latents_values']
-        self.latents_classes = dataset_zip['latents_classes']
+        self.imgs = [np.zeros((24,24,3))]*100
+        self.latents_values = np.random.randint(
+          low=0,
+          high=self.nbr_values_per_latent,
+          size=(100, self.nbr_latents)
+        )
+        self.latents_classes = copy.deepcopy(self.latents_values)
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         self.targets = np.zeros(len(self.latents_classes)) #[random.randint(0, 10) for _ in self.imgs]
-        #latents_per_dim = np.asarray([1,3,6,40,32,32])
-        #lpd2tensor_mult = np.cumprod(latents_per_dim,axis=0)
-        lpd2tensor_mult = np.asarray([
-            32*32*40*6*3,
-            32*32*40*6,
-            32*32*40,
-            32*32,
-            32,
-            1]
-        )
         for idx, latent_cls in enumerate(self.latents_classes):
-            """
             posX = latent_cls[-2]
             posY = latent_cls[-1]
-            target = posX*32+posY
+            target = posX*self.nbr_values_per_latent+posY
             self.targets[idx] = target
             """
+            self.targets[idx] = idx
             """
-            self.targets[idx] = idx  
-            """
-            target = copy.deepcopy(latent_cls)
-            # nullify orientation: 
-            target[3] = 0
-            target = target*lpd2tensor_mult
-            self.targets[idx] = np.sum(target).item()
-            
-        self.metadata = dataset_zip['metadata'][()]
-        
+
         if self.split_strategy is not None:
+            raise NotImplementedError 
             strategy = self.split_strategy.split('-')
             if 'divider' in self.split_strategy and 'offset' in self.split_strategy:
                 self.divider = int(strategy[1])
@@ -261,24 +247,24 @@ class dSpritesDataset(Dataset) :
             self.offset = 0
 
         self.indices = []
-        self.traintest_indices = []
         if self.split_strategy is None or 'divider' in self.split_strategy:
+            self.indices = np.arange(100)
+            """
             for idx in range(len(self.imgs)):
                 if idx % self.divider == self.offset:
                     self.indices.append(idx)
 
             self.train_ratio = 0.8
             end = int(len(self.indices)*self.train_ratio)
-
-            self.traintest_indices = copy.deepcopy(self.indices)
             if self.train:
                 self.indices = self.indices[:end]
             else:
                 self.indices = self.indices[end:]
-
+            """
             print(f"Split Strategy: {self.split_strategy} --> d {self.divider} / o {self.offset}")
-            print(f"Dataset Size: {len(self.indices)} out of 737280: {100*len(self.indices)/737280}%.")
+            print(f"Dataset Size: {len(self.indices)} out of {self.dataset_size}: {100*len(self.indices)/self.dataset_size}%.")
         elif 'combinatorial' in self.split_strategy:
+            raise NotImplementedError
             indices_latents = list(zip(range(self.latents_classes.shape[0]), self.latents_classes))
             for idx, latent_class in indices_latents:
                 effective_test_threshold = self.counter_test_threshold
@@ -314,17 +300,15 @@ class dSpritesDataset(Dataset) :
                         
                 if skip_it: continue
 
-                self.traintest_indices.append(idx)
+
                 if self.train:
                     if len(counter_test) >= effective_test_threshold:#self.counter_test_threshold:
                         continue
                     else:
-                        self.indices.append(len(self.traintest_indices)-1)
-                        #self.indices.append(idx)
+                        self.indices.append(idx)
                 else:
                     if len(counter_test) >= effective_test_threshold:#self.counter_test_threshold:
-                        self.indices.append(len(self.traintest_indices)-1)
-                        #self.indices.append(idx)
+                        self.indices.append(idx)
                     else:
                         continue
 
@@ -333,131 +317,86 @@ class dSpritesDataset(Dataset) :
             print(f"Dataset Size: {len(self.indices)} out of 737280 : {100*len(self.indices)/737280}%.")
             
 
-        self.latents_one_hot_encodings = np.eye(40)[self.latents_classes.reshape(-1)]
-        #self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, 6, 40))
-        self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, 6*40))
-        
-        """
-        self.imgs = self.imgs[self.indices]
+        #self.imgs = self.imgs[self.indices]
         self.latents_values = self.latents_values[self.indices]
         self.latents_classes = self.latents_classes[self.indices]
         
+        self.latents_one_hot_encodings = np.eye(self.nbr_values_per_latent)[self.latents_classes.reshape(-1)]
+        #self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, self.nbr_latents, self.nbr_values_per_latent))
+        self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, self.nbr_latents*self.nbr_values_per_latent))
+
         self.test_latents_mask = self.test_latents_mask[self.indices]
         self.targets = self.targets[self.indices]
-        """
-
-        self.imgs = self.imgs[self.traintest_indices]
-        self.latents_values = self.latents_values[self.traintest_indices]
-        self.latents_classes = self.latents_classes[self.traintest_indices]
-        self.latents_one_hot_encodings = self.latents_one_hot_encodings[self.traintest_indices]
         
-        self.test_latents_mask = self.test_latents_mask[self.traintest_indices]
-        self.targets = self.targets[self.traintest_indices]
-        
-        
-        del self.metadata
-
-        self.latents_classes_2_idx = { 
-            tuple(lc.tolist()): idx 
-            for idx,lc in enumerate(self.latents_classes)
-        }
-
         print('Dataset loaded : OK.')
-    
-    def sample_factors(self, num, random_state=None):
-        """
-        Sample a batch of factors Y.
-        """
-        if random_state is not None:
-            factors_indices = random_state.choice(self.indices, size=(num,), replace=True)
-        else:
-            factors_indices = np.random.choice(self.indices, size=(num,), replace=True)
         
-        factors = np.stack(self.latents_classes[factors_indices], axis=0)
-
-        return factors
-    
-    def sample_latents_values_from_factors(self, factors, random_state=None):
-        """
-        Sample a batch of latents_values X given a batch of factors Y.
-        """
-        self.factors_indices = [] 
-        
-        for factor in factors:
-            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
-
-        latents_values = [lv for lv in self.latents_values[self.factors_indices]]
-        
-        return latents_values
-
-    def sample_latents_ohe_from_factors(self, factors, random_state=None):
-        """
-        Sample a batch of latents_values X given a batch of factors Y.
-        """
-        self.factors_indices = [] 
-        
-        for factor in factors:
-            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
-
-        latents_ohe = [lohe for lohe in self.latents_one_hot_encodings[self.factors_indices]]
-        
-        return latents_ohe
-        
-    def sample_observations_from_factors(self, factors, random_state=None):
-        """
-        Sample a batch of observations X given a batch of factors Y.
-        """
-        self.factors_indices = [] 
-        
-        for factor in factors:
-            self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
-
-        images = [Image.fromarray((im*255).astype('uint8')) for im in self.imgs[self.factors_indices]]
-        
-        if self.transform is not None:
-            images = [self.transform(im) for im in images]
-        
-        images = torch.stack(images, dim=0)
-        
-        return images
-
     def __len__(self) -> int:
-        return len(self.indices)
+        return 100 #len(self.indices)
 
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        target = self.targets[trueidx]
+        target = self.targets[idx]
         return target
 
     def getlatentvalue(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        latent_value = self.latents_values[trueidx]
+        latent_value = self.latents_values[idx]
         return latent_value
 
     def getlatentclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        latent_class = self.latents_classes[trueidx]
+        latent_class = self.latents_classes[idx]
         return latent_class
 
     def getlatentonehot(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        latent_one_hot = self.latents_one_hot_encodings[trueidx]
-        return latent_one_hot
+        latent_one_hot_encoded = self.latents_one_hot_encodings[idx]
+        return latent_one_hot_encoded
 
     def gettestlatentmask(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        test_latents_mask = self.test_latents_mask[trueidx]
+        test_latents_mask = self.test_latents_mask[idx]
         return test_latents_mask
+
+    def sample_factors(self, num, random_state):
+        """
+        Sample a batch of factors Y.
+        """
+        #return random_state.randint(low=0, high=self.nbr_values_per_latent, size=(num, self.nbr_latents))
+        # It turns out the random state is not really being updated apparently.
+
+        # Therefore it was always sampling the same values...
+        return np.random.randint(low=0, high=self.nbr_values_per_latent, size=(num, self.nbr_latents))
+        
+    def sample_observations_from_factors(self, factors, random_state):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        return factors
+
+    def sample_latents_values_from_factors(self, factors, random_state):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        return factors
+
+    def sample_latents_ohe_from_factors(self, factors, random_state):
+        """
+        Sample a batch of observations X given a batch of factors Y.
+        """
+        return factors
+
+    def sample(self, num, random_state):
+        """
+        Sample a batch of factors Y and observations X.
+        """
+        factors = self.sample_factors(num, random_state)
+        return factors, self.sample_observations_from_factors(factors, random_state)
 
     def __getitem__(self, idx:int) -> Dict[str,torch.Tensor]:
         """
@@ -474,12 +413,11 @@ class dSpritesDataset(Dataset) :
         """
         if idx >= len(self):
             idx = idx%len(self)
-        
-        orig_idx = idx
-        trueidx = self.indices[idx]
+        #orig_idx = idx
+        #idx = self.indices[idx]
 
-        #image = Image.fromarray((self.imgs[idx]*255).astype('uint8'))
-        image = Image.fromarray((self.imgs[trueidx]*255).astype('uint8'))
+        #img, target = self.dataset[idx]
+        image = Image.fromarray((self.imgs[idx]*255).astype('uint8'))
         
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))

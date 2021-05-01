@@ -87,7 +87,7 @@ class statsLogger(SummaryWriter):
             if max_nbr_samples is None: max_nbr_samples = len(cleaned_data[agent_id][sentences_key])
 
             it_sentences = [ (s['it'],s['raw']) for s in cleaned_data[agent_id][sentences_key][:max_nbr_samples]]
-            sentences = [s[1] for s in it_sentences]
+            sentences = [np.reshape(s[1], newshape=(-1,1)) for s in it_sentences]
 
             features = []
             sentence_idx = 0 

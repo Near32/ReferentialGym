@@ -46,7 +46,7 @@ class TopographicSimilarityMetricModule(Module):
                                                  type="TopographicSimilarityMetric",
                                                  config=config,
                                                  input_stream_ids=input_stream_ids)
-        
+        self.pvalue_significance_threshold = 0.1
         self.whole_epoch_sentences = []
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
         
@@ -87,46 +87,52 @@ class TopographicSimilarityMetricModule(Module):
                 if self.config["fast"]:  
                     max_nbr_samples = int(len(self.whole_epoch_sentences)*0.1)
 
-                try:
-                  topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key="sentences_widx",
-                                                                             features_key="exp_latents",
-                                                                             max_nbr_samples=max_nbr_samples,
-                                                                             verbose=self.config["verbose"],
-                                                                             max_workers=self.config["parallel_TS_computation_max_workers"])
-                  topo_sims_onehot, pvalues_onehot, unique_prod_ratios_onehot = logger.measure_topographic_similarity(sentences_key="sentences_widx",
-                                                                             features_key="exp_latents_one_hot_encoded",
-                                                                             max_nbr_samples=max_nbr_samples,
-                                                                             verbose=self.config["verbose"],
-                                                                             max_workers=self.config["parallel_TS_computation_max_workers"])
-                  topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key="sentences_widx",
-                                                                             features_key="exp_latents_values",
-                                                                             max_nbr_samples=max_nbr_samples,
-                                                                             verbose=self.config["verbose"],
-                                                                             max_workers=self.config["parallel_TS_computation_max_workers"])
-                  feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key="sentences_widx",
-                                                                             features_key="temporal_features",
-                                                                             max_nbr_samples=max_nbr_samples,
-                                                                             verbose=self.config["verbose"],
-                                                                             max_workers=self.config["parallel_TS_computation_max_workers"])
-                  
-                  for agent_id in topo_sims:
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity/{agent_id}"] = topo_sims[agent_id]*100.0
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}"] = unique_prod_ratios[agent_id]
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity-PValues/{agent_id}"] = pvalues[agent_id]
-                  for agent_id in topo_sims_onehot:
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings/{agent_id}"] =  topo_sims_onehot[agent_id]*100.0
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings-PValues/{agent_id}"] = pvalues_onehot[agent_id]
-                  for agent_id in topo_sims_v:
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues/{agent_id}"] =  topo_sims_v[agent_id]*100.0
-                      logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues-PValues/{agent_id}"] = pvalues_v[agent_id]
-                  for agent_id in feat_topo_sims:
-                      logs_dict[f"{mode}/{self.id}/FeaturesTopographicSimilarity/{agent_id}"] = feat_topo_sims[agent_id]*100.0
-                      logs_dict[f"{mode}/{self.id}/FeaturesTopographicSimilarity-PValues/{agent_id}"] = feat_pvalues[agent_id]
-                except Exception as e:
-                  print("WARNING::WARNING")
-                  print("WARNING: Exception caught during computation of topographic similarity module:")
-                  print(e)
-                  print("WARNING::WARNING")
+                #try:
+                topo_sims, pvalues, unique_prod_ratios = logger.measure_topographic_similarity(sentences_key="sentences_widx",
+                                                                           features_key="exp_latents",
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config["verbose"],
+                                                                           max_workers=self.config["parallel_TS_computation_max_workers"])
+                topo_sims_onehot, pvalues_onehot, unique_prod_ratios_onehot = logger.measure_topographic_similarity(sentences_key="sentences_widx",
+                                                                           features_key="exp_latents_one_hot_encoded",
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config["verbose"],
+                                                                           max_workers=self.config["parallel_TS_computation_max_workers"])
+                topo_sims_v, pvalues_v, unique_prod_ratios_v = logger.measure_topographic_similarity(sentences_key="sentences_widx",
+                                                                           features_key="exp_latents_values",
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config["verbose"],
+                                                                           max_workers=self.config["parallel_TS_computation_max_workers"])
+                feat_topo_sims, feat_pvalues, _ = logger.measure_topographic_similarity(sentences_key="sentences_widx",
+                                                                           features_key="temporal_features",
+                                                                           max_nbr_samples=max_nbr_samples,
+                                                                           verbose=self.config["verbose"],
+                                                                           max_workers=self.config["parallel_TS_computation_max_workers"])
+                
+                for agent_id in topo_sims:
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity/{agent_id}"] = topo_sims[agent_id]*100.0
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity-NonAmbiguousProduction/{agent_id}"] = unique_prod_ratios[agent_id]
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity-PValues/{agent_id}"] = pvalues[agent_id]
+                    if pvalues[agent_id] < self.pvalue_significance_threshold:
+                        logs_dict[f"{mode}/{self.id}/TopographicSimilarity/{agent_id}/significant"] = topo_sims[agent_id]*100.0                       
+                for agent_id in topo_sims_onehot:
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings/{agent_id}"] =  topo_sims_onehot[agent_id]*100.0
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings-PValues/{agent_id}"] = pvalues_onehot[agent_id]
+                    if pvalues_onehot[agent_id] < self.pvalue_significance_threshold:
+                        logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withOneHotEncodings/{agent_id}/significant"] =  topo_sims_onehot[agent_id]*100.0
+                for agent_id in topo_sims_v:
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues/{agent_id}"] =  topo_sims_v[agent_id]*100.0
+                    logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues-PValues/{agent_id}"] = pvalues_v[agent_id]
+                    if pvalues_v[agent_id] < self.pvalue_significance_threshold:
+                        logs_dict[f"{mode}/{self.id}/TopographicSimilarity_withValues/{agent_id}/significant"] =  topo_sims_v[agent_id]*100.0
+                for agent_id in feat_topo_sims:
+                    logs_dict[f"{mode}/{self.id}/FeaturesTopographicSimilarity/{agent_id}"] = feat_topo_sims[agent_id]*100.0
+                    logs_dict[f"{mode}/{self.id}/FeaturesTopographicSimilarity-PValues/{agent_id}"] = feat_pvalues[agent_id]
+                # except Exception as e:
+                #   print("WARNING::WARNING")
+                #   print("WARNING: Exception caught during computation of topographic similarity module:")
+                #   print(e)
+                #   print("WARNING::WARNING")
                 # Reset epoch storages:
                 self.whole_epoch_sentences = []
 
