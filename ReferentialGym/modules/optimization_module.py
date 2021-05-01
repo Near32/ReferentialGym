@@ -64,6 +64,7 @@ class OptimizationModule(Module):
                                                  type="OptimizationModule",
                                                  config=config,
                                                  input_stream_ids=input_stream_ids)
+        self.update_count = 0
         parameters = []
         for k,m in self.config["modules"].items():
             parameters += m.parameters()
@@ -74,7 +75,7 @@ class OptimizationModule(Module):
         else:
           self.optimizer = optim.Adam(parameters, 
                                       lr=self.config["learning_rate"], 
-                                      betas=(0.9, 0.999), 
+                                      #betas=(0.9, 0.999), 
                                       eps=self.config["adam_eps"])
 
     def save(self, path):
@@ -115,15 +116,18 @@ class OptimizationModule(Module):
         if "train" in mode:
             self.optimizer.zero_grad()
             loss.backward()
-            
+
             for k,m in self.config["modules"].items():
                 m.apply(handle_nan)
                 if self.config["with_gradient_clip"]:
                     nn.utils.clip_grad_value_(m.parameters(), self.config["gradient_clip"])
             
             self.optimizer.step()
+            self.update_count += 1
 
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
+        
+        outputs_stream_dict['signals:update_count'] = self.update_count
         
         return outputs_stream_dict
         

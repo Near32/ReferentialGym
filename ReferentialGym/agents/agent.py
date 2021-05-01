@@ -68,6 +68,7 @@ class Agent(Module):
         
         input_stream_ids["speaker"] = {
             "experiences":"current_dataloader:sample:speaker_experiences", 
+            "indices":"current_dataloader:sample:speaker_indices", 
             "exp_latents":"current_dataloader:sample:speaker_exp_latents", 
             "exp_latents_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
             "exp_latents_values":"current_dataloader:sample:speaker_exp_latents_values", 
@@ -90,6 +91,7 @@ class Agent(Module):
 
         input_stream_ids["listener"] = {
             "experiences":"current_dataloader:sample:listener_experiences", 
+            "indices":"current_dataloader:sample:listener_indices", 
             "exp_latents":"current_dataloader:sample:listener_exp_latents", 
             "exp_latents_one_hot_encoded":"current_dataloader:sample:listener_exp_latents_one_hot_encoded", 
             "exp_latents_values":"current_dataloader:sample:listener_exp_latents_values", 
@@ -234,6 +236,14 @@ class Agent(Module):
         losses_dict = input_streams_dict["losses_dict"]
         logs_dict = input_streams_dict["logs_dict"]
         
+        self.sample = input_streams_dict["sample"]
+        # TODO: handle the case where None?
+        self.experiences = input_streams_dict["experiences"]
+        self.indices = input_streams_dict["indices"]
+        self.exp_latents = input_streams_dict["exp_latents"]
+        self.exp_latents_values = input_streams_dict["exp_latents_values"]
+
+
         input_sentence = input_streams_dict["sentences_widx"]
         if self.use_sentences_one_hot_vectors:
             input_sentence = input_streams_dict["sentences_one_hot"]

@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim 
 
 import numpy as np 
+import copy 
 
 from .module import Module
 
@@ -65,7 +66,11 @@ class FactorVAEDisentanglementMetricModule(Module):
         
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
-        self.random_state = np.random.RandomState(self.config["random_state_seed"])
+        
+        current_random_state = np.random.get_state()
+        np.random.seed(self.config['random_state_seed'])
+        self.random_state = np.random.get_state()
+        np.random.set_state(current_random_state)
         
         self.representations = []
         self.latent_representations = []
@@ -108,6 +113,9 @@ class FactorVAEDisentanglementMetricModule(Module):
         votes = np.zeros((self.nbr_factors, global_variances.shape[0]),
                        dtype=np.int64)
         
+        current_random_state = np.random.get_state()
+        np.random.set_state(copy.deepcopy(self.random_state))
+        
         for _ in range(nbr_points):
             factor_index, argmin = self._generate_training_sample(
                 dataset,
@@ -116,6 +124,10 @@ class FactorVAEDisentanglementMetricModule(Module):
                 global_variances,
                 active_dims)
             votes[factor_index, argmin] += 1
+        
+        self.random_state = copy.deepcopy(np.random.get_state())
+        np.random.set_state(current_random_state)
+        
         return votes
 
     def _generate_training_sample(self, 
@@ -150,19 +162,29 @@ class FactorVAEDisentanglementMetricModule(Module):
         
         if self.config["resample"]:
             # Sample two mini batches of latent variables.
-            factors = dataset.sample_factors(batch_size, self.random_state)
+            factors = dataset.sample_factors(
+                batch_size, 
+                random_state=None, #self.random_state
+            )
             # Fix the selected factor across mini-batch.
             factors[:, factor_index] = factors[0, factor_index]
+            
             # Obtain the observations.
             observations = dataset.sample_observations_from_factors(
               factors, 
-              self.random_state
+              random_state=None, #self.random_state
             )
+            
+            if "preprocess_fn" in self.config:
+                observations = self.config["preprocess_fn"](observations)
 
-            observations = self.config["preprocess_fn"](observations)
-            # TODO: assert that observations has the correct shape.
-            relevant_representations = model(observations)
-            relevant_representations = self.config["postprocess_fn"](relevant_representations)
+            if hasattr(model,"encodeZ"):
+                relevant_representations = model.encodeZ(observations)
+            else:
+                relevant_representations = model(observations)
+
+            if "postprocess_fn" in self.config:
+                relevant_representations = self.config["postprocess_fn"](relevant_representations)
             
             relevant_latent_representations = factors
 
@@ -189,6 +211,7 @@ class FactorVAEDisentanglementMetricModule(Module):
                 size=batch_size,
                 replace=False)
             relevant_representations = self.representations[relevant_samples_indices_sampled]
+            
             local_variances = np.var(relevant_representations, axis=0, ddof=1)
             argmin = np.argmin(local_variances[active_dims]/global_variances[active_dims])
 
@@ -205,14 +228,15 @@ class FactorVAEDisentanglementMetricModule(Module):
         epoch = input_streams_dict["epoch"]
         
         if epoch % self.config["epoch_period"] == 0:
-            representations = input_streams_dict["representations"]
-            self.representations.append(representations.cpu().detach().numpy())
-            latent_representations = input_streams_dict["latent_representations"]
-            self.latent_representations.append(latent_representations.cpu().detach().numpy())
-            latent_values_representations = input_streams_dict["latent_values_representations"]
-            self.latent_values_representations.append(latent_values_representations.cpu().detach().numpy())
-            indices = input_streams_dict["indices"]
-            self.indices.append(indices.cpu().detach().numpy())
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                representations = input_streams_dict["representations"]
+                self.representations.append(representations.cpu().detach().numpy())
+                latent_representations = input_streams_dict["latent_representations"]
+                self.latent_representations.append(latent_representations.cpu().detach().numpy())
+                latent_values_representations = input_streams_dict["latent_values_representations"]
+                self.latent_values_representations.append(latent_values_representations.cpu().detach().numpy())
+                indices = input_streams_dict["indices"]
+                self.indices.append(indices.cpu().detach().numpy())
 
             # Is it the end of the epoch?
             end_of_epoch = all([
@@ -220,7 +244,9 @@ class FactorVAEDisentanglementMetricModule(Module):
               for key in self.end_of_]
             )
             
-            if end_of_epoch:
+            not_empty = len(self.indices) > 0
+            
+            if end_of_epoch and not_empty:
                 repr_last_dim = self.representations[-1].shape[-1] 
                 self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
                 latent_repr_last_dim = self.latent_representations[-1].shape[-1] 

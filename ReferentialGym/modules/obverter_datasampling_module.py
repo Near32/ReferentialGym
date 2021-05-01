@@ -26,6 +26,9 @@ class ObverterDatasamplingModule(Module):
             # step in the sequence of repetitions of the current batch
             "it_step":"signals:it_step",
             # step in the communication round.
+            "it_round":"signals:obverter_round_iteration",
+            # current round iteration.
+            "sample":"current_dataloader:sample",
         }
 
         super(ObverterDatasamplingModule, self).__init__(
@@ -36,6 +39,9 @@ class ObverterDatasamplingModule(Module):
 
         self.batch_size = self.config["batch_size"]
         self.collate_fn = collate_dict_wrapper
+        self.counterRounds = 0
+        self.current_round_batches = []
+        self.unloading = False
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
@@ -67,8 +73,31 @@ class ObverterDatasamplingModule(Module):
         mode = input_streams_dict["mode"]
         it_step = input_streams_dict["it_step"]
         it_sample = input_streams_dict["it_sample"]
+        counterRounds = input_streams_dict["it_round"]
+
+        newRound = False 
+        if counterRounds != self.counterRounds:
+            newRound = True 
+            self.counterRounds = counterRounds
+
+        if newRound:
+            self.unloading = not (self.unloading)
+            size = len(self.current_round_batches) 
+            assert size==0 or size==self.config["obverter_nbr_games_per_round"]
+
 
         if "train" in mode and it_step == 0:
+            if self.unloading:
+                assert len(self.current_round_batches)>0
+                new_sample = self.current_round_batches.pop(0)
+                outputs_dict["current_dataloader:sample"] = new_sample
+                return outputs_dict
+
+            if self.config.get("round_alternation_only", False):
+                sample = input_streams_dict["sample"]
+                self.current_round_batches.append(sample)
+                return outputs_dict
+
             dataset = input_streams_dict["dataset"]
             # assumes DualLabeledDataset...
             train_dataset = dataset.datasets["train"]
@@ -78,11 +107,16 @@ class ObverterDatasamplingModule(Module):
             dataset.kwargs["descriptive"] = False 
 
             batch = []
-            n_same = int(0.25*self.batch_size)
-            n_same_shape = int(0.3*self.batch_size)
-            n_same_color = int(0.2*self.batch_size)
-            n_random = self.batch_size - n_same_shape - n_same_color - n_same
+            # n_same = int(0.25*self.batch_size)
+            # n_same_shape = int(0.3*self.batch_size)
+            # n_same_color = int(0.2*self.batch_size)
+            # n_random = self.batch_size - n_same_shape - n_same_color - n_same
 
+            n_same = int(0.45*self.batch_size)
+            n_same_shape = int(0.27*self.batch_size)
+            n_same_color = int(0.18*self.batch_size)
+            n_random = self.batch_size - n_same_shape - n_same_color - n_same
+            
             for i in range(n_same):
                 speaker_idx = np.random.randint(len(dataset))
                 latents_class = train_dataset.getlatentclass(speaker_idx) 
@@ -184,6 +218,7 @@ class ObverterDatasamplingModule(Module):
                 new_sample = new_sample.cuda()
 
             outputs_dict["current_dataloader:sample"] = new_sample
+            self.current_round_batches.append(new_sample)
 
         return outputs_dict
 

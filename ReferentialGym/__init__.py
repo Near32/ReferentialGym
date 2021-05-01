@@ -56,7 +56,8 @@ def make(config,
         modules=modules,
         pipelines=pipelines,
         load_path=load_path,
-        save_path=save_path
+        save_path=save_path,
+        use_priority=config['use_priority'] if 'use_priority' in config else False,
     )
     
     return rg_instance

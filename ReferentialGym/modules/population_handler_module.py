@@ -99,7 +99,8 @@ class PopulationHandlerModule(Module):
 
         self.previous_epoch = -1
         self.previous_global_it_datasample = {}
-        self.counterGames = 0
+        self.counterGames = -1
+        self.counterRounds = -1
 
     def save(self, path):
         path = os.path.join(path, self.id)
@@ -357,6 +358,7 @@ class PopulationHandlerModule(Module):
                     if not('obverter_nbr_games_per_round' in self.config):
                         self.config['obverter_nbr_games_per_round'] = 1 
                     if  self.counterGames%self.config['obverter_nbr_games_per_round']==0:
+                        self.counterRounds += 1
                         # Invert the roles:
                         self.speakers, self.listeners = (self.listeners, self.speakers)
                         # Make it obvious to the stream handler:
@@ -389,5 +391,6 @@ class PopulationHandlerModule(Module):
                 input_streams_dict["current_speaker_streams_dict"]["ref"] = input_streams_dict["current_speaker_streams_dict"]["ref"].cuda()
                 input_streams_dict["current_listener_streams_dict"]["ref"] = input_streams_dict["current_listener_streams_dict"]["ref"].cuda() 
             
+        outputs_stream_dict["signals:obverter_round_iteration"] = self.counterRounds
 
         return outputs_stream_dict

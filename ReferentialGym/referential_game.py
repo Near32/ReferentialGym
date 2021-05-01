@@ -17,7 +17,7 @@ from tqdm import tqdm
 from .agents import Speaker, Listener, ObverterAgent
 from .networks import handle_nan, hasnan
 
-from .datasets import collate_dict_wrapper
+from .datasets import collate_dict_wrapper, PrioritizedBatchSampler, PrioritizedSampler
 from .utils import cardinality, query_vae_latent_space
 
 from .utils import StreamHandler
@@ -34,10 +34,12 @@ class ReferentialGame(object):
                  load_path=None, 
                  save_path=None,
                  verbose=False,
+                 use_priority=False,
                  save_epoch_interval=None):
         '''
 
         '''
+        self.use_priority = use_priority
         self.verbose = verbose
         self.save_epoch_interval = save_epoch_interval
 
@@ -183,15 +185,54 @@ class ReferentialGame(object):
 
         print("Create dataloader: ...")
         
-        data_loaders = {mode:torch.utils.data.DataLoader(dataset,
-                                                            batch_size=self.config['batch_size'],
-                                                            shuffle=True,
-                                                            collate_fn=collate_dict_wrapper,
-                                                            pin_memory=True,
-                                                            num_workers=self.config['dataloader_num_worker'])
-                        for mode, dataset in self.datasets.items()
-                        }
-        
+        data_loaders = {}
+        self.pbss = {}
+        print("WARNING: 'dataloader_num_worker' hyperparameter has been de-activated.")
+        for mode, dataset in self.datasets.items():
+            if 'train' in mode and self.use_priority:
+                capacity = len(dataset)
+                
+                """
+                pbs = PrioritizedBatchSampler(
+                    capacity=capacity,
+                    batch_size=self.config['batch_size']
+                )
+                self.pbss[mode] = pbs
+                data_loaders[mode] = torch.utils.data.DataLoader(
+                    dataset,
+                    #batch_size=self.config['batch_size'],
+                    #shuffle=True,
+                    collate_fn=collate_dict_wrapper,
+                    pin_memory=True,
+                    #num_workers=self.config['dataloader_num_worker'],
+                    batch_sampler=pbs,
+                )
+
+                """
+                pbs = PrioritizedSampler(
+                    capacity=capacity,
+                    batch_size=self.config['batch_size'],
+                    logger=logger,
+                )
+                self.pbss[mode] = pbs
+                data_loaders[mode] = torch.utils.data.DataLoader(
+                    dataset,
+                    batch_size=self.config['batch_size'],
+                    collate_fn=collate_dict_wrapper,
+                    pin_memory=True,
+                    #num_workers=self.config['dataloader_num_worker'],
+                    sampler=pbs,
+                )
+            else:
+                data_loaders[mode] = torch.utils.data.DataLoader(
+                    dataset,
+                    batch_size=self.config['batch_size'],
+                    shuffle=True,
+                    collate_fn=collate_dict_wrapper,
+                    pin_memory=True,
+                    #num_workers=self.config['dataloader_num_worker']
+                )
+            
         print("Create dataloader: OK.")
         
         print("Launching training: ...")
@@ -218,7 +259,8 @@ class ReferentialGame(object):
             self.stream_handler.update("modules:logger:ref", logger)
         
         self.stream_handler.update("signals:use_cuda", self.config['use_cuda'])
-        
+        self.stream_handler.update("signals:update_count", 0)
+                
         init_epoch = self.stream_handler["signals:epoch"]
         if init_epoch is None: 
             init_epoch = 0
@@ -298,6 +340,11 @@ class ReferentialGame(object):
                                 self.stream_handler.serve(pipeline)
                         
                         losses = self.stream_handler["losses_dict"]
+
+                        if self.use_priority and mode in self.pbss:
+                            batched_loss = sum([l for l in losses.values()]).detach().cpu().numpy()
+                            self.pbss[mode].update_batch(batched_loss)
+
                         loss = sum( [l.mean() for l in losses.values()])
                         logs_dict = self.stream_handler["logs_dict"]
                         acc_keys = [k for k in logs_dict.keys() if '/referential_game_accuracy' in k]

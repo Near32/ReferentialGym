@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim 
 
+import copy
 import numpy as np 
 import sklearn 
 from functools import partial 
@@ -13,7 +14,10 @@ from ReferentialGym.utils import compute_cosine_sim
 eps = 1e-20
 
 """
-Based on:
+"Learning Deep Disentangled Embeddings With the F-Statistic Loss"
+(https://arxiv.org/pdf/1802.05312.pdf).
+
+Adapted from:
 https://github.com/google-research/disentanglement_lib/blob/86a644d4ed35c771560dc3360756363d35477357/disentanglement_lib/evaluation/metrics/modularity_explicitness.py
 """
 
@@ -68,8 +72,12 @@ class ModularityDisentanglementMetricModule(Module):
         
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
-        self.random_state = np.random.RandomState(self.config["random_state_seed"])
         
+        current_random_state = np.random.get_state()
+        np.random.seed(self.config['random_state_seed'])
+        self.random_state = np.random.get_state()
+        np.random.set_state(current_random_state)
+
         self.representations = []
         self.latent_representations = []
         self.representations_indices = []
@@ -102,6 +110,9 @@ class ModularityDisentanglementMetricModule(Module):
             (num_factors, dim_representation)-sized numpy array with votes.
         
         """
+        current_random_state = np.random.get_state()
+        np.random.set_state(copy.deepcopy(self.random_state))
+        
         self.nbr_factors = self.latent_representations.shape[-1]
         
         representations = []
@@ -121,6 +132,10 @@ class ModularityDisentanglementMetricModule(Module):
         
         representations = np.concatenate(representations, axis=0)
         latent_representations = np.concatenate(latent_representations, axis=0)
+
+        self.random_state = copy.deepcopy(np.random.get_state())
+        np.random.set_state(current_random_state)
+        
         return np.transpose(representations), np.transpose(latent_representations)
 
     def _generate_training_sample(self, 
@@ -151,18 +166,29 @@ class ModularityDisentanglementMetricModule(Module):
         
         if self.config["resample"]:
             # Sample two mini batches of latent variables.
-            factors = dataset.sample_factors(batch_size, self.random_state)
+            factors = dataset.sample_factors(
+                batch_size, 
+                random_state=None, #self.random_state
+            )
             # Fix the selected factor across mini-batch.
             factors[:, factor_index] = factors[0, factor_index]
             # Obtain the observations.
             observations = dataset.sample_observations_from_factors(
               factors, 
-              self.random_state
+              random_state=None, #self.random_state
             )
-            observations = self.config["preprocess_fn"](observations)
-            # TODO: assert that observations has the correct shape.
-            relevant_representations = model(observations)
-            relevant_representations = self.config["postprocess_fn"](relevant_representations)
+            
+            if "preprocess_fn" in self.config:
+                observations = self.config["preprocess_fn"](observations)
+            
+            if hasattr(model,"encodeZ"):
+                relevant_representations = model.encodeZ(observations)
+            else:
+                relevant_representations = model(observations)
+
+            if "postprocess_fn" in self.config:
+                relevant_representations = self.config["postprocess_fn"](relevant_representations)
+            
             relevant_latent_representations = factors
         else:
             # Sample from the current epoch"s samples the factor value to fix:
@@ -221,6 +247,7 @@ class ModularityDisentanglementMetricModule(Module):
         pfn = (lambda x: np.power(np.abs(x), 0.25))
         ###################################
         
+        """
         max_mi = np.max(mi, axis=1)
         best_max_mi = np.zeros_like(mi)
         for rep_idx in range(mi.shape[0]):
@@ -232,6 +259,15 @@ class ModularityDisentanglementMetricModule(Module):
         denominator = fn_max_mi * (mi.shape[1]-1.0)
         delta = numerator / (denominator+eps)
         ms = 1.0 - delta
+        """
+        squared_mi = pfn(mi)
+        max_squared_mi = np.max(squared_mi, axis=1)
+        numerator = np.sum(squared_mi, axis=1) - max_squared_mi
+        denominator = max_squared_mi * (squared_mi.shape[1] -1.)
+        delta = numerator / (denominator+eps)
+        ms = 1. - delta
+        index = (max_squared_mi == 0.)
+        ms[index] = 0.
         
         ###################################
         """        
@@ -277,12 +313,13 @@ class ModularityDisentanglementMetricModule(Module):
         epoch = input_streams_dict["epoch"]
         
         if epoch % self.config["epoch_period"] == 0:
-            representations = input_streams_dict["representations"]
-            self.representations.append(representations.cpu().detach().numpy())
-            latent_representations = input_streams_dict["latent_representations"]
-            self.latent_representations.append(latent_representations.cpu().detach().numpy())
-            indices = input_streams_dict["indices"]
-            self.indices.append(indices.cpu().detach().numpy())
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                representations = input_streams_dict["representations"]
+                self.representations.append(representations.cpu().detach().numpy())
+                latent_representations = input_streams_dict["latent_representations"]
+                self.latent_representations.append(latent_representations.cpu().detach().numpy())
+                indices = input_streams_dict["indices"]
+                self.indices.append(indices.cpu().detach().numpy())
 
             # Is it the end of the epoch?
             end_of_epoch = all([
@@ -290,7 +327,9 @@ class ModularityDisentanglementMetricModule(Module):
               for key in self.end_of_]
             )
             
-            if end_of_epoch:
+            not_empty = len(self.indices) > 0
+            
+            if end_of_epoch and not_empty:
                 repr_last_dim = self.representations[-1].shape[-1] 
                 self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
                 latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
@@ -316,8 +355,10 @@ class ModularityDisentanglementMetricModule(Module):
                 scores_dict = {}
 
                 if not active_dims.any():
-                    scores_dict["modularity_score"] = 0.
-                    scores_dict["eval_accuracy"] = 0.
+                    scores_dict["modularity_score1"] = 0.
+                    scores_dict["modularity_score2"] = 0.
+                    scores_dict["nondiscr_modularity_score1"] = 0.
+                    scores_dict["nondiscr_modularity_score2"] = 0.
                     scores_dict["num_active_dims"] = 0
                 else:
                     model.eval()
@@ -336,13 +377,13 @@ class ModularityDisentanglementMetricModule(Module):
                     # (rep_dim, lrep_dim)
                     mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
                     
-                    dms1, dms2 = self._compute_modularity_score(discr_mutual_information)
-                    ms1, ms2 = self._compute_modularity_score(mutual_information)
+                    ms1, ms2 = self._compute_modularity_score(discr_mutual_information)
+                    ndms1, ndms2 = self._compute_modularity_score(mutual_information)
 
-                    scores_dict["discr_modularity_score1"] = dms1
-                    scores_dict["discr_modularity_score2"] = dms2
                     scores_dict["modularity_score1"] = ms1
                     scores_dict["modularity_score2"] = ms2
+                    scores_dict["nondiscr_modularity_score1"] = ndms1
+                    scores_dict["nondiscr_modularity_score2"] = ndms2
                     scores_dict["num_active_dims"] = len(active_dims)
                     
                     # To what extent is a factor captured in a modular way by the model?
@@ -351,10 +392,10 @@ class ModularityDisentanglementMetricModule(Module):
                     for idx, maxmi in enumerate(per_factor_maxmi):
                         logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/MaxMutualInformation/factor_{idx}"] = maxmi
                     
-                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/DiscrModularityScore1"] = scores_dict["discr_modularity_score1"]
-                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/DiscrModularityScore2"] = scores_dict["discr_modularity_score2"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/ModularityScore1"] = scores_dict["modularity_score1"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/ModularityScore2"] = scores_dict["modularity_score2"]
+                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore1"] = scores_dict["nondiscr_modularity_score1"]
+                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore2"] = scores_dict["nondiscr_modularity_score2"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/nbr_active_dims"] = scores_dict["num_active_dims"]
 
                 self.representations = []

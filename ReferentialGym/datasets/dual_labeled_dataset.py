@@ -116,14 +116,26 @@ class DualLabeledDataset(Dataset):
                 if class_of_idx in from_class:
                     from_class.remove(class_of_idx)
 
+            list_indices = []
+            for class_idx in from_class:
+                list_indices += classes[class_idx]
+            set_indices = set(list_indices) 
+            """
             set_indices = set()
             for class_idx in from_class:
                 set_indices = set_indices.union(set(classes[class_idx]))
+            """
 
             if excepts_class is not None:
+                excepts_list_indices = []
+                for class_idx in excepts_class:
+                    excepts_list_indices += classes[class_idx]
+                set_indices = set_indices.difference(set(excepts_list_indices))
+                """
                 for class_idx in excepts_class:
                     set_indices = set_indices.difference(set(classes[class_idx]))
-
+                """
+            
             if excepts is not None:
                 set_indices = set_indices.difference(excepts)
                 

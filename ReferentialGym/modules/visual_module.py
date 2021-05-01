@@ -125,7 +125,7 @@ class VisualModule(Module):
         outputs_stream_dict = {}
 
         mode = input_streams_dict["mode"]
-        experiences = input_streams_dict["inputs"]
+        self.experiences = experiences = input_streams_dict["inputs"]
         losses_dict = input_streams_dict["losses_dict"]
         logs_dict = input_streams_dict["logs_dict"]
 
@@ -166,7 +166,8 @@ class VisualModule(Module):
             features.append(featout)
             feat_maps.append(feat_map)
 
-        self.features = self.featout_normalization(torch.cat(features, dim=0))
+        self.features_not_normalized = torch.cat(features, dim=0)
+        self.features = self.featout_normalization(self.features_not_normalized)
         self.feat_maps = torch.cat(feat_maps, dim=0)
         
         self.features = self.features.view(batch_size, nbr_distractors_po, self.config["nbr_stimulus"], -1)
@@ -174,16 +175,23 @@ class VisualModule(Module):
         
         outputs_stream_dict["feat_maps"] = self.feat_maps 
         outputs_stream_dict["features"] = self.features
-
+        
         if isinstance(self.encoder, BetaVAE):
-            self.VAE_losses = torch.cat(self.VAE_losses).contiguous()
-            losses_dict[f"{mode}/{self.id}/VAE_loss"] = [self.config["VAE_lambda"], self.VAE_losses]
+            VAE_losses = torch.cat(self.VAE_losses).contiguous()
+            losses_dict[f"{mode}/{self.id}/VAE_loss"] = [self.config["VAE_lambda"], VAE_losses]
 
             for key in self.buffer_cnn_output_dict:
-                log_dict[f"{mode}/{self.id}/{key}"] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
+                logs_dict[f"{mode}/{self.id}/{key}"] = torch.cat(self.buffer_cnn_output_dict[key]).mean()
 
-            log_dict[f"{mode}/{self.id}/kl_capacity"] = torch.Tensor([100.0*self.cnn_encoder.EncodingCapacity/self.cnn_encoder.maxEncodingCapacity])
+            logs_dict[f"{mode}/{self.id}/kl_capacity"] = torch.Tensor(
+                [100.0*self.encoder.EncodingCapacity/self.encoder.maxEncodingCapacity]
+            )
             if len(self.compactness_losses):
                 logs_dict[f"{mode}/{self.id}/unsup_compactness_loss"] = torch.cat(self.compactness_losses).mean()
+            
+            # resetting:
+            self.VAE_losses = list()
+            self.compactness_losses = list()
+            self.buffer_cnn_output_dict = dict()
             
         return outputs_stream_dict 

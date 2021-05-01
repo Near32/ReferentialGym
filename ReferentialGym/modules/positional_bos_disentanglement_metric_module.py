@@ -2,10 +2,11 @@ from typing import Dict, List
 
 import numpy as np 
 import sklearn  
+import copy
 
 from .module import Module
 
-
+eps = 1e-12
 
 def build_PositionalBagOfSymbolsDisentanglementMetricModule(id:str,
                                config:Dict[str,object],
@@ -58,7 +59,11 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
-        self.random_state = np.random.RandomState(self.config["random_state_seed"])
+        
+        current_random_state = np.random.get_state()
+        np.random.seed(self.config['random_state_seed'])
+        self.random_state = np.random.get_state()
+        np.random.set_state(current_random_state)
         
         self.representations = []
         self.latent_representations = []
@@ -92,6 +97,9 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
             (num_factors, dim_representation)-sized numpy array with votes.
         
         """
+        current_random_state = np.random.get_state()
+        np.random.set_state(copy.deepcopy(self.random_state))
+        
         self.nbr_factors = self.latent_representations.shape[-1]
         
         representations = []
@@ -111,6 +119,10 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         representations = np.concatenate(representations, axis=0)
         latent_representations = np.concatenate(latent_representations, axis=0)
+
+        self.random_state = copy.deepcopy(np.random.get_state())
+        np.random.set_state(current_random_state)
+        
         return np.transpose(representations), np.transpose(latent_representations)
 
     def _generate_training_sample(self, 
@@ -141,14 +153,18 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         if self.config["resample"]:
             # Sample two mini batches of latent variables.
-            factors = dataset.sample_factors(batch_size, self.random_state)
+            factors = dataset.sample_factors(
+                batch_size, 
+                random_state=None, #self.random_state
+            )
             # Fix the selected factor across mini-batch.
             factors[:, factor_index] = factors[0, factor_index]
             # Obtain the observations.
             observations = dataset.sample_observations_from_factors(
               factors, 
-              self.random_state
+              random_state=None, #self.random_state
             )
+
             if "preprocess_fn" in self.config:
                 observations = self.config["preprocess_fn"](observations)
             relevant_representations = model(observations)
@@ -199,6 +215,8 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
             ent[i] = sklearn.metrics.mutual_info_score(rep[i, :], rep[i, :])
         return ent
 
+    # Adapted from: 
+    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L15
     def entropy_dict(self, freq_table):
         H = 0
         n = sum(v for v in freq_table.values())
@@ -209,6 +227,8 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         return H / np.log(2)
 
+    # Adapted from: 
+    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L25
     def _compute_entropy2(self, messages):
         from collections import defaultdict
 
@@ -220,7 +240,8 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
 
         return self.entropy_dict(freq_table)
 
-
+    # Adapted from: 
+    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L37
     def _hashable_tensor(self, t):
         if isinstance(t, tuple):
             return t
@@ -234,6 +255,8 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         return t
 
+    # Adapted from: 
+    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L50
     def _compute_mutual_info2(self, xs, ys):
         e_x = self._compute_entropy2(xs)
         e_y = self._compute_entropy2(ys)
@@ -248,7 +271,10 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
 
         return e_x + e_y - e_xy
 
-    def _compute_score2(self, meanings, representations):
+    # Adapted from: 
+    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/compo_vs_generalization/intervention.py#L48
+    def _compute_score_chaabouni(self, meanings, representations):
+        global eps
         gaps = np.zeros(representations.shape[1])
         non_constant_positions = 0.0
 
@@ -269,10 +295,13 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
                 gaps[j] = (symbol_mi[0] - symbol_mi[1]) / h_j
                 non_constant_positions += 1
 
-        score = gaps.sum() / non_constant_positions
-        return score.item()
+        if non_constant_positions==0:
+            score = -1
+        else:
+            score = (gaps.sum() / (non_constant_positions+eps)).item()
+        return score
 
-    def _compute_score(self, mi, rent, lent):
+    def _compute_score_denamganai(self, mi, rent, lent):
         # (rep_dim x lrep_dim)
         # sorting from max:0 to min...:
         """
@@ -297,6 +326,7 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         # ent: # (rep_dim,)
         
+        """
         score = np.divide(
             sorted_mi[0, :] - sorted_mi[1, :], 
             lent[:]
@@ -304,7 +334,19 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         
         indicator = (lent>0)
         score = score * indicator
-        s12 = score.sum() / indicator.sum() 
+        """
+        score = []
+        lent = lent[:]
+        nbr_nonnul_entry = 0
+        for idx in range(sorted_mi.shape[1]):
+            if lent[idx]>0:
+                nbr_nonnul_entry += 1
+                sidx = (sorted_mi[0, idx] - sorted_mi[1, idx])/lent[idx]
+                score.append(sidx)
+        if nbr_nonnul_entry == 0:
+            s12 = -1
+        else:
+            s12 = sum(score) / nbr_nonnul_entry 
 
         # Replication of 2:
         """
@@ -361,14 +403,15 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         epoch = input_streams_dict["epoch"]
         
         if epoch % self.config["epoch_period"] == 0:
-            representations = input_streams_dict["representations"]
-            while representations.shape[-1] == 1:
-                representations = representations.squeeze(-1)
-            self.representations.append(representations.cpu().detach().numpy())
-            latent_representations = input_streams_dict["latent_representations"]
-            self.latent_representations.append(latent_representations.cpu().detach().numpy())
-            indices = input_streams_dict["indices"]
-            self.indices.append(indices.cpu().detach().numpy())
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                representations = input_streams_dict["representations"]
+                while representations.shape[-1] == 1:
+                    representations = representations.squeeze(-1)
+                self.representations.append(representations.cpu().detach().numpy())
+                latent_representations = input_streams_dict["latent_representations"]
+                self.latent_representations.append(latent_representations.cpu().detach().numpy())
+                indices = input_streams_dict["indices"]
+                self.indices.append(indices.cpu().detach().numpy())
 
             # Is it the end of the epoch?
             end_of_epoch = all([
@@ -376,7 +419,9 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
               for key in self.end_of_]
             )
             
-            if end_of_epoch:
+            not_empty = len(self.indices) > 0
+            
+            if end_of_epoch and not_empty:
                 repr_last_dim = self.representations[-1].shape[-1] 
                 self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
                 latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
@@ -402,24 +447,24 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
                 scores_dict = {}
 
                 if not active_dims.any():
-                    scores_dict["discr_posdis_score"] = 0.
-                    scores_dict["posdis_score"] = 0.
-                    scores_dict["posdis_score2"] = 0.
+                    scores_dict["discr_posdis_score_denamganai"] = 0.
+                    scores_dict["posdis_score_denamganai"] = 0.
+                    scores_dict["posdis_score_chaabouni"] = 0.
 
                     scores_dict["num_active_dims"] = 0
                     
-                    scores_dict["discr_bosdis_score"] = 0.
-                    scores_dict["bosdis_score"] = 0.
-                    scores_dict["bosdis_score2"] = 0.
+                    scores_dict["discr_bosdis_score_denamganai"] = 0.
+                    scores_dict["bosdis_score_denamganai"] = 0.
+                    scores_dict["bosdis_score_chaabouni"] = 0.
                 else:
-                    model.eval()
+                    if hasattr(model, "eval"):  model.eval()
                     train_repr, train_lrepr = self._generate_training_batch(
                         dataset=dataset,
                         model=model, 
                         batch_size=self.config["batch_size"],
                         nbr_points=self.config["nbr_train_points"], 
                         active_dims=active_dims)
-                    model.train()
+                    if hasattr(model, "eval"):  model.train()
                     # (dim, nbr_points)
                     
                     ###########################################
@@ -433,23 +478,21 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
                     mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
                     # (rep_dim, lrep_dim)
 
-                    mi = self._compute_mutual_info2(train_repr, train_lrepr)
-                    
                     entropy = self._compute_entropy(train_repr)
                     # (rep_dim,)
                     lentropy = self._compute_entropy(train_lrepr)
                     # (lrep_dim,)
+                    
+                    dms_d = self._compute_score_denamganai(discr_mutual_information, entropy, lentropy)
+                    ms_d = self._compute_score_denamganai(mutual_information, entropy, lentropy)
 
-                    dms = self._compute_score(discr_mutual_information, entropy, lentropy)
-                    ms = self._compute_score(mutual_information, entropy, lentropy)
-
-                    ms2 = self._compute_score2(meanings=train_lrepr.transpose(), representations=train_repr.transpose())
+                    ms_c = self._compute_score_chaabouni(meanings=train_lrepr.transpose(), representations=train_repr.transpose())
 
                     scores_dict["num_active_dims"] = len(active_dims)
                     
-                    scores_dict["discr_posdis_score"] = dms
-                    scores_dict["posdis_score"] = ms
-                    scores_dict["posdis_score2"] = ms2 
+                    scores_dict["discr_posdis_score_denamganai"] = dms_d
+                    scores_dict["posdis_score_denamganai"] = ms_d
+                    scores_dict["posdis_score_chaabouni"] = ms_c 
 
                     # To what extent is a factor captured in a modular way by the model?
                     per_factor_maxmi = np.max(mutual_information, axis=0)
@@ -476,45 +519,43 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
                     bos_mutual_information = self._compute_mutual_info(bos_train_repr, train_lrepr) 
                     # (rep_dim, lrep_dim)
                     
-                    bos_mi = self._compute_mutual_info2(bos_train_repr, train_lrepr)
+                    try:
+                        bos_dms_d = self._compute_score_denamganai(bos_discr_mutual_information, bos_entropy, lentropy)
+                    except Exception as e:
+                        bos_dms_d = 0.0
+                        print(f"DISCR BOSDIS Denamganai :: exception caught: {e}")
                     
                     try:
-                        bos_dms = self._compute_score(bos_discr_mutual_information, bos_entropy, lentropy)
+                        bos_ms_d = self._compute_score_denamganai(bos_mutual_information, bos_entropy, lentropy)
                     except Exception as e:
-                        bos_dms =0.0
-                        print(f"DISCR BOSDIS :: exception caught: {e}")
+                        bos_ms_d = 0.0
+                        print(f"BOSDIS Denamganai :: exception caught: {e}")
                     
                     try:
-                        bos_ms = self._compute_score(bos_mutual_information, bos_entropy, lentropy)
+                        bos_ms_c = self._compute_score_chaabouni(meanings=train_lrepr.transpose(), representations=bos_train_repr.transpose())
                     except Exception as e:
-                        bos_ms =0.0
-                        print(f"BOSDIS :: exception caught: {e}")
+                        bos_ms_c = 0.0
+                        print(f"BOSDIS Chaabouni :: exception caught: {e}")
                     
-                    try:
-                        bos_ms2 = self._compute_score2(meanings=train_lrepr.transpose(), representations=bos_train_repr.transpose())
-                    except Exception as e:
-                        bos_ms2 =0.0
-                        print(f"BOSDIS2 :: exception caught: {e}")
-                    
-                    scores_dict["discr_bosdis_score"] = bos_dms
-                    scores_dict["bosdis_score"] = bos_ms
-                    scores_dict["bosdis_score2"] = bos_ms2
+                    scores_dict["discr_bosdis_score_denamganai"] = bos_dms_d
+                    scores_dict["bosdis_score_denamganai"] = bos_ms_d
+                    scores_dict["bosdis_score_chaabouni"] = bos_ms_c
                     
                     # To what extent is a factor captured in a modular way by the model?
-                    per_factor_maxmi = np.max(mutual_information, axis=0)
+                    per_factor_bosmaxmi = np.max(bos_mutual_information, axis=0)
 
-                    for idx, maxmi in enumerate(per_factor_maxmi):
+                    for idx, maxmi in enumerate(per_factor_bosmaxmi):
                         logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/MaxMutualInformation/factor_{idx}"] = maxmi
                     
                     ###########################################
                 
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore/Discretized"] = scores_dict["discr_posdis_score"]
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore"] = scores_dict["posdis_score"]
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore2"] = scores_dict["posdis_score2"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore/Discretized"] = scores_dict["discr_posdis_score_denamganai"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore/SpeakerCentred"] = scores_dict["posdis_score_denamganai"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalDisentanglement/PosDisScore/ListenerCentred"] = scores_dict["posdis_score_chaabouni"]
                 
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore/Discretized"] = scores_dict["discr_bosdis_score"]
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore"] = scores_dict["bosdis_score"]
-                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore2"] = scores_dict["bosdis_score2"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore/SpeakerCentred/Discretized"] = scores_dict["discr_bosdis_score_denamganai"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore/SpeakerCentred/"] = scores_dict["bosdis_score_denamganai"]
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/BagOfSymbolsDisentanglement/BosDisScore/ListenerCentred/"] = scores_dict["bosdis_score_chaabouni"]
                 
                 logs_dict[f"{mode}/{self.id}/CompositionalityMetric/PositionalBagOfSymbolsDisentanglement/nbr_active_dims"] = scores_dict["num_active_dims"]
 

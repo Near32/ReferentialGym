@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import numpy as np 
 import sklearn
+import copy
 
 from .module import Module
 
@@ -9,6 +10,9 @@ from .module import Module
 Based on:
 https://github.com/google-research/disentanglement_lib/blob/86a644d4ed35c771560dc3360756363d35477357/disentanglement_lib/evaluation/metrics/mig.py
 """
+
+eps = 1e-8
+
 
 def build_MutualInformationGapDisentanglementMetricModule(id:str,
                                config:Dict[str,object],
@@ -61,8 +65,12 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
-        self.random_state = np.random.RandomState(self.config["random_state_seed"])
         
+        current_random_state = np.random.get_state()
+        np.random.seed(self.config['random_state_seed'])
+        self.random_state = np.random.get_state()
+        np.random.set_state(current_random_state)
+
         self.representations = []
         self.latent_representations = []
         self.representations_indices = []
@@ -95,6 +103,9 @@ class MutualInformationGapDisentanglementMetricModule(Module):
             (num_factors, dim_representation)-sized numpy array with votes.
         
         """
+        current_random_state = np.random.get_state()
+        np.random.set_state(copy.deepcopy(self.random_state))
+        
         self.nbr_factors = self.latent_representations.shape[-1]
         
         representations = []
@@ -114,6 +125,10 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         
         representations = np.concatenate(representations, axis=0)
         latent_representations = np.concatenate(latent_representations, axis=0)
+
+        self.random_state = copy.deepcopy(np.random.get_state())
+        np.random.set_state(current_random_state)
+        
         return np.transpose(representations), np.transpose(latent_representations)
 
     def _generate_training_sample(self, 
@@ -144,18 +159,26 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         
         if self.config["resample"]:
             # Sample two mini batches of latent variables.
-            factors = dataset.sample_factors(batch_size, self.random_state)
+            factors = dataset.sample_factors(
+                batch_size, 
+                random_state=None, #self.random_state
+            )
             # Fix the selected factor across mini-batch.
             factors[:, factor_index] = factors[0, factor_index]
             # Obtain the observations.
             observations = dataset.sample_observations_from_factors(
               factors, 
-              self.random_state
+              random_state=None, #self.random_state
             )
 
             if "preprocess_fn" in self.config:
                 observations = self.config["preprocess_fn"](observations)
-            relevant_representations = model(observations)
+            
+            if hasattr(model,"encodeZ"):
+                relevant_representations = model.encodeZ(observations)
+            else:
+                relevant_representations = model(observations)
+
             if "postprocess_fn" in self.config:
                 relevant_representations = self.config["postprocess_fn"](relevant_representations)
             
@@ -205,18 +228,33 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         return ent
 
     def _compute_mutual_information_gap_score(self, mi, ent):
+        global eps
         # ent: # (lrep_dim, )
         # mi: # (rep_dim x lrep_dim)
         # sorting from max:0 to min...:
         sorted_mi = np.sort(mi, axis=0)[::-1]
         # (rep_dim x lrep_dim)
         
-        mig_score = np.divide(
+        mig_scores = np.divide(
             sorted_mi[0, :] - sorted_mi[1, :], 
-            ent[:]
+            ent[:]+eps
         )
         
-        s1 = np.mean(mig_score)
+        s1 = np.mean(mig_scores)
+
+        nonnullent_mig_scores = (-1)*np.ones(ent.shape)
+        sum_nonnullent_mig_scores = 0
+        nbr_nonnullent_dim = 0
+        for idx, enti in enumerate(ent[:]):
+            if enti > eps:
+                nbr_nonnullent_dim += 1
+                nonnullent_mig_scores[idx] = np.divide(
+                    sorted_mi[0, idx] - sorted_mi[1, idx], 
+                    enti
+                )
+                sum_nonnullent_mig_scores += nonnullent_mig_scores[idx]
+
+        nne_s = sum_nonnullent_mig_scores/nbr_nonnullent_dim
 
         """
         sorted_mi = np.sort(mi, axis=1)[:, ::-1]
@@ -231,7 +269,7 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         s2 = np.mean(score)
         """
 
-        return s1
+        return s1, mig_scores, nne_s, nonnullent_mig_scores
 
     def _discretize(self, target, num_bins=20):
         """
@@ -259,12 +297,13 @@ class MutualInformationGapDisentanglementMetricModule(Module):
         epoch = input_streams_dict["epoch"]
         
         if epoch % self.config["epoch_period"] == 0:
-            representations = input_streams_dict["representations"]
-            self.representations.append(representations.cpu().detach().numpy())
-            latent_representations = input_streams_dict["latent_representations"]
-            self.latent_representations.append(latent_representations.cpu().detach().numpy())
-            indices = input_streams_dict["indices"]
-            self.indices.append(indices.cpu().detach().numpy())
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                representations = input_streams_dict["representations"]
+                self.representations.append(representations.cpu().detach().numpy())
+                latent_representations = input_streams_dict["latent_representations"]
+                self.latent_representations.append(latent_representations.cpu().detach().numpy())
+                indices = input_streams_dict["indices"]
+                self.indices.append(indices.cpu().detach().numpy())
 
             # Is it the end of the epoch?
             end_of_epoch = all([
@@ -272,7 +311,9 @@ class MutualInformationGapDisentanglementMetricModule(Module):
               for key in self.end_of_]
             )
             
-            if end_of_epoch:
+            not_empty = len(self.indices) > 0
+            
+            if end_of_epoch and not_empty:
                 repr_last_dim = self.representations[-1].shape[-1] 
                 self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
                 latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
@@ -299,6 +340,8 @@ class MutualInformationGapDisentanglementMetricModule(Module):
 
                 if not active_dims.any():
                     scores_dict["mig_score"] = 0.
+                    scores_dict["nne_mig_score"] = 0.
+                    #scores_dict["nondiscr_mig_score"] = 0.
                     scores_dict["eval_accuracy"] = 0.
                     scores_dict["num_active_dims"] = 0
                 else:
@@ -324,27 +367,41 @@ class MutualInformationGapDisentanglementMetricModule(Module):
                     # Discretization: necessary!
                     discr_train_repr = self._discretize(train_repr, num_bins=20)
 
-                    discr_mutual_information = self._compute_mutual_info(discr_train_repr, train_lrepr) 
-                    #mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
+                    mutual_information = self._compute_mutual_info(discr_train_repr, train_lrepr) 
+                    nondiscr_mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
                     # (rep_dim, lrep_dim)
                     entropy = self._compute_entropy(train_lrepr)
                     # (lrep_dim,)
 
-                    dms = self._compute_mutual_information_gap_score(discr_mutual_information, entropy)
-                    #ms = self._compute_mutual_information_gap_score(mutual_information, entropy)
+                    ms, mig_scores, nne_ms, nne_mig_scores = self._compute_mutual_information_gap_score(
+                        mutual_information, 
+                        entropy
+                    )
+                    #ndms, nondiscr_mig_scores = self._compute_mutual_information_gap_score(nondiscr_mutual_information, entropy)
 
-                    scores_dict["discr_mig_score"] = dms
-                    #scores_dict["mig_score"] = ms
+                    scores_dict["mig_score"] = ms
+                    scores_dict["nne_mig_score"] = nne_ms
+                    #scores_dict["nondiscr_mig_score"] = ndms
                     scores_dict["num_active_dims"] = len(active_dims)
                     
+                    for idx, msi in enumerate(mig_scores[:]):
+                        logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/NormalizedMutualInformationGap/factor_{idx}"] = msi
+                    
+                    for idx, nne_msi in enumerate(nne_mig_scores[:]):
+                        logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/NonNullEntropy-NormalizedMutualInformationGap/factor_{idx}"] = nne_msi
+                                        
                     # To what extent is a factor captured in a modular way by the model?
-                    per_factor_maxmi = np.max(discr_mutual_information, axis=0)
+                    per_factor_maxmi = np.max(mutual_information, axis=0)
 
                     for idx, maxmi in enumerate(per_factor_maxmi):
                         logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/MaxMutualInformation/factor_{idx}"] = maxmi
                     
-                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/MIGScore"] = scores_dict["discr_mig_score"]
-                #logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/MIGScore"] = scores_dict["mig_score"]
+                    for idx, enti in enumerate(entropy[:]):
+                        logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/Entropy/factor_{idx}"] = enti
+                    
+                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/MIGScore"] = scores_dict["mig_score"]
+                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/NonNullEntropy-MutualInformationGap/MIGScore"] = scores_dict["nne_mig_score"]
+                #logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/NonDiscrMIGScore"] = scores_dict["nondiscr_mig_score"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/nbr_active_dims"] = scores_dict["num_active_dims"]
 
                 self.representations = []
