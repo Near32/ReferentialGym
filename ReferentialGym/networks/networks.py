@@ -50,6 +50,8 @@ def handle_nan(layer, verbose=True):
         layer._parameters[name].grad.data[nan_indices] = 0
         
 def layer_init(layer, w_scale=1.0):
+    return layer 
+
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         if 'bias' in name:
@@ -343,7 +345,10 @@ class FCBody(Module):
         in_ch = dims[0]
         for idx, cfg in enumerate(dims[1:]):
             add_non_lin = True
+            
+            # No non-linearity on the output layer
             if idx == len(dims)-2:  add_non_lin = False
+            
             add_dp = (self.dropout > 0.0)
             dropout = self.dropout
             add_bn = False
@@ -491,6 +496,7 @@ class ConvolutionalBody(nn.Module):
         self.cnn = []
         dim = input_shape[1] # height
         in_ch = channels[0]
+        import ipdb; ipdb.set_trace()
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             conv_fn = original_conv_fn
             if isinstance(cfg, str) and cfg == 'MP':
@@ -563,7 +569,15 @@ class ConvolutionalBody(nn.Module):
                 # Update of the shape of the input-image, following Conv:
                 dim = (dim-k+2*p)//s+1
                 print(f"Dim: {dim}")
-        self.cnn = nn.Sequential(*self.cnn)
+        
+        if len(self.cnn):
+            self.cnn = nn.Sequential(*self.cnn)
+        else:
+            self.cnn = None 
+            dim = 1
+            import ipdb; ipdb.set_trace()
+            # check that channels is of the expected size
+            print(channels[-1])
 
         self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
@@ -590,7 +604,10 @@ class ConvolutionalBody(nn.Module):
             self.fcs = None 
 
     def _compute_feat_map(self, x):
-        return self.cnn(x)
+        feat_map = x 
+        if self.cnn is not None:
+            feat_map = self.cnn(x)
+        return feat_map 
 
     def get_feat_map(self):
         return self.features_map
@@ -603,8 +620,8 @@ class ConvolutionalBody(nn.Module):
         if self.fcs is not None:
             for idx, fc in enumerate(self.fcs):
                 features = fc(features)
-                if idx != len(self.fcs)-1 or non_lin_output:
-                    features = F.relu(features)
+                #if idx != len(self.fcs)-1 or non_lin_output:
+                features = F.relu(features)
 
         self.features = features 
 

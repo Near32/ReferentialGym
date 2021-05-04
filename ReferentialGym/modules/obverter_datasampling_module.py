@@ -7,6 +7,7 @@ import copy
 from ..modules import Module
 from ..datasets import shuffle, collate_dict_wrapper
 
+exclude = True 
 
 class ObverterDatasamplingModule(Module):
     def __init__(self, 
@@ -25,6 +26,9 @@ class ObverterDatasamplingModule(Module):
             # step in the sequence of repetitions of the current batch
             "it_step":"signals:it_step",
             # step in the communication round.
+            "it_round":"signals:obverter_round_iteration",
+            # current round iteration.
+            "sample":"current_dataloader:sample",
         }
 
         super(ObverterDatasamplingModule, self).__init__(
@@ -35,6 +39,9 @@ class ObverterDatasamplingModule(Module):
 
         self.batch_size = self.config["batch_size"]
         self.collate_fn = collate_dict_wrapper
+        self.counterRounds = 0
+        self.current_round_batches = []
+        self.unloading = False
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
@@ -57,6 +64,8 @@ class ObverterDatasamplingModule(Module):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
+        global exclude 
+
         outputs_dict = {}
 
 
@@ -64,8 +73,31 @@ class ObverterDatasamplingModule(Module):
         mode = input_streams_dict["mode"]
         it_step = input_streams_dict["it_step"]
         it_sample = input_streams_dict["it_sample"]
+        counterRounds = input_streams_dict["it_round"]
+
+        newRound = False 
+        if counterRounds != self.counterRounds:
+            newRound = True 
+            self.counterRounds = counterRounds
+
+        if newRound:
+            self.unloading = not (self.unloading)
+            size = len(self.current_round_batches) 
+            assert size==0 or size==self.config["obverter_nbr_games_per_round"]
+
 
         if "train" in mode and it_step == 0:
+            if self.unloading:
+                assert len(self.current_round_batches)>0
+                new_sample = self.current_round_batches.pop(0)
+                outputs_dict["current_dataloader:sample"] = new_sample
+                return outputs_dict
+
+            if self.config.get("round_alternation_only", False):
+                sample = input_streams_dict["sample"]
+                self.current_round_batches.append(sample)
+                return outputs_dict
+
             dataset = input_streams_dict["dataset"]
             # assumes DualLabeledDataset...
             train_dataset = dataset.datasets["train"]
@@ -74,14 +106,17 @@ class ObverterDatasamplingModule(Module):
             # Make the descriptive ratio no longer effective:
             dataset.kwargs["descriptive"] = False 
 
-            idxconverter = train_dataset.indices
-            
             batch = []
-            n_same = int(0.25*self.batch_size)
-            n_same_shape = int(0.3*self.batch_size)
-            n_same_color = int(0.2*self.batch_size)
-            n_random = self.batch_size - n_same_shape - n_same_color - n_same
+            # n_same = int(0.25*self.batch_size)
+            # n_same_shape = int(0.3*self.batch_size)
+            # n_same_color = int(0.2*self.batch_size)
+            # n_random = self.batch_size - n_same_shape - n_same_color - n_same
 
+            n_same = int(0.45*self.batch_size)
+            n_same_shape = int(0.27*self.batch_size)
+            n_same_color = int(0.18*self.batch_size)
+            n_random = self.batch_size - n_same_shape - n_same_color - n_same
+            
             for i in range(n_same):
                 speaker_idx = np.random.randint(len(dataset))
                 latents_class = train_dataset.getlatentclass(speaker_idx) 
@@ -94,7 +129,14 @@ class ObverterDatasamplingModule(Module):
                         if idx != speaker_idx
                     ]
                 )
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=True))
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=True
+                    )
+                )
 
             for i in range(n_same_shape):
                 speaker_idx = np.random.randint(len(dataset))
@@ -103,8 +145,24 @@ class ObverterDatasamplingModule(Module):
                 shape_id = latents_class[1]
                 choice_set = copy.deepcopy(train_dataset.same_shape_indices[shape_id])
                 choice_set.remove(speaker_idx)
+                
+                # remove the speaker color:
+                if exclude:
+                    for idx in train_dataset.same_color_indices[speaker_color_id]:
+                        if idx in choice_set:   choice_set.remove(idx)
+                
                 listener_idx = np.random.choice(choice_set)
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=False))
+                listener_color_id= train_dataset.getlatentclass(listener_idx)[0]
+                same = (speaker_color_id == listener_color_id)
+
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same,
+                    )
+                )
 
             for i in range(n_same_color):
                 speaker_idx = np.random.randint(len(dataset))
@@ -113,8 +171,24 @@ class ObverterDatasamplingModule(Module):
                 speaker_shape_id = latents_class[1]
                 choice_set = copy.deepcopy(train_dataset.same_color_indices[color_id])
                 choice_set.remove(speaker_idx)
+                
+                # remove the speaker shape:
+                if exclude:
+                    for idx in train_dataset.same_shape_indices[speaker_shape_id]:
+                        if idx in choice_set:   choice_set.remove(idx)
+                
                 listener_idx = np.random.choice(choice_set)
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=False))
+                listener_shape_id= train_dataset.getlatentclass(listener_idx)[1]
+                same = (speaker_shape_id == listener_shape_id)
+
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same,
+                    )
+                )
 
             for i in range(n_random):
                 speaker_idx = np.random.randint(len(dataset))
@@ -129,7 +203,14 @@ class ObverterDatasamplingModule(Module):
                 
                 same = (speaker_shape_id == listener_shape_id) and (speaker_color_id == listener_color_id)
                 
-                batch.append(self.sample(dataset=dataset, speaker_idx=speaker_idx, listener_idx=listener_idx, same=same))
+                batch.append(
+                    self.sample(
+                        dataset=dataset, 
+                        speaker_idx=speaker_idx, 
+                        listener_idx=listener_idx, 
+                        same=same
+                    )
+                )
 
             new_sample = self.collate_fn(batch)
             
@@ -137,6 +218,7 @@ class ObverterDatasamplingModule(Module):
                 new_sample = new_sample.cuda()
 
             outputs_dict["current_dataloader:sample"] = new_sample
+            self.current_round_batches.append(new_sample)
 
         return outputs_dict
 

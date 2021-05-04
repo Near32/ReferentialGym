@@ -88,6 +88,7 @@ def main():
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
+  parser.add_argument("--tau0", type=float, default=0.2)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--dataloader_num_worker", type=int, default=4)
@@ -263,7 +264,7 @@ def main():
       "nbr_stimulus":             1,
 
       "graphtype":                args.graphtype,
-      "tau0":                     0.2,
+      "tau0":                     args.tau0,
       "gumbel_softmax_eps":       1e-6,
       "vocab_size":               args.vocab_size,
       "force_eos":                args.force_eos,

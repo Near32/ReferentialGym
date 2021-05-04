@@ -169,6 +169,113 @@ def discriminative_st_gs_referential_game_loss(agent,
     outputs_dict["accuracy"] = acc
 
 
+def discriminative_obverter_referential_game_loss(
+    agent,
+    losses_dict,
+    input_streams_dict,
+    outputs_dict,
+    logs_dict,
+    **kwargs):
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
+    config = input_streams_dict["config"]
+    mode = input_streams_dict["mode"]
+
+    if "listener" not in agent.role:    return outputs_dict
+
+    batch_size = len(input_streams_dict["experiences"])
+
+    sample = input_streams_dict["sample"]
+            
+    decision_logits = outputs_dict["decision"]
+    final_decision_logits = decision_logits
+    # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
+    nbr_distractors_po = decision_logits.shape[-1]
+
+    # (batch_size,) 
+    sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
+    #(batch_size, max_sentence_length)
+    eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
+    token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+    lengths = token_mask.sum(-1)    
+    sentences_lengths = lengths.clamp(max=agent.max_sentence_length)
+    #(batch_size, )
+    
+    sentences_lengths = sentences_lengths.reshape(
+        -1,
+        *[1 for _ in range(len(final_decision_logits.shape[2:])+1)]
+    ).expand(
+        final_decision_logits.shape[0],
+        1,
+        *final_decision_logits.shape[2:],
+    )
+    
+    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
+    # (batch_size, (nbr_distractors+1), 2)
+    
+    assert final_decision_logits.shape[1]==1
+    target_decision_idx = sample["target_decision_idx"]
+    final_decision_logits = final_decision_logits.squeeze()
+    # (batch_size, 2)
+    
+    if config["agent_loss_type"].lower() == "nll":
+        if config["descriptive"]:
+            decision_logits = final_decision_logits
+            # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
+            criterion = nn.NLLLoss(reduction="none")
+            
+            #decision_logits = decision_logits[:,-1,...]
+            loss = criterion( decision_logits, target_decision_idx)
+            # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
+        else:   
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+            criterion = nn.NLLLoss(reduction="none")
+            loss = criterion( decision_logits, sample["target_decision_idx"])
+            # (batch_size, )
+            decision_probs = decision_logits.exp()
+            outputs_dict["decision_probs"] = decision_probs
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
+    
+    elif config["agent_loss_type"].lower() == "ce":
+        if config["descriptive"]:  
+            raise NotImplementedError
+        else:   
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_probs = torch.softmax(final_decision_logits, dim=-1)
+            criterion = nn.CrossEntropyLoss(reduction="none")
+            loss = criterion( final_decision_logits, sample["target_decision_idx"])
+            # (batch_size, )
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
+    
+    elif config["agent_loss_type"].lower() == "hinge":
+        #Havrylov"s Hinge loss:
+        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        decision_logits = final_decision_logits
+        decision_probs = decision_logits.exp()
+        #decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
+        
+        loss, _ = havrylov_hinge_learning_signal(
+            decision_logits=decision_logits,
+            target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
+            multi_round=input_streams_dict["multi_round"]
+        )
+        # (batch_size, )
+        
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
+        outputs_dict["decision_probs"] = decision_probs
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/target_listener_decision_probs"] =\
+         decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
+    
+    # Accuracy:
+    decision_idx = decision_probs.max(dim=-1)[1]
+    acc = (decision_idx==sample["target_decision_idx"]).float()*100
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy"] = acc
+    outputs_dict["accuracy"] = acc
+
+
 def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, decision_logits=None, multi_round=False):
     """
     Computes the reward and done boolean of the current timestep.
@@ -623,6 +730,8 @@ class DiscriminativeListener(Listener):
             self.learning_signal_baseline_counter = 0
 
             self.register_hook(discriminative_reinforce_referential_game_loss)
+        elif "obverter" in self.kwargs['graphtype']:
+            self.register_hook(discriminative_obverter_referential_game_loss)
         else:
             self.register_hook(discriminative_st_gs_referential_game_loss)
         
@@ -737,16 +846,17 @@ class DiscriminativeListener(Listener):
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
-        output_dict = {"output": decision_logits,
-                       "decision": decision_logits, 
-                       "sentences_widx":next_sentences_widx, 
-                       "sentences_logits":next_sentences_logits, 
-                       "sentences_one_hot":next_sentences,
-                       #"features":features,
-                       "temporal_features": temporal_features
-                       }
+        self.output_dict = {
+            "output": decision_logits,
+            "decision": decision_logits, 
+            "sentences_widx":next_sentences_widx, 
+            "sentences_logits":next_sentences_logits, 
+            "sentences_one_hot":next_sentences,
+            #"features":features,
+            "temporal_features": temporal_features
+        }
         
         if not(multi_round):
             self._reset_rnn_states()
 
-        return output_dict 
+        return self.output_dict 

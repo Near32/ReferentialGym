@@ -28,6 +28,7 @@ class PerEpochLoggerModule(Module):
                 "losses_dict":"losses_dict",
                 "logs_dict":"logs_dict",
                 "epoch":"signals:epoch",
+                "update_count":"signals:update_count",
                 "mode":"signals:mode",
                 "end_of_dataset":"signals:end_of_dataset",  
                 # boolean: whether the current batch/datasample is the last of the current dataset/mode.
@@ -85,6 +86,7 @@ class PerEpochLoggerModule(Module):
         logs_dict = input_streams_dict["logs_dict"]
         
         epoch = input_streams_dict["epoch"]
+        update_count = input_streams_dict["update_count"]
         mode = input_streams_dict["mode"]
         global_it_step = input_streams_dict["global_it_step"]
         
@@ -124,6 +126,10 @@ class PerEpochLoggerModule(Module):
               logger.add_scalar(f"PerEpoch/{key}/Mean", averaged_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/Std", std_value, epoch)
               
+              logger.add_scalar(f"PerUpdate/{key}/Mean", averaged_value, update_count)
+              logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
+              
+
               median_value = np.nanpercentile(
                 values,
                 q=50,
@@ -143,14 +149,22 @@ class PerEpochLoggerModule(Module):
                 interpolation="higher"
               )
               iqr = q3_value-q1_value
+              
               logger.add_scalar(f"PerEpoch/{key}/Median", median_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/Q1", q1_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
               logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
               
+              logger.add_scalar(f"PerUpdate/{key}/Median", median_value, update_count)
+              logger.add_scalar(f"PerUpdate/{key}/Q1", q1_value, update_count)
+              logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
+              logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
+              
               #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
+              logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
+              
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)
 

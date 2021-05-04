@@ -11,6 +11,7 @@ from tqdm import tqdm
 import itertools
 from concurrent.futures import ProcessPoolExecutor
 
+eps = 1e-20
 
 def gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
     # type: (Tensor, float, bool, float, int) -> Tensor
@@ -141,14 +142,16 @@ def compute_levenshtein_distance(s1, s2):
 
 
 def compute_cosine_sim(v1, v2):
+    global eps
     v1 = v1.reshape(-1)
     v2 = v2.reshape(-1)
-    v1_norm = LA.norm(v1)
-    v2_norm = LA.norm(v2)
+    v1_norm = LA.norm(v1)+eps
+    v2_norm = LA.norm(v2)+eps
     cos_sim = np.matmul(v1/v1_norm,(v2/v2_norm).transpose())
     return cos_sim
 
-def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprange):
+def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprange=None):
+    if comprange is None: comprange = len(sentences)
     levs = []
     s1 = sentences[idx]
     tillidx = min(len(sentences)-1,idx+1+comprange)
@@ -156,7 +159,8 @@ def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprang
         levs.append( compute_levenshtein_distance(s1,s2))
     return levs 
 
-def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange):
+def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange=None):
+    if comprange is None: comprange = len(features)
     cossims = []
     f1 = features[idx]
     tillidx = min(len(features)-1,idx+1+comprange)
@@ -164,29 +168,34 @@ def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange):
         cossims.append( compute_cosine_sim(f1.squeeze(),f2.squeeze()))
     return cossims
 
-def compute_topographic_similarity_parallel(sentences,features,comprange=100, max_workers=32):
+def compute_topographic_similarity_parallel(sentences,features,comprange=None, max_workers=32):
     executor = ProcessPoolExecutor(max_workers=max_workers)
     indices = list(range(len(sentences)))
     levs = []
-    for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_levs in zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange))):
         for l in idx1_levs: 
             levs.append(l)
 
     indices = list(range(len(features)))
     cossims = []
-    for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    for idx1, idx1_cossims in zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange))):
         for c in idx1_cossims: 
             cossims.append(c)
     
     rho, p = spearmanr(levs, cossims)
     return -rho, p, levs, cossims
 
-def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffset=None, suffix='', use_cuda=False):
+def query_vae_latent_space(omodel, sample, path, minibatch_size=2, test=False, full=True, idxoffset=None, suffix='', use_cuda=False):
   if use_cuda:
     model = omodel.cuda()
   else:
     model = omodel.cpu()
 
+  training = model.training
+  model.train(False)
+  
   z_dim = model.get_feature_shape()
   img_depth=model.input_shape[0]
   img_dim = model.input_shape[1]
@@ -199,8 +208,13 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
 
   # variations over the latent variable :
   sigma_mean = 3.0*torch.ones((z_dim)) #args.queryVAR*torch.ones((z_dim))
-  z, mu, log_sig_sq  = model.encodeZ(fixed_x)
-  mu_mean = mu.cpu().data[0]#.unsqueeze(0)
+  mus = []
+  for stin in torch.split(fixed_x, split_size_or_sections=minibatch_size, dim=0):
+      _, mu, _ = model.encodeZ(stin)
+      mus.append(mu.cpu())
+  mus = torch.cat(mus, dim=0)
+  #z, mu, log_sig_sq  = model.encodeZ(fixed_x)
+  mu_mean = mus.cpu().data[0]#.unsqueeze(0)
   #print(z,mu_mean,sigma_mean)
   
   # Save generated variable images :
@@ -219,7 +233,12 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
 
       if use_cuda: var_z0 = var_z0.cuda()
 
-      gen_images_latent = model.decode(var_z0)
+      gen_images_latent = []
+      for stin in torch.split(var_z0, split_size_or_sections=minibatch_size, dim=0):
+          gil = model.decode(stin)
+          gen_images_latent.append(gil.cpu())
+      gen_images_latent = torch.cat(gen_images_latent, dim=0)
+      #gen_images_latent = model.decode(var_z0)
       npfx = gen_images_latent.cpu().data 
       
       gen_images.append(gen_images_latent)
@@ -233,9 +252,12 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
     os.makedirs(save_path, exist_ok=True)
     save_path += 'query{}{}.png'.format(idxoffset, suffix)
     torchvision.utils.save_image(gen_images, save_path )
-    
-  model_outputs = model(fixed_x)
-  reconst_images = model_outputs[0]
+  
+  reconst_images = []
+  for stin in torch.split(fixed_x, split_size_or_sections=minibatch_size, dim=0):
+      model_outputs = model(stin)
+      reconst_images.append(model_outputs[0].cpu())
+  reconst_images = torch.cat(reconst_images, dim=0)
   
   npfx = reconst_images.cpu().data
   orimg = fixed_x.cpu().data
@@ -308,6 +330,8 @@ def query_vae_latent_space(omodel, sample, path, test=False, full=True, idxoffse
     grid_recs = torchvision.utils.make_grid(recs, nrow=nbr_slot)
     recs_save_path = save_path+'recs{}{}.png'.format(idxoffset, suffix)
     torchvision.utils.save_image(grid_recs, recs_save_path)
+
+    model.train(training)
 
 
 """

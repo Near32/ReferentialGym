@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 import sys
 import random
 import numpy as np 
@@ -13,14 +15,183 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as T 
 
+import logging
+logging.disable(logging.WARNING)
+
+from dummy_dataset import DummyDataset
+
+from ReferentialGym.modules import Module 
+
+
+# python -m ipdb -c c ./RG/ReferentialGym/tests/modules/test_PosdisBosdisMetricModule.py --parent_folder ./MetricTesting/STGS/LogSM/ReLU/ObjectCentric//SymbolEmb64+GRU64+CNN256+Decision128/ --use_cuda --seed 10 --obverter_nbr_games_per_round 20 --obverter_threshold_to_stop_message_generation 0.95 --emb_dropout_prob 0.0 --dropout_prob 0.0 --use_sentences_one_hot_vectors --batch_size 100 --mini_batch_size 256 --resizeDim 64 --arch SmallBaselineCNN --max_sentence_length 20 --vocab_size 20 --epoch 30 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 --nbr_train_distractors 1 --nbr_test_distractors 1 --nbr_experience_repetition 1 --obverter_use_decision_head --agent_loss_type NLL --metric_epoch_period 1 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 --lr 6e-4 --metric_fast --nbr_train_points 5000 --nbr_eval_points 5000
+
+class ProgressiveShuffleModule(Module):
+  def __init__(self, id:str, config:Dict[str,object], input_stream_ids:Dict[str,str]):
+    default_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "end_of_dataset":"signals:end_of_dataset",  
+      # boolean: whether the current batch/datasample is the last of the current dataset/mode.
+      "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
+      # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
+      # is the last of the current sequence of repetition.
+      "end_of_communication":"signals:end_of_communication",
+      # boolean: whether the current communication round is the last of 
+      # the current dialog.
+
+      "input":"current_dataloader:sample:speaker_exp_latents", 
+    }
+    if input_stream_ids is None:
+      input_stream_ids = default_input_stream_ids
+    else:
+      for default_stream, default_id in default_input_stream_ids.items():
+        if default_id not in input_stream_ids.values():
+          input_stream_ids[default_stream] = default_id
+
+    super(ProgressiveShuffleModule, self).__init__(
+      id=id,
+      type="ProgressiveShuffleModule",
+      config=config,
+      input_stream_ids=input_stream_ids
+    )
+
+    self.shuffle_percentage = 0.01
+    #self.shuffle_percentage = 0.5
+    #self.shuffle_percentage = 1.0
+    self.shuffle_period_increment = self.config["shuffle_period_increment"] # expect float ]0,1.0]
+    
+    self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
+    self.random_state_rep = np.random.RandomState(0)
+  
+  def forward(self, x):
+    out = torch.from_numpy(x).float()
+    size = int(self.shuffle_percentage*x.shape[0])
+    if size != 0:
+      for idx in range(size):
+        out[idx] = out[idx, ..., torch.randperm(out.shape[-1])]
+    return out.numpy()
+
+  def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object]:
+    outputs_stream_dict = {}
+
+    logs_dict = input_streams_dict["logs_dict"]
+    mode = input_streams_dict["mode"]
+    
+    inp = input_streams_dict["input"].float()
+    
+    output = inp
+    
+    size = int(self.shuffle_percentage*inp.shape[0])
+    if size != 0:
+      for idx in range(size):
+        output[idx] = output[idx, ..., torch.randperm(output.shape[-1])]
+    
+    outputs_stream_dict["output"] = output
+
+    # Is it the end of the epoch?
+    end_of_epoch = all([
+      input_streams_dict[key]
+      for key in self.end_of_]
+    )
+    
+    # If so, let us average over every value and save it:
+    if end_of_epoch:
+      self.shuffle_percentage = min(1.0, self.shuffle_percentage+self.shuffle_period_increment)
+
+    logs_dict[f"{mode}/{self.id}/ShufflePercentage"] = self.shuffle_percentage*100.0
+    logs_dict[f"{mode}/{self.id}/ShufflePercentage/size"] = size
+
+    return outputs_stream_dict
+
+class ProgressiveBatchShuffleModule(Module):
+  def __init__(self, id:str, config:Dict[str,object], input_stream_ids:Dict[str,str]):
+    default_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "end_of_dataset":"signals:end_of_dataset",  
+      # boolean: whether the current batch/datasample is the last of the current dataset/mode.
+      "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
+      # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
+      # is the last of the current sequence of repetition.
+      "end_of_communication":"signals:end_of_communication",
+      # boolean: whether the current communication round is the last of 
+      # the current dialog.
+
+      "input":"current_dataloader:sample:speaker_exp_latents", 
+    }
+    if input_stream_ids is None:
+      input_stream_ids = default_input_stream_ids
+    else:
+      for default_stream, default_id in default_input_stream_ids.items():
+        if default_id not in input_stream_ids.values():
+          input_stream_ids[default_stream] = default_id
+
+    super(ProgressiveBatchShuffleModule, self).__init__(
+      id=id,
+      type="ProgressiveBatchShuffleModule",
+      config=config,
+      input_stream_ids=input_stream_ids
+    )
+
+    self.shuffle_percentage = 0.01
+    #self.shuffle_percentage = 0.5
+    #self.shuffle_percentage = 1.0
+    self.shuffle_period_increment = self.config["shuffle_period_increment"] # expect float ]0,1.0]
+    
+    self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
+    self.random_state_rep = np.random.RandomState(0)
+  
+  def forward(self, x):
+    out = torch.from_numpy(x).float()
+    size = int(self.shuffle_percentage*x.shape[-1])
+    if size != 0:
+      for idx in range(size):
+        out[:, ..., idx] = out[torch.randperm(out.shape[0]), ..., idx]
+    return out.numpy()
+
+  def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object]:
+    outputs_stream_dict = {}
+
+    logs_dict = input_streams_dict["logs_dict"]
+    mode = input_streams_dict["mode"]
+    
+    inp = input_streams_dict["input"].float()
+    
+    output = inp
+    
+    size = int(self.shuffle_percentage*inp.shape[-1])
+    if size != 0:
+      for idx in range(size):
+        output[:, ..., idx] = output[torch.randperm(output.shape[0]), ..., idx]
+        
+    outputs_stream_dict["output"] = output
+
+    # Is it the end of the epoch?
+    end_of_epoch = all([
+      input_streams_dict[key]
+      for key in self.end_of_]
+    )
+    
+    # If so, let us average over every value and save it:
+    if end_of_epoch:
+      self.shuffle_percentage = min(1.0, self.shuffle_percentage+self.shuffle_period_increment)
+
+    logs_dict[f"{mode}/{self.id}/BatchShufflePercentage"] = self.shuffle_percentage*100.0
+    logs_dict[f"{mode}/{self.id}/BatchShufflePercentage/size"] = size
+
+    return outputs_stream_dict
+
 
 def main():
-  parser = argparse.ArgumentParser(description="Obverter Agents: Language Emergence on 3DShapesPyBullet Dataset.")
+  parser = argparse.ArgumentParser(description="STGS Agents: Language Emergence on 3DShapesPyBullet Dataset.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
   parser.add_argument("--use_obverter_sampling", action="store_true", default=False)
   parser.add_argument("--verbose", action="store_true", default=False)
-  parser.add_argument("--use_priority", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--force_eos", action="store_true", default=False)
   parser.add_argument("--use_cuda", action="store_true", default=False)
@@ -30,19 +201,23 @@ def main():
              "XSort-of-CLEVR",
              "tiny-XSort-of-CLEVR",
              "dSprites",
+             "DummyDataset",
              "3DShapesPyBullet",
              ], 
     help="dataset to train on.",
-    default="3DShapesPyBullet")
+    default="DummyDataset")
+    #default="dSprites")
+    #default="3DShapesPyBullet")
   parser.add_argument('--nb_3dshapespybullet_shapes', type=int, default=5)
   parser.add_argument('--nb_3dshapespybullet_colors', type=int, default=8)
   parser.add_argument('--nb_3dshapespybullet_train_colors', type=int, default=6)
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
   parser.add_argument("--arch", type=str, 
     choices=["BaselineCNN",
+             "SmallBaselineCNN",
+             "BN+SmallBaselineCNN",
              "ShortBaselineCNN",
              "BN+BaselineCNN",
-             "BN+Baseline1CNN",
              "CNN",
              "CNN3x3",
              "BN+CNN",
@@ -66,7 +241,7 @@ def main():
              "argmax_reinforce",
              "obverter"],
     help="type of graph to use during training of the speaker and listener.",
-    default="obverter")
+    default="straight_through_gumbel_softmax")
   parser.add_argument("--max_sentence_length", type=int, default=20)
   parser.add_argument("--vocab_size", type=int, default=5)
   parser.add_argument("--optimizer_type", type=str, 
@@ -90,18 +265,21 @@ def main():
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
+  parser.add_argument("--gradient_clip", action="store_true", default=False)
+  parser.add_argument("--gradient_clip_threshold", type=float, default=1.0)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--metric_epoch_period", type=int, default=20)
-  parser.add_argument("--nbr_train_points", type=int, default=3000)
-  parser.add_argument("--nbr_eval_points", type=int, default=1000)
-  parser.add_argument("--metric_resampling", action="store_true", default=False)
-  parser.add_argument("--dataloader_num_worker", type=int, default=1)
+  parser.add_argument("--dataloader_num_worker", type=int, default=4)
+  parser.add_argument("--nbr_latents", type=int, default=10)
+  parser.add_argument("--nbr_values_per_latent", type=int, default=10)
   parser.add_argument("--metric_fast", action="store_true", default=False)
   parser.add_argument("--batch_size", type=int, default=50)
   parser.add_argument("--mini_batch_size", type=int, default=256)
   parser.add_argument("--dropout_prob", type=float, default=0.0)
   parser.add_argument("--emb_dropout_prob", type=float, default=0.0)
   parser.add_argument("--nbr_experience_repetition", type=int, default=1)
+  parser.add_argument("--nbr_train_points", type=int, default=10000)
+  parser.add_argument("--nbr_eval_points", type=int, default=5000)
   parser.add_argument("--nbr_train_dataset_repetition", type=int, default=1)
   parser.add_argument("--nbr_test_dataset_repetition", type=int, default=1)
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
@@ -130,7 +308,6 @@ def main():
   # Obverter Hyperparameters:
   parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
   parser.add_argument("--obverter_use_decision_head", action="store_true", default=False)
-  parser.add_argument("--obverter_nbr_head_outputs", type=int, default=2)
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
@@ -141,17 +318,43 @@ def main():
   parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
   # Cultural Bottleneck:
   parser.add_argument("--cultural_pressure_it_period", type=int, default=None)
+  parser.add_argument("--cultural_reset_meta_learning_rate", type=float, default=1e-3)
   parser.add_argument("--cultural_speaker_substrate_size", type=int, default=1)
   parser.add_argument("--cultural_listener_substrate_size", type=int, default=1)
-  parser.add_argument("--cultural_reset_strategy", type=str, default="uniformSL") #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+  parser.add_argument(
+    "--cultural_reset_strategy", 
+    type=str, 
+    default="uniformSL",
+    choices=[
+      "uniformS",
+      "uniformL",  
+      "uniformSL",
+      "metaS",
+      "metaL",  
+      "metaSL",
+    ],
+  ) 
+  #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
   
   # Dataset Hyperparameters:
   parser.add_argument("--train_test_split_strategy", type=str, 
-    choices=["compositional-10-nb_train_colors_6",
-            ],
+    choices=[
+      "compositional-10-nb_train_colors_6",
+      "combinatorial2-Y-2-8-X-2-8-Orientation-2-10-Scale-1-3-Shape-3-N", #
+      "combinatorial2-Y-1-16-X-1-16-Orientation-2-10-Scale-1-3-Shape-3-N",
+      "combinatorial2-Y-2-8-X-2-8-Orientation-4-5-Scale-1-3-Shape-3-N",
+      "combinatorial2-Y-4-4-X-4-4-Orientation-4-5-Scale-1-3-Shape-3-N", #
+      "combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-3-Shape-3-N", #
+    ],
     help="train/test split strategy",
+    # dspites:
+    #default="combinatorial2-Y-2-8-X-2-8-Orientation-2-10-Scale-1-3-Shape-3-N")
+    #default="combinatorial2-Y-2-8-X-2-8-Orientation-4-5-Scale-1-3-Shape-3-N")
+    default="combinatorial2-Y-1-16-X-1-16-Orientation-2-10-Scale-1-3-Shape-3-N")
+    #default="combinatorial2-Y-4-4-X-4-4-Orientation-4-5-Scale-1-3-Shape-3-N")
+    #default="combinatorial2-Y-8-2-X-8-2-Orientation-10-2-Scale-1-3-Shape-3-N")
     # Test 2 colors:
-    default="compositional-10-nb_train_colors_6")
+    #default="compositional-10-nb_train_colors_6")
     # Test 4 colors:
     #default="compositional-10-nb_train_colors_4")
   parser.add_argument("--fast", action="store_true", default=False, 
@@ -230,12 +433,9 @@ def main():
   
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
-  transform = ResizeNormalize(
-    size=stimulus_resize_dim, 
-    normalize_rgb_values=normalize_rgb_values,
-    rgb_scaler=rgb_scaler,
-    use_cuda=False, #subprocess issue...s
-  )
+  transform = ResizeNormalize(size=stimulus_resize_dim, 
+                              normalize_rgb_values=normalize_rgb_values,
+                              rgb_scaler=rgb_scaler)
 
   from ReferentialGym.datasets.utils import AddEgocentricInvariance
   ego_inv_transform = AddEgocentricInvariance()
@@ -286,7 +486,7 @@ def main():
       "cultural_speaker_substrate_size":  args.cultural_speaker_substrate_size,
       "cultural_listener_substrate_size":  args.cultural_listener_substrate_size,
       "cultural_reset_strategy":  args.cultural_reset_strategy, #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
-      "cultural_reset_meta_learning_rate":  1e-3,
+      "cultural_reset_meta_learning_rate":  args.cultural_reset_meta_learning_rate,
 
       # Cultural Bottleneck:
       "iterated_learning_scheme": args.iterated_learning_scheme,
@@ -307,12 +507,12 @@ def main():
       "stimulus_resize_dim":      stimulus_resize_dim, 
       
       "learning_rate":            args.lr, #1e-3,
-      "adam_eps":                 1e-16,
+      "adam_eps":                 1e-8,
       "dropout_prob":             args.dropout_prob,
       "embedding_dropout_prob":   args.emb_dropout_prob,
       
-      "with_gradient_clip":       False,
-      "gradient_clip":            1e0,
+      "with_gradient_clip":       args.gradient_clip,
+      "gradient_clip":            args.gradient_clip_threshold,
       
       "use_homoscedastic_multitasks_loss": args.homoscedastic_multitasks_loss,
 
@@ -503,25 +703,25 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
 
-  elif "BaselineCNN" in agent_config["architecture"]:
+  elif "SmallBaselineCNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
     
     if "BN" in args.arch:
-      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32","BN32","BN32","BN32","BN32"]
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32"]
     else:
-      agent_config["cnn_encoder_channels"] = [32,32,32,32,32,32,32,32]
+      agent_config["cnn_encoder_channels"] = [32,32,32,32]
     
-    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3,3]
-    agent_config["cnn_encoder_strides"] = [2,1,1,2,1,2,1,2]
-    agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1,1]
+    agent_config["cnn_encoder_kernels"] = [8,3,3,3]
+    agent_config["cnn_encoder_strides"] = [4,2,2,1]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1]
     agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
-    agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
+    agent_config["cnn_encoder_fc_hidden_units"] = [128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
     #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    agent_config["cnn_encoder_feature_dim"] = 256 #args.symbol_processing_nbr_hidden_units
+    agent_config["cnn_encoder_feature_dim"] = 64 #args.symbol_processing_nbr_hidden_units
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
@@ -541,28 +741,25 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
   
-  elif "Baseline1CNN" in agent_config["architecture"]:
+  elif "BaselineCNN" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
     
     if "BN" in args.arch:
-      #agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32","BN32"]
-      agent_config["cnn_encoder_channels"] = ["BN20","BN20","BN20","BN20","BN20"]
+      agent_config["cnn_encoder_channels"] = ["BN32","BN32","BN32","BN32","BN32","BN32","BN32","BN32"]
     else:
-      agent_config["cnn_encoder_channels"] = [32,32,32,32,32]
+      agent_config["cnn_encoder_channels"] = [32,32,32,32,32,32,32,32]
     
-    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3]
-    agent_config["cnn_encoder_strides"] = [2,2,2,2,2]
-    #agent_config["cnn_encoder_paddings"] = [1,1,1,1,1]
-    agent_config["cnn_encoder_paddings"] = [0,0,0,0,0]
+    agent_config["cnn_encoder_kernels"] = [3,3,3,3,3,3,3,3]
+    agent_config["cnn_encoder_strides"] = [2,1,1,2,1,2,1,2]
+    agent_config["cnn_encoder_paddings"] = [1,1,1,1,1,1,1,1]
     agent_config["cnn_encoder_non_linearities"] = [torch.nn.ReLU]
     agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
     # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
     
     # For a fair comparison between CNN an VAEs:
     #agent_config["cnn_encoder_feature_dim"] = args.vae_nbr_latent_dim
-    agent_config["cnn_encoder_feature_dim"] = 50 #args.symbol_processing_nbr_hidden_units
-    #agent_config["cnn_encoder_feature_dim"] = args.symbol_processing_nbr_hidden_units
+    agent_config["cnn_encoder_feature_dim"] = 256 #args.symbol_processing_nbr_hidden_units
     # N.B.: if cnn_encoder_fc_hidden_units is [],
     # then this last parameter does not matter.
     # The cnn encoder is not topped by a FC network.
@@ -647,9 +844,13 @@ def main():
   save_path = ""
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
-  save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
-  if args.use_priority:
-    save_path += "WithPrioritizedSampling/"
+  save_path += f"{args.dataset}+DualLabeled/"
+  #save_path += f"/MetricEPS1m5/TestModularityDisentanglementMetricShuffleOHE_nbrTrainPoints{args.nbr_train_points}+PERM+SQRT"
+  save_path += f"/MetricEPS1m20/TestPosBosDisentanglementMetricShuffleOHE_nbrTrainPoints{args.nbr_train_points}+PERM+Sq+RT4+Minmi/"
+  
+  save_path += f"NOTDroppingEoS/BosdisShuffleDistinctTest"
+  save_path += "+TestVSMIGForm+MIGSameTestExpectPos+ActualModularitySameTestExpectNeg+ModForm2"
+  
   if args.use_obverter_sampling:
     save_path += "WithObverterSampling/"
 
@@ -667,9 +868,14 @@ def main():
     if test_split_strategy != train_split_strategy:
       train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
     save_path += f"/dSprites{train_test_strategy}"
+  elif 'Dummy' in args.dataset: 
+    train_test_strategy = f"-{test_split_strategy}"
+    if test_split_strategy != train_split_strategy:
+      train_test_strategy = f"/train_{train_split_strategy}/test_{test_split_strategy}"
+    save_path += f"/DummyDataset_L{args.nbr_latents}X{args.nbr_values_per_latent}"#{train_test_strategy}"
   elif '3DShapesPyBullet' in args.dataset: 
     train_test_strategy = f"-{train_split_strategy}"
-    save_path += save_path_dataset+train_test_strategy
+    save_path += save_path_dataset
   
   save_path += f"/OBS{rg_config['stimulus_resize_dim']}X{rg_config['stimulus_depth_dim']}C-Rep{rg_config['nbr_experience_repetition']}"
   
@@ -723,6 +929,9 @@ def main():
     f"/{'Detached' if args.vae_detached_featout else ''}beta{vae_beta}-factor{factor_vae_gamma}" if 'BetaVAE' in rg_config['agent_architecture'] else ''
   )
 
+  if args.gradient_clip:
+    save_path += f"_gradClip{args.gradient_clip_threshold}"
+
   if 'MONet' in rg_config['agent_architecture'] or 'BetaVAE' in rg_config['agent_architecture']:
     save_path += f"beta{vae_beta}-factor{factor_vae_gamma}-gamma{monet_gamma}-sigma{vae_observation_sigma}" if 'MONet' in rg_config['agent_architecture'] else ''
     save_path += f"CEMC{maxCap}over{nbrepochtillmaxcap}" if vae_constrainedEncoding else ''
@@ -741,17 +950,17 @@ def main():
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"Obverter{f'With{args.obverter_nbr_head_outputs}OututsDecisionHead' if args.obverter_use_decision_head else 'WithBMM'}{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
+    save_path += f"Obverter{'WithDecisionHead' if args.obverter_use_decision_head else 'WithBMM'}{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
   else:
     save_path += f"STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
-  save_path += f"MetricPeriod{args.metric_epoch_period}+{'' if args.metric_resampling else 'NO'}Resampling+DISComp-{'fast-' if args.metric_fast else ''}/"#TestArchTanh/"
+  save_path += f"Periodic{args.metric_epoch_period}TS+DISComp-{'fast-' if args.metric_fast else ''}/"#TestArchTanh/"
   
   
   save_path += f'DatasetRepTrain{args.nbr_train_dataset_repetition}Test{args.nbr_test_dataset_repetition}'
   
+
   rg_config['save_path'] = save_path
-  
   print(save_path)
 
   from ReferentialGym.utils import statsLogger
@@ -765,18 +974,13 @@ def main():
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
 
+  """
   #from ReferentialGym.agents import DifferentiableObverterAgent
-  #from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
-  from ReferentialGym.agents.obverter_agent import ObverterAgent
+  from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
   #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
   
-  """
-  python -m ipdb -c c train.py --parent_folder /home/kevin/debugging_RG/TestNewObverter/New-PackPad-LearningNotTarget_-OneMinus_+Zeros_DecisionLogits/LearnableTau0-BMM+CosSim+InnerModelGen+AllowedVocabXBatch-DecisionHeads+CategoricalSamplingTrainingOnly+StopPadding/SymbolEmb64+GRU64+CNN64-Decision128/ --use_cuda --fast --seed 13 --obverter_nbr_games_per_round 20 --batch_size 32 --max_sentence_length 5 --vocab_size 10 --epoch 10000 --obverter_threshold_to_stop_message_generation 0.95 --descriptive --descriptive_ratio 0.5 --nbr_train_distractors 0 --symbol_processing_nbr_hidden_units 64 --resizeDim 32 --arch BN+3xCNN3x3 --symbol_embedding_size 64
-  python -m ipdb -c c train.py --parent_folder /home/kevin/debugging_RG/DeprBaseline+EntrNoLogSM+CategoricalTrainingSampling+DilatedCategoricalLogits1e0+LogSMoverDandVX1e0+StopPadding-ZerosLogitPad/
-  """   
   
   if 'obverter' in args.graphtype:
-    """
     speaker = DifferentiableObverterAgent(
       kwargs=agent_config, 
       obs_shape=obs_shape, 
@@ -786,18 +990,7 @@ def main():
       logger=logger,
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
       use_decision_head_=args.obverter_use_decision_head,
-      nbr_head_outputs=args.obverter_nbr_head_outputs,
       differentiable=args.differentiable
-    )
-    """
-    speaker = ObverterAgent(
-      kwargs=agent_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='s0',
-      logger=logger,
-      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
     )
   elif 'Baseline' in args.agent_type:
     from ReferentialGym.agents import LSTMCNNSpeaker
@@ -823,7 +1016,6 @@ def main():
   max_sentence_length = rg_config['max_sentence_length']
 
   if 'obverter' in args.graphtype:
-    """
     listener = DifferentiableObverterAgent(
       kwargs=listener_config, 
       obs_shape=obs_shape, 
@@ -833,18 +1025,7 @@ def main():
       logger=logger,
       use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
       use_decision_head_=args.obverter_use_decision_head,
-      nbr_head_outputs=args.obverter_nbr_head_outputs,
       differentiable=args.differentiable
-    )
-    """
-    listener = ObverterAgent(
-      kwargs=listener_config, 
-      obs_shape=obs_shape, 
-      vocab_size=vocab_size, 
-      max_sentence_length=max_sentence_length,
-      agent_id='l0',
-      logger=logger,
-      use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
     )
   else:
     from ReferentialGym.agents import LSTMCNNListener
@@ -857,6 +1038,7 @@ def main():
       logger=logger
     )
   print("Listener:", listener)
+  """
 
   # # Dataset:
   need_dict_wrapping = {}
@@ -865,6 +1047,21 @@ def main():
     root = './datasets/dsprites-dataset'
     train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
     test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  elif 'Dummy' in args.dataset:
+    train_dataset = DummyDataset(
+        train=True, 
+        transform=rg_config['train_transform'], 
+        split_strategy=None, 
+        nbr_latents=args.nbr_latents,
+        nbr_values_per_latent=args.nbr_values_per_latent,
+    )
+    test_dataset = DummyDataset(
+        train=False, 
+        transform=rg_config['test_transform'], 
+        split_strategy=None,
+        nbr_latents=args.nbr_latents,
+        nbr_values_per_latent=args.nbr_values_per_latent,
+    )
   elif '3DShapesPyBullet' in args.dataset:
     train_dataset = ReferentialGym.datasets._3DShapesPyBulletDataset(
       root=root, 
@@ -897,11 +1094,25 @@ def main():
 
   from ReferentialGym import modules as rg_modules
 
-  # Sampler:
-  if args.use_obverter_sampling:
-    obverter_sampling_id = "obverter_sampling_0"
-    obverter_sampling_config = {"batch_size": rg_config["batch_size"]}
+  # NoiseSource:
+  pnsm_id = "progressive_noise_source_0"
+  pnsm_config = {
+    "shuffle_period_increment": 0.01,
+  }
+  pnsm_input_stream_ids = {
+    "input":"current_dataloader:sample:speaker_exp_latents", 
+  }
 
+  psm_id = "progressive_shuffle_0"
+  psm_config = {
+    "shuffle_period_increment": 0.01,
+  }
+  psm_input_stream_ids = {
+    "input":"current_dataloader:sample:speaker_exp_latents", 
+  }
+  
+  
+  """
   # Population:
   population_handler_id = "population_handler_0"
   population_handler_config = copy.deepcopy(rg_config)
@@ -920,9 +1131,22 @@ def main():
   # Current Listener:
   current_listener_id = "current_listener"
 
-  if args.use_obverter_sampling:
-    modules[obverter_sampling_id] = rg_modules.ObverterDatasamplingModule(id=obverter_sampling_id,config=obverter_sampling_config)
+  """
+
+  modules[pnsm_id] = ProgressiveBatchShuffleModule(
+    id=pnsm_id,
+    config=pnsm_config,
+    input_stream_ids=pnsm_input_stream_ids
+  )
+
+  modules[psm_id] = ProgressiveShuffleModule(
+    id=psm_id,
+    config=psm_config,
+    input_stream_ids=psm_input_stream_ids
+  )
+
   
+  """
   modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
       id=population_handler_id,
       prototype_speaker=speaker,
@@ -940,10 +1164,13 @@ def main():
       id=homo_id,
       config=homo_config,
     )
-  
+
+  """
+
   ## Pipelines:
   pipelines = {}
 
+  """
   # 0) Now that all the modules are known, let us build the optimization module:
   optim_id = "global_optim"
   optim_config = {
@@ -951,6 +1178,7 @@ def main():
     "learning_rate":args.lr,
     "optimizer_type":args.optimizer_type,
     "with_gradient_clip":rg_config["with_gradient_clip"],
+    "gradient_clip":rg_config["gradient_clip"],
     "adam_eps":rg_config["adam_eps"],
   }
 
@@ -963,10 +1191,9 @@ def main():
   grad_recorder_id = "grad_recorder"
   grad_recorder_module = rg_modules.build_GradRecorderModule(id=grad_recorder_id)
   modules[grad_recorder_id] = grad_recorder_module
-
+  
   topo_sim_metric_id = "topo_sim_metric"
-  topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule(
-    id=topo_sim_metric_id,
+  topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule(id=topo_sim_metric_id,
     config = {
       "parallel_TS_computation_max_workers":16,
       "epoch_period":args.metric_epoch_period,
@@ -976,91 +1203,6 @@ def main():
     }
   )
   modules[topo_sim_metric_id] = topo_sim_metric_module
-
-  posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
-  posbosdis_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_speaker:ref:ref_agent",
-    "representations":"modules:current_speaker:sentences_widx",
-    "experiences":"current_dataloader:sample:speaker_experiences", 
-    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
-    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
-    "indices":"current_dataloader:sample:speaker_indices", 
-  }
-
-  posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
-    id=posbosdis_disentanglement_metric_id,
-    input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
-    config = {
-      "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-      "epoch_period":args.metric_epoch_period,
-      "batch_size":64,#5,
-      "nbr_train_points":args.nbr_train_points,#3000,
-      "nbr_eval_points":args.nbr_eval_points,#2000,
-      "resample": args.metric_resampling,
-      "threshold":5e-2,#0.0,#1.0,
-      "random_state_seed":args.seed,
-      "verbose":False,
-      "active_factors_only":True,
-    }
-  )
-  modules[posbosdis_disentanglement_metric_id] = posbosdis_disentanglement_metric_module
-
-  # Modularity:
-  speaker_modularity_disentanglement_metric_id = "speaker_modularity_disentanglement_metric"
-  speaker_modularity_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_speaker:ref:ref_agent:features",
-    "experiences":"current_dataloader:sample:speaker_experiences", 
-    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
-    "indices":"current_dataloader:sample:speaker_indices", 
-  }
-  speaker_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
-    id=speaker_modularity_disentanglement_metric_id,
-    input_stream_ids=speaker_modularity_disentanglement_metric_input_stream_ids,
-    config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-      "epoch_period":args.metric_epoch_period,
-      "batch_size":64,#5,
-      "nbr_train_points":args.nbr_train_points,#3000,
-      "nbr_eval_points":args.nbr_eval_points,#2000,
-      "resample": args.metric_resampling,
-      "threshold":5e-2,#0.0,#1.0,
-      "random_state_seed":args.seed,
-      "verbose":False,
-      "active_factors_only":True,
-    }
-  )
-  modules[speaker_modularity_disentanglement_metric_id] = speaker_modularity_disentanglement_metric_module
-
-  # Modularity:
-  listener_modularity_disentanglement_metric_id = "listener_modularity_disentanglement_metric"
-  listener_modularity_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_listener:ref:ref_agent:features",
-    "experiences":"current_dataloader:sample:listener_experiences", 
-    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
-    "indices":"current_dataloader:sample:listener_indices", 
-  }
-  listener_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
-    id=listener_modularity_disentanglement_metric_id,
-    input_stream_ids=listener_modularity_disentanglement_metric_input_stream_ids,
-    config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-      "epoch_period":args.metric_epoch_period,
-      "batch_size":64,#5,
-      "nbr_train_points":args.nbr_train_points,#3000,
-      "nbr_eval_points":args.nbr_eval_points,#2000,
-      "resample": args.metric_resampling,
-      "threshold":5e-2,#0.0,#1.0,
-      "random_state_seed":args.seed,
-      "verbose":False,
-      "active_factors_only":True,
-    }
-  )
-  modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
 
   inst_coord_metric_id = "inst_coord_metric"
   inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(id=inst_coord_metric_id,
@@ -1078,35 +1220,556 @@ def main():
       }
     )
     modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
-
-  speaker_factor_vae_disentanglement_metric_id = "speaker_factor_vae_disentanglement_metric"
-  speaker_factor_vae_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_speaker:ref:ref_agent:features",
+  """
+  
+  speaker_posbosdis_disentanglement_metric_id = "speaker_posbosdis_disentanglement_metric"
+  speaker_posbosdis_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
     "experiences":"current_dataloader:sample:speaker_experiences", 
     "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
     "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
     "indices":"current_dataloader:sample:speaker_indices", 
   }
-  speaker_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
-    id=speaker_factor_vae_disentanglement_metric_id,
-    input_stream_ids=speaker_factor_vae_disentanglement_metric_input_stream_ids,
+
+  def preprocess_fn(x):
+    vocab_size = 10
+    ndim = x.shape[-1]
+    for didx in range(ndim):
+        x[:, ..., didx] = ndim*didx + x[:, ..., didx]
+    return x
+
+  speaker_posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+    id=speaker_posbosdis_disentanglement_metric_id,
+    input_stream_ids=speaker_posbosdis_disentanglement_metric_input_stream_ids,
     config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+      "postprocess_fn": preprocess_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": (lambda x: x),
       "epoch_period":args.metric_epoch_period,
       "batch_size":64,#5,
-      "nbr_train_points": args.nbr_train_points,#3000,
-      "nbr_eval_points": args.nbr_eval_points,#2000,
-      "resample": args.metric_resampling,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
       "threshold":5e-2,#0.0,#1.0,
       "random_state_seed":args.seed,
       "verbose":False,
       "active_factors_only":True,
     }
   )
-  modules[speaker_factor_vae_disentanglement_metric_id] = speaker_factor_vae_disentanglement_metric_module
+  modules[speaker_posbosdis_disentanglement_metric_id] = speaker_posbosdis_disentanglement_metric_module
 
+  #///
+
+  speaker_toposim_metric_id = "speaker_toposim_metric"
+  speaker_toposim_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    "features":f"modules:{pnsm_id}:output",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations_values":"current_dataloader:sample:speaker_exp_latents_values", 
+    "latent_representations_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  speaker_toposim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
+    id=speaker_toposim_metric_id,
+    input_stream_ids=speaker_toposim_metric_input_stream_ids,
+    config = {
+        "pvalue_significance_threshold": 0.5,
+        "parallel_TS_computation_max_workers":16,
+        #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+        "postprocess_fn": preprocess_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+        "preprocess_fn": (lambda x: x),
+        # not necessary if providing a preprocess_fn, 
+        # that computes the features/_sense output, but here it is in order to deal with shapes:
+        #"features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+        "epoch_period":args.metric_epoch_period,
+        "batch_size":64,#5,
+        "nbr_train_points":args.nbr_train_points,#3000,
+        "nbr_eval_points":args.nbr_eval_points,#2000,
+        #"resample":False,
+        "resample":True,
+        "threshold":5e-2,#0.0,#1.0,
+        "random_state_seed":args.seed,
+        "verbose":False,
+        "active_factors_only":True,
+    }
+  )
+  modules[speaker_toposim_metric_id] = speaker_toposim_metric_module
+
+  #///////////////////////////////////////////////////
+
+
+  # Testing for the case where all symbols encode for the same attribute
+  # (or in this case for only 2/10 attributes in a repeated fashion) :
+  # Should see a difference between MIG formulation (summing over attribute gaps)
+  # and PosBosDis formulation (summing over representation's dim gaps):
+  speaker_same_posbosdis_disentanglement_metric_id = "speaker_same_posbosdis_disentanglement_metric"
+  speaker_same_posbosdis_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  def preprocess_same_fn(x):
+    ndim = x.shape[-1]
+    for didx in range(2,ndim):
+        if didx % 2:
+            x[:, ..., didx] = x[:, ..., 0]
+        else:
+            x[:, ..., didx] = x[:, ..., 1]
+    return x
+
+  speaker_same_posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+    id=speaker_same_posbosdis_disentanglement_metric_id,
+    input_stream_ids=speaker_same_posbosdis_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": preprocess_same_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": (lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_same_posbosdis_disentanglement_metric_id] = speaker_same_posbosdis_disentanglement_metric_module
+
+  #/////
+
+  speaker_same_toposim_metric_id = "speaker_same_toposim_metric"
+  speaker_same_toposim_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    "features":f"modules:{pnsm_id}:output",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations_values":"current_dataloader:sample:speaker_exp_latents_values", 
+    "latent_representations_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  speaker_same_toposim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
+    id=speaker_same_toposim_metric_id,
+    input_stream_ids=speaker_same_toposim_metric_input_stream_ids,
+    config = {
+        "pvalue_significance_threshold": 0.5,
+        "parallel_TS_computation_max_workers":16,
+        #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+        "postprocess_fn": preprocess_same_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+        "preprocess_fn": (lambda x: x),
+        # not necessary if providing a preprocess_fn, 
+        # that computes the features/_sense output, but here it is in order to deal with shapes:
+        #"features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+        "epoch_period":args.metric_epoch_period,
+        "batch_size":64,#5,
+        "nbr_train_points":args.nbr_train_points,#3000,
+        "nbr_eval_points":args.nbr_eval_points,#2000,
+        #"resample":False,
+        "resample":True,
+        "threshold":5e-2,#0.0,#1.0,
+        "random_state_seed":args.seed,
+        "verbose":False,
+        "active_factors_only":True,
+    }
+  )
+  modules[speaker_same_toposim_metric_id] = speaker_same_toposim_metric_module
+
+  #///////////////////////////////////////////////////
+
+
+
+  # shuffle :
+  speaker_shuffle_posbosdis_disentanglement_metric_id = "speaker_shuffle_posbosdis_disentanglement_metric"
+  speaker_shuffle_posbosdis_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    #"latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_shuffle_posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+    id=speaker_shuffle_posbosdis_disentanglement_metric_id,
+    input_stream_ids=speaker_shuffle_posbosdis_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": (lambda x: x), #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": (lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_shuffle_posbosdis_disentanglement_metric_id] = speaker_shuffle_posbosdis_disentanglement_metric_module
+
+
+  #///
+
+  speaker_shuffle_toposim_metric_id = "speaker_shuffle_toposim_metric"
+  speaker_shuffle_toposim_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    "features":f"modules:{psm_id}:output",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations_values":"current_dataloader:sample:speaker_exp_latents_values", 
+    "latent_representations_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  speaker_shuffle_toposim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
+    id=speaker_shuffle_toposim_metric_id,
+    input_stream_ids=speaker_shuffle_toposim_metric_input_stream_ids,
+    config = {
+        "pvalue_significance_threshold": 0.5,
+        "parallel_TS_computation_max_workers":16,
+        #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+        "postprocess_fn": (lambda x: x),  #(lambda x: x["sentences_widx"].cpu().numpy())
+        "preprocess_fn": (lambda x: x),
+        # not necessary if providing a preprocess_fn, 
+        # that computes the features/_sense output, but here it is in order to deal with shapes:
+        #"features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+        "epoch_period":args.metric_epoch_period,
+        "batch_size":64,#5,
+        "nbr_train_points":args.nbr_train_points,#3000,
+        "nbr_eval_points":args.nbr_eval_points,#2000,
+        #"resample":False,
+        "resample":True,
+        "threshold":5e-2,#0.0,#1.0,
+        "random_state_seed":args.seed,
+        "verbose":False,
+        "active_factors_only":True,
+    }
+  )
+  modules[speaker_shuffle_toposim_metric_id] = speaker_shuffle_toposim_metric_module
+
+  #///////////////////////////////////////////////////
+
+  # testing Bosdis being unaffected by shuffling symbols position 
+  # when "symbols univocally refer to distinct input elements" [Chaabouni et al. 2020]:
+  # shuffle :
+  speaker_distinct_shuffle_posbosdis_disentanglement_metric_id = "speaker_distinct_shuffle_posbosdis_disentanglement_metric"
+  speaker_distinct_shuffle_posbosdis_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    #"latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_distinct_shuffle_posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+    id=speaker_distinct_shuffle_posbosdis_disentanglement_metric_id,
+    input_stream_ids=speaker_distinct_shuffle_posbosdis_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": (lambda x: x), #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": preprocess_fn, #(lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_distinct_shuffle_posbosdis_disentanglement_metric_id] = speaker_distinct_shuffle_posbosdis_disentanglement_metric_module
+
+  #///
+
+  speaker_distinct_shuffle_toposim_metric_id = "speaker_distinct_shuffle_toposim_metric"
+  speaker_distinct_shuffle_toposim_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    "features":f"modules:{psm_id}:output",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations_values":"current_dataloader:sample:speaker_exp_latents_values", 
+    "latent_representations_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  speaker_distinct_shuffle_toposim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
+    id=speaker_distinct_shuffle_toposim_metric_id,
+    input_stream_ids=speaker_distinct_shuffle_toposim_metric_input_stream_ids,
+    config = {
+        "pvalue_significance_threshold": 0.5,
+        "parallel_TS_computation_max_workers":16,
+        #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+        "postprocess_fn": (lambda x: x),  #(lambda x: x["sentences_widx"].cpu().numpy())
+        "preprocess_fn": preprocess_fn,
+        # not necessary if providing a preprocess_fn, 
+        # that computes the features/_sense output, but here it is in order to deal with shapes:
+        #"features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+        "epoch_period":args.metric_epoch_period,
+        "batch_size":64,#5,
+        "nbr_train_points":args.nbr_train_points,#3000,
+        "nbr_eval_points":args.nbr_eval_points,#2000,
+        #"resample":False,
+        "resample":True,
+        "threshold":5e-2,#0.0,#1.0,
+        "random_state_seed":args.seed,
+        "verbose":False,
+        "active_factors_only":True,
+    }
+  )
+  modules[speaker_distinct_shuffle_toposim_metric_id] = speaker_distinct_shuffle_toposim_metric_module
+
+  #///////////////////////////////////////////////////
+
+  # Modularity:
+  speaker_modularity_disentanglement_metric_id = "speaker_modularity_disentanglement_metric"
+  speaker_modularity_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
+    id=speaker_modularity_disentanglement_metric_id,
+    input_stream_ids=speaker_modularity_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": (lambda x: x),
+      "preprocess_fn": (lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_modularity_disentanglement_metric_id] = speaker_modularity_disentanglement_metric_module
+
+  # Testing for the case where all symbols encode for the same attribute
+  # (or in this case for only 2/10 attributes in a repeated fashion) :
+  # Should see a difference between MIG formulation (summing over attribute gaps)
+  # and PosBosDis formulation (summing over representation's dim gaps). 
+  # In the below, we expect the Modularity metric to NOT differentiate them:
+  speaker_same_modularity_disentanglement_metric_id = "speaker_same_modularity_disentanglement_metric"
+  speaker_same_modularity_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  def preprocess_same_fn(x):
+    ndim = x.shape[-1]
+    for didx in range(2,ndim):
+        if didx % 2:
+            x[:, ..., didx] = x[:, ..., 0]
+        else:
+            x[:, ..., didx] = x[:, ..., 1]
+    return x
+
+  speaker_same_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
+    id=speaker_same_modularity_disentanglement_metric_id,
+    input_stream_ids=speaker_same_modularity_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": preprocess_same_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": (lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_same_modularity_disentanglement_metric_id] = speaker_same_modularity_disentanglement_metric_module
+  
+  # shuffle :
+  speaker_shuffle_modularity_disentanglement_metric_id = "speaker_shuffle_modularity_disentanglement_metric"
+  speaker_shuffle_modularity_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    #"latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_shuffle_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
+    id=speaker_shuffle_modularity_disentanglement_metric_id,
+    input_stream_ids=speaker_shuffle_modularity_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_shuffle_modularity_disentanglement_metric_id] = speaker_shuffle_modularity_disentanglement_metric_module
+
+
+
+
+
+  # Mutual Information Gap:
+  speaker_mig_disentanglement_metric_id = "speaker_mig_disentanglement_metric"
+  speaker_mig_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
+    id=speaker_mig_disentanglement_metric_id,
+    input_stream_ids=speaker_mig_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      #"nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_mig_disentanglement_metric_id] = speaker_mig_disentanglement_metric_module
+
+  # Testing for the case where all symbols encode for the same attribute
+  # (or in this case for only 2/10 attributes in a repeated fashion) :
+  # Should see a difference between MIG formulation (summing over attribute gaps)
+  # and PosBosDis formulation (summing over representation's dim gaps). In the below, we expect the MIG metric
+  # to differentiate too:
+  speaker_same_mig_disentanglement_metric_id = "speaker_same_mig_disentanglement_metric"
+  speaker_same_mig_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{pnsm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{pnsm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+
+  def preprocess_same_fn(x):
+    ndim = x.shape[-1]
+    for didx in range(2,ndim):
+        if didx % 2:
+            x[:, ..., didx] = x[:, ..., 0]
+        else:
+            x[:, ..., didx] = x[:, ..., 1]
+    return x
+
+  speaker_same_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
+    id=speaker_same_mig_disentanglement_metric_id,
+    input_stream_ids=speaker_same_mig_disentanglement_metric_input_stream_ids,
+    config = {
+      "postprocess_fn": preprocess_same_fn,  #(lambda x: x["sentences_widx"].cpu().numpy())
+      "preprocess_fn": (lambda x: x),
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      "nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_same_mig_disentanglement_metric_id] = speaker_same_mig_disentanglement_metric_module
+  
+  # shuffle :
+  speaker_shuffle_mig_disentanglement_metric_id = "speaker_shuffle_mig_disentanglement_metric"
+  speaker_shuffle_mig_disentanglement_metric_input_stream_ids = {
+    #"model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+    "model":f"modules:{psm_id}:ref",
+    #"representations":"modules:current_speaker:ref:ref_agent:features",
+    "representations":f"modules:{psm_id}:output",
+    "experiences":"current_dataloader:sample:speaker_experiences", 
+    #"latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+    "indices":"current_dataloader:sample:speaker_indices", 
+  }
+  speaker_shuffle_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
+    id=speaker_shuffle_mig_disentanglement_metric_id,
+    input_stream_ids=speaker_shuffle_mig_disentanglement_metric_input_stream_ids,
+    config = {
+      "epoch_period":args.metric_epoch_period,
+      "batch_size":64,#5,
+      "nbr_train_points":args.nbr_train_points,#3000,
+      #"nbr_eval_points":args.nbr_eval_points,#2000,
+      #"resample":False,
+      "resample":True,
+      "threshold":5e-2,#0.0,#1.0,
+      "random_state_seed":args.seed,
+      "verbose":False,
+      "active_factors_only":True,
+    }
+  )
+  modules[speaker_shuffle_mig_disentanglement_metric_id] = speaker_shuffle_mig_disentanglement_metric_module
+
+  
+  """
   listener_factor_vae_disentanglement_metric_id = "listener_factor_vae_disentanglement_metric"
   listener_factor_vae_disentanglement_metric_input_stream_ids = {
     "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
@@ -1120,13 +1783,11 @@ def main():
     id=listener_factor_vae_disentanglement_metric_id,
     input_stream_ids=listener_factor_vae_disentanglement_metric_input_stream_ids,
     config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
       "epoch_period":args.metric_epoch_period,
       "batch_size":64,#5,
-      "nbr_train_points": args.nbr_train_points,#3000,
-      "nbr_eval_points": args.nbr_eval_points,#2000,
-      "resample": args.metric_resampling,
+      "nbr_train_points":10000,#3000,
+      "nbr_eval_points":5000,#2000,
+      "resample":False,
       "threshold":5e-2,#0.0,#1.0,
       "random_state_seed":args.seed,
       "verbose":False,
@@ -1134,98 +1795,74 @@ def main():
     }
   )
   modules[listener_factor_vae_disentanglement_metric_id] = listener_factor_vae_disentanglement_metric_module
-
-  # Mutual Information Gap:
-  speaker_mig_disentanglement_metric_id = "speaker_mig_disentanglement_metric"
-  speaker_mig_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_speaker:ref:ref_agent:features",
-    "experiences":"current_dataloader:sample:speaker_experiences", 
-    "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
-    "indices":"current_dataloader:sample:speaker_indices", 
-  }
-  speaker_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
-    id=speaker_mig_disentanglement_metric_id,
-    input_stream_ids=speaker_mig_disentanglement_metric_input_stream_ids,
-    config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-      "epoch_period":args.metric_epoch_period,
-      "batch_size":64,#5,
-      "nbr_train_points":args.nbr_train_points,#3000,
-      "nbr_eval_points":args.nbr_eval_points,#2000,
-      "resample":args.metric_resampling,
-      "threshold":5e-2,#0.0,#1.0,
-      "random_state_seed":args.seed,
-      "verbose":False,
-      "active_factors_only":True,
-    }
-  )
-  modules[speaker_mig_disentanglement_metric_id] = speaker_mig_disentanglement_metric_module
-
-
-  listener_mig_disentanglement_metric_id = "listener_mig_disentanglement_metric"
-  listener_mig_disentanglement_metric_input_stream_ids = {
-    "model":"modules:current_listener:ref:ref_agent:cnn_encoder",
-    "representations":"modules:current_listener:ref:ref_agent:features",
-    "experiences":"current_dataloader:sample:listener_experiences", 
-    "latent_representations":"current_dataloader:sample:listener_exp_latents", 
-    "indices":"current_dataloader:sample:listener_indices", 
-  }
-  listener_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
-    id=listener_mig_disentanglement_metric_id,
-    input_stream_ids=listener_mig_disentanglement_metric_input_stream_ids,
-    config = {
-      "postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-      "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-      "epoch_period":args.metric_epoch_period,
-      "batch_size":64,#5,
-      "nbr_train_points":args.nbr_train_points,#3000,
-      "nbr_eval_points":args.nbr_eval_points,#2000,
-      "resample":args.metric_resampling,
-      "threshold":5e-2,#0.0,#1.0,
-      "random_state_seed":args.seed,
-      "verbose":False,
-      "active_factors_only":True,
-    }
-  )
-  modules[listener_mig_disentanglement_metric_id] = listener_mig_disentanglement_metric_module
+  """
 
   logger_id = "per_epoch_logger"
   logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
   modules[logger_id] = logger_module
 
-  if args.use_obverter_sampling:
-    pipelines["referential_game"] = [obverter_sampling_id]
-  else:
-    pipelines["referential_game"] = []
+  pipelines["referential_game"] = []
 
+  """
   pipelines["referential_game"] += [
     population_handler_id,
     current_speaker_id,
     current_listener_id
   ]
+  """
 
+  """
   pipelines[optim_id] = []
   if args.homoscedastic_multitasks_loss:
     pipelines[optim_id].append(homo_id)
   pipelines[optim_id].append(optim_id)
   """
+  pipelines[speaker_posbosdis_disentanglement_metric_id] = []
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id] = []
+  
+  pipelines[speaker_modularity_disentanglement_metric_id] = []
+  pipelines[speaker_shuffle_modularity_disentanglement_metric_id] = []
+  
+  """
   # Add gradient recorder module for debugging purposes:
   pipelines[optim_id].append(grad_recorder_id)
   """
-  pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
-  pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
-  pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
-  pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
-  pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
-  pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
+  pipelines[speaker_posbosdis_disentanglement_metric_id].append(pnsm_id)
+  pipelines[speaker_posbosdis_disentanglement_metric_id].append(speaker_posbosdis_disentanglement_metric_id)
+  pipelines[speaker_posbosdis_disentanglement_metric_id].append(speaker_same_posbosdis_disentanglement_metric_id)
   
-  pipelines[optim_id].append(topo_sim_metric_id)
-  pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
-  pipelines[optim_id].append(inst_coord_metric_id)
-  if 'dSprites' in args.dataset:  pipelines[optim_id].append(dsprites_latent_metric_id)
-  pipelines[optim_id].append(logger_id)
+  pipelines[speaker_posbosdis_disentanglement_metric_id].append(speaker_toposim_metric_id)
+  pipelines[speaker_posbosdis_disentanglement_metric_id].append(speaker_same_toposim_metric_id)
+  
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id].append(psm_id)
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id].append(speaker_shuffle_posbosdis_disentanglement_metric_id)
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id].append(speaker_distinct_shuffle_posbosdis_disentanglement_metric_id)
+  
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id].append(speaker_shuffle_toposim_metric_id)
+  pipelines[speaker_shuffle_posbosdis_disentanglement_metric_id].append(speaker_distinct_shuffle_toposim_metric_id)
+  
+
+
+  pipelines[speaker_modularity_disentanglement_metric_id].append(pnsm_id)
+  pipelines[speaker_modularity_disentanglement_metric_id].append(speaker_modularity_disentanglement_metric_id)
+  pipelines[speaker_modularity_disentanglement_metric_id].append(speaker_same_modularity_disentanglement_metric_id)
+  
+  # MIG:
+  pipelines[speaker_modularity_disentanglement_metric_id].append(speaker_mig_disentanglement_metric_id)
+  pipelines[speaker_modularity_disentanglement_metric_id].append(speaker_same_mig_disentanglement_metric_id)
+  
+  pipelines[speaker_shuffle_modularity_disentanglement_metric_id].append(psm_id)
+  pipelines[speaker_shuffle_modularity_disentanglement_metric_id].append(speaker_shuffle_modularity_disentanglement_metric_id)
+  # MIG:
+  pipelines[speaker_shuffle_modularity_disentanglement_metric_id].append(speaker_shuffle_mig_disentanglement_metric_id)
+  
+  
+  #pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+  #pipelines[optim_id].append(topo_sim_metric_id)
+  #pipelines[optim_id].append(inst_coord_metric_id)
+  #if 'dSprites' in args.dataset:  pipelines[optim_id].append(dsprites_latent_metric_id)
+  
+  pipelines[logger_id] = [logger_id]
 
   rg_config["modules"] = modules
   rg_config["pipelines"] = pipelines
@@ -1245,8 +1882,6 @@ def main():
       "descriptive":              rg_config["descriptive"],
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
-
-  rg_config['use_priority'] = args.use_priority
 
   if args.restore:
     refgame = ReferentialGym.make(
