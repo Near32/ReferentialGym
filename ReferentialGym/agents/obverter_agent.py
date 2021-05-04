@@ -155,7 +155,6 @@ class ObverterAgent(DiscriminativeListener):
         if 'mhdpa_interaction_dim' in self.kwargs: MHDPAInteractionDim = self.kwargs['mhdpa_interaction_dim']
 
         if 'cnn_encoder' in self.kwargs:
-            import ipdb; ipdb.set_trace()
             self.cnn_encoder = self.kwargs['cnn_encoder']
         else:
             self.cnn_encoder = choose_architecture(architecture=self.kwargs['architecture'],
@@ -240,7 +239,6 @@ class ObverterAgent(DiscriminativeListener):
             else:
                 self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
         else:
-            import ipdb; ipdb.set_trace()
             self.vocab_stop_idx = self.vocab_size
             #self.vocab_size += 2
             self.symbol_encoder = nn.Embedding(
