@@ -579,13 +579,11 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.latents_values = np.asarray(dataset['latents_values'])
         #(color, shape, sample_id) :
         self.latents_classes = np.asarray(dataset['latents_classes'])
-        import ipdb; ipdb.set_trace()
-        # check shape ohe to be size x dim :
         self.latents_one_hot = np.asarray(dataset['latents_one_hot'])
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         
         self.imgs = dataset['imgs']
-        
+
         self.targets = np.zeros(len(self.latents_classes))
         for idx, latent_cls in enumerate(self.latents_classes):
             color = latent_cls[0]
@@ -882,7 +880,10 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.targets = self.targets[self.indices]
         """
 
-        self.imgs = self.imgs[self.traintest_indices]
+        if len(self.imgs)==0:
+            self._generate_all()
+        
+        self.imgs = {enumidx: self.imgs[idx] for enumidx,idx in enumerate(self.traintest_indices)}
         self.latents_values = self.latents_values[self.traintest_indices]
         self.latents_classes = self.latents_classes[self.traintest_indices]
         self.latents_one_hot = self.latents_one_hot[self.traintest_indices]
@@ -891,7 +892,6 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.targets = self.targets[self.traintest_indices]
         
 
-        #self._generate_all()
         self.same_color_indices = {}
         self.same_shape_indices = {}
         self.latents_to_possible_indices = {}

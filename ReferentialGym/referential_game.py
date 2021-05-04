@@ -220,7 +220,7 @@ class ReferentialGame(object):
                     batch_size=self.config['batch_size'],
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    #num_workers=self.config['dataloader_num_worker'],
+                    num_workers=self.config['dataloader_num_worker'],
                     sampler=pbs,
                 )
             else:
@@ -230,7 +230,7 @@ class ReferentialGame(object):
                     shuffle=True,
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    #num_workers=self.config['dataloader_num_worker']
+                    num_workers=self.config['dataloader_num_worker']
                 )
             
         print("Create dataloader: OK.")
