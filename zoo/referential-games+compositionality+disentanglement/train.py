@@ -336,6 +336,10 @@ def main():
   
   
   args = parser.parse_args()
+
+  if args.obverter_sampling_round_alternation_only:
+    args.use_obverter_sampling = True 
+  
   print(args)
   
   gaussian = args.vae_gaussian 
