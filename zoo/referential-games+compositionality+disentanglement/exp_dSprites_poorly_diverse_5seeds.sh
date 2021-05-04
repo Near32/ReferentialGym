@@ -7,6 +7,7 @@
 # $6==OBJECT_CENTRIC (""/"--object_centric")
 # $7==SHARED_ARCH (""/"--shared_architecture")
 # $8==GRAPHTYPE ("straight_through_gumbel_softmax"/"obverter")
+# $9==SAMPLING (""/"--obverter_sampling_round_alternation_only")
 
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
@@ -24,7 +25,7 @@ python -m ipdb -c c train.py \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --with_baseline --vae_factor_gamma $5 \
 --descriptive --descriptive_ratio 0.5 \
-$6 $7 \
+$6 $7 $9 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset dSprites \
 --train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N 

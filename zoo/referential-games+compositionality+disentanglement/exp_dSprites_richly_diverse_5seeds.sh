@@ -7,6 +7,7 @@
 # $6==OBJECT_CENTRIC (""/"--object_centric")
 # $7==SHARED_ARCH (""/"--shared_architecture")
 # $8==GRAPHTYPE ("straight_through_gumbel_softmax"/"obverter")
+# $9==SAMPLING (""/"--obverter_sampling_round_alternation_only")
 
 python -m ipdb -c c train.py \
 --parent_folder ./RichlyDiverseStimuli \
@@ -19,12 +20,12 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors 0 --nbr_test_distractors 0 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type NLL --graphtype $8 \
---metric_epoch_period 50 --nbr_train_points 4000 --nbr_eval_points 200 --metric_batch_size 16 \
+--metric_epoch_period 50 --nbr_train_points 4000 --nbr_eval_points 2000 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --with_baseline --vae_factor_gamma $5 \
 --descriptive --descriptive_ratio 0.5 \
-$6 $7 \
+$6 $7 $9 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset dSprites \
 --train_test_split_strategy combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N 
