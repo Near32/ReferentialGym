@@ -339,7 +339,7 @@ def main():
 
   if args.obverter_sampling_round_alternation_only:
     args.use_obverter_sampling = True 
-  
+
   print(args)
   
   gaussian = args.vae_gaussian 
@@ -1614,6 +1614,7 @@ def main():
     modules[listener_inst_coord_metric_id] = listener_inst_coord_metric_module
   
 
+  """
   if 'dSprites' in args.dataset:
     if not args.baseline_only:
       dsprites_latent_metric_id = "dsprites_latent_metric"
@@ -1623,7 +1624,8 @@ def main():
         }
       )
       modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
-
+  """
+  
     """
     if args.with_baseline:
       raise NotImplementedError
@@ -1950,14 +1952,14 @@ def main():
     pipelines[optim_id].append(baseline_vm_latent_traversal_id)
   """
 
+  """
   if 'dSprites' in args.dataset \
   and not args.baseline_only:  
     pipelines[optim_id].append(dsprites_latent_metric_id)
 
-    """
     if args.with_baseline:
       pipelines[optim_id].append(baseline_dsprites_latent_metric)      
-    """
+  """
 
   pipelines[optim_id].append(logger_id)
 
