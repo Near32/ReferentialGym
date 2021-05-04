@@ -496,7 +496,6 @@ class ConvolutionalBody(nn.Module):
         self.cnn = []
         dim = input_shape[1] # height
         in_ch = channels[0]
-        import ipdb; ipdb.set_trace()
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             conv_fn = original_conv_fn
             if isinstance(cfg, str) and cfg == 'MP':

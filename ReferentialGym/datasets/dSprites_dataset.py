@@ -369,9 +369,9 @@ class dSpritesDataset(Dataset) :
         Sample a batch of factors Y.
         """
         if random_state is not None:
-            factors_indices = random_state.choice(self.indices, size=(num,), replace=True)
+            factors_indices = random_state.choice(list(range(len(self.traintest_indices))), size=(num,), replace=True)
         else:
-            factors_indices = np.random.choice(self.indices, size=(num,), replace=True)
+            factors_indices = np.random.choice(list(range(len(self.traintest_indices))), size=(num,), replace=True)
         
         factors = np.stack(self.latents_classes[factors_indices], axis=0)
 

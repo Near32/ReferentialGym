@@ -1,4 +1,4 @@
-from typing import Dict, List 
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -158,7 +158,7 @@ class FactorVAEDisentanglementMetricModule(Module):
         if self.config["active_factors_only"]:
             factor_index = np.random.choice(self.active_latent_dims)
         else:
-            factor_index = self.random_state.randint(self.nbr_factors)
+            factor_index = np.random.choice(list(range(self.nbr_factors)))#self.random_state.randint(self.nbr_factors)
         
         if self.config["resample"]:
             # Sample two mini batches of latent variables.
@@ -217,6 +217,48 @@ class FactorVAEDisentanglementMetricModule(Module):
 
         return factor_index, argmin
 
+    def _compute_global_variances(self, model:object, dataset:object, nbr_points:int, batch_size:int=64) -> Tuple[object, object]:
+        if self.config['resample']:
+            latent_representations = []
+            representations = []
+            for _ in range((nbr_points//batch_size)+1):
+                # Sample two mini batches of latent variables.
+                factors = dataset.sample_factors(
+                    batch_size, 
+                    random_state=None, #self.random_state
+                )
+
+                # Obtain the observations.
+                observations = dataset.sample_observations_from_factors(
+                  factors, 
+                  random_state=None, #self.random_state
+                )
+                
+                if "preprocess_fn" in self.config:
+                    observations = self.config["preprocess_fn"](observations)
+
+                if hasattr(model,"encodeZ"):
+                    relevant_representations = model.encodeZ(observations)
+                else:
+                    relevant_representations = model(observations)
+
+                if "postprocess_fn" in self.config:
+                    relevant_representations = self.config["postprocess_fn"](relevant_representations)
+
+                latent_representations.append(factors)
+                representations.append(relevant_representations)
+
+            representations = np.vstack(representations)
+            latent_representations = np.vstack(latent_representations)
+        else:
+            representations = self.representations
+            latent_representations = self.latent_representations
+        
+        global_variances = np.var(representations, axis=0, ddof=1)
+        latent_global_variances = np.var(latent_representations, axis=0, ddof=1)
+
+        return global_variances, latent_global_variances
+    
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
@@ -263,11 +305,17 @@ class FactorVAEDisentanglementMetricModule(Module):
                 
                 model = input_streams_dict["model"]
                 mode = input_streams_dict["mode"]
+                model.eval()
+                
                 dataset = input_streams_dict["dataset"].datasets[mode]
                 logger = input_streams_dict["logger"]
 
-                global_variances = np.var(self.representations, axis=0, ddof=1)
-                latent_global_variances = np.var(self.latent_representations, axis=0, ddof=1)
+                global_variances, latent_global_variances = self._compute_global_variances(
+                    model=model,
+                    dataset=dataset,
+                    batch_size=self.config["batch_size"],
+                    nbr_points=self.config["nbr_train_points"],
+                )
 
                 active_dims = self._prune_dims(global_variances)
                 self.active_latent_dims = [idx for idx, var in enumerate(latent_global_variances)
@@ -279,7 +327,6 @@ class FactorVAEDisentanglementMetricModule(Module):
                     scores_dict["eval_accuracy"] = 0.
                     scores_dict["num_active_dims"] = 0
                 else:
-                    model.eval()
                     training_votes = self._generate_training_batch(
                         dataset=dataset,
                         model=model, 
@@ -287,7 +334,6 @@ class FactorVAEDisentanglementMetricModule(Module):
                         nbr_points=self.config["nbr_train_points"], 
                         global_variances=global_variances, 
                         active_dims=active_dims)
-                    model.train()
                     
                     classifier = np.argmax(training_votes, axis=0)
                     other_index = np.arange(training_votes.shape[1])
@@ -335,6 +381,8 @@ class FactorVAEDisentanglementMetricModule(Module):
                 self.latent_values_representations = []
                 self.representations_indices = []
                 self.indices = []
+
+                model.train()
             
         return outputs_stream_dict
     

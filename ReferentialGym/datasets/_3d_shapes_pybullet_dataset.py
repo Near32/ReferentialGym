@@ -782,6 +782,7 @@ class _3DShapesPyBulletDataset(Dataset) :
             self.offset = 0
 
         self.indices = []
+        self.traintest_indices = []
         if self.split_strategy is None or 'divider' in self.split_strategy:
             for idx in range(len(self.latents_values)):
                 if idx % self.divider == self.offset:
@@ -790,8 +791,9 @@ class _3DShapesPyBulletDataset(Dataset) :
             self.train_ratio = 0.8
             # Shuffled:
             np.random.shuffle(np.asarray(self.indices))
-            
             end = int(len(self.indices)*self.train_ratio)
+            
+            self.traintest_indices = copy.deepcopy(self.indices)
             if self.train:
                 self.indices = self.indices[:end]
             else:
@@ -836,14 +838,17 @@ class _3DShapesPyBulletDataset(Dataset) :
                 if skip_it: continue
 
 
+                self.traintest_indices.append(idx)
                 if self.train:
                     if len(counter_test) >= effective_test_threshold:#self.counter_test_threshold:
                         continue
                     else:
-                        self.indices.append(idx)
+                        self.indices.append(len(self.traintest_indices)-1)
+                        #self.indices.append(idx)
                 else:
                     if len(counter_test) >= effective_test_threshold:#self.counter_test_threshold:
-                        self.indices.append(idx)
+                        self.indices.append(len(self.traintest_indices)-1)
+                        #self.indices.append(idx)
                     else:
                         continue
 
@@ -855,7 +860,6 @@ class _3DShapesPyBulletDataset(Dataset) :
                 "No valid data, maybe try a smaller divider..."
 
         elif 'compositional' in self.split_strategy:
-            self.indices = []
             for idx in range(self.latents_classes.shape[0]):
                 shape_id = self.latents_classes[idx][1]
                 color_id = self.latents_classes[idx][0]
@@ -863,8 +867,9 @@ class _3DShapesPyBulletDataset(Dataset) :
                 color_selection = self.training_shape_2_possible_colors
                 if not(self.train): color_selection = self.testing_shape_2_possible_colors
                 
+                self.traintest_indices.append(idx)
                 if color_id in color_selection[shape_id]:
-                    self.indices.append(idx)
+                    self.indices.append(len(self.traintest_indices)-1)
 
             print(f"Dataset Size: {len(self.indices)} out of {len(self.latents_values)}: {100*len(self.indices)/len(self.latents_values)}%.")
 
@@ -876,6 +881,15 @@ class _3DShapesPyBulletDataset(Dataset) :
         self.test_latents_mask = self.test_latents_mask[self.indices]
         self.targets = self.targets[self.indices]
         """
+
+        self.imgs = self.imgs[self.traintest_indices]
+        self.latents_values = self.latents_values[self.traintest_indices]
+        self.latents_classes = self.latents_classes[self.traintest_indices]
+        self.latents_one_hot = self.latents_one_hot[self.traintest_indices]
+        
+        self.test_latents_mask = self.test_latents_mask[self.traintest_indices]
+        self.targets = self.targets[self.traintest_indices]
+        
 
         #self._generate_all()
         self.same_color_indices = {}
@@ -914,9 +928,9 @@ class _3DShapesPyBulletDataset(Dataset) :
         Sample a batch of factors Y.
         """
         if random_state is not None:
-            factors_indices = random_state.choice(self.indices, size=(num,), replace=True)
+            factors_indices = random_state.choice(list(range(len(self.traintest_indices))), size=(num,), replace=True)
         else:
-            factors_indices = np.random.choice(self.indices, size=(num,), replace=True)
+            factors_indices = np.random.choice(list(range(len(self.traintest_indices))), size=(num,), replace=True)
         
         factors = np.stack(self.latents_classes[factors_indices], axis=0)
 
@@ -944,8 +958,6 @@ class _3DShapesPyBulletDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
 
-        import ipdb; ipdb.set_trace()
-        # check that factors ohe are as expected give factors:
         latents_ohe = [lohe for lohe in self.latents_one_hot[self.factors_indices]]
         
         return latents_ohe
