@@ -1614,8 +1614,9 @@ def main():
     modules[listener_inst_coord_metric_id] = listener_inst_coord_metric_module
   
 
-  """
   if 'dSprites' in args.dataset:
+    pass
+    """
     if not args.baseline_only:
       dsprites_latent_metric_id = "dsprites_latent_metric"
       dsprites_latent_metric_module = rg_modules.build_dSpritesPerLatentAccuracyMetricModule(id=dsprites_latent_metric_id,
@@ -1624,8 +1625,7 @@ def main():
         }
       )
       modules[dsprites_latent_metric_id] = dsprites_latent_metric_module
-  """
-  
+    """
     """
     if args.with_baseline:
       raise NotImplementedError
