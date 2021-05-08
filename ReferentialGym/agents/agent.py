@@ -23,7 +23,11 @@ def vae_loss_hook(agent,
     it_rep = input_streams_dict["it_rep"]
     it_comm_round = input_streams_dict["it_comm_round"]
     
-    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}/VAE_loss"] = [agent.kwargs["VAE_lambda"], agent.VAE_losses]
+    if isinstance(agent.VAE_losses, torch.Tensor):
+        import ipdb; ipdb.set_trace()
+        # check: just to make sure that the condition is okay...
+        # next time VAE is enabled, we must hit this.
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}/VAE_loss"] = [agent.kwargs["VAE_lambda"], agent.VAE_losses]
 
 def maxl1_loss_hook(agent,
                     losses_dict,

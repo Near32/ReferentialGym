@@ -158,7 +158,11 @@ class GenerativeListener(Listener):
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
         if experiences is not None:
-            features = self._sense(experiences=experiences, sentences=sentences)
+            features = self._sense(
+                experiences=experiences, 
+                sentences=sentences,
+                nominal_call=True,
+            )
         else:
             features = None 
 

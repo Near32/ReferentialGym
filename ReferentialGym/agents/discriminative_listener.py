@@ -190,7 +190,7 @@ def discriminative_obverter_referential_game_loss(
     decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
     # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
-    nbr_distractors_po = decision_logits.shape[-1]
+    nbr_distractors_po = decision_logits.shape[2]
 
     # (batch_size,) 
     sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
@@ -215,16 +215,35 @@ def discriminative_obverter_referential_game_loss(
     
     assert final_decision_logits.shape[1]==1
     target_decision_idx = sample["target_decision_idx"]
-    final_decision_logits = final_decision_logits.squeeze()
-    # (batch_size, 2)
     
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:
+            final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+            if nbr_distractors_po == 1:
+                final_decision_logits = final_decision_logits.squeeze()
+                # (batch_size, 2)
+            else:
+                # (batch_size, (nbr_distractors+1), 2)
+                isTarget_logits = final_decision_logits[...,0]
+                # (batch_size, (nbr_distractors+1))
+                isNotTarget_logit = final_decision_logits[...,1]
+                # (batch_size, (nbr_distractors+1))
+                #min_isNotTarget_logit = isNotTarget_logit.min(dim=-1, keepdim=True)[0]
+                #max_isNotTarget_logit = isNotTarget_logit.max(dim=-1, keepdim=True)[0]
+                mean_isNotTarget_logit = isNotTarget_logit.mean(dim=-1, keepdim=True)
+                # (batch_size, 1)
+                final_decision_logits = torch.cat([
+                    isTarget_logits,
+                    #min_isNotTarget_logit],
+                    #max_isNotTarget_logit],
+                    mean_isNotTarget_logit],
+                    dim=-1
+                )
+                # (batch_size, (nbr_distractors+2))
             decision_logits = final_decision_logits
-            # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
+            # (batch_size, (nbr_distractors+2) / 2)
             criterion = nn.NLLLoss(reduction="none")
             
-            #decision_logits = decision_logits[:,-1,...]
             loss = criterion( decision_logits, target_decision_idx)
             # (batch_size, )
             decision_probs = decision_logits.exp()
@@ -237,6 +256,7 @@ def discriminative_obverter_referential_game_loss(
             # (batch_size, )
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
+        
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
     elif config["agent_loss_type"].lower() == "ce":
@@ -794,7 +814,11 @@ class DiscriminativeListener(Listener):
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
         batch_size = experiences.size(0)
-        features = self._sense(experiences=experiences, sentences=sentences)
+        features = self._sense(
+            experiences=experiences, 
+            sentences=sentences,
+            nominal_call=True
+        )
         if sentences is not None:
             decision_logits, listener_temporal_features = self._reason(sentences=sentences, features=features)
         else:

@@ -181,7 +181,7 @@ class RNNCNNListener(DiscriminativeListener):
         '''
         raise NotImplementedError
 
-    def _sense(self, experiences, sentences=None):
+    def _sense(self, experiences, sentences=None, **kwargs):
         r"""
         Infers features from the experiences that have been provided.
 

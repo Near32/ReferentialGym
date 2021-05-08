@@ -221,6 +221,7 @@ def main():
   parser.add_argument("--lr", type=float, default=6e-4)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--dataloader_num_worker", type=int, default=8)
+  #parser.add_argument("--dataloader_num_worker", type=int, default=1)
  
   parser.add_argument("--metric_epoch_period", type=int, default=20)
   parser.add_argument("--nbr_train_points", type=int, default=3000)
@@ -230,7 +231,8 @@ def main():
   parser.add_argument("--dis_metric_resampling", action="store_true", default=False)
   parser.add_argument("--metric_fast", action="store_true", default=False)
   parser.add_argument("--metric_batch_size", type=int, default=8)
- 
+  parser.add_argument("--parallel_TS_worker", type=int, default=16)
+
   parser.add_argument("--batch_size", type=int, default=50)
   parser.add_argument("--mini_batch_size", type=int, default=256)
   parser.add_argument("--dropout_prob", type=float, default=0.0)
@@ -1259,7 +1261,7 @@ def main():
     topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule(
       id=topo_sim_metric_id,
       config = {
-        "parallel_TS_computation_max_workers":16,
+        "parallel_TS_computation_max_workers":args.parallel_TS_worker,
         "epoch_period":args.metric_epoch_period,
         "fast":args.metric_fast,
         "verbose":False,
@@ -1301,8 +1303,9 @@ def main():
     speaker_topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
       id=speaker_topo_sim_metric_id,
       config = {
-        "pvalue_significance_threshold": 0.5,
-        "parallel_TS_computation_max_workers":16,
+        "metric_fast": args.metric_fast,
+        "pvalue_significance_threshold": 0.05,
+        "parallel_TS_computation_max_workers":args.parallel_TS_worker,
         "filtering_fn":(lambda kwargs: speaker.role=="speaker"),
         #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
         # cf outputs of _utter:
@@ -1422,7 +1425,7 @@ def main():
         id=listener_topo_sim_metric_id,
         config = {
           "pvalue_significance_threshold": 0.5,
-          "parallel_TS_computation_max_workers":16,
+          "parallel_TS_computation_max_workers":args.parallel_TS_worker,
           "filtering_fn":(lambda kwargs: listener.role=="speaker"),
           #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
           # cf outputs of _utter:
@@ -1496,7 +1499,7 @@ def main():
       id=speaker_modularity_disentanglement_metric_id,
       input_stream_ids=speaker_modularity_disentanglement_metric_input_stream_ids,
       config = {
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn":(lambda kwargs: speaker.role=="speaker"),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         # dealing with extracting z (mu in pos 1):
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
@@ -1527,8 +1530,8 @@ def main():
       id=listener_modularity_disentanglement_metric_id,
       input_stream_ids=listener_modularity_disentanglement_metric_input_stream_ids,
       config = {
-        #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+        #"filtering_fn": (lambda kwargs: True),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
@@ -1672,8 +1675,8 @@ def main():
       id=speaker_factor_vae_disentanglement_metric_id,
       input_stream_ids=speaker_factor_vae_disentanglement_metric_input_stream_ids,
       config = {
-        #"filtering_fn": (lambda kwargs: speaker.role=="speaker"),
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn": (lambda kwargs: speaker.role=="speaker"),
+        #"filtering_fn": (lambda kwargs: True),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
@@ -1703,8 +1706,8 @@ def main():
       id=listener_factor_vae_disentanglement_metric_id,
       input_stream_ids=listener_factor_vae_disentanglement_metric_input_stream_ids,
       config = {
-        #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+        #"filtering_fn": (lambda kwargs: True),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
@@ -1734,8 +1737,8 @@ def main():
       id=speaker_mig_disentanglement_metric_id,
       input_stream_ids=speaker_mig_disentanglement_metric_input_stream_ids,
       config = {
-        #"filtering_fn": (lambda kwargs: speaker.role=="speaker"),
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn": (lambda kwargs: speaker.role=="speaker"),
+        #"filtering_fn": (lambda kwargs: True),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
@@ -1764,8 +1767,8 @@ def main():
       id=listener_mig_disentanglement_metric_id,
       input_stream_ids=listener_mig_disentanglement_metric_input_stream_ids,
       config = {
-        #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
-        "filtering_fn": (lambda kwargs: True),
+        "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+        #"filtering_fn": (lambda kwargs: True),
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),

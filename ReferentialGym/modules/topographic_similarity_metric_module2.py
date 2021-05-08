@@ -313,7 +313,7 @@ class TopographicSimilarityMetricModule2(Module):
         latent_global_variances = np.var(latent_representations, axis=0, ddof=1)
 
         return global_variances, latent_global_variances
-    
+
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
@@ -407,6 +407,9 @@ class TopographicSimilarityMetricModule2(Module):
                 pvalues_feat = 1.0 
 
                 unique_prod_ratios = 0.0
+                comprange = None
+                if self.config.get("metric_fast", False):
+                    comprange = 0.2 # 20%
 
                 if active_dims.any():
                     train_repr, train_feat, train_lrepr, \
@@ -422,7 +425,7 @@ class TopographicSimilarityMetricModule2(Module):
                         scores_dict["topo_sims"], pvalues, unique_prod_ratios = self._compute_topo_sim(
                             np_sentences=train_repr, 
                             np_features=train_lrepr, 
-                            comprange=None
+                            comprange=comprange,
                         )
                     except Exception as e:
                         print(f"TOPOSIM :: exception caught: {e}")
@@ -431,7 +434,7 @@ class TopographicSimilarityMetricModule2(Module):
                         scores_dict["topo_sims_v"], pvalues_v, unique_prod_ratios_v = self._compute_topo_sim(
                             np_sentences=train_repr, 
                             np_features=train_lrepr_v, 
-                            comprange=None
+                            comprange=comprange,
                         )
                     except Exception as e:
                         print(f"TOPOSIM Values :: exception caught: {e}")
@@ -440,7 +443,7 @@ class TopographicSimilarityMetricModule2(Module):
                         scores_dict["topo_sims_ohe"], pvalues_ohe, unique_prod_ratios_ohe = self._compute_topo_sim(
                             np_sentences=train_repr, 
                             np_features=train_lrepr_ohe, 
-                            comprange=None
+                            comprange=comprange,
                         )
                     except Exception as e:
                         print(f"TOPOSIM OHE :: exception caught: {e}")
@@ -449,7 +452,7 @@ class TopographicSimilarityMetricModule2(Module):
                         scores_dict["feat_topo_sims"], pvalues_feat, unique_prod_ratios_feat = self._compute_topo_sim(
                             np_sentences=train_repr, 
                             np_features=train_feat, 
-                            comprange=None
+                            comprange=comprange,
                         )
                     except Exception as e:
                         print(f"TOPOSIM Feat :: exception caught: {e}")

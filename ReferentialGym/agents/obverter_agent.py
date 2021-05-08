@@ -339,7 +339,7 @@ class ObverterAgent(DiscriminativeListener):
 
         return sentence_lengths
 
-    def _sense(self, experiences, sentences=None):
+    def _sense(self, experiences, sentences=None, **kwargs):
         """
         Infers features from the experiences that have been provided.
 
@@ -359,27 +359,32 @@ class ObverterAgent(DiscriminativeListener):
         mini_batch_size = min(self.kwargs['cnn_encoder_mini_batch_size'], total_size)
         for stin in torch.split(experiences, split_size_or_sections=mini_batch_size, dim=0):
             if isinstance(self.cnn_encoder, BetaVAE):
-                cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
-                if 'VAE_loss' in cnn_output_dict:
-                    self.VAE_losses.append(cnn_output_dict['VAE_loss'])
-                
-                if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
-                    self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
-                
-                for key in cnn_output_dict:
-                    if key not in self.buffer_cnn_output_dict:
-                        self.buffer_cnn_output_dict[key] = list()
-                    self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
+                if kwargs.get("nominal_call",False):
+                    cnn_output_dict  = self.cnn_encoder.compute_loss(stin)
+                    if 'VAE_loss' in cnn_output_dict:
+                        self.VAE_losses.append(cnn_output_dict['VAE_loss'])
+                    
+                    if hasattr(self.cnn_encoder, 'compactness_losses') and self.cnn_encoder.compactness_losses is not None:
+                        self.compactness_losses.append(self.cnn_encoder.compactness_losses.cpu())
+                    
+                    for key in cnn_output_dict:
+                        if key not in self.buffer_cnn_output_dict:
+                            self.buffer_cnn_output_dict[key] = list()
+                        self.buffer_cnn_output_dict[key].append(cnn_output_dict[key].cpu())
 
-                if self.kwargs['vae_use_mu_value']:
-                    featout = self.cnn_encoder.mu 
+                    if self.kwargs['vae_use_mu_value']:
+                        featout = self.cnn_encoder.mu 
+                    else:
+                        featout = self.cnn_encoder.z
+
+                    if self.vae_detached_featout:
+                        featout = featout.detach()
+
+                    feat_map = self.cnn_encoder.get_feat_map()
                 else:
-                    featout = self.cnn_encoder.z
-
-                if self.vae_detached_featout:
-                    featout = featout.detach()
-
-                feat_map = self.cnn_encoder.get_feat_map()
+                    z, mu, log_var = self.cnn_encoder.encodeZ(stin)
+                    featout = z 
+                    feat_map = self.cnn_encoder.get_feat_map()
             else:
                 featout = self.cnn_encoder(stin)
                 if hasattr(self.cnn_encoder, "get_feat_map"):
@@ -396,7 +401,7 @@ class ObverterAgent(DiscriminativeListener):
         self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         
-        if isinstance(self.cnn_encoder, BetaVAE):
+        if isinstance(self.cnn_encoder, BetaVAE) and kwargs.get("nominal_call",False):
             self.VAE_losses = torch.cat(self.VAE_losses).contiguous()#.view((batch_size,-1)).mean(dim=-1)
             
             for key in self.buffer_cnn_output_dict:

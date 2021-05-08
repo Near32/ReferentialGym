@@ -151,7 +151,11 @@ def compute_cosine_sim(v1, v2):
     return cos_sim
 
 def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprange=None):
-    if comprange is None: comprange = len(sentences)
+    if comprange is None: 
+      comprange = len(sentences)
+    else:
+      # ratio:
+      comprange = int(comprange*len(sentences))
     levs = []
     s1 = sentences[idx]
     tillidx = min(len(sentences)-1,idx+1+comprange)
@@ -160,7 +164,11 @@ def compute_levenshtein_distance_for_idx_over_comprange(sentences, idx, comprang
     return levs 
 
 def compute_cosine_sim_for_idx_over_comprange(features, idx, comprange=None):
-    if comprange is None: comprange = len(features)
+    if comprange is None: 
+      comprange = len(features)
+    else:
+      # ratio:
+      comprange = int(comprange*len(features))
     cossims = []
     f1 = features[idx]
     tillidx = min(len(features)-1,idx+1+comprange)
