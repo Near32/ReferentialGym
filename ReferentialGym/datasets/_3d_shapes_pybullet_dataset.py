@@ -920,9 +920,6 @@ class _3DShapesPyBulletDataset(Dataset) :
         
         print('Dataset loaded : OK.')
 
-        #self.counter_saving = 0
-        self._generate_all()
-
     def sample_factors(self, num, random_state=None):
         """
         Sample a batch of factors Y.
@@ -993,16 +990,18 @@ class _3DShapesPyBulletDataset(Dataset) :
             with open(filepath, 'rb') as f:
               dataset, _, _, _, _, _ = pickle.load(f)
             
-            dataset["imgs"].update(self.imgs)
-        else:
-            dataset = {
-                "imgs":self.imgs,
-                "latents_values":self.latents_values,
-                "latents_classes":self.latents_classes,
-                "latents_one_hot":self.latents_one_hot,
-            }
+            if len(dataset["imgs"]) == len(self.imgs):
+                print("Dataset not updated.")
+                return
+        
+        dataset = {
+            "imgs":self.imgs,
+            "latents_values":self.latents_values,
+            "latents_classes":self.latents_classes,
+            "latents_one_hot":self.latents_one_hot,
+        }
 
-        print('saving datasets...')
+        print('saving dataset...')
         filename = os.path.join(self.root,self.file)
         try:
             with  open(filename, 'wb') as f:
