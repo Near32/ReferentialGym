@@ -833,6 +833,8 @@ def main():
     save_path += args.parent_folder+'/'
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
+  if args.context_consistent_obverter:
+    save_path += "ContextConsistentObverter/"
   save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
     save_path += "WithBaselineArch/"
