@@ -272,7 +272,11 @@ def main():
   parser.add_argument("--use_sentences_one_hot_vectors", action="store_true", default=False)
   parser.add_argument("--obverter_use_decision_head", action="store_true", default=False)
   parser.add_argument("--obverter_nbr_head_outputs", type=int, default=2)
+  
   parser.add_argument("--differentiable", action="store_true", default=False)
+  parser.add_argument("--context_consistent_obverter", action="store_true", default=False)
+  parser.add_argument("--with_BN_in_obverter_decision_head", action="store_true", default=False)
+
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
   parser.add_argument("--use_obverter_sampling", action="store_true", default=False)
@@ -827,6 +831,8 @@ def main():
   save_path = ""
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
+  if args.with_BN_in_obverter_decision_head:
+    save_path += "DecisionHeadBN/"
   save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
     save_path += "WithBaselineArch/"
@@ -904,10 +910,11 @@ def main():
         rg_config['cultural_pressure_it_period'],
         rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
     
-  save_path += '-{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
+    'ContextConsistentObverter' if args.context_consistent_obverter else '',
     seed,
     rg_config['observability'], 
     rg_config['batch_size'], 
@@ -953,7 +960,7 @@ def main():
     save_path += f'/REINFORCE_EntropyCoeffNeg1m3/UnnormalizedDetLearningSignalHavrylovLoss/NegPG/'
 
   if 'obverter' in args.graphtype:
-    save_path += f"Obverter{f'With{args.obverter_nbr_head_outputs}OututsDecisionHead' if args.obverter_use_decision_head else 'WithBMM'}{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
+    save_path += f"{'ContextConsistent' if args.context_consistent_obverter else ''}Obverter{f'With{args.obverter_nbr_head_outputs}OututsDecisionHead' if args.obverter_use_decision_head and not(args.context_consistent_obverter) else ''}{args.obverter_threshold_to_stop_message_generation}-{args.obverter_nbr_games_per_round}GPR/DEBUG_{'OHE' if args.use_sentences_one_hot_vectors else ''}/"
   else:
     save_path += f"STGS-{args.agent_type}-LSTM-CNN-Agent/"
 
@@ -993,10 +1000,13 @@ def main():
 
   if not args.baseline_only:
       
-    #from ReferentialGym.agents import DifferentiableObverterAgent
-    #from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
-    from ReferentialGym.agents.obverter_agent import ObverterAgent
-    #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
+    if args.context_consistent_obverter:
+      from ReferentialGym.agents import ContextConsistentObverterAgent as ObverterAgent
+    else:
+      #from ReferentialGym.agents import DifferentiableObverterAgent
+      #from ReferentialGym.agents.halfnew_differentiable_obverter_agent import DifferentiableObverterAgent
+      from ReferentialGym.agents.obverter_agent import ObverterAgent
+      #from ReferentialGym.agents.depr_differentiable_obverter_agent import DifferentiableObverterAgent
     
     if 'obverter' in args.graphtype:
       """
@@ -1021,6 +1031,7 @@ def main():
         agent_id='s0',
         logger=logger,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+        with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
       )
     elif 'Baseline' in args.agent_type:
       from ReferentialGym.agents import LSTMCNNSpeaker
@@ -1076,6 +1087,7 @@ def main():
         agent_id='l0',
         logger=logger,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+        with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
       )
     else:
       from ReferentialGym.agents import LSTMCNNListener

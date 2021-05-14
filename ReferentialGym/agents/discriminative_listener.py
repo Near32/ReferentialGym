@@ -147,8 +147,8 @@ def discriminative_st_gs_referential_game_loss(agent,
         #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
         decision_logits = final_decision_logits
-        decision_probs = decision_logits.exp()
-        #decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
+        #decision_probs = decision_logits.exp()
+        decision_probs = decision_logits.softmax(dim=-1)
         
         loss, _ = havrylov_hinge_learning_signal(
             decision_logits=decision_logits,
@@ -159,7 +159,7 @@ def discriminative_st_gs_referential_game_loss(agent,
         
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
         outputs_dict["decision_probs"] = decision_probs
-        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/target_listener_decision_probs"] =\
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/listener_target_decision_probs"] =\
          decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
     
     # Accuracy:
@@ -248,7 +248,10 @@ def discriminative_obverter_referential_game_loss(
             # (batch_size, )
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
-        else:   
+        else:
+            raise NotImplementedError
+            # GUIDANCE: Obverter approach without descriptive NLL is rather not worth your time...
+
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             decision_logits = F.log_softmax( final_decision_logits, dim=-1)
             criterion = nn.NLLLoss(reduction="none")
@@ -262,6 +265,7 @@ def discriminative_obverter_referential_game_loss(
     elif config["agent_loss_type"].lower() == "ce":
         if config["descriptive"]:  
             raise NotImplementedError
+            # GUIDANCE: not worth your time either...
         else:   
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             decision_probs = torch.softmax(final_decision_logits, dim=-1)
@@ -272,10 +276,47 @@ def discriminative_obverter_referential_game_loss(
     
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
-        # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+        # (batch_size, (nbr_distractors+1), 2)
+        if config["descriptive"]:
+            # then we make sure to aggregated all not_target logits into a new category: 
+            isTarget_logits = final_decision_logits[...,0]
+            # (batch_size, (nbr_distractors+1))
+            isNotTarget_logit = final_decision_logits[...,1]
+            # (batch_size, (nbr_distractors+1))
+            #min_isNotTarget_logit = isNotTarget_logit.min(dim=-1, keepdim=True)[0]
+            #max_isNotTarget_logit = isNotTarget_logit.max(dim=-1, keepdim=True)[0]
+            mean_isNotTarget_logit = isNotTarget_logit.mean(dim=-1, keepdim=True)
+            # (batch_size, 1)
+            
+            final_decision_logits = torch.cat([
+                isTarget_logits,
+                #min_isNotTarget_logit],
+                #max_isNotTarget_logit],
+                mean_isNotTarget_logit],
+                dim=-1
+            )
+            # (batch_size, (nbr_distractors+2))
+        else:
+            # we simply take the target prediction logits for all stimuli:
+            #TODO: it might not be the best situation though,
+            # as :
+            # 1- the other logit values are not accounted for and trained
+            # 2- the softmax has not been computed against the current set of categories...
+            # TODO: check whether 2 matters or not : it does: without the consideration
+            # of the other logit, then the sentence lengths never decreases...
+            # A change has been made : TEST1
+            assert nbr_distractors_po > 1
+            final_decision_logits = final_decision_logits[...,0]
+            #TEST1:PREVIOUSLY: nothing
+            #TEST!:NOW: when non-descriptive, the log_softmax is not computed over
+            # the two logits of the decision head, so instead
+            # we compute it here over all the stimuli:
+            final_decision_logits = torch.log_softmax(final_decision_logits, dim=-1)
+            # (batch_size, (nbr_distractors+1))
+        # (batch_size, (nbr_distractors+1 or +2 if descriptive mode), )
         decision_logits = final_decision_logits
         decision_probs = decision_logits.exp()
-        #decision_probs = F.log_softmax(final_decision_logits, dim=-1)    
         
         loss, _ = havrylov_hinge_learning_signal(
             decision_logits=decision_logits,
@@ -286,7 +327,7 @@ def discriminative_obverter_referential_game_loss(
         
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
         outputs_dict["decision_probs"] = decision_probs
-        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/target_listener_decision_probs"] =\
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/listener_target_decision_probs"] =\
          decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
     
     # Accuracy:
