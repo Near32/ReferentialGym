@@ -351,8 +351,9 @@ class RNNCNNListener(DiscriminativeListener):
         if self.kwargs["descriptive"]:
             not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
             decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
-            decision_logits = torch.log_softmax(decision_logits, dim=-1)
             # (batch_size, (nbr_distractors+2) )
+        if self.kwargs["agent_loss_type"].lower() == "nll":
+            decision_logits = torch.log_softmax(decision_logits, dim=-1)
         
         return decision_logits, self.embedding_tf_final_outputs
 

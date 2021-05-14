@@ -95,7 +95,7 @@ def sentence_length_entropy_logging_hook(agent,
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLengthNormalizedPerplexity"] = perplexities_per_sentence.mean().item()
     """
 
-class ObverterAgent(DiscriminativeListener):
+class ContextConsistentObverterAgent(DiscriminativeListener):
     def __init__(
         self,
         kwargs, 
@@ -105,7 +105,6 @@ class ObverterAgent(DiscriminativeListener):
         agent_id='o0', 
         logger=None, 
         use_sentences_one_hot_vectors=True,
-        with_BN_in_decision_head=True,
         **other_kwargs):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -119,13 +118,14 @@ class ObverterAgent(DiscriminativeListener):
             or to use word/token indices sentences that requires two differentiation trick (from the speaker 
             upon production and from the listener upon consumption).
         """
-        super(ObverterAgent, self).__init__(
+        super(ContextConsistentObverterAgent, self).__init__(
             obs_shape, 
             vocab_size, 
             max_sentence_length, 
             agent_id, 
             logger, 
-            kwargs)
+            kwargs
+        )
 
         self.logging_it = 0
 
@@ -222,18 +222,17 @@ class ObverterAgent(DiscriminativeListener):
             bidirectional=False
         )
 
-        decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
+        visual_projection_head_input_size = self.encoder_feature_shape
         head_arch = [
-            nn.Linear(decision_head_input_size,128),
-        ]
-        if with_BN_in_decision_head:
-            head_arch.append(nn.BatchNorm1d(num_features=128))
-        head_arch += [
-            #nn.Dropout(p=self.kwargs["dropout_prob"]),
+            nn.Linear(visual_projection_head_input_size, 2*self.kwargs['symbol_processing_nbr_hidden_units']),
+            nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
             nn.ReLU(),
-            nn.Linear(128, 2),
+            nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], 2*self.kwargs['symbol_processing_nbr_hidden_units']),
+            nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
+            nn.ReLU(),
+            nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs["symbol_processing_nbr_hidden_units"]),
         ]
-        self.decision_head = nn.Sequential(*head_arch)
+        self.visual_projection_head = nn.Sequential(*head_arch)
 
         if self.use_sentences_one_hot_vectors:
             #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
@@ -256,11 +255,13 @@ class ObverterAgent(DiscriminativeListener):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
+        self.not_target_logits_per_token = nn.Parameter(torch.ones((1, 1, 1, 1)))
+        
         self.reset()
 
     def reset(self):
         # TODO: verify that initialization of decision head is not an issue:
-        #self.decision_head.apply(layer_init)
+        #self.visual_projection_head.apply(layer_init)
         
         """
         self.symbol_processing.apply(layer_init)
@@ -493,16 +494,22 @@ class ObverterAgent(DiscriminativeListener):
             kwargs["rnn_outputs"] = rnn_outputs
         
         # Compute the decision: following each hidden/output vector from the rnn:
-        decision_logits = []
+        decision_scores = []
+        
         bemb = embedding_tf_final_outputs.view((batch_size, nbr_distractors_po, -1))
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), cnn_encoder_feature_shape)
         bemb = embedding_tf_final_outputs.view((batch_size*nbr_distractors_po, -1))
         # (batch_size*nbr_distractors_po, cnn_encoder_feature_shape)
+        visual_proj = self.visual_projection_head(bemb)
+        # (batch_size*nbr_distractors_po, proj_feature_shape)
+        visual_proj = visual_proj.view((batch_size, nbr_distractors_po, -1))
+        # (batch_size, nbr_distractors_po, proj_feature_shape)
         
+        """
         for widx in range(rnn_outputs.size(1)):
-            decision_inputs = rnn_outputs[:,widx,...].unsqueeze(1).repeat(1, nbr_distractors_po, 1)
+            language_proj = rnn_outputs[:,widx,...].unsqueeze(1).repeat(1, nbr_distractors_po, 1)
             # (batch_size, nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
-            decision_inputs = decision_inputs.reshape(batch_size*nbr_distractors_po, -1)
+            language_proj = language_proj.reshape(batch_size*nbr_distractors_po, -1)
             # (batch_size*nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
             
             decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
@@ -516,10 +523,43 @@ class ObverterAgent(DiscriminativeListener):
             # (batch_size, 1, (nbr_distractors+1), 2)
         decision_logits = torch.cat(decision_logits, dim=1)
         # (batch_size, max sentence_lengths, (nbr_distractors+1), 2 )
-        
-        decision_probs = torch.softmax(decision_logits, dim=-1)
+        """
+
+        # Compute the decision: following each hidden/output vector from the rnn:
+        decision_scores = []
+        max_sentence_length = rnn_outputs.size(1)
+        for widx in range(max_sentence_length):
+            language_projs = rnn_outputs[:,widx,...]
+            # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+            decision_scores_until_widx = []
+            for b in range(batch_size):
+                #bemb = self.embedding_tf_final_outputs[b]
+                bvp = visual_proj[b]
+                # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 
+                # proj_feature_shape == kwargs['symbol_processing_nbr_hidden_units'])
+                blp = language_projs[b].unsqueeze(1)
+                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
+                #scores = torch.matmul( bvp, blp).view((1,-1))
+                bscores = torch.matmul( bvp, blp).reshape((-1,1)).transpose(0,1)
+                # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+                decision_scores_until_widx.append(bscores)
+            decision_scores_until_widx = torch.cat(decision_scores_until_widx, dim=0)
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_scores.append(decision_scores_until_widx.unsqueeze(1))
+            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        decision_scores = torch.cat(decision_scores, dim=1)
+        # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+
         if self.kwargs["descriptive"]:
-            decision_logits = torch.log_softmax(decision_logits, dim=-1)
+            not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, nbr_distractors_po, 1).to(decision_scores.device)
+            decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit], dim=-1 )
+            # (batch_size, (nbr_distractors+1), 2)
+        else:
+            # How do we compute softmax?
+            raise NotImplementedError
+
+        decision_probs = torch.softmax(decision_logits, dim=-1)
+        decision_logits = torch.log_softmax(decision_logits, dim=-1)
         
         if kwargs is not None:
             decision_probs = decision_probs[:,-1,..., 0]
@@ -568,7 +608,7 @@ class ObverterAgent(DiscriminativeListener):
         next_sentences_one_hots = None 
 
         next_sentences_widx, \
-        next_sentences_probs = ObverterAgent.decode(
+        next_sentences_probs = ContextConsistentObverterAgent.decode(
             agent=self,
             all_inputs=self.embedding_tf_final_outputs,
             vocab_size=self.vocab_size,
@@ -584,7 +624,7 @@ class ObverterAgent(DiscriminativeListener):
         next_sentences_hidden_states, \
         next_sentences_widx, \
         next_sentences_logits, \
-        next_sentences_one_hots = ObverterAgent._compute_sentence(
+        next_sentences_one_hots = ContextConsistentObverterAgent._compute_sentence(
             features_embedding=self.embedding_tf_final_outputs,
             target_idx=predicted_target_idx,
             symbol_encoder=self.symbol_encoder,
