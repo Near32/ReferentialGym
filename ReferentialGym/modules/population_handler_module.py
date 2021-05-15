@@ -352,7 +352,11 @@ class PopulationHandlerModule(Module):
             
             if 'train' in mode:
                 self.counterGames += 1
-                if 'obverter' in self.config['graphtype'] and not("synthetic" in self.config["graphtype"]):
+                #if 'obverter' in self.config['graphtype'] and not("synthetic" in self.config["graphtype"]):
+                # GUIDANCE: it appears crucial that there is alternation, at least, for the test loss to
+                # decrease too (i.e. generalisation to occur...).
+                # It might be worth exploring whether it is only a regularisation effect that is seen then...
+                if 'obverter' in self.config['graphtype']:
                     # Let us decide whether to exchange the speakers and listeners:
                     # i.e. is the round of games finished?
                     if not('obverter_nbr_games_per_round' in self.config):

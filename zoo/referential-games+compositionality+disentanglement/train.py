@@ -885,7 +885,7 @@ def main():
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
   if "synthetic" in args.graphtype:
-    save_path += "InterventionSyntheticCompositionalLanguage/"
+    save_path += f"InterventionSyntheticCompositionalLanguage/{'WithObverterRoundAlternation/' if 'obverter' in args.graphtype else ''}"
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
   if args.context_consistent_obverter:
@@ -2020,12 +2020,11 @@ def main():
   pipelines[optim_id].append(grad_recorder_id)
   """
   if not args.baseline_only:
-    if "synthetic" not in args.graphtype:
-      pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
-      pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
-      pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
+    pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
     pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+    pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
     pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
+    pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
     
   if args.with_baseline:
@@ -2035,16 +2034,14 @@ def main():
 
   if not args.baseline_only:
     #pipelines[optim_id].append(topo_sim_metric_id)
-    if "synthetic" not in args.graphtype:
-      pipelines[optim_id].append(speaker_topo_sim_metric_id)
-      #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
-      pipelines[optim_id].append(speaker_posbosdis_metric_id)
+    pipelines[optim_id].append(speaker_topo_sim_metric_id)
+    #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
+    pipelines[optim_id].append(speaker_posbosdis_metric_id)
     if "obverter" in args.graphtype:
       pipelines[optim_id].append(listener_topo_sim_metric_id)
       pipelines[optim_id].append(listener_posbosdis_metric_id)
     #pipelines[optim_id].append(inst_coord_metric_id)
-    if "synthetic" not in args.graphtype:
-      pipelines[optim_id].append(speaker_inst_coord_metric_id)
+    pipelines[optim_id].append(speaker_inst_coord_metric_id)
     pipelines[optim_id].append(listener_inst_coord_metric_id)
     
   """
