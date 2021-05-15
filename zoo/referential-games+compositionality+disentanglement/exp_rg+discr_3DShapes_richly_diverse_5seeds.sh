@@ -27,7 +27,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 200 --nbr_train_points 500 --nbr_eval_points 500 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -51,7 +51,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 200 --nbr_train_points 500 --nbr_eval_points 500 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -74,7 +74,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 200 --nbr_train_points 500 --nbr_eval_points 500 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -97,7 +97,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 200 --nbr_train_points 500 --nbr_eval_points 500 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -120,7 +120,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 200 --nbr_train_points 500 --nbr_eval_points 500 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
