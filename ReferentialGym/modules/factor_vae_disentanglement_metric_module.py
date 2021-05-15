@@ -109,7 +109,6 @@ class FactorVAEDisentanglementMetricModule(Module):
             (num_factors, dim_representation)-sized numpy array with votes.
         
         """
-        self.nbr_factors = self.latent_representations.shape[-1]
         votes = np.zeros((self.nbr_factors, global_variances.shape[0]),
                        dtype=np.int64)
         
@@ -257,6 +256,8 @@ class FactorVAEDisentanglementMetricModule(Module):
         global_variances = np.var(representations, axis=0, ddof=1)
         latent_global_variances = np.var(latent_representations, axis=0, ddof=1)
 
+        self.nbr_factors = latent_representations.shape[-1]
+
         return global_variances, latent_global_variances
     
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -288,21 +289,22 @@ class FactorVAEDisentanglementMetricModule(Module):
             
             not_empty = len(self.indices) > 0
             
-            if end_of_epoch and not_empty:
-                repr_last_dim = self.representations[-1].shape[-1] 
-                self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
-                latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
-                self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
-                latent_val_repr_last_dim = self.latent_values_representations[-1].shape[-1] 
-                self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).reshape(-1, latent_val_repr_last_dim)
-                self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
+            if end_of_epoch and (not_empty or self.config["resample"]):
+                if not_empty:
+                    repr_last_dim = self.representations[-1].shape[-1] 
+                    self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
+                    latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
+                    self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
+                    latent_val_repr_last_dim = self.latent_values_representations[-1].shape[-1] 
+                    self.latent_values_representations = np.concatenate(self.latent_values_representations, axis=0).reshape(-1, latent_val_repr_last_dim)
+                    self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
-                # Make sure every index is only seen once:
-                self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
-                self.representations = self.representations[in_batch_indices,:]
-                self.latent_representations = self.latent_representations[in_batch_indices,:]
-                self.latent_values_representations = self.latent_values_representations[in_batch_indices,:]
-                
+                    # Make sure every index is only seen once:
+                    self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
+                    self.representations = self.representations[in_batch_indices,:]
+                    self.latent_representations = self.latent_representations[in_batch_indices,:]
+                    self.latent_values_representations = self.latent_values_representations[in_batch_indices,:]
+                    
                 model = input_streams_dict["model"]
                 mode = input_streams_dict["mode"]
                 model.eval()

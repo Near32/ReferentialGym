@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 import sys
 import random
 import numpy as np 
@@ -53,6 +55,55 @@ HOW-TO:
 ###########################################################
 ###########################################################
 
+from ReferentialGym.modules import Module 
+
+class InterventionModule(Module):
+  def __init__(self, id:str, config:Dict[str,object], input_stream_ids:Dict[str,str]):
+    default_input_stream_ids = {
+      "epoch":"signals:epoch",
+      "input":"current_dataloader:sample:speaker_exp_latents", 
+    }
+    if input_stream_ids is None:
+      input_stream_ids = default_input_stream_ids
+    else:
+      for default_stream, default_id in default_input_stream_ids.items():
+        if default_id not in input_stream_ids.values():
+          input_stream_ids[default_stream] = default_id
+
+    super(InterventionModule, self).__init__(
+      id=id,
+      type="InterventionModule",
+      config=config,
+      input_stream_ids=input_stream_ids
+    )
+
+  def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object]:
+    outputs_stream_dict = {}
+
+    inp = input_streams_dict["input"].long().squeeze(1).squeeze(1)
+    batch_size = inp.shape[0]
+
+    output_ohe = torch.zeros((batch_size, self.config["max_sentence_length"], self.config["vocab_size"])).to(inp.device)
+    # (batch_size, max_sentence_length, vocab_size)
+    
+    output_widx = torch.zeros((batch_size, self.config["max_sentence_length"], 1)).to(inp.device)
+    # (batch_size, max_sentence_length, 1)
+    
+    for bidx in range(inp.shape[0]):
+      for attr in range(inp.shape[1]):
+        output_ohe[bidx, attr, inp[bidx, attr]] = 1
+        output_widx[bidx, attr, 0] = inp[bidx, attr]
+      for nsidx in range(attr+1, self.config["max_sentence_length"]):
+        if self.config["vocab_stop_idx"] < self.config["max_sentence_length"]: 
+          output_ohe[bidx, nsidx, self.config["vocab_stop_idx"]] = 1
+        else:
+          output_ohe[bidx, nsidx, 0] = 1
+        output_widx[bidx, nsidx, 0] = self.config["vocab_stop_idx"]
+    
+    outputs_stream_dict[self.config["output_widx_placeholder"]] = output_widx
+    outputs_stream_dict[self.config["output_ohe_placeholder"]] = output_ohe
+
+    return outputs_stream_dict
 
 def make_VAE(agent_config, args, rg_config):
   agent_config["decoder_architecture"] = "BN+DCNN"
@@ -142,7 +193,7 @@ def make_VAE(agent_config, args, rg_config):
 
 
 def main():
-  parser = argparse.ArgumentParser(description="Obverter Agents: Language Emergence on 3DShapesPyBullet Dataset.")
+  parser = argparse.ArgumentParser(description="Language Emergence, Compositionality and Disentanglement.")
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
   parser.add_argument("--verbose", action="store_true", default=False)
@@ -193,7 +244,9 @@ def main():
              "max_entr_reinforce",
              "baseline_reduced_normalized_max_entr_reinforce",
              "argmax_reinforce",
-             "obverter"],
+             "obverter",
+             "synthetic_obverter",
+             "synthetic_straight_through_gumbel_softmax"],
     help="type of graph to use during training of the speaker and listener.",
     default="obverter")
   parser.add_argument("--max_sentence_length", type=int, default=20)
@@ -831,6 +884,8 @@ def main():
   save_path = ""
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
+  if "synthetic" in args.graphtype:
+    save_path += "InterventionSyntheticCompositionalLanguage/"
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
   if args.context_consistent_obverter:
@@ -1143,6 +1198,24 @@ def main():
     modules[speaker.id] = speaker 
     modules[listener.id] = listener 
 
+  if "synthetic" in args.graphtype:
+    intervention_id = "intervention_0"
+    intervention_config = {
+      "output_ohe_placeholder": "modules:current_speaker:sentences_one_hot",
+      "output_widx_placeholder": "modules:current_speaker:sentences_widx",
+      "vocab_size": rg_config["vocab_size"],
+      "max_sentence_length": rg_config["max_sentence_length"],
+      "vocab_stop_idx":listener.vocab_stop_idx,
+    }
+    intervention_stream_ids = {
+      "input":"current_dataloader:sample:speaker_exp_latents_values", 
+    }
+    modules[intervention_id] = InterventionModule(
+      id=intervention_id,
+      config=intervention_config,
+      input_stream_ids=intervention_stream_ids
+    )
+    
   from ReferentialGym import modules as rg_modules
 
   # Sampler:
@@ -1918,10 +1991,17 @@ def main():
     if args.use_obverter_sampling:
       pipelines["referential_game"].append(obverter_sampling_id)
     
-    pipelines["referential_game"] += [
-      current_speaker_id,
-      current_listener_id
-    ]
+    if "synthetic" in args.graphtype:
+      pipelines["referential_game"] += [
+        current_speaker_id,
+        intervention_id,
+        current_listener_id
+      ]
+    else:
+      pipelines["referential_game"] += [
+        current_speaker_id,
+        current_listener_id
+      ]
 
   if args.with_baseline:
     pipelines[baseline_vm_id] = []
@@ -1940,11 +2020,12 @@ def main():
   pipelines[optim_id].append(grad_recorder_id)
   """
   if not args.baseline_only:
-    pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+    if "synthetic" not in args.graphtype:
+      pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+      pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+      pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
-    pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
     pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
-    pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
     
   if args.with_baseline:
@@ -1954,14 +2035,16 @@ def main():
 
   if not args.baseline_only:
     #pipelines[optim_id].append(topo_sim_metric_id)
-    pipelines[optim_id].append(speaker_topo_sim_metric_id)
-    #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
-    pipelines[optim_id].append(speaker_posbosdis_metric_id)
+    if "synthetic" not in args.graphtype:
+      pipelines[optim_id].append(speaker_topo_sim_metric_id)
+      #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
+      pipelines[optim_id].append(speaker_posbosdis_metric_id)
     if "obverter" in args.graphtype:
       pipelines[optim_id].append(listener_topo_sim_metric_id)
       pipelines[optim_id].append(listener_posbosdis_metric_id)
     #pipelines[optim_id].append(inst_coord_metric_id)
-    pipelines[optim_id].append(speaker_inst_coord_metric_id)
+    if "synthetic" not in args.graphtype:
+      pipelines[optim_id].append(speaker_inst_coord_metric_id)
     pipelines[optim_id].append(listener_inst_coord_metric_id)
     
   """

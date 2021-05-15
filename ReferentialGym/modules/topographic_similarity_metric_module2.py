@@ -119,8 +119,6 @@ class TopographicSimilarityMetricModule2(Module):
         current_random_state = np.random.get_state()
         np.random.set_state(copy.deepcopy(self.random_state))
         
-        self.nbr_factors = self.latent_representations.shape[-1]
-        
         representations = []
         features = []
         latent_representations = []
@@ -312,6 +310,8 @@ class TopographicSimilarityMetricModule2(Module):
         global_variances = np.var(representations, axis=0, ddof=1)
         latent_global_variances = np.var(latent_representations, axis=0, ddof=1)
 
+        self.nbr_factors = latent_representations.shape[-1]
+
         return global_variances, latent_global_variances
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -351,30 +351,31 @@ class TopographicSimilarityMetricModule2(Module):
             
             not_empty = len(self.indices) > 0
             
-            if end_of_epoch and not_empty:
-                repr_last_dim = self.representations[-1].shape[-1] 
-                self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
-                feat_last_dim = self.features[-1].shape[-1] 
-                self.features = np.concatenate(self.features, axis=0).reshape(-1, feat_last_dim)
-                latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
-                self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
-                
-                latent_v_repr_last_dim = self.latent_representations_v[-1].shape[-1] 
-                self.latent_representations_v = np.concatenate(self.latent_representations_v, axis=0).reshape(-1, latent_v_repr_last_dim)
-                
-                latent_ohe_repr_last_dim = self.latent_representations_ohe[-1].shape[-1] 
-                self.latent_representations_ohe = np.concatenate(self.latent_representations_ohe, axis=0).reshape(-1, latent_ohe_repr_last_dim)
-                
-                self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
+            if end_of_epoch and (not_empty or self.config["resample"]):
+                if not_empty:
+                    repr_last_dim = self.representations[-1].shape[-1] 
+                    self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
+                    feat_last_dim = self.features[-1].shape[-1] 
+                    self.features = np.concatenate(self.features, axis=0).reshape(-1, feat_last_dim)
+                    latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
+                    self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
+                    
+                    latent_v_repr_last_dim = self.latent_representations_v[-1].shape[-1] 
+                    self.latent_representations_v = np.concatenate(self.latent_representations_v, axis=0).reshape(-1, latent_v_repr_last_dim)
+                    
+                    latent_ohe_repr_last_dim = self.latent_representations_ohe[-1].shape[-1] 
+                    self.latent_representations_ohe = np.concatenate(self.latent_representations_ohe, axis=0).reshape(-1, latent_ohe_repr_last_dim)
+                    
+                    self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
-                # Make sure every index is only seen once:
-                self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
-                self.features = self.features[in_batch_indices,:]
-                self.representations = self.representations[in_batch_indices,:]
-                self.latent_representations = self.latent_representations[in_batch_indices,:]
-                self.latent_representations_v = self.latent_representations_v[in_batch_indices,:]
-                self.latent_representations_ohe = self.latent_representations_ohe[in_batch_indices,:]
-                
+                    # Make sure every index is only seen once:
+                    self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
+                    self.features = self.features[in_batch_indices,:]
+                    self.representations = self.representations[in_batch_indices,:]
+                    self.latent_representations = self.latent_representations[in_batch_indices,:]
+                    self.latent_representations_v = self.latent_representations_v[in_batch_indices,:]
+                    self.latent_representations_ohe = self.latent_representations_ohe[in_batch_indices,:]
+                    
                 model = input_streams_dict["model"]
                 if hasattr(model, "eval"):  model.eval()
                 

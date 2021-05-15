@@ -352,7 +352,7 @@ class PopulationHandlerModule(Module):
             
             if 'train' in mode:
                 self.counterGames += 1
-                if 'obverter' in self.config['graphtype']:
+                if 'obverter' in self.config['graphtype'] and not("synthetic" in self.config["graphtype"]):
                     # Let us decide whether to exchange the speakers and listeners:
                     # i.e. is the round of games finished?
                     if not('obverter_nbr_games_per_round' in self.config):
