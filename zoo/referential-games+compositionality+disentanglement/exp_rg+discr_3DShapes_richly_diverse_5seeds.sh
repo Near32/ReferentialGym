@@ -17,7 +17,7 @@
 
 #python -m ipdb -c c RG/zoo/referential-games+compositionality+disentanglement/train.py \
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli \
+--parent_folder ./RichlyDiverseStimuli \
 --use_cuda --seed $(($1+0)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -41,7 +41,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 
 #python -m ipdb -c c RG/zoo/referential-games+compositionality+disentanglement/train.py \
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli \
+--parent_folder ./RichlyDiverseStimuli \
 --use_cuda --seed $(($1+10)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -64,7 +64,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 
 #python -m ipdb -c c RG/zoo/referential-games+compositionality+disentanglement/train.py \
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli \
+--parent_folder ./RichlyDiverseStimuli \
 --use_cuda --seed $(($1+20)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -87,7 +87,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 
 #python -m ipdb -c c RG/zoo/referential-games+compositionality+disentanglement/train.py \
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli \
+--parent_folder ./RichlyDiverseStimuli \
 --use_cuda --seed $(($1+30)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -110,7 +110,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 
 #python -m ipdb -c c RG/zoo/referential-games+compositionality+disentanglement/train.py \
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli \
+--parent_folder ./RichlyDiverseStimuli \
 --use_cuda --seed $(($1+40)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
