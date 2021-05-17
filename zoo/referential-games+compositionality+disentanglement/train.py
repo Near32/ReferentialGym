@@ -60,8 +60,12 @@ from ReferentialGym.modules import Module
 class InterventionModule(Module):
   def __init__(self, id:str, config:Dict[str,object], input_stream_ids:Dict[str,str]):
     default_input_stream_ids = {
+      "logs_dict":"logs_dict",
       "epoch":"signals:epoch",
-      "input":"current_dataloader:sample:speaker_exp_latents", 
+      "mode":"signals:mode",
+      "input":"current_dataloader:sample:speaker_exp_latents_values", 
+      "sentences_one_hot":"modules:current_speaker:sentences_one_hot",
+      "sentences_widx":"modules:current_speaker:sentences_widx",
     }
     if input_stream_ids is None:
       input_stream_ids = default_input_stream_ids
@@ -77,31 +81,54 @@ class InterventionModule(Module):
       input_stream_ids=input_stream_ids
     )
 
+    self.intervention_percentage = 0.01
+    if self.config["epoch_progression_end"] < 1.0:
+      self.config["epoch_progression_end"] = 1.0
+    self.intervention_period_increment = 1.0/self.config["epoch_progression_end"] # expect float ]0,1.0]
+    
   def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object]:
     outputs_stream_dict = {}
 
+    logs_dict = input_streams_dict["logs_dict"]
+    epoch_idx = input_streams_dict["epoch"]
+    mode = input_streams_dict["mode"]
+    
     inp = input_streams_dict["input"].long().squeeze(1).squeeze(1)
+    sohe = input_streams_dict["sentences_one_hot"]
+    swidx = input_streams_dict["sentences_widx"]
+
     batch_size = inp.shape[0]
 
-    output_ohe = torch.zeros((batch_size, self.config["max_sentence_length"], self.config["vocab_size"])).to(inp.device)
+    #output_ohe = torch.zeros((batch_size, self.config["max_sentence_length"], self.config["vocab_size"])).to(inp.device)
+    output_ohe = sohe
     # (batch_size, max_sentence_length, vocab_size)
     
-    output_widx = torch.zeros((batch_size, self.config["max_sentence_length"], 1)).to(inp.device)
+    #output_widx = torch.zeros((batch_size, self.config["max_sentence_length"], 1)).to(inp.device)
+    output_widx = swidx
     # (batch_size, max_sentence_length, 1)
     
-    for bidx in range(inp.shape[0]):
-      for attr in range(inp.shape[1]):
-        output_ohe[bidx, attr, inp[bidx, attr]] = 1
-        output_widx[bidx, attr, 0] = inp[bidx, attr]
-      for nsidx in range(attr+1, self.config["max_sentence_length"]):
-        if self.config["vocab_stop_idx"] < self.config["max_sentence_length"]: 
-          output_ohe[bidx, nsidx, self.config["vocab_stop_idx"]] = 1
-        else:
-          output_ohe[bidx, nsidx, 0] = 1
-        output_widx[bidx, nsidx, 0] = self.config["vocab_stop_idx"]
-    
+
+    self.intervention_percentage = min(1.0, self.intervention_period_increment*epoch_idx)
+    size = int(self.intervention_percentage*inp.shape[0])
+    if size != 0:
+      for bidx in range(size):
+        for attr in range(inp.shape[1]):
+          if output_ohe is not None:  output_ohe[bidx, attr, inp[bidx, attr]] = 1
+          #if output_widx is not None:  output_widx[bidx, attr, 0] = inp[bidx, attr]
+          if output_widx is not None:  output_widx[bidx, attr] = inp[bidx, attr]
+        for nsidx in range(attr+1, self.config["max_sentence_length"]):
+          if self.config["vocab_stop_idx"] < self.config["max_sentence_length"]: 
+            if output_ohe is not None:  output_ohe[bidx, nsidx, self.config["vocab_stop_idx"]] = 1
+          else:
+            if output_ohe is not None:  output_ohe[bidx, nsidx, 0] = 1
+          #if output_widx is not None:  output_widx[bidx, nsidx, 0] = self.config["vocab_stop_idx"]
+          if output_widx is not None:  output_widx[bidx, nsidx] = self.config["vocab_stop_idx"]
+      
     outputs_stream_dict[self.config["output_widx_placeholder"]] = output_widx
     outputs_stream_dict[self.config["output_ohe_placeholder"]] = output_ohe
+
+    logs_dict[f"{mode}/{self.id}/InterventionPercentage"] = self.intervention_percentage*100.0
+    logs_dict[f"{mode}/{self.id}/InterventionPercentage/size"] = size
 
     return outputs_stream_dict
 
@@ -197,6 +224,7 @@ def main():
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
   parser.add_argument("--verbose", action="store_true", default=False)
+  parser.add_argument('--synthetic_progression_end', type=int, default=1)
   parser.add_argument("--use_priority", action="store_true", default=False)
   parser.add_argument("--restore", action="store_true", default=False)
   parser.add_argument("--force_eos", action="store_true", default=False)
@@ -328,7 +356,9 @@ def main():
   
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--context_consistent_obverter", action="store_true", default=False)
+  parser.add_argument("--visual_context_consistent_obverter", action="store_true", default=False)
   parser.add_argument("--with_BN_in_obverter_decision_head", action="store_true", default=False)
+  parser.add_argument("--with_DP_in_obverter_decision_head", action="store_true", default=False)
 
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
@@ -399,6 +429,9 @@ def main():
   if args.obverter_sampling_round_alternation_only:
     args.use_obverter_sampling = True 
 
+  if args.visual_context_consistent_obverter:
+    args.context_consistent_obverter = True 
+
   print(args)
   
   gaussian = args.vae_gaussian 
@@ -462,6 +495,14 @@ def main():
     descriptive_ratio = default_descriptive_ratio
   else:
     descriptive_ratio = args.descriptive_ratio
+
+  if args.obverter_threshold_to_stop_message_generation <= 0.0:
+    nbr_category = 1 #target
+    if args.descriptive:
+      nbr_category += 1 
+    nbr_category += args.nbr_train_distractors
+    #args.obverter_threshold_to_stop_message_generation = 1.9/nbr_category
+    args.obverter_threshold_to_stop_message_generation = 1.0-0.025*nbr_category
 
   rg_config = {
       "observability":            "partial",
@@ -886,10 +927,15 @@ def main():
     save_path += args.parent_folder+'/'
   if "synthetic" in args.graphtype:
     save_path += f"InterventionSyntheticCompositionalLanguage/{'WithObverterRoundAlternation/' if 'obverter' in args.graphtype else ''}"
+    save_path += f"ProgressionEnd{args.synthetic_progression_end}/"
+  
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
+  if args.with_DP_in_obverter_decision_head:
+    save_path += "DecisionHeadDP0.5/"
   if args.context_consistent_obverter:
-    save_path += "ContextConsistentObverter/"
+    save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}ContextConsistentObverter/"
+  
   save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
     save_path += "WithBaselineArch/"
@@ -967,7 +1013,8 @@ def main():
         rg_config['cultural_pressure_it_period'],
         rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
     
-  save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
+  #save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
+  save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}/{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}/'.\
     format(
     'ObjectCentric' if rg_config['object_centric'] else '',
     'Descriptive{}'.format(rg_config['descriptive_target_ratio']) if rg_config['descriptive'] else '',
@@ -1088,7 +1135,9 @@ def main():
         agent_id='s0',
         logger=logger,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+        use_language_projection=args.visual_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
+        with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
       )
     elif 'Baseline' in args.agent_type:
       from ReferentialGym.agents import LSTMCNNSpeaker
@@ -1144,7 +1193,9 @@ def main():
         agent_id='l0',
         logger=logger,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
+        use_language_projection=args.visual_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
+        with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
       )
     else:
       from ReferentialGym.agents import LSTMCNNListener
@@ -1206,9 +1257,15 @@ def main():
       "vocab_size": rg_config["vocab_size"],
       "max_sentence_length": rg_config["max_sentence_length"],
       "vocab_stop_idx":listener.vocab_stop_idx,
+      "epoch_progression_end":args.synthetic_progression_end,
     }
     intervention_stream_ids = {
+      "logs_dict":"logs_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
       "input":"current_dataloader:sample:speaker_exp_latents_values", 
+      "sentences_one_hot":"modules:current_speaker:sentences_one_hot",
+      "sentences_widx":"modules:current_speaker:sentences_widx",
     }
     modules[intervention_id] = InterventionModule(
       id=intervention_id,
@@ -2020,12 +2077,13 @@ def main():
   pipelines[optim_id].append(grad_recorder_id)
   """
   if not args.baseline_only:
-    pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
     pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
-    pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
     pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
-    pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
+    if not(args.shared_architecture):
+      pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+      pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+      pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
   if args.with_baseline:
     pipelines[optim_id].append(baseline_factor_vae_disentanglement_metric_id)

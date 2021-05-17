@@ -106,6 +106,7 @@ class ObverterAgent(DiscriminativeListener):
         logger=None, 
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
+        with_DP_in_decision_head=True,
         **other_kwargs):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -223,7 +224,10 @@ class ObverterAgent(DiscriminativeListener):
         )
 
         decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
-        head_arch = [
+        head_arch = []
+        if with_DP_in_decision_head:
+            head_arch.append(nn.Dropout(p=0.5))
+        head_arch += [
             nn.Linear(decision_head_input_size,128),
         ]
         if with_BN_in_decision_head:
@@ -576,6 +580,7 @@ class ObverterAgent(DiscriminativeListener):
             model=(lambda features,sentences,kwargs: self._reason(sentences, features, kwargs=kwargs)),
             logger=self.logger,
             logging_it=self.logging_it,
+            prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
         )
 
         next_sentences_logits = next_sentences_probs.log()
@@ -610,7 +615,7 @@ class ObverterAgent(DiscriminativeListener):
 
         return next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
-    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it):
+    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it, prob_threshold=0.95):
         relevant_procs = list(range(all_inputs.size(0)))
 
         sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
@@ -652,7 +657,7 @@ class ObverterAgent(DiscriminativeListener):
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
             finished_p = []
             for i, (action, p, prob) in enumerate(zip(comm, relevant_procs, probs)):
-                if prob > 0.95:
+                if prob > prob_threshold:
                     finished_p.append(p)
                     if prob.item() < 0:
                         continue

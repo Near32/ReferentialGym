@@ -105,6 +105,8 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         agent_id='o0', 
         logger=None, 
         use_sentences_one_hot_vectors=True,
+        use_language_projection=True,
+        with_DP_in_decision_head=True,
         **other_kwargs):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -133,6 +135,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         
         self.kwargs = kwargs 
         self.force_eos = self.kwargs["force_eos"] if "force_eos" in self.kwargs else False
+        self.use_language_projection = use_language_projection
 
         self.input_stream_ids['speaker'].update({
             'sentences_one_hot':'modules:current_listener:sentences_one_hot.detach',
@@ -222,17 +225,33 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             bidirectional=False
         )
 
-        visual_projection_head_input_size = self.encoder_feature_shape
-        head_arch = [
-            nn.Linear(visual_projection_head_input_size, 2*self.kwargs['symbol_processing_nbr_hidden_units']),
-            nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
-            nn.ReLU(),
-            nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], 2*self.kwargs['symbol_processing_nbr_hidden_units']),
-            nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
-            nn.ReLU(),
-            nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs["symbol_processing_nbr_hidden_units"]),
-        ]
-        self.visual_projection_head = nn.Sequential(*head_arch)
+        if self.use_language_projection:
+            language_projection_head_input_size = self.kwargs['symbol_processing_nbr_hidden_units']
+            head_arch = []
+            if with_DP_in_decision_head:
+                head_arch += [nn.Dropout(p=0.5)]
+            head_arch += [
+                nn.Linear(language_projection_head_input_size, 2*self.encoder_feature_shape),
+                nn.BatchNorm1d(num_features=2*self.encoder_feature_shape),
+                nn.ReLU(),
+                nn.Linear(2*self.encoder_feature_shape, self.encoder_feature_shape),
+                #nn.BatchNorm1d(num_features=2*self.encoder_feature_shape),
+                #nn.ReLU(),
+                #nn.Linear(2*self.encoder_feature_shape, self.encoder_feature_shape),
+            ]
+            self.language_projection_head = nn.Sequential(*head_arch)
+        else:
+            visual_projection_head_input_size = self.encoder_feature_shape
+            head_arch = [
+                nn.Linear(visual_projection_head_input_size, 2*self.kwargs['symbol_processing_nbr_hidden_units']),
+                nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
+                nn.ReLU(),
+                nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], 2*self.kwargs['symbol_processing_nbr_hidden_units']),
+                nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
+                nn.ReLU(),
+                nn.Linear(2*self.kwargs['symbol_processing_nbr_hidden_units'], self.kwargs["symbol_processing_nbr_hidden_units"]),
+            ]
+            self.visual_projection_head = nn.Sequential(*head_arch)
 
         if self.use_sentences_one_hot_vectors:
             #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
@@ -496,40 +515,34 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_scores = []
         
+        max_sentence_length = rnn_outputs.size(1)
+
         bemb = embedding_tf_final_outputs.view((batch_size, nbr_distractors_po, -1))
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), cnn_encoder_feature_shape)
-        bemb = embedding_tf_final_outputs.view((batch_size*nbr_distractors_po, -1))
-        # (batch_size*nbr_distractors_po, cnn_encoder_feature_shape)
-        visual_proj = self.visual_projection_head(bemb)
-        # (batch_size*nbr_distractors_po, proj_feature_shape)
-        visual_proj = visual_proj.view((batch_size, nbr_distractors_po, -1))
-        # (batch_size, nbr_distractors_po, proj_feature_shape)
-        
-        """
-        for widx in range(rnn_outputs.size(1)):
-            language_proj = rnn_outputs[:,widx,...].unsqueeze(1).repeat(1, nbr_distractors_po, 1)
-            # (batch_size, nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
-            language_proj = language_proj.reshape(batch_size*nbr_distractors_po, -1)
-            # (batch_size*nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
-            
-            decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
-            # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
-            
-            decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, -1))
-            # Linear output...
-            # (batch_size, nbr_distractors_po, 2)
-                
-            decision_logits.append(decision_logits_until_widx.unsqueeze(1))
-            # (batch_size, 1, (nbr_distractors+1), 2)
-        decision_logits = torch.cat(decision_logits, dim=1)
-        # (batch_size, max sentence_lengths, (nbr_distractors+1), 2 )
-        """
+        if self.use_language_projection:
+            visual_proj = bemb
 
+            rnn_outputs = rnn_outputs.reshape((batch_size*max_sentence_length, -1))
+            # (batch_size*max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
+            language_proj = self.language_projection_head(rnn_outputs)
+            # (batch_size*nbr_distractors_po, proj_feature_shape)
+            language_proj = language_proj.reshape((batch_size, max_sentence_length, -1))
+            # (batch_size, nbr_distractors_po, proj_feature_shape)
+            
+        else:
+            language_proj = rnn_outputs
+
+            bemb = embedding_tf_final_outputs.view((batch_size*nbr_distractors_po, -1))
+            # (batch_size*nbr_distractors_po, cnn_encoder_feature_shape)
+            visual_proj = self.visual_projection_head(bemb)
+            # (batch_size*nbr_distractors_po, proj_feature_shape)
+            visual_proj = visual_proj.view((batch_size, nbr_distractors_po, -1))
+            # (batch_size, nbr_distractors_po, proj_feature_shape)
+        
         # Compute the decision: following each hidden/output vector from the rnn:
         decision_scores = []
-        max_sentence_length = rnn_outputs.size(1)
         for widx in range(max_sentence_length):
-            language_projs = rnn_outputs[:,widx,...]
+            language_proj_widx = language_proj[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
             decision_scores_until_widx = []
             for b in range(batch_size):
@@ -537,7 +550,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
                 bvp = visual_proj[b]
                 # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 
                 # proj_feature_shape == kwargs['symbol_processing_nbr_hidden_units'])
-                blp = language_projs[b].unsqueeze(1)
+                blp = language_proj_widx[b].unsqueeze(1)
                 # (kwargs['symbol_processing_nbr_hidden_units'], 1)
                 #scores = torch.matmul( bvp, blp).view((1,-1))
                 bscores = torch.matmul( bvp, blp).reshape((-1,1)).transpose(0,1)
