@@ -359,6 +359,7 @@ def main():
   parser.add_argument("--visual_context_consistent_obverter", action="store_true", default=False)
   parser.add_argument("--with_BN_in_obverter_decision_head", action="store_true", default=False)
   parser.add_argument("--with_DP_in_obverter_decision_head", action="store_true", default=False)
+  parser.add_argument("--with_DP_in_obverter_decision_head_listener_only", action="store_true", default=False)
 
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
@@ -497,12 +498,16 @@ def main():
     descriptive_ratio = args.descriptive_ratio
 
   if args.obverter_threshold_to_stop_message_generation <= 0.0:
-    nbr_category = 1 #target
     if args.descriptive:
-      nbr_category += 1 
-    nbr_category += args.nbr_train_distractors
-    #args.obverter_threshold_to_stop_message_generation = 1.9/nbr_category
-    args.obverter_threshold_to_stop_message_generation = 1.0-0.025*nbr_category
+      args.obverter_threshold_to_stop_message_generation = 0.98
+    else:
+      nbr_category = 1 #target
+      nbr_category += args.nbr_train_distractors
+      #args.obverter_threshold_to_stop_message_generation = 1.9/nbr_category
+      # v1:
+      #args.obverter_threshold_to_stop_message_generation = 1.0-0.025*nbr_category
+      # v1.1: increase the threshold halfway:
+      args.obverter_threshold_to_stop_message_generation = 1.0-0.05*nbr_category
 
   rg_config = {
       "observability":            "partial",
@@ -932,7 +937,11 @@ def main():
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
   if args.with_DP_in_obverter_decision_head:
-    save_path += "DecisionHeadDP0.5/"
+    #save_path += "DecisionHeadDP0.5/"
+    save_path += "DecisionHeadDP0.2/"
+  if args.with_DP_in_obverter_decision_head_listener_only:
+    #save_path += "ListenerDecisionHeadDP0.5Only/"
+    save_path += "ListenerDecisionHeadDP0.2Only/"
   if args.context_consistent_obverter:
     save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}ContextConsistentObverter/"
   
@@ -1138,6 +1147,7 @@ def main():
         use_language_projection=args.visual_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
+        with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
       )
     elif 'Baseline' in args.agent_type:
       from ReferentialGym.agents import LSTMCNNSpeaker
@@ -1196,6 +1206,7 @@ def main():
         use_language_projection=args.visual_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
+        with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
       )
     else:
       from ReferentialGym.agents import LSTMCNNListener

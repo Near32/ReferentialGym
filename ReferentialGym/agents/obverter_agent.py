@@ -107,6 +107,7 @@ class ObverterAgent(DiscriminativeListener):
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
         with_DP_in_decision_head=True,
+        with_DP_in_listener_decision_head_only=True,
         **other_kwargs):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -147,6 +148,7 @@ class ObverterAgent(DiscriminativeListener):
     
 
         self.use_sentences_one_hot_vectors = use_sentences_one_hot_vectors
+        self.with_DP_in_listener_decision_head_only = with_DP_in_listener_decision_head_only
         
         cnn_input_shape = self.obs_shape[2:]
         MHDPANbrHead=4
@@ -223,10 +225,15 @@ class ObverterAgent(DiscriminativeListener):
             bidirectional=False
         )
 
+        if self.with_DP_in_listener_decision_head_only:
+            #self.listener_decision_head_dropout = nn.Dropout(p=0.5)
+            self.listener_decision_head_dropout = nn.Dropout(p=0.2)
+
         decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
         head_arch = []
-        if with_DP_in_decision_head:
-            head_arch.append(nn.Dropout(p=0.5))
+        if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
+            #head_arch.append(nn.Dropout(p=0.5))
+            head_arch.append(nn.Dropout(p=0.2))
         head_arch += [
             nn.Linear(decision_head_input_size,128),
         ]
@@ -512,6 +519,8 @@ class ObverterAgent(DiscriminativeListener):
             decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
             # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
             
+            if self.with_DP_in_listener_decision_head_only and self.role=="listener":
+                decision_head_input = self.listener_decision_head_dropout(decision_head_input)
             decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, -1))
             # Linear output...
             # (batch_size, nbr_distractors_po, 2)

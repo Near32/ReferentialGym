@@ -331,6 +331,7 @@ class MutualInformationGapDisentanglementMetricModule(Module):
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
+        global eps 
         outputs_stream_dict = {}
 
 
@@ -442,6 +443,11 @@ class MutualInformationGapDisentanglementMetricModule(Module):
 
                     for idx, maxmi in enumerate(per_factor_maxmi):
                         logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/MaxMutualInformation/factor_{idx}"] = maxmi
+                        nmmi = -1
+                        entidx = entropy[:][idx]
+                        if entidx > eps:
+                            nmmi = maxmi/entidx
+                        logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/NormalizedMaxMutualInformation/factor_{idx}"] = nmmi
                     
                     for idx, enti in enumerate(entropy[:]):
                         logs_dict[f"{mode}/{self.id}/DisentanglementMetric/MutualInformationGap/Entropy/factor_{idx}"] = enti
