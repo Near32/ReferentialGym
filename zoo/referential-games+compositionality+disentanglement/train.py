@@ -1703,6 +1703,38 @@ def main():
     )
     modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
     
+    inst_coord_metric_id = f"inst_coord_metric"
+    inst_coord_input_stream_ids = {
+      "logger":"modules:logger:ref",
+      "logs_dict":"logs_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "end_of_dataset":"signals:end_of_dataset",  
+      # boolean: whether the current batch/datasample is the last of the current dataset/mode.
+      "end_of_repetition_sequence":"signals:end_of_repetition_sequence",
+      # boolean: whether the current sample(observation from the agent of the current batch/datasample) 
+      # is the last of the current sequence of repetition.
+      "end_of_communication":"signals:end_of_communication",
+      # boolean: whether the current communication round is the last of 
+      # the current dialog.
+      "dataset":"current_dataset:ref",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      "sentences_widx":"modules:current_speaker:sentences_widx", 
+      "decision_probs":"modules:current_listener:decision_probs",
+      "listener_indices":"current_dataloader:sample:listener_indices",
+    }
+    inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(
+      id=inst_coord_metric_id,
+      config = {
+        "filtering_fn":(lambda kwargs: True),
+        "epoch_period":1,
+      },
+      input_stream_ids=inst_coord_input_stream_ids,
+    )
+    modules[inst_coord_metric_id] = inst_coord_metric_module
     
     speaker_inst_coord_metric_id = f"{speaker.id}_inst_coord_metric"
     speaker_inst_coord_input_stream_ids = {
@@ -2109,7 +2141,7 @@ def main():
     if "obverter" in args.graphtype:
       pipelines[optim_id].append(listener_topo_sim_metric_id)
       pipelines[optim_id].append(listener_posbosdis_metric_id)
-    #pipelines[optim_id].append(inst_coord_metric_id)
+    pipelines[optim_id].append(inst_coord_metric_id)
     pipelines[optim_id].append(speaker_inst_coord_metric_id)
     pipelines[optim_id].append(listener_inst_coord_metric_id)
     
