@@ -938,10 +938,10 @@ def main():
     save_path += "DecisionHeadBN/"
   if args.with_DP_in_obverter_decision_head:
     #save_path += "DecisionHeadDP0.5/"
-    save_path += "DecisionHeadDP0.2/"
+    save_path += "DecisionHeadDP0.1/"
   if args.with_DP_in_obverter_decision_head_listener_only:
     #save_path += "ListenerDecisionHeadDP0.5Only/"
-    save_path += "ListenerDecisionHeadDP0.2Only/"
+    save_path += "ListenerDecisionHeadDP0.1Only/"
   if args.context_consistent_obverter:
     save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}ContextConsistentObverter/"
   

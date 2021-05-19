@@ -16,7 +16,7 @@
 # $15==DecisionHeadBN (""/"--with_BN_in_obverter_decision_head")
 
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli-May17th \
+--parent_folder ./PoorlyDiverseStimuli/May19th/testModularityIssue \
 --use_cuda --seed $(($1+0)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -26,21 +26,23 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 20 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
+--metric_epoch_period 2 --nbr_train_points 150 --nbr_eval_points 100 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
 ${10} ${11} ${12} ${13} ${14} ${15} \
---synthetic_progression_end 1000 \
+--synthetic_progression_end 4000 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset 3DShapesPyBullet \
---train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N &
+--train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N 
 #--descriptive 
 #--vae_factor_gamma $5 \
 #--with_baseline \
 
+python
+
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli-May17th \
+--parent_folder ./PoorlyDiverseStimuli/May19th \
 --use_cuda --seed $(($1+10)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -55,7 +57,7 @@ python -m ipdb -c c train.py \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
 ${10} ${11} ${12} ${13} ${14} ${15} \
---synthetic_progression_end 1000 \
+--synthetic_progression_end 4000 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset 3DShapesPyBullet \
 --train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N &
@@ -64,7 +66,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 #--with_baseline \
 
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli-May17th \
+--parent_folder ./PoorlyDiverseStimuli/May19th \
 --use_cuda --seed $(($1+20)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -79,7 +81,7 @@ python -m ipdb -c c train.py \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
 ${10} ${11} ${12} ${13} ${14} ${15} \
---synthetic_progression_end 1000 \
+--synthetic_progression_end 4000 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset 3DShapesPyBullet \
 --train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N &
@@ -88,7 +90,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 #--with_baseline \
 
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli-May17th \
+--parent_folder ./PoorlyDiverseStimuli/May19th \
 --use_cuda --seed $(($1+30)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -103,16 +105,16 @@ python -m ipdb -c c train.py \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
 ${10} ${11} ${12} ${13} ${14} ${15} \
---synthetic_progression_end 1000 \
+--synthetic_progression_end 4000 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset 3DShapesPyBullet \
---train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N &
+--train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N & 
 #--descriptive 
 #--vae_factor_gamma $5 \
 #--with_baseline \
 
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli-May17th \
+--parent_folder ./PoorlyDiverseStimuli/May19th \
 --use_cuda --seed $(($1+40)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
@@ -127,7 +129,7 @@ python -m ipdb -c c train.py \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
 ${10} ${11} ${12} ${13} ${14} ${15} \
---synthetic_progression_end 1000 \
+--synthetic_progression_end 4000 \
 --nb_3dshapespybullet_shapes 5 --nb_3dshapespybullet_colors 5 --nb_3dshapespybullet_samples 10 --nb_3dshapespybullet_train_colors 3 \
 --dataset 3DShapesPyBullet \
 --train_test_split_strategy combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N

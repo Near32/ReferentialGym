@@ -227,13 +227,13 @@ class ObverterAgent(DiscriminativeListener):
 
         if self.with_DP_in_listener_decision_head_only:
             #self.listener_decision_head_dropout = nn.Dropout(p=0.5)
-            self.listener_decision_head_dropout = nn.Dropout(p=0.2)
+            self.listener_decision_head_dropout = nn.Dropout(p=0.1)
 
         decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
         head_arch = []
         if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
             #head_arch.append(nn.Dropout(p=0.5))
-            head_arch.append(nn.Dropout(p=0.2))
+            head_arch.append(nn.Dropout(p=0.1))
         head_arch += [
             nn.Linear(decision_head_input_size,128),
         ]
