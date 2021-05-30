@@ -37,12 +37,13 @@ setup(
 	'scikit-learn==0.23',
 	'h5py',
 	'opencv-python',
-	'torch>=1.4',
-	'torchvision>=0.5.0',
+	'torch==1.4',
+	'torchvision==0.5.0',
 	'tensorboardX',
 	'matplotlib',
 	'docopt',
-	'pycocotools'
+	'pycocotools',
+    'pybullet==3.1.7',
 	] + test_requirements,
 
     python_requires=">=3.6",

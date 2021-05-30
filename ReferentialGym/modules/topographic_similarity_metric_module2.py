@@ -324,7 +324,7 @@ class TopographicSimilarityMetricModule2(Module):
         epoch = input_streams_dict["epoch"]        
         mode = input_streams_dict["mode"]
         
-        if epoch % self.config["epoch_period"] == 0 and "test" in mode:
+        if epoch % self.config["epoch_period"] == 0 and "train" in mode:
             if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
                 representations = input_streams_dict["representations"]
                 while representations.shape[-1] == 1:

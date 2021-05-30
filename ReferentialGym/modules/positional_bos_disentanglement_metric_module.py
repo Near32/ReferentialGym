@@ -444,7 +444,7 @@ class PositionalBagOfSymbolsDisentanglementMetricModule(Module):
         mode = input_streams_dict["mode"]
         epoch = input_streams_dict["epoch"]
         
-        if epoch % self.config["epoch_period"] == 0 and "test" in mode:
+        if epoch % self.config["epoch_period"] == 0 and "train" in mode:
             if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
                 representations = input_streams_dict["representations"]
                 while representations.shape[-1] == 1:

@@ -321,8 +321,15 @@ def main():
   parser.add_argument("--nbr_experience_repetition", type=int, default=1)
   parser.add_argument("--nbr_train_dataset_repetition", type=int, default=1)
   parser.add_argument("--nbr_test_dataset_repetition", type=int, default=1)
+  
+  parser.add_argument("--add_descriptive_test", action="store_true", default=False)
+  parser.add_argument("--add_discriminative_test", action="store_true", default=False)
+    
+
+  parser.add_argument("--nbr_discriminative_test_distractors", type=int, default=7)
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
   parser.add_argument("--nbr_train_distractors", type=int, default=0)
+  
   parser.add_argument("--resizeDim", default=128, type=int,help="input image resize")
   parser.add_argument("--agent_nbr_latent_dim", type=int, default=50)
   parser.add_argument("--symbol_processing_nbr_hidden_units", default=64, type=int,help="GRU cells")
@@ -930,6 +937,12 @@ def main():
   save_path = ""
   if args.parent_folder != '':
     save_path += args.parent_folder+'/'
+  
+  if args.add_discriminative_test:
+    save_path += f"WithDiscriminativeTest-{args.nbr_discriminative_test_distractors}Distractors/"
+  if args.add_descriptive_test:
+    save_path += "WithDescriptiveTest/"
+
   if "synthetic" in args.graphtype:
     save_path += f"InterventionSyntheticCompositionalLanguage/{'WithObverterRoundAlternation/' if 'obverter' in args.graphtype else ''}"
     save_path += f"ProgressionEnd{args.synthetic_progression_end}/"
@@ -2165,11 +2178,27 @@ def main():
   rg_config["pipelines"] = pipelines
 
 
-  dataset_args = {
+  # dataset_args = {
+  #     "dataset_class":            "DualLabeledDataset",
+  #     "modes": {"train": train_dataset,
+  #               "test": test_dataset,
+  #               },
+  #     "need_dict_wrapping":       need_dict_wrapping,
+  #     "nbr_stimulus":             rg_config["nbr_stimulus"],
+  #     "distractor_sampling":      rg_config["distractor_sampling"],
+  #     "nbr_distractors":          rg_config["nbr_distractors"],
+  #     "observability":            rg_config["observability"],
+  #     "object_centric":           rg_config["object_centric"],
+  #     "descriptive":              rg_config["descriptive"],
+  #     "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
+  # }
+  dataset_args = {"modes":["train", "test"]}
+  dataset_args["train"] = {
       "dataset_class":            "DualLabeledDataset",
-      "modes": {"train": train_dataset,
-                "test": test_dataset,
-                },
+      "modes": {
+        "train": train_dataset,
+        "test": test_dataset,
+      },
       "need_dict_wrapping":       need_dict_wrapping,
       "nbr_stimulus":             rg_config["nbr_stimulus"],
       "distractor_sampling":      rg_config["distractor_sampling"],
@@ -2179,6 +2208,79 @@ def main():
       "descriptive":              rg_config["descriptive"],
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
+  dataset_args["test"] = {
+      "dataset_class":            "DualLabeledDataset",
+      "modes": {
+        "train": train_dataset,
+        "test": test_dataset,
+      },
+      "need_dict_wrapping":       need_dict_wrapping,
+      "nbr_stimulus":             rg_config["nbr_stimulus"],
+      "distractor_sampling":      rg_config["distractor_sampling"],
+      "nbr_distractors":          rg_config["nbr_distractors"],
+      "observability":            rg_config["observability"],
+      "object_centric":           rg_config["object_centric"],
+      "descriptive":              rg_config["descriptive"],
+      "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
+  }
+
+  if args.add_descriptive_test:
+    dataset_args["modes"].append("descriptive_test")
+    nbd = {"descriptive_test":0}
+    nbd.update(rg_config["nbr_distractors"])
+    dataset_args["descriptive_test"] = {
+        "dataset_class":            "DualLabeledDataset",
+        "modes": {
+          "train": train_dataset,
+          "descriptive_test": test_dataset,
+        },
+        "need_dict_wrapping":       need_dict_wrapping,
+        "nbr_stimulus":             rg_config["nbr_stimulus"],
+        "distractor_sampling":      rg_config["distractor_sampling"],
+        "nbr_distractors":          nbd,
+        "observability":            rg_config["observability"],
+        "object_centric":           rg_config["object_centric"],
+        "descriptive":              True, #rg_config["descriptive"],
+        "descriptive_target_ratio": 0.5, #rg_config["descriptive_target_ratio"],
+    }  
+  if args.add_discriminative_test:
+    dataset_args["modes"].append("discriminative_test")
+    nbd = {"discriminative_test":args.nbr_discriminative_test_distractors}
+    nbd.update(rg_config["nbr_distractors"])
+    dataset_args["discriminative_test"] = {
+        "dataset_class":            "DualLabeledDataset",
+        "modes": {
+          "train": train_dataset,
+          "discriminative_test": test_dataset,
+        },
+        "need_dict_wrapping":       need_dict_wrapping,
+        "nbr_stimulus":             rg_config["nbr_stimulus"],
+        "distractor_sampling":      rg_config["distractor_sampling"],
+        "nbr_distractors":          nbd,
+        "observability":            rg_config["observability"],
+        "object_centric":           rg_config["object_centric"],
+        "descriptive":              False, #rg_config["descriptive"],
+        "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
+    }
+
+    dataset_args["modes"].append("discriminative_validation_test")
+    nbd = {"discriminative_validation_test":args.nbr_discriminative_test_distractors}
+    nbd.update(rg_config["nbr_distractors"])
+    dataset_args["discriminative_validation_test"] = {
+        "dataset_class":            "DualLabeledDataset",
+        "modes": {
+          "train": train_dataset,
+          "discriminative_validation_test": train_dataset,
+        },
+        "need_dict_wrapping":       need_dict_wrapping,
+        "nbr_stimulus":             rg_config["nbr_stimulus"],
+        "distractor_sampling":      rg_config["distractor_sampling"],
+        "nbr_distractors":          nbd,
+        "observability":            rg_config["observability"],
+        "object_centric":           rg_config["object_centric"],
+        "descriptive":              False, #rg_config["descriptive"],
+        "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
+    }  
 
   rg_config['use_priority'] = args.use_priority
 
