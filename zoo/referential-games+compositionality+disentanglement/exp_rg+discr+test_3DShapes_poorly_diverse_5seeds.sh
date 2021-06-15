@@ -18,13 +18,13 @@
 ## $17==NBR_DESCRIPTIVE/DISCRIMINATIVE_TEST_DISTRACTORRS (0--)
 
 python -m ipdb -c c train.py \
---parent_folder ./PoorlyDiverseStimuli/May30th/testMultiTest \
+--parent_folder ./PoorlyDiverseStimuli/May30th/testMultiTestBis \
 --use_cuda --seed $(($1+0)) \
 --obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.8 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
---epoch 4001 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \
+--epoch 40001 --symbol_processing_nbr_hidden_units 64 --symbol_embedding_size 64 \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --nbr_discriminative_test_distractors 7 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
