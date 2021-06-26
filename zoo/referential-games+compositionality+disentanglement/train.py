@@ -112,10 +112,15 @@ class InterventionModule(Module):
     size = int(self.intervention_percentage*inp.shape[0])
     if size != 0:
       for bidx in range(size):
+        if output_ohe is not None:  
+          # erase:
+          output_ohe[bidx] *= 0
         for attr in range(inp.shape[1]):
-          if output_ohe is not None:  output_ohe[bidx, attr, inp[bidx, attr]] = 1
+          if output_ohe is not None:  
+            output_ohe[bidx, attr, inp[bidx, attr]] = 1
           #if output_widx is not None:  output_widx[bidx, attr, 0] = inp[bidx, attr]
           if output_widx is not None:  output_widx[bidx, attr] = inp[bidx, attr]
+        
         for nsidx in range(attr+1, self.config["max_sentence_length"]):
           if self.config["vocab_stop_idx"] < self.config["max_sentence_length"]: 
             if output_ohe is not None:  output_ohe[bidx, nsidx, self.config["vocab_stop_idx"]] = 1
@@ -337,6 +342,7 @@ def main():
   parser.add_argument("--use_curriculum_nbr_distractors", action="store_true", default=False)
   parser.add_argument("--use_feat_converter", action="store_true", default=False)
   parser.add_argument("--descriptive", action="store_true", default=False)
+  parser.add_argument("--with_descriptive_not_target_logit_language_conditioning", action="store_true", default=False)
   parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", action="store_true", default=False)
   parser.add_argument("--egocentric", action="store_true", default=False)
@@ -487,6 +493,9 @@ def main():
 
   transform_degrees = args.egocentric_tr_degrees
   transform_translate = (args.egocentric_tr_xy, args.egocentric_tr_xy)
+
+  if args.with_descriptive_not_target_logit_language_conditioning:
+    args.descriptive = True 
 
   default_descriptive_ratio = 1-(1/(args.nbr_train_distractors+2))
   # Default: 1-(1/(nbr_distractors+2)), 
@@ -937,14 +946,18 @@ def main():
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
   if args.with_DP_in_obverter_decision_head:
-    #save_path += "DecisionHeadDP0.5/"
-    save_path += "DecisionHeadDP0.1/"
+    save_path += "DecisionHeadDP0.5/"
+    #save_path += "DecisionHeadDP0.2/"
+    #save_path += "DecisionHeadDP0.1/"
   if args.with_DP_in_obverter_decision_head_listener_only:
-    #save_path += "ListenerDecisionHeadDP0.5Only/"
-    save_path += "ListenerDecisionHeadDP0.1Only/"
+    save_path += "ListenerDecisionHeadDP0.5Only/"
+    #save_path += "ListenerDecisionHeadDP0.2Only/"
+    #save_path += "ListenerDecisionHeadDP0.1Only/"
   if args.context_consistent_obverter:
     save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}ContextConsistentObverter/"
-  
+  if args.with_descriptive_not_target_logit_language_conditioning:
+    save_path += f"DescriptiveNotTargetLogicLanguageConditioning/"
+
   save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
     save_path += "WithBaselineArch/"
@@ -1148,6 +1161,7 @@ def main():
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
         with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
+        with_descriptive_not_target_logit_language_conditioning=args.with_descriptive_not_target_logit_language_conditioning,
       )
     elif 'Baseline' in args.agent_type:
       from ReferentialGym.agents import LSTMCNNSpeaker
@@ -1207,6 +1221,7 @@ def main():
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
         with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
+        with_descriptive_not_target_logit_language_conditioning=args.with_descriptive_not_target_logit_language_conditioning,
       )
     else:
       from ReferentialGym.agents import LSTMCNNListener
