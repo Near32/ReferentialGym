@@ -160,7 +160,7 @@ class PerEpochLoggerModule(Module):
               logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
               logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
               
-              #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
+              logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
               logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)

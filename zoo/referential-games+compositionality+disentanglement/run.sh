@@ -1,0 +1,1 @@
+./exp_rg+discr+test_3DShapes_poorly_diverse_5seeds.sh 10 10 10 64 0.0 0 NLL obverter 0.5 --object_centric --shared_architecture --obverter_sampling_round_alternation_only --descriptive --with_BN_in_obverter_decision_head --add_discriminative_test --with_DP_in_obverter_decision_head

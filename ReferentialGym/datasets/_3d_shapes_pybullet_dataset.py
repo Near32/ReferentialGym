@@ -56,12 +56,65 @@ original_colors = [
 (55, 205, 243), 
 ]
 
+original_colors_str = [
+'White',
+#(255, 255, 255),
+'Red',
+#(173, 35, 35), 
+'Blue',
+#(42, 75, 215), 
+'Green',
+#(29, 105, 20), 
+'Yellow',
+#(255, 238, 51), 
+'Magenta',
+#(255, 0, 255), 
+'Cyan',
+#(0, 255, 255), #(41, 208, 208), 
+'Gray',
+#(127, 127, 127), 
+'Brown',
+#(129, 74, 25), 
+'Purple',
+#(129, 38, 192), 
+# #Lt. Gray
+# (160, 160, 160), 
+# #Lt. Green
+# (129, 197, 122), 
+'Lt-Blue',
+#(157, 175, 255), 
+'Black',
+#(0, 0, 0),
+'Orange',
+#(255, 146, 51), 
+'Tan',
+#(233, 222, 187), 
+'Pink',
+#(55, 205, 243), 
+]
+
+"""
 original_shapes = [
     'cylinder',
     'sphere',
     'cube',
     'torus',
     'capsule',
+    'duck',
+    'teddy',
+    'lego',
+    'table',
+    'r2d2',
+    'racecar',
+    'tray',
+]
+"""
+original_shapes = [
+#    'cylinder',
+#    'sphere',
+#    'cube',
+    'torus',
+#    'capsule',
     'duck',
     'teddy',
     'lego',
@@ -433,6 +486,7 @@ def generate_datapoint(
 
 
 def generate_dataset(root,
+                     filename,
                      img_size=32,
                      nb_samples=100,
                      nb_shapes=5,
@@ -522,7 +576,7 @@ def generate_dataset(root,
     }
 
     print('saving datasets...')
-    filename = os.path.join(dirs,'3d_shapes_pybullet_dataset.pickle')
+    filename = os.path.join(dirs,filename)
     with  open(filename, 'wb') as f:
         pickle.dump((dataset, nb_shapes, nb_colors, nb_samples, sampled_positions, sampled_orientation), f)
     print('datasets saved at {}'.format(filename))
@@ -544,12 +598,20 @@ class _3DShapesPyBulletDataset(Dataset) :
         super(_3DShapesPyBulletDataset, self).__init__()
         
         self.root = root
-        self.file = '3d_shapes_pybullet_dataset.pickle'
         self.img_size = img_size
         self.nb_shapes = nb_shapes
         self.nb_colors = nb_colors
         self.nb_samples = nb_samples
 
+        self.file = '3d_shapes_pybullet_dataset'
+        for shid in range(self.nb_shapes):
+            self.file += f"+{original_shapes[shid]}"
+        for cid in range(self.nb_colors):
+            self.file += f"+{original_colors_str[cid]}"
+        self.file += '.pickle'
+
+        print(self.file)
+        
         self.split_strategy = split_strategy        
         
         self.train = train 
@@ -1074,6 +1136,7 @@ class _3DShapesPyBulletDataset(Dataset) :
         os.makedirs(root, exist_ok=True)
         return generate_dataset(
             root=root,
+            filename=self.file,
             img_size=img_size,
             nb_shapes=nb_shapes,
             nb_colors=nb_colors,
