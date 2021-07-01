@@ -105,6 +105,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         agent_id='o0', 
         logger=None, 
         use_sentences_one_hot_vectors=True,
+        use_normalized_scores=True,
         use_language_projection=True,
         with_DP_in_decision_head=True,
         **other_kwargs):
@@ -130,6 +131,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         )
 
         self.logging_it = 0
+        self.use_normalized_scores = use_normalized_scores
 
         self.register_hook(sentence_length_entropy_logging_hook)
         
@@ -229,7 +231,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             language_projection_head_input_size = self.kwargs['symbol_processing_nbr_hidden_units']
             head_arch = []
             if with_DP_in_decision_head:
-                head_arch += [nn.Dropout(p=0.5)]
+                head_arch += [nn.Dropout(p=0.1)]
             head_arch += [
                 nn.Linear(language_projection_head_input_size, 2*self.encoder_feature_shape),
                 nn.BatchNorm1d(num_features=2*self.encoder_feature_shape),
@@ -242,7 +244,10 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             self.language_projection_head = nn.Sequential(*head_arch)
         else:
             visual_projection_head_input_size = self.encoder_feature_shape
-            head_arch = [
+            head_arch = []
+            if with_DP_in_decision_head:
+                head_arch += [nn.Dropout(p=0.1)]
+            head_arch += [
                 nn.Linear(visual_projection_head_input_size, 2*self.kwargs['symbol_processing_nbr_hidden_units']),
                 nn.BatchNorm1d(num_features=2*self.kwargs['symbol_processing_nbr_hidden_units']),
                 nn.ReLU(),
@@ -555,6 +560,16 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
                 #scores = torch.matmul( bvp, blp).view((1,-1))
                 bscores = torch.matmul( bvp, blp).reshape((-1,1)).transpose(0,1)
                 # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+                if self.use_normalized_scores:
+                    nbvp = torch.norm(bvp, dim=-1, keepdim=True)
+                    # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
+                    nblp = torch.norm(blp, dim=0)
+                    # (1,)
+                    denominator = nbvp*nblp
+                    # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
+                    bscores = bscores/denominator.transpose(0,1)
+                    # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+                    
                 decision_scores_until_widx.append(bscores)
             decision_scores_until_widx = torch.cat(decision_scores_until_widx, dim=0)
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
@@ -564,9 +579,23 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
 
         if self.kwargs["descriptive"]:
+            """
             not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, nbr_distractors_po, 1).to(decision_scores.device)
             decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit], dim=-1 )
             # (batch_size, (nbr_distractors+1), 2)
+            """
+            """
+            not_target_logit = (-1)*torch.ones_like(decision_scores)-decision_scores
+            # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit.unsqueeze(-1)], dim=-1 )
+            # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
+            """
+            not_target_logit = 1.0/torch.abs((-1)*torch.ones_like(decision_scores)-decision_scores)
+            target_logit = 1.0/torch.abs(torch.ones_like(decision_scores)-decision_scores)
+            # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            decision_logits = torch.cat([target_logit.unsqueeze(-1), not_target_logit.unsqueeze(-1)], dim=-1 )
+            # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
+            
         else:
             # How do we compute softmax?
             raise NotImplementedError
@@ -629,6 +658,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             model=(lambda features,sentences,kwargs: self._reason(sentences, features, kwargs=kwargs)),
             logger=self.logger,
             logging_it=self.logging_it,
+            prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
         )
 
         next_sentences_logits = next_sentences_probs.log()
@@ -663,7 +693,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
 
         return next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
-    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it):
+    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it, prob_threshold=0.95):
         relevant_procs = list(range(all_inputs.size(0)))
 
         sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
@@ -705,7 +735,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
             finished_p = []
             for i, (action, p, prob) in enumerate(zip(comm, relevant_procs, probs)):
-                if prob > 0.95:
+                if prob > prob_threshold:
                     finished_p.append(p)
                     if prob.item() < 0:
                         continue

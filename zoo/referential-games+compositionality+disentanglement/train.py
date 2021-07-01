@@ -324,9 +324,10 @@ def main():
   
   parser.add_argument("--add_descriptive_test", action="store_true", default=False)
   parser.add_argument("--add_discriminative_test", action="store_true", default=False)
-    
+  parser.add_argument("--add_descr_discriminative_test", action="store_true", default=False)    
 
   parser.add_argument("--nbr_discriminative_test_distractors", type=int, default=7)
+  parser.add_argument("--nbr_descr_discriminative_test_distractors", type=int, default=7)
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
   parser.add_argument("--nbr_train_distractors", type=int, default=0)
   
@@ -364,6 +365,7 @@ def main():
   parser.add_argument("--differentiable", action="store_true", default=False)
   parser.add_argument("--context_consistent_obverter", action="store_true", default=False)
   parser.add_argument("--visual_context_consistent_obverter", action="store_true", default=False)
+  parser.add_argument("--normalised_context_consistent_obverter", action="store_true", default=False)
   parser.add_argument("--with_BN_in_obverter_decision_head", action="store_true", default=False)
   parser.add_argument("--with_DP_in_obverter_decision_head", action="store_true", default=False)
   parser.add_argument("--with_DP_in_obverter_decision_head_listener_only", action="store_true", default=False)
@@ -439,6 +441,8 @@ def main():
 
   if args.visual_context_consistent_obverter:
     args.context_consistent_obverter = True 
+  if args.normalised_context_consistent_obverter:
+    args.context_consistent_obverter = True
 
   print(args)
   
@@ -940,6 +944,9 @@ def main():
   
   if args.add_discriminative_test:
     save_path += f"WithDiscriminativeTest-{args.nbr_discriminative_test_distractors}Distractors/"
+  if args.add_descr_discriminative_test:
+    save_path += f"WithDescrDiscriminativeTest-{args.nbr_descr_discriminative_test_distractors}Distractors/"
+  
   if args.add_descriptive_test:
     save_path += "WithDescriptiveTest/"
 
@@ -956,7 +963,7 @@ def main():
     #save_path += "ListenerDecisionHeadDP0.5Only/"
     save_path += "ListenerDecisionHeadDP0.1Only/"
   if args.context_consistent_obverter:
-    save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}ContextConsistentObverter/"
+    save_path += f"{'Visual' if args.visual_context_consistent_obverter else ''}{'Normalized' if args.normalised_context_consistent_obverter else ''}ContextConsistentObverter/"
   
   save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
@@ -1158,6 +1165,7 @@ def main():
         logger=logger,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
+        use_normalized_scores=args.normalised_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
         with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
@@ -2280,6 +2288,45 @@ def main():
         "object_centric":           rg_config["object_centric"],
         "descriptive":              False, #rg_config["descriptive"],
         "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
+    }  
+
+  if args.add_descr_discriminative_test and rg_config["descriptive"]:
+    dataset_args["modes"].append("descr_discriminative_test")
+    nbd = {"descr_discriminative_test":args.nbr_descr_discriminative_test_distractors}
+    nbd.update(rg_config["nbr_distractors"])
+    dataset_args["descr_discriminative_test"] = {
+        "dataset_class":            "DualLabeledDataset",
+        "modes": {
+          "train": train_dataset,
+          "descr_discriminative_test": test_dataset,
+        },
+        "need_dict_wrapping":       need_dict_wrapping,
+        "nbr_stimulus":             rg_config["nbr_stimulus"],
+        "distractor_sampling":      rg_config["distractor_sampling"],
+        "nbr_distractors":          nbd,
+        "observability":            rg_config["observability"],
+        "object_centric":           rg_config["object_centric"],
+        "descriptive":              rg_config["descriptive"],
+        "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
+    }
+
+    dataset_args["modes"].append("descr_discriminative_validation_test")
+    nbd = {"descr_discriminative_validation_test":args.nbr_descr_discriminative_test_distractors}
+    nbd.update(rg_config["nbr_distractors"])
+    dataset_args["descr_discriminative_validation_test"] = {
+        "dataset_class":            "DualLabeledDataset",
+        "modes": {
+          "train": train_dataset,
+          "descr_discriminative_validation_test": train_dataset,
+        },
+        "need_dict_wrapping":       need_dict_wrapping,
+        "nbr_stimulus":             rg_config["nbr_stimulus"],
+        "distractor_sampling":      rg_config["distractor_sampling"],
+        "nbr_distractors":          nbd,
+        "observability":            rg_config["observability"],
+        "object_centric":           rg_config["object_centric"],
+        "descriptive":              rg_config["descriptive"],
+        "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
     }  
 
   rg_config['use_priority'] = args.use_priority
