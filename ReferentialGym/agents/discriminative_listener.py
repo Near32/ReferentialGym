@@ -212,10 +212,24 @@ def discriminative_obverter_referential_game_loss(
     
     final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
     # (batch_size, (nbr_distractors+1), 2)
-    
     assert final_decision_logits.shape[1]==1
     target_decision_idx = sample["target_decision_idx"]
     
+    if nbr_distractors_po != 1:
+        per_stimulus_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+        # (batch_size, (nbr_distractors+1), 2)
+        per_stimulus_decision_index = per_stimulus_decision_logits.max(dim=-1, keepdim=False)[1]
+        # (batch_size, (nbr_distractors+1))
+        per_stimulus_target_index = torch.ones_like(per_stimulus_decision_index)
+        # (batch_size, (nbr_distractors+1))
+        for bidx in range(batch_size):
+            per_stimulus_target_index[bidx, target_decision_idx[bidx].long()] = 0
+        descriptive_accuracy = (per_stimulus_target_index==per_stimulus_decision_index).float()*100.0
+        # (batch_size, (nbr_distractors+1))
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
+        outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
+
+
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:
             final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
@@ -337,6 +351,9 @@ def discriminative_obverter_referential_game_loss(
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_decision_index/prediction"] = decision_idx.float()
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_decision_index/target"] = sample["target_decision_idx"].float()
     outputs_dict["accuracy"] = acc
+    if nbr_distractors_po == 1:
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = acc
+        outputs_dict["descriptive_accuracy"] = acc
 
 
 def penalize_multi_round_binary_reward_fn(sampled_decision_idx, target_decision_idx, decision_logits=None, multi_round=False):

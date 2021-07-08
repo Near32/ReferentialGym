@@ -21,7 +21,7 @@
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli/June26th/testNormCCO+DescrInvScore+Min \
 --use_cuda --seed $(($1+0)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.70 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.90 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
