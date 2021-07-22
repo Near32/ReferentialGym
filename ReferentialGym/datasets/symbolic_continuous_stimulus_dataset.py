@@ -10,6 +10,8 @@ import torch
 from torch.utils.data import Dataset 
 from PIL import Image 
 
+eps = 1e-8
+
 
 class SymbolicContinuousStimulusDataset(Dataset) :
     def __init__(
@@ -20,7 +22,8 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         nbr_latents=10, 
         min_nbr_values_per_latent=2, 
         max_nbr_values_per_latent=10, 
-        nbr_object_centric_samples=1) :
+        nbr_object_centric_samples=1,
+        prototype=None) :
         '''
         :param split_strategy: str 
             e.g.: 'divider-10-offset-0'
@@ -31,6 +34,8 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         self.nbr_object_centric_samples = nbr_object_centric_samples
         
         self.test_set_divider = 2
+
+        self.prototype = prototype
 
         self.reset()
         self.imgs = [np.zeros((64,64,3))]
@@ -74,15 +79,25 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                 filler allowed will be part of the training set.
                 '''
 
-               nbr_primitives_and_tested = len([k for k in self.latent_dims 
-                    if self.latent_dims[k]['primitive'] or 'untested' not in self.latent_dims[k]])
+                nbr_primitives_and_tested = len([
+                    k for k in self.latent_dims 
+                    if self.latent_dims[k]['primitive'] or 'untested' not in self.latent_dims[k]
+                ])
                 #assert(nbr_primitives_and_tested==self.counter_test_threshold)
+            else:
+                raise NotImplementedError
         else:
             self.divider = 1
             self.offset = 0
 
         self.indices = []
-        if self.split_strategy is None or 'divider' in self.split_strategy:
+        if self.prototype is not None:
+            assert not(self.train)
+            self.indices = [idx for idx in range(self.dataset_size) if idx not in self.prototype.indices]
+            print(f"Split Strategy: {self.split_strategy}")
+            print(f"Dataset Size: {len(self.indices)} out of {self.dataset_size} : {100*len(self.indices)/self.dataset_size}%.")
+
+        elif self.split_strategy is None or 'divider' in self.split_strategy:
             for idx in range(self.dataset_size):
                 if idx % self.divider == self.offset:
                     self.indices.append(idx)
@@ -97,7 +112,10 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             print(f"Dataset Size: {len(self.indices)} out of {self.dataset_size}: {100*len(self.indices)/self.dataset_size}%.")
         elif 'combinatorial' in self.split_strategy:
             for idx in range(self.dataset_size):
-                latent_class = self.getlatentclass(idx)
+                object_centric_sidx = idx//self.nbr_object_centric_samples
+                coord = self.idx2coord(object_centric_sidx)
+                latent_class = np.array(coord)
+                
                 effective_test_threshold = self.counter_test_threshold
                 counter_test = {}
                 skip_it = False
@@ -144,57 +162,68 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                         continue
 
             print(f"Split Strategy: {self.split_strategy}")
-            print(self.latent_dims)
             print(f"Dataset Size: {len(self.indices)} out of {self.dataset_size} : {100*len(self.indices)/self.dataset_size}%.")
-            
+        else:
+            raise NotImplementedError            
 
         self.targets = self.targets[self.indices]
         print('Dataset loaded : OK.')
     
     def reset(self):
-        self.latent_dims = {}
-        self.latent_sizes = []
-        self.dataset_size = 1
-        for l_idx in range(self.nbr_latents):
-            l_size = np.random.randint(low=self.min_nbr_values_per_latent, high=self.max_nbr_values_per_latent)
-            self.dataset_size *= l_size
-            self.latent_sizes.append(l_size)
-            self.latent_dims[l_idx] = {'size': l_size}
-            
-            self.latent_dims[l_idx]['value_section_size'] = 2.0/l_size
-            self.latent_dims[l_idx]['max_sigma'] = self.latent_dims[l_idx]['value_section_size']/6
-            self.latent_dims[l_idx]['min_sigma'] = self.latent_dims[l_idx]['value_section_size']/12
-            self.latent_dims[l_idx]['sections'] = {}
-            for s_idx in range(l_size):
-                s_d = {}
-                s_d['section_offset'] = -1+s_idx*self.latent_dims[l_idx]['value_section_size']
-                s_d['sigma'] = np.random.uniform(
-                    low=self.latent_dims[l_idx]['min_sigma']+eps,
-                    high=self.latnet_dims[l_idx]['max_sigma']-eps,
-                )
-                s_d['safe_section_size'] = self.latent_dims[l_idx]['value_section_size'] - 6*s_d['sigma']
-                s_d['safe_section_mean_offset'] = 3*s_d['sigma']
-                s_d['mean_ratio'] = np.random.uniform(low=0,high=1.0)
-                s_d['mean'] = s_d['section_offset'] + s_d['safe_section_mean_offset'] + s_d['mean_ratio'] * s_d['safe_section_size']
+        global eps 
+
+        if self.prototype is None:
+            self.latent_dims = {}
+            self.latent_sizes = []
+            self.dataset_size = 1
+            for l_idx in range(self.nbr_latents):
+                l_size = np.random.randint(low=self.min_nbr_values_per_latent, high=self.max_nbr_values_per_latent)
+                self.dataset_size *= l_size
+                self.latent_sizes.append(l_size)
+                self.latent_dims[l_idx] = {'size': l_size}
                 
-                self.latent_dims[l_idx]['sections'][l_idx] = s_d
+                self.latent_dims[l_idx]['value_section_size'] = 2.0/l_size
+                self.latent_dims[l_idx]['max_sigma'] = self.latent_dims[l_idx]['value_section_size']/6
+                self.latent_dims[l_idx]['min_sigma'] = self.latent_dims[l_idx]['value_section_size']/12
+                self.latent_dims[l_idx]['sections'] = {}
+                for s_idx in range(l_size):
+                    s_d = {}
+                    s_d['section_offset'] = -1+s_idx*self.latent_dims[l_idx]['value_section_size']
+                    s_d['sigma'] = np.random.uniform(
+                        low=self.latent_dims[l_idx]['min_sigma']+eps,
+                        high=self.latent_dims[l_idx]['max_sigma']-eps,
+                    )
+                    s_d['safe_section_size'] = self.latent_dims[l_idx]['value_section_size'] - 6*s_d['sigma']
+                    s_d['safe_section_mean_offset'] = 3*s_d['sigma']
+                    s_d['mean_ratio'] = np.random.uniform(low=0,high=1.0)
+                    s_d['mean'] = s_d['section_offset'] + s_d['safe_section_mean_offset'] + s_d['mean_ratio'] * s_d['safe_section_size']
+                    
+                    self.latent_dims[l_idx]['sections'][s_idx] = s_d
 
-            self.latent_dims[l_idx]['nbr_fillers'] = 0
-            self.latent_dims[l_idx]['primitive'] = False
-            self.latent_dims[l_idx]['position'] = l_idx
-            self.latent_dims[l_idx]['remainder_use'] = 0
-            self.latent_dims[l_idx]['divider'] = 1 # no need to divide as it is fully parameterized
-            self.latent_dims[l_idx]['test_set_divider'] = self.test_set_divider
+                self.latent_dims[l_idx]['nbr_fillers'] = 0
+                self.latent_dims[l_idx]['primitive'] = False
+                self.latent_dims[l_idx]['position'] = l_idx
+                self.latent_dims[l_idx]['remainder_use'] = 0
+                self.latent_dims[l_idx]['divider'] = 1 # no need to divide as it is fully parameterized
+                self.latent_dims[l_idx]['test_set_divider'] = self.test_set_divider
 
-        self.dataset_size *= self.nbr_object_centric_samples
-        self.generate_object_centric_samples()
+            self.dataset_size *= self.nbr_object_centric_samples
+            self.generate_object_centric_samples()
 
-        self.latent_strides = [1]
-        dims = [ld['size'] for ld in self.latent_dims]
-        for idx in range(self.nbr_latents):
-            self.latent_strides.append(np.prod(dims[-idx-1:]))
-        self.latent_strides = list(reversed(self.latent_strides[:-1]))
-        
+            self.latent_strides = [1]
+            dims = [ld['size'] for ld in self.latent_dims.values()]
+            for idx in range(self.nbr_latents):
+                self.latent_strides.append(np.prod(dims[-idx-1:]))
+            self.latent_strides = list(reversed(self.latent_strides[:-1]))
+            
+            self.test_latents_mask = np.zeros((self.dataset_size, self.nbr_latents))
+        else:
+            self.latent_dims = self.prototype.latent_dims
+            self.latent_sizes = self.prototype.latent_sizes
+            self.dataset_size = self.prototype.dataset_size
+            self.latent_strides = self.prototype.latent_strides
+            self.test_latents_mask = self.prototype.test_latents_mask
+
         self.targets = np.zeros(self.dataset_size)
         for idx in range(self.dataset_size):
             self.targets[idx] = idx//self.nbr_object_centric_samples
@@ -222,15 +251,19 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             distribution.
         """
         batch_size = latent_class.shape[0]
+        object_centric_sample_idx = np.random.randint(low=0,high=self.nbr_object_centric_samples)
 
-        observations = np.zeros_like(latent_class)
+        observations = np.zeros((batch_size, self.nbr_latents))
         for bidx in range(batch_size):
             for lidx in range(self.nbr_latents):
                 lvalue = latent_class[bidx,lidx]
+                """
                 lvalue_sample = np.random.choice(
                     a=self.latent_dims[lidx]['sections'][lvalue]['object_centric_samples'],
                     size=1,
                 )
+                """
+                lvalue_sample = self.latent_dims[lidx]['sections'][lvalue]['object_centric_samples'][object_centric_sample_idx]
                 observations[bidx,lidx] = lvalue_sample
 
         return observations
@@ -247,7 +280,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         """
         batch_size = latent_class.shape[0]
 
-        observations = np.zeros_like(latent_class)
+        observations = np.zeros((batch_size, self.nbr_latents))
         for bidx in range(batch_size):
             for lidx in range(self.nbr_latents):
                 lvalue = latent_class[bidx,lidx]
@@ -297,15 +330,17 @@ class SymbolicContinuousStimulusDataset(Dataset) :
     def getclass(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        trueidx = self.indices[idx]
-        target = self.targets[trueidx]
+        target = self.targets[idx]
         return target
 
     def getlatentvalue(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
         trueidx = self.indices[idx]
-        latent_value = self.latents_values[trueidx]
+        object_centric_sidx = trueidx//self.nbr_object_centric_samples
+        coord = self.idx2coord(object_centric_sidx)
+        latent_class = np.array(coord).reshape((1,-1))
+        latent_value = self.generate_observations(latent_class, sample=False)
         return latent_value
 
     def getlatentclass(self, idx):
@@ -332,7 +367,8 @@ class SymbolicContinuousStimulusDataset(Dataset) :
     def gettestlatentmask(self, idx):
         if idx >= len(self):
             idx = idx%len(self)
-        test_latents_mask = np.zeros(sum(self.latent_sizes))
+        trueidx = self.indices[idx]
+        test_latents_mask = self.test_latents_mask[trueidx]
         return test_latents_mask
 
     def sample_factors(self, num, random_state):
@@ -362,7 +398,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         Sample a batch of observations X given a batch of factors Y.
         """
         batch_size = factors.shape[0]
-        ohe = np.zeros((batch_size, sum(self.latent_sizes))
+        ohe = np.zeros((batch_size, sum(self.latent_sizes)))
         for bidx in range(batch_size):
             idx = self.coord2idx(factors[idx])
             ohe[bidx] = self.getlatentonehot(idx)
@@ -391,19 +427,20 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         if idx >= len(self):
             idx = idx%len(self)
 
-        image = Image.fromarray((self.imgs[0]*255).astype('uint8'))
-        
+        latent_class = self.getlatentclass(idx)
+        stimulus = torch.from_numpy(self.generate_object_centric_observations(latent_class.reshape((1,-1))))
+        latent_class = torch.from_numpy(latent_class)
+
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
-        latent_class = torch.from_numpy(self.getlatentclass(idx))
         latent_one_hot_encoded = torch.from_numpy(self.getlatentonehot(idx))
         test_latents_mask = torch.from_numpy(self.gettestlatentmask(idx))
 
         if self.transform is not None:
-            image = self.transform(image)
+            stimulus = self.transform(stimulus)
         
         sampled_d = {
-            "experiences":image, 
+            "experiences":stimulus, 
             "exp_labels":target, 
             "exp_latents":latent_class, 
             "exp_latents_values":latent_value,
