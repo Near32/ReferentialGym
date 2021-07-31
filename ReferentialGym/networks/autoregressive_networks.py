@@ -12,7 +12,6 @@ from numbers import Number
 from functools import partial
 
 import numpy as np 
-from skimage import segmentation
 import cv2
 
 from .networks import FCBody, ConvolutionalBody, MHDPA_RN, layer_init, ConvolutionalMHDPABody
@@ -1267,6 +1266,7 @@ class MONet(BetaVAE):
                  cvae_constrainedEncoding=True,
                  cvae_observation_sigma=0.05,
                  compactness_factor=None):
+        from skimage import segmentation
         cvae_input_shape = copy.deepcopy(input_shape)
         cvae_input_shape[0] += 1
         super(MONet, self).__init__(beta=cvae_beta, 
@@ -1553,6 +1553,7 @@ class ParallelMONet(BetaVAE):
                  cvae_constrainedEncoding=True,
                  cvae_observation_sigma=0.05,
                  compactness_factor=None):
+        from skimage import segmentation
         cvae_input_shape = copy.deepcopy(input_shape)
         cvae_input_shape[0] += 1
         super(ParallelMONet, self).__init__(beta=cvae_beta, 
