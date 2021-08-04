@@ -93,28 +93,12 @@ original_colors_str = [
 #(55, 205, 243), 
 ]
 
-"""
 original_shapes = [
     'cylinder',
     'sphere',
     'cube',
     'torus',
     'capsule',
-    'duck',
-    'teddy',
-    'lego',
-    'table',
-    'r2d2',
-    'racecar',
-    'tray',
-]
-"""
-original_shapes = [
-#    'cylinder',
-#    'sphere',
-#    'cube',
-    'torus',
-#    'capsule',
     'duck',
     'teddy',
     'lego',

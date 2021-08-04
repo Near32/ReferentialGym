@@ -978,7 +978,7 @@ def main():
   if args.with_descriptive_not_target_logit_language_conditioning:
     save_path += f"DescriptiveNotTargetLogicLanguageConditioning/"
 
- save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
+  save_path += f"{args.dataset}+DualLabeled/AdamEPS{rg_config['adam_eps']}"
   if args.with_baseline:
     save_path += "WithBaselineArch/"
 
