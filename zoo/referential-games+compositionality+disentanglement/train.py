@@ -397,6 +397,8 @@ def main():
     choices=[
       "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
       "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
+      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-S3-Shape-1-S1", 
+      "combinatorial2-Y-8-S2-X-8-S2-Orientation-4-N-Scale-2-S1-Shape-1-S1",
       "divider-1-offset-0",
       "divider-10-offset-0",
       "divider-100-offset-0",

@@ -19,7 +19,7 @@
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
 --use_cuda --seed $(($1+0)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
@@ -27,7 +27,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
+--metric_epoch_period 20 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -43,7 +43,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
 --use_cuda --seed $(($1+10)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
@@ -51,7 +51,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
+--metric_epoch_period 20 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -66,7 +66,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
 --use_cuda --seed $(($1+20)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
@@ -74,7 +74,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
+--metric_epoch_period 20 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -89,7 +89,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
 --use_cuda --seed $(($1+30)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
@@ -97,7 +97,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
+--metric_epoch_period 20 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \
@@ -112,7 +112,7 @@ ${10} ${11} ${12} ${13} ${14} ${15} \
 python -m ipdb -c c train.py \
 --parent_folder ./PoorlyDiverseStimuli \
 --use_cuda --seed $(($1+40)) \
---obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.75 \
+--obverter_nbr_games_per_round 2 --obverter_threshold_to_stop_message_generation 0.0 \
 --batch_size $4 --mini_batch_size $4 --vae_lambda 0.0 \
 --resizeDim 64 --arch BN+BetaVAEEncoderOnly3x3 --emb_dropout_prob 0.0 --dropout_prob 0.0 \
 --max_sentence_length $2 --vocab_size $3 \
@@ -120,7 +120,7 @@ python -m ipdb -c c train.py \
 --nbr_train_distractors $6 --nbr_test_distractors $6 \
 --obverter_use_decision_head --obverter_nbr_head_outputs 2 \
 --agent_loss_type $7 --graphtype $8 \
---metric_epoch_period 200 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
+--metric_epoch_period 20 --nbr_train_points 180 --nbr_eval_points 180 --metric_batch_size 16 \
 --dis_metric_resampling --metric_resampling --metric_active_factors_only \
 --lr 6e-4 --agent_nbr_latent_dim 32 --vae_nbr_latent_dim 32 \
 --descriptive_ratio $9 \

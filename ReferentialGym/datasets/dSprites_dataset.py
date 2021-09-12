@@ -247,7 +247,11 @@ class dSpritesDataset(Dataset) :
                 if 'N' in strategy[15]:
                     self.latent_dims['Shape']['untested'] = True
                     self.latent_dims['Shape']['test_set_divider'] = (self.latent_dims['Shape']['size']//self.latent_dims['Shape']['divider'])+10
-                else:  
+                elif 'E' in strategy[15]:  
+                    self.latent_dims['Shape']['test_set_size_sample_from_end'] = int(strategy[15][1:])
+                elif 'S' in strategy[15]:  
+                    self.latent_dims['Shape']['test_set_size_sample_from_start'] = int(strategy[15][1:])
+                else:
                     self.latent_dims['Shape']['test_set_divider'] = int(strategy[15])
                 
                 # COLOR: TODO...
