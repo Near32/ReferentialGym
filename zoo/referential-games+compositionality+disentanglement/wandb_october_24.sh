@@ -1,0 +1,1 @@
+./wandb_exp_rg+discr_3DShapes_poorly_diverse_5seeds.sh 10 10 10 64 0.0 0 NLL obverter 0.5 --object_centric=True --shared_architecture=True --obverter_sampling_round_alternation_only=True --descriptive=True

@@ -7,7 +7,6 @@ from .referential_game import ReferentialGame
 
 import copy 
 
-
 def make(config, 
          dataset_args,
          load_path=None,

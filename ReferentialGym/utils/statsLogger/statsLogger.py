@@ -15,7 +15,7 @@ class statsLogger(SummaryWriter):
         :param filename: `str` defining the name of the file where the data are dumped.
         :param dumpPeriod: `in` defining the period with which we dump the data.
         """
-        super(statsLogger, self).__init__(path)
+        super(statsLogger, self).__init__(path, max_queue=100000, flush_secs=12000)
 
         self.path = path
         self.filename = filename

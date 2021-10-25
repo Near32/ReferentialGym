@@ -416,7 +416,7 @@ class MutualInformationGapDisentanglementMetricModule(Module):
                     discr_train_repr = self._discretize(train_repr, num_bins=20)
 
                     mutual_information = self._compute_mutual_info(discr_train_repr, train_lrepr) 
-                    nondiscr_mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
+                    #nondiscr_mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
                     # (rep_dim, lrep_dim)
                     entropy = self._compute_entropy(train_lrepr)
                     # (lrep_dim,)

@@ -223,6 +223,10 @@ class ModularityDisentanglementMetricModule(Module):
         for i in range(rep_size):
             for j in range(lrep_size):
                 mi[i, j] = sklearn.metrics.mutual_info_score(lrep[j, :], rep[i, :])
+                ## 
+                # Adding the change from version 0.23.2 :
+                #mi[i, j] = np.clip(mi[i, j], 0.0, None)
+                ## 
         return mi
 
     def _compute_modularity_score(self, mi):
@@ -406,8 +410,8 @@ class ModularityDisentanglementMetricModule(Module):
                 if not active_dims.any():
                     scores_dict["modularity_score1"] = 0.
                     scores_dict["modularity_score2"] = 0.
-                    scores_dict["nondiscr_modularity_score1"] = 0.
-                    scores_dict["nondiscr_modularity_score2"] = 0.
+                    #scores_dict["nondiscr_modularity_score1"] = 0.
+                    #scores_dict["nondiscr_modularity_score2"] = 0.
                     scores_dict["num_active_dims"] = 0
                 else:
                     train_repr, train_lrepr = self._generate_training_batch(
@@ -419,30 +423,30 @@ class ModularityDisentanglementMetricModule(Module):
                     # (dim, nbr_points)
                     # Discretization:
                     discr_train_repr = self._discretize(train_repr, num_bins=20)
-
                     discr_mutual_information = self._compute_mutual_info(discr_train_repr, train_lrepr) 
                     # (rep_dim, lrep_dim)
-                    mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
+                    #mutual_information = self._compute_mutual_info(train_repr, train_lrepr) 
                     
                     ms1, ms2 = self._compute_modularity_score(discr_mutual_information)
-                    ndms1, ndms2 = self._compute_modularity_score(mutual_information)
+                    #ndms1, ndms2 = self._compute_modularity_score(mutual_information)
 
                     scores_dict["modularity_score1"] = ms1
                     scores_dict["modularity_score2"] = ms2
-                    scores_dict["nondiscr_modularity_score1"] = ndms1
-                    scores_dict["nondiscr_modularity_score2"] = ndms2
+                    #scores_dict["nondiscr_modularity_score1"] = ndms1
+                    #scores_dict["nondiscr_modularity_score2"] = ndms2
                     scores_dict["num_active_dims"] = len(active_dims)
                     
                     # To what extent is a factor captured in a modular way by the model?
-                    per_factor_maxmi = np.max(mutual_information, axis=0)
+                    #per_factor_maxmi = np.max(mutual_information, axis=0)
+                    per_factor_maxmi = np.max(discr_mutual_information, axis=0)
 
                     for idx, maxmi in enumerate(per_factor_maxmi):
                         logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/MaxMutualInformation/factor_{idx}"] = maxmi
                     
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/ModularityScore1"] = scores_dict["modularity_score1"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/ModularityScore2"] = scores_dict["modularity_score2"]
-                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore1"] = scores_dict["nondiscr_modularity_score1"]
-                logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore2"] = scores_dict["nondiscr_modularity_score2"]
+                #logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore1"] = scores_dict["nondiscr_modularity_score1"]
+                #logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/NonDiscrModularityScore2"] = scores_dict["nondiscr_modularity_score2"]
                 logs_dict[f"{mode}/{self.id}/DisentanglementMetric/Modularity/nbr_active_dims"] = scores_dict["num_active_dims"]
 
                 self.representations = []

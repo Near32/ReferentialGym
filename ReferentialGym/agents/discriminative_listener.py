@@ -223,7 +223,8 @@ def discriminative_obverter_referential_game_loss(
         per_stimulus_target_index = torch.ones_like(per_stimulus_decision_index)
         # (batch_size, (nbr_distractors+1))
         for bidx in range(batch_size):
-            per_stimulus_target_index[bidx, target_decision_idx[bidx].long()] = 0
+            if target_decision_idx[bidx].long().item() < nbr_distractors_po:
+                per_stimulus_target_index[bidx, target_decision_idx[bidx].long()] = 0
         descriptive_accuracy = (per_stimulus_target_index==per_stimulus_decision_index).float()*100.0
         # (batch_size, (nbr_distractors+1))
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)

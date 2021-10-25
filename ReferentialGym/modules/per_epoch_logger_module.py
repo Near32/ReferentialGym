@@ -7,6 +7,8 @@ import torch.optim as optim
 import numpy as np 
 
 from .module import Module
+import wandb 
+
 
 def build_PerEpochLoggerModule(id:str,
                                config:Dict[str,object]=None,
@@ -92,6 +94,14 @@ class PerEpochLoggerModule(Module):
         
         logger = input_streams_dict["logger"]
 
+        #logger.add_scalar(f"epoch", epoch, epoch)
+        wandb.log({"epoch":epoch}, commit=False)
+        #logger.add_scalar(f"global_it_step", global_it_step, global_it_step)
+        wandb.log({"global_it_step":global_it_step}, commit=False)
+        #logger.add_scalar(f"update_count", update_count, update_count)
+        wandb.log({"update_count":update_count}, commit=False)
+
+
         # Store new data:
         for key,value in logs_dict.items():
           if key not in self.storages:
@@ -123,11 +133,15 @@ class PerEpochLoggerModule(Module):
             if need_stats:
               averaged_value = values.mean()
               std_value = values.std()
-              logger.add_scalar(f"PerEpoch/{key}/Mean", averaged_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Std", std_value, epoch)
+              #logger.add_scalar(f"PerEpoch/{key}/Mean", averaged_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Mean": averaged_value, "epoch":epoch}, commit=False)
+              #logger.add_scalar(f"PerEpoch/{key}/Std", std_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Std": std_value, "epoch":epoch}, commit=False)
               
-              logger.add_scalar(f"PerUpdate/{key}/Mean", averaged_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
+              #logger.add_scalar(f"PerUpdate/{key}/Mean", averaged_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Mean": averaged_value, "update_count":update_count}, commit=False)
+              #logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Std": std_value, "update_count":update_count}, commit=False)
               
 
               median_value = np.nanpercentile(
@@ -150,20 +164,30 @@ class PerEpochLoggerModule(Module):
               )
               iqr = q3_value-q1_value
               
-              logger.add_scalar(f"PerEpoch/{key}/Median", median_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Q1", q1_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
+              #logger.add_scalar(f"PerEpoch/{key}/Median", median_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Median": median_value, "epoch":epoch}, commit=False)
+              #logger.add_scalar(f"PerEpoch/{key}/Q1", q1_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Q1": q1_value, "epoch":epoch}, commit=False)
+              #logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Q3": q3_value, "epoch":epoch}, commit=False)
+              #logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
+              wandb.log({f"PerEpoch/{key}/IQR": iqr, "epoch":epoch}, commit=False)
               
-              logger.add_scalar(f"PerUpdate/{key}/Median", median_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Q1", q1_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
+              #logger.add_scalar(f"PerUpdate/{key}/Median", median_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Median": median_value, "update_count":update_count}, commit=False)
+              #logger.add_scalar(f"PerUpdate/{key}/Q1", q1_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Q1": q1_value, "update_count":update_count}, commit=False)
+              #logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Q3": q3_value, "update_count":update_count}, commit=False)
+              #logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
+              wandb.log({f"PerUpdate/{key}/IQR": iqr, "update_count":update_count}, commit=False)
               
-              logger.add_histogram(f"PerEpoch/{key}", values, epoch)
+              #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
-              logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
-              logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
+              #logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
+              wandb.log({f"PerEpoch/{key}": valuelist[-1], "epoch":epoch}, commit=False)
+              #logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
+              wandb.log({f"PerUpdate/{key}": valuelist[-1], "update_count":update_count}, commit=False)
               
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)
@@ -171,15 +195,15 @@ class PerEpochLoggerModule(Module):
           # Reset epoch storages:
           self.storages = {}
 
-          # Flush data:
-          logger.flush()
-
-
         # Log new (rectified) data:
         for key,value in logs_dict.items():
           if isinstance(value, torch.Tensor): 
               value = value.mean().item()
           logger.add_scalar(key, value, global_it_step)
+          #wandb.log({key: value}, commit=False)
+
+        logger.flush()
+        wandb.log({}, commit=True)
 
         return {}
         

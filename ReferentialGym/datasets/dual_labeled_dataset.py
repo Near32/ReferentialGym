@@ -12,6 +12,7 @@ class DualLabeledDataset(Dataset):
                             'test':kwargs['test_dataset']
                             }
         self.mode = kwargs['mode']
+        self.mode2idx2class = {'train':{}, 'test':{}}
 
         self.train_classes = {}
         for idx in range(len(self.datasets['train'])):
@@ -21,6 +22,7 @@ class DualLabeledDataset(Dataset):
                 _, cl = self.datasets['train'][idx]
             if cl not in self.train_classes: self.train_classes[cl] = []
             self.train_classes[cl].append(idx)
+            self.mode2idx2class['train'][idx] = cl
 
         test_idx_offset = len(self.datasets['train'])
         self.test_classes = {}
@@ -31,6 +33,7 @@ class DualLabeledDataset(Dataset):
                 _, cl = self.datasets['test'][idx]
             if cl not in self.test_classes: self.test_classes[cl] = []
             self.test_classes[cl].append(test_idx_offset+idx)
+            self.mode2idx2class['test'][idx] = cl
 
         # Adding the train classes to the test classes so that we can sample
         # distractors from the train set:
@@ -39,6 +42,7 @@ class DualLabeledDataset(Dataset):
                 self.test_classes[cl] = []
             for idx in self.train_classes[cl]:
                 self.test_classes[cl].append(idx)
+                self.mode2idx2class['test'][idx] = cl
 
         self.nbr_classes = len(self.test_classes.keys())
     
@@ -137,7 +141,9 @@ class DualLabeledDataset(Dataset):
                 """
             
             if excepts is not None:
-                set_indices = set_indices.difference(excepts)
+                # check that the current class contains more than just one element:
+                if len(set_indices) != 1:
+                    set_indices = set_indices.difference(excepts)
                 
             indices = []
             nbr_samples = self.nbr_distractors[self.mode]
@@ -152,8 +158,8 @@ class DualLabeledDataset(Dataset):
                 nbr_samples = 1
 
             if len(set_indices) < nbr_samples:
-                print("WARNING: Dataset's class has not enough element to choose from...")
-                print("WARNING: Using all the classes to sample...")
+                #print("WARNING: Dataset's class has not enough element to choose from...")
+                #print("WARNING: Using all the classes to sample...")
                 not_enough_elements = True
             else:
                 test = False 
@@ -185,8 +191,12 @@ class DualLabeledDataset(Dataset):
                 else:
                     need_reg[key] = False
                 
+                if key=="exp_labels":
+                    current_mode = 'train'
+                    if 'test' in self.mode: current_mode = 'test'
+                    value = self.mode2idx2class[current_mode][idx]
                 sample_d[key].append(value)
-            
+
             # We assume that it is a supervision learning dataset,
             # therefore it ought to have labels...
             assert(need_reg["exp_labels"] == False)

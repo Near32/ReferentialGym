@@ -187,7 +187,6 @@ class ReferentialGame(object):
         
         data_loaders = {}
         self.pbss = {}
-        print("WARNING: 'dataloader_num_worker' hyperparameter has been de-activated.")
         for mode, dataset in self.datasets.items():
             if 'train' in mode and self.use_priority:
                 capacity = len(dataset)
