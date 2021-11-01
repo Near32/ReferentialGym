@@ -150,7 +150,7 @@ def main():
   # In[23]:
   nbr_epoch = 100
   cnn_feature_size = 512 # 128 512 #1024
-  stimulus_resize_dim = 32 #64 #28
+  stimulus_resize_dim = 128 #32 #64 #28
   normalize_rgb_values = False 
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
@@ -256,7 +256,7 @@ def main():
       "test_transform":             transform,
   }
 
-  if True:
+  if False: #True:
     rg_config["train_transform"]= T.Compose(
       [
         ego_inv_transform,
@@ -285,7 +285,7 @@ def main():
       
   # INTER SIMPLE X+Y
   # Sparse: simple splitted XY X 4/ Y 4/ --> 16 test / 48 train 
-  train_split_strategy = 'combinatorial2-floor_hue-1-5-wall_hue-1-5-object_hue-1-5-Scale-1-N-Shape-1-N-Orientation-3-N' 
+  train_split_strategy = 'combinatorial2-floor_hue-1-S2-wall_hue-1-S2-object_hue-1-S2-Scale-8-N-Shape-1-N-Orientation-15-N' 
   # Dense: simple splitted XY X 8/ Y 8/ --> 64 test / 192 train 
   #train_split_strategy = 'combinatorial2-Y-2-2-X-2-2-Orientation-40-N-Scale-6-N-Shape-3-N' 
   # Denser: simple splitted XY X 16/ Y 16/ --> 256 test / 768 train 
