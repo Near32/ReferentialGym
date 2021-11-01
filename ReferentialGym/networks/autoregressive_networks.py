@@ -701,11 +701,18 @@ class TotalCorrelationDiscriminator(object):
             lr=1e-4,
             betas=[0.5,0.9],
         )
+        self.need_weights_update = False
 
         print("TotalCorrelationDiscriminator:")
         print(self.discriminator)
 
     def __call__(self, z):
+        if self.need_weights_update:
+            self.need_weights_update = False
+            self.optimizer.zero_grad()
+            self.TC_loss.mean().backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
         if z.is_cuda: 
             self.discriminator = self.discriminator.cuda()
         return self.discriminator(z)
@@ -759,11 +766,9 @@ class TotalCorrelationDiscriminator(object):
         return self.TC_loss, self.discr_acc
 
     def step(self):
-        self.optimizer.zero_grad()
-        self.TC_loss.mean().backward()
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-
+        #self.TC_loss.mean().backward()
+        self.need_weights_update = True
+       
     def permutate_latents(self, z):
         assert(z.dim() == 2)
         batch_size, latent_dim = z.size()
@@ -917,6 +922,8 @@ class BetaVAE(nn.Module) :
         # Reconstruction loss :
         self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, reduction='sum').div(self.batch_size)
         
+        self.VAE_output = self.VAE_output.sigmoid()
+
         if observation_sigma is not None:
             self.observation_sigma = observation_sigma
         if self.NormalOutputDistribution:
@@ -935,7 +942,8 @@ class BetaVAE(nn.Module) :
             output_dict.update({'MSE_reconst_loss': self.VAE_loss})
         else:
             #Bernoulli :
-            self.neg_log_lik = -torch.distributions.Bernoulli( torch.sigmoid(self.VAE_output) ).log_prob( gtx )
+            #self.neg_log_lik = -torch.distributions.Bernoulli( torch.sigmoid(self.VAE_output) ).log_prob( gtx )
+            self.neg_log_lik = -torch.distributions.Bernoulli(self.VAE_output).log_prob( gtx )
             #self.VAE_loss = self.reconst_loss
             self.VAE_loss = self.binary_crossentropy
 
@@ -965,7 +973,15 @@ class BetaVAE(nn.Module) :
                             'binary_crossentropy': self.binary_crossentropy.unsqueeze(0),
                             'neg_log_lik': self.neg_log_lik, 
                             'kl_div_reg': self.kl_divergence_regularized, 
-                            'kl_div': self.true_kl_divergence})
+                            'kl_div': self.true_kl_divergence,
+        })
+
+        #for muidx in range(self.mu.shape[-1]):
+        #    output_dict[f'mu_{muidx}'] = self.mu[:,muidx:muidx+1]
+        #    output_dict[f'log_var_{muidx}'] = self.log_var[:,muidx:muidx+1]
+        output_dict[f'mu'] = self.mu.mean(dim=-1, keepdim=True)
+        output_dict[f'logvar'] = self.log_var.mean(dim=-1, keepdim=True)
+        
         #--------------------------------------------------------------------------------------------------------------
         # FactorVAE losses:
         if self.factor_vae_gamma >= 0.0:

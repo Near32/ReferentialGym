@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as T 
 
+torch.autograd.set_detect_anomaly(True)
 
 ###########################################################
 ###########################################################
@@ -346,6 +347,7 @@ def main():
 
   parser.add_argument("--nbr_discriminative_test_distractors", type=int, default=7)
   parser.add_argument("--nbr_descr_discriminative_test_distractors", type=int, default=7)
+  parser.add_argument("--nbr_distractors", type=int, default=None)
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
   parser.add_argument("--nbr_train_distractors", type=int, default=0)
   
@@ -410,7 +412,11 @@ def main():
     choices=[
       "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
       "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
+      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N", 
       "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-S3-Shape-1-S1", 
+      "combinatorial2-Y-1-S30-X-1-S30-Orientation-1-N-Scale-1-N-Shape-1-N", 
+      "combinatorial2-Y-1-S2-X-1-S2-Orientation-1-N-Scale-1-N-Shape-1-N", 
+      "combinatorial2-Y-1-S16-X-1-S16-Orientation-1-N-Scale-1-S3-Shape-1-S1", 
       "combinatorial2-Y-8-S2-X-8-S2-Orientation-4-N-Scale-2-S1-Shape-1-S1",
       "divider-1-offset-0",
       "divider-10-offset-0",
@@ -456,6 +462,13 @@ def main():
   
   
   args = parser.parse_args()
+  
+  if args.nbr_distractors is not None:
+      args.nbr_train_distractors = args.nbr_distractors
+      args.nbr_test_distractors = args.nbr_distractors
+
+  if "obverter" in args.graphtype:
+      args.obverter_sampling_round_alternation_only = True
 
   if args.obverter_sampling_round_alternation_only:
     args.use_obverter_sampling = True 
@@ -1267,6 +1280,8 @@ def main():
         logger=None
       )
     print("Listener:", listener)
+  else:
+      listener_config = {}
 
   # # Dataset:
   need_dict_wrapping = {}
@@ -2385,8 +2400,9 @@ def main():
 
   from ReferentialGym.utils import statsLogger
   logger = statsLogger(path=save_path,dumpPeriod=100)
-  listener.logger = logger
-  speaker.logger = logger
+  if not args.baseline_only:
+      listener.logger = logger
+      speaker.logger = logger
   ###
   
   if args.restore:
