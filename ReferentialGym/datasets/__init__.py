@@ -25,6 +25,7 @@ except Exception as e:
 	print("Please install minerl if you want to use the MineRLDataset.")
  
 from .dSprites_dataset import dSpritesDataset
+from .shapes3d_dataset import Shapes3DDataset
 from .MSCOCO_dataset import MSCOCODataset 
 
 from .prioritized_replay_buffer import PrioritizedReplayBuffer 
