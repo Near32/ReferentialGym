@@ -232,8 +232,10 @@ def reg_bool(string):
 
 def main():
  
-  from gpuutils import GpuUtils
-  GpuUtils.allocate(required_memory=10000, framework="torch")
+  import os 
+  if os.environ.get("CUDA_VISIBLE_DEVICES", None) is None:
+    from gpuutils import GpuUtils
+    GpuUtils.allocate(required_memory=10000, framework="torch")
  
   parser = argparse.ArgumentParser(description="Language Emergence, Compositionality and Disentanglement.")
   parser.add_argument("--project", 
@@ -410,6 +412,7 @@ def main():
   # No longer used for 3d shapes but only for dSprites: default means 80-20% 
   parser.add_argument("--train_test_split_strategy", type=str, 
     choices=[
+      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N",
       "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
       "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
       "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N", 
@@ -424,8 +427,8 @@ def main():
     ],
     help="train/test split strategy",
     # dSpritres:
-    #default="combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N", #richly diverse
-    default="combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N", #poorly diverse
+    default="combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N", #richly diverse
+    #default="combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N", #poorly diverse
     #default="divider-1-offset-0"
   )
   parser.add_argument("--fast", action="store_true", default=False, 
@@ -466,9 +469,6 @@ def main():
   if args.nbr_distractors is not None:
       args.nbr_train_distractors = args.nbr_distractors
       args.nbr_test_distractors = args.nbr_distractors
-
-  if "obverter" in args.graphtype:
-      args.obverter_sampling_round_alternation_only = True
 
   if args.obverter_sampling_round_alternation_only:
     args.use_obverter_sampling = True 
@@ -2313,6 +2313,7 @@ def main():
         "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
     }
 
+    """
     dataset_args["modes"].append("discriminative_validation_test")
     nbd = {"discriminative_validation_test":args.nbr_discriminative_test_distractors}
     nbd.update(rg_config["nbr_distractors"])
@@ -2330,7 +2331,8 @@ def main():
         "object_centric":           rg_config["object_centric"],
         "descriptive":              False, #rg_config["descriptive"],
         "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
-    }  
+    }
+    """
 
   if args.add_descr_discriminative_test and rg_config["descriptive"]:
     dataset_args["modes"].append("descr_discriminative_test")
@@ -2352,6 +2354,7 @@ def main():
         "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
     }
 
+    """
     dataset_args["modes"].append("descr_discriminative_validation_test")
     nbd = {"descr_discriminative_validation_test":args.nbr_descr_discriminative_test_distractors}
     nbd.update(rg_config["nbr_distractors"])
@@ -2369,7 +2372,8 @@ def main():
         "object_centric":           rg_config["object_centric"],
         "descriptive":              rg_config["descriptive"],
         "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
-    }  
+    }
+    """
 
   rg_config['use_priority'] = args.use_priority
 
@@ -2389,6 +2393,7 @@ def main():
     project=project_name, 
     config=config,
     #sync_tensorboard=True,
+    settings=wandb.Settings(start_method="fork"),
   )
   wandb.tensorboard.patch(
     save=True, 

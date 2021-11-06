@@ -6,25 +6,28 @@ command:
         - /scratch/kyd500/rg_env/bin/python
         - ${program}
         - ${args}
-method: bayes
-metric:
-        name: PerEpoch/discriminative_test/repetition0/comm_round0/referential_game_accuracy/Mean  
-        goal: maximize
+method: grid
 parameters:
         parent_folder:
-                values: [./3dhapes_sweep]
+                values: ["./dSprites_obverter"]
+        baseline_only:
+                values: [False]
+        with_baseline:
+                values: [False]
         use_cuda:
                 values: [True]
         seed:
                 values: [10, 20, 30, 40, 50]
         obverter_nbr_games_per_round:
-                values: [2, 10]
+                values: [2]
         obverter_threshold_to_stop_message_generation:
-                values: [0.0, 0.7, 0.8, 0.85, 0.9, 0.95]
+                values: [0.95]
+        obverter_sampling:
+                values: [False]
         obverter_sampling_round_alternation_only:
                 values: [True]
         batch_size:
-                values: [8, 16, 32, 64]
+                values: [64]
         mini_batch_size:
                 values: [64]
         vae_lambda:
@@ -34,47 +37,49 @@ parameters:
         resizeDim:
                 values: [64]
         arch:
-                values: [BN+BetaVAEEncoderOnly3x3]
+                values: ["BN+BetaVAEEncoderOnly3x3"]
         emb_dropout_prob:
                 values: [0.0]
         dropout_prob:
-                values: [0.0, 0.5]
+                values: [0.0]
         max_sentence_length:
                 values: [10]
         vocab_size:
                 values: [10]
         epoch:
-                values: [1001]
+                values: [11]
         symbol_processing_nbr_hidden_units:
-                values: [64, 128]
+                values: [128]
         symbol_embedding_size:
-                values: [64, 128]
+                values: [64]
         distractor_sampling:
-                values: [uniform]
+                values: ["uniform"]
         nbr_distractors:
-                values: [0, 3, 15]        
+                values: [3, 31]        
         add_discriminative_test:
                 values: [True]
         nbr_discriminative_test_distractors:
                 values: [7]
-        
+        add_descriptive_test:
+                values: [True]
+
         obverter_use_decision_head:
                 values: [True]
         obverter_nbr_head_outputs:
                 values: [2]
         agent_loss_type:
-                values: [NLL, Hinge]
+                values: ["NLL", "Hinge"]
         graphtype:
-                values: [obverter, synthetic_obverter]
+                values: ["obverter"]
         synthetic_progression_end:
-                values: [100, 500, 1000]
+                values: [10]
 
         metric_epoch_period:
-                values: [100]
+                values: [5]
         nbr_train_points:
-                values: [500]
+                values: [10000]
         nbr_eval_points:
-                values: [500]
+                values: [10000]
         metric_batch_size:
                 values: [64]
         dis_metric_resampling:
@@ -85,7 +90,7 @@ parameters:
                 values: [True]
         
         lr:
-                values: [6e-4, 1e-3, 1e-4]
+                values: [1.0e-4]
         
         agent_nbr_latent_dim:
                 values: [32]
@@ -99,14 +104,14 @@ parameters:
         shared_architecture:
                 values: [True]
         with_DP_in_obverter_decision_head:
-                values: [True, False] 
+                values: [False] 
         with_BN_in_obverter_decision_head:
-                values: [True, False]
+                values: [False]
         visual_context_consistent_obverter:
-                values: [False, True]
+                values: [False]
         
         object_centric:
-                values: [False, True]
+                values: [True, False]
         nb_3dshapespybullet_shapes:
                 values: [10]
         nb_3dshapespybullet_colors: 
@@ -116,6 +121,9 @@ parameters:
         nb_3dshapespybullet_train_colors:
                 values: [5]
         dataset:
-                values: [3DShapesPyBullet]
+                values: ["dSprites"]
+        train_test_split_strategy:
+                values: ["combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N"]
         vae_gaussian:
                 values: [False]
+

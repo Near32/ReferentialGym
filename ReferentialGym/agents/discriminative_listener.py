@@ -264,13 +264,26 @@ def discriminative_obverter_referential_game_loss(
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
         else:
-            raise NotImplementedError
             # GUIDANCE: Obverter approach without descriptive NLL is rather not worth your time...
-
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_logits = F.log_softmax( final_decision_logits, dim=-1)
+            final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+            if nbr_distractors_po == 1:
+                raise NotImplementedError("This is unlikely. It must either have distractors or be descriptive.")
+                final_decision_logits = final_decision_logits.squeeze()
+                # (batch_size, 2)
+            else:
+                # (batch_size, (nbr_distractors+1), 2)
+                isTarget_logits = final_decision_logits[...,0]
+                # (batch_size, (nbr_distractors+1))
+                final_decision_logits = F.log_softmax( 
+                    isTarget_logits,
+                    dim=-1,
+                )
+                # (batch_size, (nbr_distractors+1))
+            decision_logits = final_decision_logits
+            # (batch_size, (nbr_distractors+2) / 2)
             criterion = nn.NLLLoss(reduction="none")
-            loss = criterion( decision_logits, sample["target_decision_idx"])
+            
+            loss = criterion( decision_logits, target_decision_idx)
             # (batch_size, )
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
