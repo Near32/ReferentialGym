@@ -259,7 +259,7 @@ class Shapes3DDataset(Dataset) :
                 if self.latent_dims['Orientation']['primitive']:
                     self.latent_dims['Orientation']['nbr_fillers'] = int(strategy[16].split('FP')[0])
 
-                self.latent_dims['Orientation']['position'] = 15
+                self.latent_dims['Orientation']['position'] = 5
                 # 17: divider (default:1) : specify how dense the data are along that dimension
                 # e.g. : divider=1 => effective size = 3  
                 if 'RemainderToUse' in strategy[17]:
@@ -377,7 +377,7 @@ class Shapes3DDataset(Dataset) :
         self.targets = self.targets[self.indices]
         """
 
-        self.imgs = self.imgs[self.traintest_indices]
+        #self.imgs = self.imgs[self.traintest_indices]
         self.latents_values = self.latents_values[self.traintest_indices]
         self.latents_classes = self.latents_classes[self.traintest_indices]
         self.latents_one_hot_encodings = self.latents_one_hot_encodings[self.traintest_indices]
@@ -385,9 +385,6 @@ class Shapes3DDataset(Dataset) :
         self.test_latents_mask = self.test_latents_mask[self.traintest_indices]
         self.targets = self.targets[self.traintest_indices]
         
-        
-        del self.metadata
-
         self.latents_classes_2_idx = { 
             tuple(lc.tolist()): idx 
             for idx,lc in enumerate(self.latents_classes)
@@ -416,7 +413,8 @@ class Shapes3DDataset(Dataset) :
         
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
-
+        
+        self.factors_indices = self.traintest_indices[self.factors_indices]
         latents_values = [lv for lv in self.latents_values[self.factors_indices]]
         
         return latents_values
@@ -430,6 +428,7 @@ class Shapes3DDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
 
+        self.factors_indices = self.traintest_indices[self.factors_indices]
         latents_ohe = [lohe for lohe in self.latents_one_hot_encodings[self.factors_indices]]
         
         return latents_ohe
@@ -443,7 +442,8 @@ class Shapes3DDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
 
-        images = [im.astype(np.float32) for im in self.imgs[self.factors_indices]]
+        self.factors_indices = self.traintest_indices[self.factors_indices]
+        images = [Image.fromarray(im, mode='RGB') for im in self.imgs[self.factors_indices]]
         #images = [Image.fromarray((im*255).astype('uint8')) for im in self.imgs[self.factors_indices]]
         
         if self.transform is not None:
@@ -511,7 +511,8 @@ class Shapes3DDataset(Dataset) :
         trueidx = self.indices[idx]
 
         #image = Image.fromarray((self.imgs[trueidx]*255).astype('uint8'))
-        image = self.imgs[trueidx].astype(np.float32)
+        trueidx = self.traintest_indices[trueidx]
+        image = Image.fromarray(self.imgs[trueidx], mode='RGB')
 
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
