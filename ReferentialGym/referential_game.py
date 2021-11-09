@@ -3,7 +3,7 @@ import os
 import copy
 import random
 import time
-import pickle 
+import cloudpickle 
 import glob
 
 import torch
@@ -91,7 +91,7 @@ class ReferentialGame(object):
     def save_config(self, path):
         try:
             with open(os.path.join(path, "config.conf"), 'wb') as f:
-                pickle.dump(self.config, f, protocol=pickle.HIGHEST_PROTOCOL)
+                cloudpickle.dump(self.config, f) # protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             print(f"Exception caught while trying to save config: {e}")
 
@@ -101,7 +101,14 @@ class ReferentialGame(object):
             if hasattr(module, "save"):
                 module.save(path=path)
             else:
-                torch.save(module, os.path.join(path,module_id+".pth"))
+                #torch.save(module, os.path.join(path,module_id+".pth"))
+                # TODO: find a better way to save modules with lambda functions...
+                # maybe remove lambda functions altogether...
+                try:
+                    with open(os.path.join(path, module_id+".pth"), 'wb') as f:
+                        cloudpickle.dump(module, f) # protocol=pickle.HIGHEST_PROTOCOL)
+                except Exception as e:
+                    print(f"Exception caught while trying to save module {module_id}: {e}")
             #except Exception as e:
             #    print(f"Exception caught will trying to save module {module_id}: {e}")
                  
@@ -109,14 +116,14 @@ class ReferentialGame(object):
     def save_pipelines(self, path):
         try:
             with open(os.path.join(path, "pipelines.pipe"), 'wb') as f:
-                pickle.dump(self.pipelines, f, protocol=pickle.HIGHEST_PROTOCOL)
+                cloudpickle.dump(self.pipelines, f) # protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             print(f"Exception caught while trying to save pipelines: {e}")
 
     def save_signals(self, path):
         try:
             with open(os.path.join(path, "signals.conf"), 'wb') as f:
-                pickle.dump(self.stream_handler["signals"], f, protocol=pickle.HIGHEST_PROTOCOL)
+                cloudpickle.dump(self.stream_handler["signals"], f) # protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             print(f"Exception caught while trying to save signals: {e}")
 
@@ -133,7 +140,7 @@ class ReferentialGame(object):
     def load_config(self, path):
         try:
             with open(os.path.join(path, "config.conf"), 'rb') as f:
-                self.config = pickle.load(f)
+                self.config = cloudpickle.load(f)
         except Exception as e:
             print(f"Exception caught while trying to load config: {e}")
 
@@ -146,7 +153,9 @@ class ReferentialGame(object):
         for module_path in modules_paths:
             module_id = module_path.split("/")[-1].split(".")[0]
             try:
-                    self.modules[module_id] = torch.load(module_path)
+                #self.modules[module_id] = torch.load(module_path)
+                with open(module_path, 'rb') as module_fle:
+                    self.modules[module_id] = cloudpickle.load(module_file)
             except Exception as e:
                 print(f"Exception caught will trying to load module {module_path}: {e}")
         
@@ -156,7 +165,7 @@ class ReferentialGame(object):
     def load_pipelines(self, path):
         try:
             with open(os.path.join(path, "pipelines.pipe"), 'rb') as f:
-                self.pipelines.update(pickle.load(f))
+                self.pipelines.update(cloudpickle.load(f))
         except Exception as e:
             print(f"Exception caught while trying to load pipelines: {e}")
 
@@ -166,7 +175,7 @@ class ReferentialGame(object):
     def load_signals(self, path):
         try:
             with open(os.path.join(path, "signals.conf"), 'rb') as f:
-                self.stream_handler.update("signals", pickle.load(f))
+                self.stream_handler.update("signals", cloudpickle.load(f))
         except Exception as e:
             print(f"Exception caught while trying to load signals: {e}")
 
@@ -351,7 +360,7 @@ class ReferentialGame(object):
                             acc = logs_dict[acc_keys[-1]].mean()
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
-                            descr = f"Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
+                            descr = f"GPU{os.environ.get('CUDA_VISIBLE_DEVICES', None)}-Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
                             if isinstance(loss, torch.Tensor): loss = loss.item()
                             descr += f" (Rep:{it_rep+1}/{nbr_experience_repetition}):: Loss {it+1} = {loss}"
                             pbar.set_description_str(descr)

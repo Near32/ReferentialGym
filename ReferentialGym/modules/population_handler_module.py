@@ -58,7 +58,8 @@ class PopulationHandlerModule(Module):
         print("Create Population of Agents: ...")
 
         self.verbose = config["verbose"]
-        
+        self.logger = config.get("logger", None)
+
         # Agents:
         if 'cultural_speaker_substrate_size' not in self.config:
             self.config['cultural_speaker_substrate_size'] = 1
@@ -67,6 +68,7 @@ class PopulationHandlerModule(Module):
         self.dspeakers = dict()
         speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
         for speaker in speakers:
+            speaker.reset(reset_language_model=True)
             self.speakers.append(speaker)
             self.dspeakers[speaker.id] = speaker
         if 'cultural_listener_substrate_size' not in self.config:
@@ -76,6 +78,7 @@ class PopulationHandlerModule(Module):
         self.dlisteners = dict()
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
         for listener in listeners:
+            listener.reset(reset_language_model=True)
             self.listeners.append(listener)
             self.dlisteners[listener.id] = listener
 
@@ -87,7 +90,17 @@ class PopulationHandlerModule(Module):
                 if type(agent) not in self.meta_agents:
                     self.meta_agents[type(agent)] = agent.clone(clone_id=f'meta_{agent.agent_id}')
                     #self.meta_agents_optimizers[type(agent)] = optim.Adam(self.meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'], eps=self.config['adam_eps'])
-                    self.meta_agents_optimizers[type(agent)] = optim.SGD(self.meta_agents[type(agent)].parameters(), lr=self.config['cultural_reset_meta_learning_rate'])
+                    cultural_pressure_parameter_filtering_fn = self.config.get('cultural_pressure_parameter_filtering_fn', (lambda param_name: True))
+                    parameters = []
+                    for (name, param) in self.meta_agents[type(agent)].named_parameters():
+                        if cultural_pressure_parameter_filtering_fn(name):
+                            parameters.append(param)
+                            if self.verbose:
+                                print(f"CULTURAL PRESSURE: parameter {name} is going to be META-learned.")
+                    self.meta_agents_optimizers[type(agent)] = optim.SGD(
+                        parameters, #self.meta_agents[type(agent)].parameters(), 
+                        lr=self.config['cultural_pressure_meta_learning_rate'],
+                    )
 
         self.agents_stats = dict()
         for agent in self.speakers:
@@ -255,9 +268,11 @@ class PopulationHandlerModule(Module):
 
             if 'S' in self.config['cultural_reset_strategy']:
                 if 'meta' in self.config['cultural_reset_strategy']:
-                    self._apply_meta_update(meta_learner=self.meta_agents[type(self.speakers[idx_speaker2reset])],
-                                           meta_optimizer=self.meta_agents_optimizers[type(self.speakers[idx_speaker2reset])],
-                                           learner=self.speakers[idx_speaker2reset])
+                    self._apply_meta_update(
+                        meta_learner=self.meta_agents[type(self.speakers[idx_speaker2reset])],
+                        meta_optimizer=self.meta_agents_optimizers[type(self.speakers[idx_speaker2reset])],
+                        learner=self.speakers[idx_speaker2reset],
+                    )
                 else:
                     self.speakers[idx_speaker2reset].reset()
                 self.agents_stats[self.speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
@@ -267,9 +282,11 @@ class PopulationHandlerModule(Module):
             
             if 'L' in self.config['cultural_reset_strategy']:
                 if 'meta' in self.config['cultural_reset_strategy']:
-                    self._apply_meta_update(meta_learner=self.meta_agents[type(self.listeners[idx_listener2reset])],
-                                           meta_optimizer=self.meta_agents_optimizers[type(self.listeners[idx_listener2reset])],
-                                           learner=self.listeners[idx_listener2reset])
+                    self._apply_meta_update(
+                        meta_learner=self.meta_agents[type(self.listeners[idx_listener2reset])],
+                        meta_optimizer=self.meta_agents_optimizers[type(self.listeners[idx_listener2reset])],
+                        learner=self.listeners[idx_listener2reset],
+                    )
                 else:
                     self.listeners[idx_listener2reset].reset()
                 self.agents_stats[self.listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
@@ -283,9 +300,11 @@ class PopulationHandlerModule(Module):
                     agents = self.speakers 
                     idx_agent2reset -= len(self.listeners)
                 if 'meta' in self.config['cultural_reset_strategy']:
-                    self._apply_meta_update(meta_learner=self.meta_agents[type(agents[idx_agent2reset])],
-                                           meta_optimizer=self.meta_agents_optimizers[type(agents[idx_agent2reset])],
-                                           learner=agents[idx_agent2reset])
+                    self._apply_meta_update(
+                        meta_learner=self.meta_agents[type(agents[idx_agent2reset])],
+                        meta_optimizer=self.meta_agents_optimizers[type(agents[idx_agent2reset])],
+                        learner=agents[idx_agent2reset],
+                    )
                 else:
                     agents[idx_agent2reset].reset()
                     self.agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
@@ -299,20 +318,25 @@ class PopulationHandlerModule(Module):
         nbrUpdatedParams = 0
         for (name, lp), (namer, lrp) in zip( learner.named_parameters(), reptile_learner.named_parameters() ) :
             nbrParams += 1
-            if lrp.grad is not None:
-                nbrUpdatedParams += 1
-                lrp.grad.data.copy_( k*(lp.data.cpu()-lrp.data.cpu()) )
+            if self.config.get("cultural_pressure_parameter_filtering_fn", (lambda param_name: True))(name):
+                if lrp.grad is not None:
+                    nbrUpdatedParams += 1
+                    lrp.grad.data.copy_( k*(lp.data.cpu()-lrp.data.cpu()) )
+                else:
+                    lrp.grad = k*(lp.data.cpu()-lrp.data.cpu())
+                    if verbose:
+                        print("Parameter {} has not been updated...".format(name))
             else:
-                lrp.grad = k*(lp.data.cpu()-lrp.data.cpu())
+                lrp.data.copy_(lp.data.cpu())
                 if verbose:
-                    print("Parameter {} has not been updated...".format(name))
+                    print(f"WARNING: Parameter {name} has been filtered out from Meta-learning: just copying it.")
         if verbose:
             print("Meta-cultural learning step :: {}/{} updated params.".format(nbrUpdatedParams, nbrParams))
         return 
 
     def _apply_meta_update(self, meta_learner, meta_optimizer, learner):
         meta_learner.zero_grad()
-        self._reptile_step(learner=learner, reptile_learner=meta_learner)
+        self._reptile_step(learner=learner, reptile_learner=meta_learner, verbose=self.verbose)
         meta_optimizer.step()
         learner.load_state_dict( meta_learner.state_dict())
         return 
@@ -377,7 +401,10 @@ class PopulationHandlerModule(Module):
                         print("Iterated Learning Scheme: Listener {} have just been resetted.".format(self.listeners[lidx].agent_id))
         
             new_speaker, new_listener = self._select_agents()
-            
+            if self.logger is not None:
+                new_speaker.logger = self.logger
+                new_listener.logger = self.logger 
+
             if 'train' in mode:
                 new_speaker.train()
                 new_listener.train()

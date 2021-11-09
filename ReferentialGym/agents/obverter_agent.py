@@ -3,8 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np 
 
+import copy 
+
 from .discriminative_listener import DiscriminativeListener
-from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
+#from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
+from ..networks import choose_architecture, BetaVAE, reg_nan, hasnan
+# TODO: layer_init fn was not doing anything, previously, need to investigate that change...
+
 from ..utils import gumbel_softmax
 
 
@@ -16,6 +21,63 @@ packpadding = False
 assume_padding_with_eos = True
 
 stability_eps = 1e-8
+
+def layer_init(layer, w_scale=1.0):
+    #previously:
+    #return layer 
+
+    for name, param in layer._parameters.items():
+        if param is None or param.data is None: continue
+        if 'bias' in name:
+            #layer._parameters[name].data.fill_(0.0)
+            layer._parameters[name].data.uniform_(-0.08,0.08)
+        else:
+            nn.init.orthogonal_(layer._parameters[name].data)
+            '''
+            fanIn = param.size(0)
+            fanOut = param.size(1)
+
+            factor = math.sqrt(2.0/(fanIn + fanOut))
+            weight = torch.randn(fanIn, fanOut) * factor
+            layer._parameters[name].data.copy_(weight)
+            '''
+            
+            '''
+            layer._parameters[name].data.uniform_(-0.08,0.08)
+            layer._parameters[name].data.mul_(w_scale)
+            '''
+            '''
+            if len(layer._parameters[name].size()) > 1:
+                nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
+            '''
+    '''
+    if hasattr(layer,"weight"):    
+        #nn.init.orthogonal_(layer.weight.data)
+        layer.weight.data.uniform_(-0.08,0.08)
+        layer.weight.data.mul_(w_scale)
+        if hasattr(layer,"bias") and layer.bias is not None:    
+            #nn.init.constant_(layer.bias.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+        
+    if hasattr(layer,"weight_ih"):
+        #nn.init.orthogonal_(layer.weight_ih.data)
+        layer.weight.data.uniform_(-0.08,0.08)
+        layer.weight_ih.data.mul_(w_scale)
+        if hasattr(layer,"bias_ih"):    
+            #nn.init.constant_(layer.bias_ih.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+        
+    if hasattr(layer,"weight_hh"):    
+        #nn.init.orthogonal_(layer.weight_hh.data)
+        layer.weight.data.uniform_(-0.08,0.08)
+        layer.weight_hh.data.mul_(w_scale)
+        if hasattr(layer,"bias_hh"):    
+            #nn.init.constant_(layer.bias_hh.data, 0)
+            layer.bias.data.uniform_(-0.08,0.08)
+    '''
+
+    return layer
+
 
 
 def sentence_length_entropy_logging_hook(agent,
@@ -271,14 +333,29 @@ class ObverterAgent(DiscriminativeListener):
 
         self.reset()
 
-    def reset(self):
+    def clone(self, clone_id="a0"):
+        logger = self.logger
+        self.logger = None 
+        
+        clone = copy.deepcopy(self)
+        clone.agent_id = clone_id
+        clone.logger = logger 
+        
+        if self.kwargs["shared_architecture"]:
+            clone.cnn_encoder = self.cnn_encoder
+
+        self.logger = logger  
+        return clone 
+
+    def reset(self, reset_language_model=False):
         # TODO: verify that initialization of decision head is not an issue:
         #self.decision_head.apply(layer_init)
         
-        """
-        self.symbol_processing.apply(layer_init)
-        self.symbol_encoder.apply(layer_init)
-        """
+        if reset_language_model:
+            self.symbol_processing.apply(layer_init)
+            self.symbol_encoder.apply(layer_init)
+            self.decision_head.apply(layer_init)
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')

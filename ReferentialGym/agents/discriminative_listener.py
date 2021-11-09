@@ -267,7 +267,7 @@ def discriminative_obverter_referential_game_loss(
             # GUIDANCE: Obverter approach without descriptive NLL is rather not worth your time...
             final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
             if nbr_distractors_po == 1:
-                raise NotImplementedError("This is unlikely. It must either have distractors or be descriptive.")
+                #raise NotImplementedError("This is unlikely. It must either have distractors or be descriptive.")
                 final_decision_logits = final_decision_logits.squeeze()
                 # (batch_size, 2)
             else:
@@ -334,7 +334,21 @@ def discriminative_obverter_referential_game_loss(
             # TODO: check whether 2 matters or not : it does: without the consideration
             # of the other logit, then the sentence lengths never decreases...
             # A change has been made : TEST1
-            assert nbr_distractors_po > 1
+            if nbr_distractors_po <= 1:
+                # it is probably a descriptive test:
+                # we regularise the shape of the tensor after detaching it:
+                # i.e. we make sure that the correct index remains in position 0.
+                isTarget_logits = final_decision_logits[...,0]
+                # (batch_size, (nbr_distractors+1))
+                isNotTarget_logit = final_decision_logits[...,1]
+                # (batch_size, (nbr_distractors+1))
+                final_decision_logits = torch.cat([
+                    isTarget_logits,
+                    isNotTarget_logit,
+                    ], 
+                    dim=-1,
+                ).unsqueeze(-1).detach()
+                # batch_size, nbr_distractors+1=2, 1)
             final_decision_logits = final_decision_logits[...,0]
             #TEST1:PREVIOUSLY: nothing
             #TEST!:NOW: when non-descriptive, the log_softmax is not computed over

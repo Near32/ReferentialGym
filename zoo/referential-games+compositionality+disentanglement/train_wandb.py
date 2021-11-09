@@ -230,6 +230,14 @@ def reg_bool(string):
     value = True if "Tr" in string else False
     return value
 
+def default_cppf_fn(name):
+    return True
+
+def language_only_cppf_fn(name):
+    if "cnn_encoder" not in name:
+        return True
+    return False
+
 def main():
  
   import os 
@@ -404,6 +412,15 @@ def main():
   parser.add_argument("--iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
   # Cultural Bottleneck:
   parser.add_argument("--cultural_pressure_it_period", type=int, default=None)
+  parser.add_argument("--cultural_pressure_parameter_filtering_scheme", type=str, 
+    choices=[
+        "all",
+        "language-model-only",
+    ],
+    default="all",
+  )
+  parser.add_argument("--cultural_pressure_meta_learning_rate", type=float, default=1.0e-2)
+  parser.add_argument("--cultural_substrate_size", type=int, default=None)
   parser.add_argument("--cultural_speaker_substrate_size", type=int, default=1)
   parser.add_argument("--cultural_listener_substrate_size", type=int, default=1)
   parser.add_argument("--cultural_reset_strategy", type=str, default="uniformSL") #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
@@ -469,7 +486,11 @@ def main():
   if args.nbr_distractors is not None:
       args.nbr_train_distractors = args.nbr_distractors
       args.nbr_test_distractors = args.nbr_distractors
-
+  
+  if args.cultural_substrate_size is not None:
+      args.cultural_speaker_substrate_size = args.cultural_substrate_size
+      args.cultural_listener_substrate_size = args.cultural_substrate_size
+  
   if args.obverter_sampling_round_alternation_only:
     args.use_obverter_sampling = True 
 
@@ -557,6 +578,12 @@ def main():
       # v1.1: increase the threshold halfway:
       args.obverter_threshold_to_stop_message_generation = 1.0-0.05*nbr_category
 
+  cultural_pressure_param_filtering_fn = default_cppf_fn
+  if "language-model-only" in args.cultural_pressure_parameter_filtering_scheme:
+    print("WARNING: META LEARNING LANGUAGE MODEL ONLY.")
+    cultural_pressure_param_filtering_fn = language_only_cppf_fn
+    
+
   rg_config = {
       "observability":            "partial",
       "max_sentence_length":      args.max_sentence_length,
@@ -584,6 +611,7 @@ def main():
       "symbol_embedding_size":    args.symbol_embedding_size, #64
 
       "agent_architecture":       args.arch, #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
+      "shared_architecture": args.shared_architecture,
       "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
       "agent_loss_type":          args.agent_loss_type, #"NLL"
 
@@ -591,7 +619,8 @@ def main():
       "cultural_speaker_substrate_size":  args.cultural_speaker_substrate_size,
       "cultural_listener_substrate_size":  args.cultural_listener_substrate_size,
       "cultural_reset_strategy":  args.cultural_reset_strategy, #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
-      "cultural_reset_meta_learning_rate":  1e-3,
+      "cultural_pressure_parameter_filtering_fn":  cultural_pressure_param_filtering_fn,
+      "cultural_pressure_meta_learning_rate":  args.cultural_pressure_meta_learning_rate,
 
       # Cultural Bottleneck:
       "iterated_learning_scheme": args.iterated_learning_scheme,
@@ -1081,7 +1110,7 @@ def main():
         format(rg_config['cultural_speaker_substrate_size'], 
         rg_config['cultural_listener_substrate_size'],
         rg_config['cultural_pressure_it_period'],
-        rg_config['cultural_reset_strategy']+str(rg_config['cultural_reset_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
+        rg_config['cultural_reset_strategy']+str(rg_config['cultural_pressure_meta_learning_rate']) if 'meta' in rg_config['cultural_reset_strategy'] else rg_config['cultural_reset_strategy'])
     
   #save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}-{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}'.\
   save_path += '-{}{}{}CulturalAgent-SEED{}-{}-obs_b{}_minib{}_lr{}-{}-tau0-{}/{}DistrTrain{}Test{}-stim{}-vocab{}over{}_{}{}/'.\
@@ -1708,10 +1737,10 @@ def main():
     speaker_modularity_disentanglement_metric_id = f"{speaker.id}_modularity_disentanglement_metric"
     speaker_modularity_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{speaker.id}:ref:cnn_encoder",
-      "representations":f"modules:{speaker.id}:ref:features",
-      "experiences":f"modules:{speaker.id}:ref:experiences", 
-      "latent_representations":f"modules:{speaker.id}:ref:exp_latents", 
-      "indices":f"modules:{speaker.id}:ref:indices", 
+      "representations":f"modules:{current_speaker_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_speaker_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_speaker_id}:ref:ref_agent:exp_latents", 
+      "indices":f"modules:{current_speaker_id}:ref:ref_agent:indices", 
     }
     speaker_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
       id=speaker_modularity_disentanglement_metric_id,
@@ -1739,10 +1768,10 @@ def main():
     listener_modularity_disentanglement_metric_id = f"{listener.id}_modularity_disentanglement_metric"
     listener_modularity_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{listener.id}:ref:cnn_encoder",
-      "representations":f"modules:{listener.id}:ref:features",
-      "experiences":f"modules:{listener.id}:ref:experiences", 
-      "latent_representations":f"modules:{listener.id}:ref:exp_latents", 
-      "indices":f"modules:{listener.id}:ref:indices", 
+      "representations":f"modules:{current_listener_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_listener_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_listener_id}:ref:ref_agent:exp_latents", 
+      "indices":f"modules:{current_listener_id}:ref:ref_agent:indices", 
     }
     listener_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
       id=listener_modularity_disentanglement_metric_id,
@@ -1914,11 +1943,11 @@ def main():
   if not args.baseline_only:
     speaker_factor_vae_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{speaker.id}:ref:cnn_encoder",
-      "representations":f"modules:{speaker.id}:ref:features",
-      "experiences":f"modules:{speaker.id}:ref:experiences", 
-      "latent_representations":f"modules:{speaker.id}:ref:exp_latents", 
-      "latent_values_representations":f"modules:{speaker.id}:ref:exp_latents_values",
-      "indices":f"modules:{speaker.id}:ref:indices", 
+      "representations":f"modules:{current_speaker_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_speaker_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_speaker_id}:ref:ref_agent:exp_latents", 
+      "latent_values_representations":f"modules:{current_speaker_id}:ref:ref_agent:exp_latents_values",
+      "indices":f"modules:{current_speaker_id}:ref:ref_agent:indices", 
     }
     speaker_factor_vae_disentanglement_metric_id = f"{speaker.id}_factor_vae_disentanglement_metric"
     speaker_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
@@ -1945,11 +1974,11 @@ def main():
 
     listener_factor_vae_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{listener.id}:ref:cnn_encoder",
-      "representations":f"modules:{listener.id}:ref:features",
-      "experiences":f"modules:{listener.id}:ref:experiences", 
-      "latent_representations":f"modules:{listener.id}:ref:exp_latents", 
-      "latent_values_representations":f"modules:{listener.id}:ref:exp_latents_values",
-      "indices":f"modules:{listener.id}:ref:indices", 
+      "representations":f"modules:{current_listener_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_listener_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_listener_id}:ref:ref_agent:exp_latents", 
+      "latent_values_representations":f"modules:{current_listener_id}:ref:ref_agent:exp_latents_values",
+      "indices":f"modules:{current_listener_id}:ref:ref_agent:indices", 
     }
     listener_factor_vae_disentanglement_metric_id = f"{listener.id}_factor_vae_disentanglement_metric"
     listener_factor_vae_disentanglement_metric_module = rg_modules.build_FactorVAEDisentanglementMetricModule(
@@ -1977,10 +2006,10 @@ def main():
     # Mutual Information Gap:
     speaker_mig_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{speaker.id}:ref:cnn_encoder",
-      "representations":f"modules:{speaker.id}:ref:features",
-      "experiences":f"modules:{speaker.id}:ref:experiences", 
-      "latent_representations":f"modules:{speaker.id}:ref:exp_latents", 
-      "indices":f"modules:{speaker.id}:ref:indices", 
+      "representations":f"modules:{current_speaker_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_speaker_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_speaker_id}:ref:ref_agent:exp_latents", 
+      "indices":f"modules:{current_speaker_id}:ref:ref_agent:indices", 
     }
     speaker_mig_disentanglement_metric_id = f"{speaker.id}_mig_disentanglement_metric"
     speaker_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
@@ -2007,10 +2036,10 @@ def main():
 
     listener_mig_disentanglement_metric_input_stream_ids = {
       "model":f"modules:{listener.id}:ref:cnn_encoder",
-      "representations":f"modules:{listener.id}:ref:features",
-      "experiences":f"modules:{listener.id}:ref:experiences", 
-      "latent_representations":f"modules:{listener.id}:ref:exp_latents", 
-      "indices":f"modules:{listener.id}:ref:indices", 
+      "representations":f"modules:{current_listener_id}:ref:ref_agent:features",
+      "experiences":f"modules:{current_listener_id}:ref:ref_agent:experiences", 
+      "latent_representations":f"modules:{current_listener_id}:ref:ref_agent:exp_latents", 
+      "indices":f"modules:{current_listener_id}:ref:ref_agent:indices", 
     }
     listener_mig_disentanglement_metric_id = f"{listener.id}_mig_disentanglement_metric"
     listener_mig_disentanglement_metric_module = rg_modules.build_MutualInformationGapDisentanglementMetricModule(
@@ -2408,6 +2437,7 @@ def main():
   if not args.baseline_only:
       listener.logger = logger
       speaker.logger = logger
+      modules[population_handler_id].logger = logger
   ###
   
   if args.restore:
@@ -2429,7 +2459,8 @@ def main():
   refgame.train(nbr_epoch=nbr_epoch,
                 logger=logger,
                 verbose_period=1)
-
+  
+  refgame.save(os.path.join(wandb.run.dir, "referentialgame"))
   logger.flush()
 
 if __name__ == "__main__":
