@@ -130,7 +130,7 @@ class PopulationHandlerModule(Module):
             meta_path = os.path.join(path, "meta_agents")
             os.makedirs(meta_path, exist_ok=True)
 
-            for name, meta_agent in self.meta_agents:
+            for type_name, meta_agent in self.meta_agents.items():
                 meta_agent.save(meta_path, filename=meta_agent.id+".agent")
         
         speakers_path = os.path.join(path, "speakers")
