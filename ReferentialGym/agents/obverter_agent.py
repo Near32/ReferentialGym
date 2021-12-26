@@ -32,7 +32,10 @@ def layer_init(layer, w_scale=1.0):
             #layer._parameters[name].data.fill_(0.0)
             layer._parameters[name].data.uniform_(-0.08,0.08)
         else:
-            nn.init.orthogonal_(layer._parameters[name].data)
+            try:
+                nn.init.orthogonal_(layer._parameters[name].data)
+            except Exception as e:
+                print(f"Exception encountered when init. {name}, of shape {param.shape}: {e}")
             '''
             fanIn = param.size(0)
             fanOut = param.size(1)
@@ -169,6 +172,7 @@ class ObverterAgent(DiscriminativeListener):
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
         with_DP_in_decision_head=True,
+        DP_in_decision_head=0.5,
         with_DP_in_listener_decision_head_only=True,
         with_descriptive_not_target_logit_language_conditioning=True,
         **other_kwargs):
@@ -289,14 +293,16 @@ class ObverterAgent(DiscriminativeListener):
         )
 
         if self.with_DP_in_listener_decision_head_only:
-            self.listener_decision_head_dropout = nn.Dropout(p=0.5)
+            self.listener_decision_head_dropout = nn.Dropout(p=DP_in_decision_head)
+            #self.listener_decision_head_dropout = nn.Dropout(p=0.5)
             #self.listener_decision_head_dropout = nn.Dropout(p=0.2)
             #self.listener_decision_head_dropout = nn.Dropout(p=0.1)
 
         decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
         head_arch = []
         if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
-            head_arch.append(nn.Dropout(p=0.5))
+            head_arch.append(nn.Dropout(p=DP_in_decision_head))
+            #head_arch.append(nn.Dropout(p=0.5))
             #head_arch.append(nn.Dropout(p=0.2))
             #head_arch.append(nn.Dropout(p=0.1))
         head_arch += [

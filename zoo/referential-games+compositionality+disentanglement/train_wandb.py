@@ -399,6 +399,7 @@ def main():
   parser.add_argument("--normalised_context_consistent_obverter", type=reg_bool, default="False")
   parser.add_argument("--with_BN_in_obverter_decision_head", type=reg_bool, default="False")
   parser.add_argument("--with_DP_in_obverter_decision_head", type=reg_bool, default="False")
+  parser.add_argument("--DP_in_obverter_decision_head", type=float, default=0.0)
   parser.add_argument("--with_DP_in_obverter_decision_head_listener_only", type=reg_bool, default="False")
 
   parser.add_argument("--obverter_threshold_to_stop_message_generation", type=float, default=0.95)
@@ -499,6 +500,9 @@ def main():
   if args.normalised_context_consistent_obverter:
     args.context_consistent_obverter = True
 
+  if args.with_DP_in_obverter_decision_head or args.with_DP_in_obverter_decision_head_listener_only:
+      if args.DP_in_obverter_decision_head == 0.0:
+          args.DP_in_obverter_decision_head = 0.5
   print(args)
   
   gaussian = args.vae_gaussian 
@@ -1023,9 +1027,9 @@ def main():
   if args.with_BN_in_obverter_decision_head:
     save_path += "DecisionHeadBN/"
   if args.with_DP_in_obverter_decision_head:
-    save_path += "DecisionHeadDP0.5/"
+    save_path += f"DecisionHeadDP{args.DP_in_obverter_decision_head}/"
+    #save_path += "DecisionHeadDP0.5/"
     #save_path += "DecisionHeadDP0.2/"
-    #save_path += "DecisionHeadDP0.1/"
   if args.with_DP_in_obverter_decision_head_listener_only:
     save_path += "ListenerDecisionHeadDP0.5Only/"
     #save_path += "ListenerDecisionHeadDP0.2Only/"
@@ -1235,6 +1239,7 @@ def main():
         use_normalized_scores=args.normalised_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
+        DP_in_decision_head=args.DP_in_obverter_decision_head,
         with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
         with_descriptive_not_target_logit_language_conditioning=args.with_descriptive_not_target_logit_language_conditioning,
       )
@@ -1295,6 +1300,7 @@ def main():
         use_language_projection=args.visual_context_consistent_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
+        DP_in_decision_head=args.DP_in_obverter_decision_head,
         with_DP_in_listener_decision_head_only=args.with_DP_in_obverter_decision_head_listener_only,
         with_descriptive_not_target_logit_language_conditioning=args.with_descriptive_not_target_logit_language_conditioning,
       )
