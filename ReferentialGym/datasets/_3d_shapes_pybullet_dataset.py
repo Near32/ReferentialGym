@@ -93,19 +93,25 @@ original_colors_str = [
 #(55, 205, 243), 
 ]
 
+# WARNING:
+# Duck coloring is ambiguous because of the original color (strong yellow),
+# yielding green instead of blue, orange instead of purple...
+# R2D2 is slightly too small and may get lost in the background...
 original_shapes = [
     'cylinder',
     'sphere',
     'cube',
     'torus',
     'capsule',
-    'duck',
+    #'duck',
     'teddy',
     'lego',
     'table',
-    'r2d2',
+    #'r2d2',
     'racecar',
     'tray',
+    'r2d2',
+    'duck',
 ]
 
 
