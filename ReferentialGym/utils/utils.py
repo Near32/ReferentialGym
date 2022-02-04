@@ -180,15 +180,15 @@ def compute_topographic_similarity_parallel(sentences,features,comprange=None, m
     executor = ProcessPoolExecutor(max_workers=max_workers)
     indices = list(range(len(sentences)))
     levs = []
-    #for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
-    for idx1, idx1_levs in zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange))):
+    for idx1, idx1_levs in tqdm(zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_levs in zip(indices, executor.map(compute_levenshtein_distance_for_idx_over_comprange, itertools.repeat(sentences), indices, itertools.repeat(comprange))):
         for l in idx1_levs: 
             levs.append(l)
 
     indices = list(range(len(features)))
     cossims = []
-    #for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
-    for idx1, idx1_cossims in zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange))):
+    for idx1, idx1_cossims in tqdm(zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange)))):
+    #for idx1, idx1_cossims in zip(indices, executor.map(compute_cosine_sim_for_idx_over_comprange, itertools.repeat(features), indices, itertools.repeat(comprange))):
         for c in idx1_cossims: 
             cossims.append(c)
     

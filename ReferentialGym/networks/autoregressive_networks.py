@@ -806,7 +806,7 @@ class BetaVAE(nn.Module) :
         self.NormalOutputDistribution = NormalOutputDistribution
         self.factor_vae_gamma = factor_vae_gamma
 
-        if self.factor_vae_gamma >= 0.0:
+        if self.factor_vae_gamma > 0.0:
             '''
             self.tc_discriminator_hidden_units = tuple([2*self.latent_dim]*4+[2])
             self.tc_discriminator = FCBody(state_dim=self.latent_dim,
@@ -814,6 +814,8 @@ class BetaVAE(nn.Module) :
                                            gate=F.leaky_relu)
             '''
             self.tc_discriminator = TotalCorrelationDiscriminator(self)
+        else:
+            self.tc_discriminator = None 
 
         self.EncodingCapacity = 0.0
         self.EncodingCapacityStep = None
@@ -984,7 +986,7 @@ class BetaVAE(nn.Module) :
         
         #--------------------------------------------------------------------------------------------------------------
         # FactorVAE losses:
-        if self.factor_vae_gamma >= 0.0:
+        if self.factor_vae_gamma > 0.0:
             # VAE TC loss:
             Dz = self.tc_discriminator(self.z)
             self.VAE_TC_loss = (Dz[:,0] - Dz[:,1])

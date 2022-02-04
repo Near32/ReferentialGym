@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as T 
 
-torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(False) #True)
 
 ###########################################################
 ###########################################################
@@ -341,7 +341,7 @@ def main():
   parser.add_argument("--dis_metric_resampling", type=reg_bool, default="False")
   parser.add_argument("--metric_fast", type=reg_bool, default="False")
   parser.add_argument("--metric_batch_size", type=int, default=8)
-  parser.add_argument("--parallel_TS_worker", type=int, default=16)
+  parser.add_argument("--parallel_TS_worker", type=int, default=32)
 
   parser.add_argument("--batch_size", type=int, default=50)
   parser.add_argument("--mini_batch_size", type=int, default=256)
@@ -449,7 +449,7 @@ def main():
     #default="combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N", #poorly diverse
     #default="divider-1-offset-0"
   )
-  parser.add_argument("--fast", action="store_true", default=False, 
+  parser.add_argument("--fast", type=reg_bool, default="True", 
     help="Disable the deterministic CuDNN. It is likely to make the computation faster.")
   
   #--------------------------------------------------------------------------
@@ -484,6 +484,9 @@ def main():
   
   args = parser.parse_args()
   
+  if 'EncoderOnly' not in args.arch:
+      args.epoch = 11 
+
   if args.nbr_distractors is not None:
       args.nbr_train_distractors = args.nbr_distractors
       args.nbr_test_distractors = args.nbr_distractors
@@ -1569,7 +1572,7 @@ def main():
         #"preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
         # cf _sense:
         "preprocess_fn": (lambda x: speaker._sense(agent_preprocess_fn(x))),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.epoch-1, #args.metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -1689,7 +1692,7 @@ def main():
           #"preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
           # cf _sense:
           "preprocess_fn": (lambda x: listener._sense(agent_preprocess_fn(x))),
-          "epoch_period":args.metric_epoch_period,
+          "epoch_period":args.epoch-1, #args.metric_epoch_period,
           "batch_size":args.metric_batch_size,#5,
           "nbr_train_points":args.nbr_train_points,#3000,
           "nbr_eval_points":args.nbr_eval_points,#2000,

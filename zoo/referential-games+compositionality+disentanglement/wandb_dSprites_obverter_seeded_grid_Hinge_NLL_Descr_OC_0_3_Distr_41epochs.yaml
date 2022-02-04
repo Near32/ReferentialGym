@@ -75,13 +75,15 @@ parameters:
                 values: [10]
 
         metric_epoch_period:
-                values: [5]
+                values: [10]
         nbr_train_points:
-                values: [10000]
+                values: [5000]
         nbr_eval_points:
-                values: [10000]
+                values: [5000]
         metric_batch_size:
                 values: [64]
+        parallel_TS_worker:
+                values: [128]
         dis_metric_resampling:
                 values: [True]
         metric_resampling:

@@ -449,6 +449,7 @@ class TopographicSimilarityMetricModule2(Module):
                     except Exception as e:
                         print(f"TOPOSIM OHE :: exception caught: {e}")
 
+                    """
                     try:
                         scores_dict["feat_topo_sims"], pvalues_feat, unique_prod_ratios_feat = self._compute_topo_sim(
                             np_sentences=train_repr, 
@@ -457,7 +458,7 @@ class TopographicSimilarityMetricModule2(Module):
                         )
                     except Exception as e:
                         print(f"TOPOSIM Feat :: exception caught: {e}")
-                    
+                    """
                     scores_dict["num_active_dims"] = len(active_dims)
                     
 

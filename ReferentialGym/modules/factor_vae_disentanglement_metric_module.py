@@ -115,7 +115,7 @@ class FactorVAEDisentanglementMetricModule(Module):
         current_random_state = np.random.get_state()
         np.random.set_state(copy.deepcopy(self.random_state))
         
-        for _ in range(nbr_points):
+        for idx in range(nbr_points):
             factor_index, argmin = self._generate_training_sample(
                 dataset,
                 model,
@@ -220,7 +220,7 @@ class FactorVAEDisentanglementMetricModule(Module):
         if self.config['resample']:
             latent_representations = []
             representations = []
-            for _ in range((nbr_points//batch_size)+1):
+            for idx in range((nbr_points//batch_size)+1):
                 # Sample two mini batches of latent variables.
                 factors = dataset.sample_factors(
                     batch_size, 
