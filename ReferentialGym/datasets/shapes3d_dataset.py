@@ -7,6 +7,7 @@ import copy
 import random
 from PIL import Image 
 import h5py
+from tqdm import tqdm
 
 
 class Shapes3DDataset(Dataset) :
@@ -26,7 +27,7 @@ class Shapes3DDataset(Dataset) :
         #dataset_zip = np.load(self.root, encoding='latin1', allow_pickle=True)
         print('Keys in the dataset:')
         for k in dataset_zip.keys(): print(k)
-        self.imgs = dataset_zip['images']
+        self.imgs = dataset_zip['images'][:]
         self.latents_values = np.array(dataset_zip['labels'][:])
         self.latents_classes = np.array(dataset_zip['labels'][:])
         self.latents_classes[:, 0:3] = (self.latents_classes[:,0:3].astype(float)*10).astype(int)
@@ -311,7 +312,7 @@ class Shapes3DDataset(Dataset) :
             print(f"Dataset Size: {len(self.indices)} out of 737280: {100*len(self.indices)/737280}%.")
         elif 'combinatorial' in self.split_strategy:
             indices_latents = list(zip(range(self.latents_classes.shape[0]), self.latents_classes))
-            for idx, latent_class in indices_latents:
+            for idx, latent_class in tqdm(indices_latents):
                 effective_test_threshold = self.counter_test_threshold
                 counter_test = {}
                 skip_it = False
@@ -377,7 +378,7 @@ class Shapes3DDataset(Dataset) :
         self.targets = self.targets[self.indices]
         """
 
-        #self.imgs = self.imgs[self.traintest_indices]
+        self.imgs = self.imgs[self.traintest_indices]
         self.latents_values = self.latents_values[self.traintest_indices]
         self.latents_classes = self.latents_classes[self.traintest_indices]
         self.latents_one_hot_encodings = self.latents_one_hot_encodings[self.traintest_indices]
@@ -414,7 +415,7 @@ class Shapes3DDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
         
-        self.factors_indices = self.traintest_indices[self.factors_indices]
+        #self.factors_indices = self.traintest_indices[self.factors_indices]
         latents_values = [lv for lv in self.latents_values[self.factors_indices]]
         
         return latents_values
@@ -428,7 +429,7 @@ class Shapes3DDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
 
-        self.factors_indices = self.traintest_indices[self.factors_indices]
+        #self.factors_indices = self.traintest_indices[self.factors_indices]
         latents_ohe = [lohe for lohe in self.latents_one_hot_encodings[self.factors_indices]]
         
         return latents_ohe
@@ -442,7 +443,7 @@ class Shapes3DDataset(Dataset) :
         for factor in factors:
             self.factors_indices.append(self.latents_classes_2_idx[tuple(factor.tolist())])
 
-        self.factors_indices = self.traintest_indices[self.factors_indices]
+        #self.factors_indices = self.traintest_indices[self.factors_indices]
         images = [Image.fromarray(im, mode='RGB') for im in self.imgs[self.factors_indices]]
         #images = [Image.fromarray((im*255).astype('uint8')) for im in self.imgs[self.factors_indices]]
         
@@ -511,7 +512,7 @@ class Shapes3DDataset(Dataset) :
         trueidx = self.indices[idx]
 
         #image = Image.fromarray((self.imgs[trueidx]*255).astype('uint8'))
-        trueidx = self.traintest_indices[trueidx]
+        #trueidx = self.traintest_indices[trueidx]
         image = Image.fromarray(self.imgs[trueidx], mode='RGB')
 
         target = self.getclass(idx)

@@ -30,6 +30,7 @@ setup(
 
     install_requires=[
 	'tqdm',
+        'cloudpickle',
         #'Cython',
 	'numpy',
 	'scipy',

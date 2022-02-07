@@ -241,10 +241,12 @@ def language_only_cppf_fn(name):
 def main():
  
   import os 
+  """
   if os.environ.get("CUDA_VISIBLE_DEVICES", None) is None:
     from gpuutils import GpuUtils
     GpuUtils.allocate(required_memory=10000, framework="torch")
- 
+  """
+  
   parser = argparse.ArgumentParser(description="Language Emergence, Compositionality and Disentanglement.")
   parser.add_argument("--project", 
     type=str, 
@@ -254,6 +256,7 @@ def main():
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
   parser.add_argument("--verbose", type=reg_bool, default="False")
   parser.add_argument('--synthetic_progression_end', type=int, default=1)
+  parser.add_argument("--with_classification_test", type=reg_bool, default="False")
   parser.add_argument("--use_priority", type=reg_bool, default="False")
   parser.add_argument("--restore", type=reg_bool, default="False")
   parser.add_argument("--force_eos", type=reg_bool, default="False")
@@ -265,6 +268,7 @@ def main():
              "tiny-XSort-of-CLEVR",
              "dSprites",
              "3DShapesPyBullet",
+             "3dshapes",
              ], 
     help="dataset to train on.",
     default="3DShapesPyBullet")
@@ -430,6 +434,10 @@ def main():
   # No longer used for 3d shapes but only for dSprites: default means 80-20% 
   parser.add_argument("--train_test_split_strategy", type=str, 
     choices=[
+      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-15-N",
+      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-7-N",
+      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-2-N",
+      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-1-N",
       "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N",
       "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
       "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
@@ -1328,6 +1336,10 @@ def main():
     root = './datasets/dsprites-dataset'
     train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
     test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  elif '3dshapes' in args.dataset:
+    root = './'
+    train_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
+    test_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
   elif '3DShapesPyBullet' in args.dataset:
     train_dataset = ReferentialGym.datasets._3DShapesPyBulletDataset(
       root=root, 
@@ -1479,6 +1491,64 @@ def main():
       input_stream_ids=baseline_vm_latent_traversal_input_stream_ids,
     )
 
+  if args.with_classification_test:
+    pass
+    if args.with_baseline:
+      modules[baseline_vm_id] = rg_modules.build_VisualModule(
+        id=baseline_vm_id, 
+        config=baseline_vm_config,
+        input_stream_ids=baselien_vm_input_stream_ids)
+
+    if args.from_utterances:
+      modules[lm_id] = rg_modules.build_LanguageModule(
+        id=lm_id,
+        config=lm_config,
+        input_stream_ids=lm_input_stream_ids)
+      
+    modules[fm_id] = rg_modules.build_FlattenModule(
+      id=fm_id,
+      input_stream_keys=fm_input_stream_keys)
+    
+    modules[rrm_id] = rg_modules.build_BatchReshapeRepeatModule(
+      id=rrm_id,
+      config=rrm_config,
+      input_stream_keys=rrm_input_stream_keys)
+    modules[sqm_id] = rg_modules.build_SqueezeModule(
+      id=sqm_id,
+      config=sqm_config,
+      input_stream_keys=sqm_input_stream_keys)
+
+    for subtype_id in range(max(nb_nr_qs, nb_r_qs, nb_brq_qs)):
+      if subtype_id < nb_r_qs:
+        modules[cm_r_id[subtype_id]] = rg_modules.build_ConcatModule(
+          id=cm_r_id[subtype_id],
+          config=cm_r_config[subtype_id],
+          input_stream_keys=cm_r_input_stream_keys[subtype_id])
+      if subtype_id < nb_nr_qs:
+        modules[cm_nr_id[subtype_id]] = rg_modules.build_ConcatModule(
+          id=cm_nr_id[subtype_id],
+          config=cm_nr_config[subtype_id],
+          input_stream_keys=cm_nr_input_stream_keys[subtype_id])
+      if subtype_id < nb_brq_qs:
+        modules[cm_brq_id[subtype_id]] = rg_modules.build_ConcatModule(
+          id=cm_brq_id[subtype_id],
+          config=cm_brq_config[subtype_id],
+          input_stream_keys=cm_brq_input_stream_keys[subtype_id])
+
+    if args.same_head:
+      modules["mhcm"] = rg_modules.build_MultiHeadClassificationModule(
+        id="mhcm", 
+        config=mhcm_config,
+        input_stream_ids=mhcm_input_stream_ids)
+
+      modules["cmm"] = rg_modules.build_ConfusionMatrixMetricModule(
+        id="cmm",
+        config=cmm_config, 
+        input_stream_ids=cmm_input_stream_ids)
+    else:
+      raise NotImplementedError 
+    #TODO:
+    # finish refactoring and add pipeline...
 
   homo_id = "homo0"
   homo_config = {"use_cuda":args.use_cuda}
@@ -1905,8 +1975,22 @@ def main():
     modules[listener_inst_coord_metric_id] = listener_inst_coord_metric_module
   
 
-  if 'dSprites' in args.dataset:
+  if 'dSprites' in args.dataset\
+  or '3dshapes' in args.dataset:
     pass
+    """
+    if not args.baseline_only:
+      latent_metric_id = "latent_metric"
+      latent_metric_module = rg_modules.build_PerLatentAccuracyMetricModule(
+        id=latent_metric_id,
+        config = {
+          "epoch_period":1,
+          "dataset_id": args.dataset,
+          "modes": ["train", "test"],
+        }
+      )
+      modules[latent_metric_id] = latent_metric_module
+    """
     """
     if not args.baseline_only:
       dsprites_latent_metric_id = "dsprites_latent_metric"
@@ -2251,11 +2335,15 @@ def main():
     pipelines[optim_id].append(baseline_vm_latent_traversal_id)
   """
 
-  """
+  
   if 'dSprites' in args.dataset \
-  and not args.baseline_only:  
-    pipelines[optim_id].append(dsprites_latent_metric_id)
-
+  or '3dshapes' in args.dataset:
+    pass
+    """
+    if not args.baseline_only:  
+        pipelines[optim_id].append(latent_metric_id)
+    """
+  """
     if args.with_baseline:
       pipelines[optim_id].append(baseline_dsprites_latent_metric)      
   """
@@ -2431,7 +2519,7 @@ def main():
     project=project_name, 
     config=config,
     #sync_tensorboard=True,
-    settings=wandb.Settings(start_method="fork"),
+    settings=wandb.Settings(start_method="thread"),
   )
   wandb.tensorboard.patch(
     save=True, 

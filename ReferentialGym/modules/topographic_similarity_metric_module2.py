@@ -270,6 +270,11 @@ class TopographicSimilarityMetricModule2(Module):
 
         return toposim, p, unique_prod_ratio
     
+    def _compute_unique_prod_ratio(self, np_sentences) -> float:
+        _, idx_unique_sentences = np.unique(np_sentences, axis=0, return_index=True)
+        unique_prod_ratio = len(idx_unique_sentences) / len(np_sentences) * 100.0
+        return unique_prod_ratio
+
     def _compute_global_variances(self, model:object, dataset:object, nbr_points:int, batch_size:int=64) -> Tuple[object, object]:
         if self.config['resample']:
             latent_representations = []
@@ -324,7 +329,8 @@ class TopographicSimilarityMetricModule2(Module):
         epoch = input_streams_dict["epoch"]        
         mode = input_streams_dict["mode"]
         
-        if epoch % self.config["epoch_period"] == 0 and "train" in mode:
+        if epoch != 0 \
+        and epoch % self.config["epoch_period"] == 0 and "train" in mode:
             if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
                 representations = input_streams_dict["representations"]
                 while representations.shape[-1] == 1:
@@ -498,6 +504,86 @@ class TopographicSimilarityMetricModule2(Module):
 
                 if hasattr(model, "eval"):  model.train()
                 
+        else:
+            if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
+                representations = input_streams_dict["representations"]
+                while representations.shape[-1] == 1:
+                    representations = representations.squeeze(-1)
+                self.representations.append(representations.cpu().detach().numpy())
+                features = input_streams_dict["features"]
+                while features.shape[-1] == 1:
+                    features = features.squeeze(-1)
+                self.features.append(features.cpu().detach().numpy())
+                latent_representations = input_streams_dict["latent_representations"]
+                self.latent_representations.append(latent_representations.cpu().detach().numpy())
+                latent_representations_v = input_streams_dict["latent_representations_values"]
+                self.latent_representations_v.append(latent_representations_v.cpu().detach().numpy())
+                latent_representations_ohe = input_streams_dict["latent_representations_one_hot_encoded"]
+                self.latent_representations_ohe.append(latent_representations_ohe.cpu().detach().numpy())
+                indices = input_streams_dict["indices"]
+                self.indices.append(indices.cpu().detach().numpy())
+
+            # Is it the end of the epoch?
+            end_of_epoch = all([
+              input_streams_dict[key]
+              for key in self.end_of_]
+            )
+            
+            not_empty = len(self.indices) > 0
+            
+            if end_of_epoch and (not_empty or self.config["resample"]):
+                if not_empty:
+                    repr_last_dim = self.representations[-1].shape[-1] 
+                    self.representations = np.concatenate(self.representations, axis=0).reshape(-1, repr_last_dim)
+                    feat_last_dim = self.features[-1].shape[-1] 
+                    self.features = np.concatenate(self.features, axis=0).reshape(-1, feat_last_dim)
+                    latent_repr_last_dim = self.latent_representations[-1].shape[-1] 
+                    self.latent_representations = np.concatenate(self.latent_representations, axis=0).reshape(-1, latent_repr_last_dim)
+                    
+                    latent_v_repr_last_dim = self.latent_representations_v[-1].shape[-1] 
+                    self.latent_representations_v = np.concatenate(self.latent_representations_v, axis=0).reshape(-1, latent_v_repr_last_dim)
+                    
+                    latent_ohe_repr_last_dim = self.latent_representations_ohe[-1].shape[-1] 
+                    self.latent_representations_ohe = np.concatenate(self.latent_representations_ohe, axis=0).reshape(-1, latent_ohe_repr_last_dim)
+                    
+                    self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
+
+                    # Make sure every index is only seen once:
+                    self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
+                    self.features = self.features[in_batch_indices,:]
+                    self.representations = self.representations[in_batch_indices,:]
+                    self.latent_representations = self.latent_representations[in_batch_indices,:]
+                    self.latent_representations_v = self.latent_representations_v[in_batch_indices,:]
+                    self.latent_representations_ohe = self.latent_representations_ohe[in_batch_indices,:]
+                else:
+                   return outputs_stream_dict
+
+                #model = input_streams_dict["model"]
+                #if hasattr(model, "eval"):  model.eval()
+                
+                mode = input_streams_dict["mode"]
+                logger = input_streams_dict["logger"]
+
+                scores_dict = {}
+
+                unique_prod_ratios = 0.0
+                unique_prod_ratios = self._compute_unique_prod_ratio(
+                            #np_sentences=train_repr,
+                            np_sentences=self.representations,
+                )
+
+                logs_dict[f"{mode}/{self.id}/CompositionalityMetric/TopographicSimilarity/NonAmbiguousProduction"] = unique_prod_ratios
+                
+                self.representations = []
+                self.features = []
+                self.latent_representations = []
+                self.latent_representations_v = []
+                self.latent_representations_ohe = []
+                self.representations_indices = []
+                self.indices = []
+
+                #if hasattr(model, "eval"):  model.train()
+ 
 
         return outputs_stream_dict
     
