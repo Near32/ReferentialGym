@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 class Shapes3DDataset(Dataset) :
-    def __init__(self, root='./', train=True, transform=None, split_strategy=None) :
+    def __init__(self, root='./', train=True, transform=None, split_strategy=None, dataset_length=None) :
         '''
         :param split_strategy: str 
             e.g.: 'divider-10-offset-0'
@@ -20,7 +20,7 @@ class Shapes3DDataset(Dataset) :
         self.root = os.path.join(root, '3dshapes.h5')
         self.transform = transform
         self.split_strategy = split_strategy
-
+        self.dataset_length = dataset_length
 
         # Load dataset
         dataset_zip = h5py.File(self.root, 'r')
@@ -455,39 +455,41 @@ class Shapes3DDataset(Dataset) :
         return images
 
     def __len__(self) -> int:
+        if self.dataset_length is not None:
+            return self.dataset_length
         return len(self.indices)
 
     def getclass(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         trueidx = self.indices[idx]
         target = self.targets[trueidx]
         return target
 
     def getlatentvalue(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         trueidx = self.indices[idx]
         latent_value = self.latents_values[trueidx]
         return latent_value
 
     def getlatentclass(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         trueidx = self.indices[idx]
         latent_class = self.latents_classes[trueidx]
         return latent_class
 
     def getlatentonehot(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         trueidx = self.indices[idx]
         latent_one_hot = self.latents_one_hot_encodings[trueidx]
         return latent_one_hot
 
     def gettestlatentmask(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         trueidx = self.indices[idx]
         test_latents_mask = self.test_latents_mask[trueidx]
         return test_latents_mask
@@ -505,8 +507,8 @@ class Shapes3DDataset(Dataset) :
                 - `"exp_latents_one_hot_encoded"`: Tensor representation of the latent of the experience in one-hot-encoded class form.
                 - `"exp_test_latent_mask"`: Tensor that highlights the presence of test values, if any on each latent axis.
         """
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
         
         orig_idx = idx
         trueidx = self.indices[idx]

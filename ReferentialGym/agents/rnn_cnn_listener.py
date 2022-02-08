@@ -157,7 +157,7 @@ class RNNCNNListener(DiscriminativeListener):
 
         self.reset()
 
-    def reset(self):
+    def reset(self, reset_language_model=False):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None

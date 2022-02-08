@@ -156,7 +156,7 @@ class RNNCNNSpeaker(Speaker):
         
         self.reset()
     
-    def reset(self):
+    def reset(self, reset_language_model=False):
         # Reset EoS and SoS maybe?
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)

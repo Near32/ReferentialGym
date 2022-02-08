@@ -945,7 +945,8 @@ class BetaVAE(nn.Module) :
         else:
             #Bernoulli :
             #self.neg_log_lik = -torch.distributions.Bernoulli( torch.sigmoid(self.VAE_output) ).log_prob( gtx )
-            self.neg_log_lik = -torch.distributions.Bernoulli(self.VAE_output).log_prob( gtx )
+            #self.neg_log_lik = -torch.distributions.Bernoulli(self.VAE_output).log_prob( gtx )
+            self.neg_log_lik = -Bernoulli(self.VAE_output).log_prob( gtx )
             #self.VAE_loss = self.reconst_loss
             self.VAE_loss = self.binary_crossentropy
 

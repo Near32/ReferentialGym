@@ -453,24 +453,29 @@ def main():
   
   # Dataset Hyperparameters:
   # No longer used for 3d shapes but only for dSprites: default means 80-20% 
+  parser.add_argument("--dataset_length", type=int, default=0)
   parser.add_argument("--train_test_split_strategy", type=str, 
     choices=[
-      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-15-N",
-      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-7-N",
-      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-2-N",
-      "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-1-N",
-      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N",
-      "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
-      "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
-      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N", 
-      "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-S3-Shape-1-S1", 
-      "combinatorial2-Y-1-S30-X-1-S30-Orientation-1-N-Scale-1-N-Shape-1-N", 
-      "combinatorial2-Y-1-S2-X-1-S2-Orientation-1-N-Scale-1-N-Shape-1-N", 
-      "combinatorial2-Y-1-S16-X-1-S16-Orientation-1-N-Scale-1-S3-Shape-1-S1", 
-      "combinatorial2-Y-8-S2-X-8-S2-Orientation-4-N-Scale-2-S1-Shape-1-S1",
-      "divider-1-offset-0",
-      "divider-10-offset-0",
-      "divider-100-offset-0",
+        "combinatorial2-FloorHue-2-S2-WallHue-2-S2-ObjectHue-2-S2-Scale-8-N-Shape-1-N-Orientation-3-N",
+        "combinatorial2-FloorHue-3-S2-WallHue-3-S2-ObjectHue-3-S2-Scale-8-N-Shape-1-N-Orientation-4-N",
+        "combinatorial2-FloorHue-4-S1-WallHue-4-S1-ObjectHue-4-S1-Scale-8-N-Shape-1-N-Orientation-4-N",
+        "combinatorial2-FloorHue-5-S1-WallHue-5-S1-ObjectHue-5-S1-Scale-4-N-Shape-1-N-Orientation-5-N",
+        "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-15-N",
+        "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-7-N",
+        "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-2-N",
+        "combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-1-N",
+        "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N",
+        "combinatorial2-Y-5-S3-X-5-S3-Orientation-4-N-Scale-1-S3-Shape-1-N",
+        "combinatorial2-Y-16-S1-X-16-S1-Orientation-4-N-Scale-2-S1-Shape-1-N",
+        "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-N-Shape-1-N", 
+        "combinatorial2-Y-1-S16-X-1-S16-Orientation-4-N-Scale-1-S3-Shape-1-S1", 
+        "combinatorial2-Y-1-S30-X-1-S30-Orientation-1-N-Scale-1-N-Shape-1-N", 
+        "combinatorial2-Y-1-S2-X-1-S2-Orientation-1-N-Scale-1-N-Shape-1-N", 
+        "combinatorial2-Y-1-S16-X-1-S16-Orientation-1-N-Scale-1-S3-Shape-1-S1", 
+        "combinatorial2-Y-8-S2-X-8-S2-Orientation-4-N-Scale-2-S1-Shape-1-S1",
+        "divider-1-offset-0",
+        "divider-10-offset-0",
+        "divider-100-offset-0",
     ],
     help="train/test split strategy",
     # dSpritres:
@@ -1367,11 +1372,11 @@ def main():
 
   if 'dSprites' in args.dataset:
     root = './datasets/dsprites-dataset'
-    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
+    train_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy, dataset_length=args.dataset_length if args.dataset_length!=0 else None)
     test_dataset = ReferentialGym.datasets.dSpritesDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
   elif '3dshapes' in args.dataset:
     root = './'
-    train_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy)
+    train_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy, dataset_length=args.dataset_length if args.dataset_length!=0 else None)
     test_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
   elif '3DShapesPyBullet' in args.dataset:
     train_dataset = ReferentialGym.datasets._3DShapesPyBulletDataset(
