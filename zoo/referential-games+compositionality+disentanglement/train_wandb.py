@@ -58,6 +58,23 @@ HOW-TO:
 ###########################################################
 ###########################################################
 
+# Adapted from: 
+# https://github.com/facebookresearch/EGG/blob/3418b21f579743e7951f05e26562af235dcefa46/egg/zoo/emcom_as_ssl/data.py#L55
+from PIL import ImageFilter
+import random
+class GaussianBlur:
+    """
+    Gaussian blur augmentation as in SimCLR https://arxiv.org/abs/2002.05709
+    """
+    def __init__(self, sigma=[0.1, 2.0]):
+        self.sigma = sigma
+
+    def __call__(self, x):
+        sigma = random.uniform(self.sigma[0], self.sigma[1])
+        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return x
+
+
 from ReferentialGym.modules import Module 
 
 class InterventionModule(Module):
@@ -338,6 +355,7 @@ def main():
   #parser.add_argument("--dataloader_num_worker", type=int, default=1)
  
   parser.add_argument("--metric_epoch_period", type=int, default=20)
+  parser.add_argument("--dis_metric_epoch_period", type=int, default=2)
   parser.add_argument("--nbr_train_points", type=int, default=3000)
   parser.add_argument("--nbr_eval_points", type=int, default=1000)
   parser.add_argument("--metric_resampling", type=reg_bool, default="False")
@@ -382,9 +400,11 @@ def main():
   parser.add_argument("--with_descriptive_not_target_logit_language_conditioning", type=reg_bool, default="False")
   parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", type=reg_bool, default="False")
+  parser.add_argument("--with_color_jitter_augmentation", type=reg_bool, default="False")
+  parser.add_argument("--with_gaussian_blur_augmentation", type=reg_bool, default="False")
   parser.add_argument("--egocentric", type=reg_bool, default="False")
-  parser.add_argument("--egocentric_tr_degrees", type=int, default=12) #25)
-  parser.add_argument("--egocentric_tr_xy", type=float, default=0.0625)
+  parser.add_argument("--egocentric_tr_degrees", type=int, default=45)
+  parser.add_argument("--egocentric_tr_xy", type=float, default=0.125)
   parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
               "similarity-0.98",
@@ -511,6 +531,9 @@ def main():
   if args.normalised_context_consistent_obverter:
     args.context_consistent_obverter = True
 
+  if args.DP_in_obverter_decision_head != 0.0:
+      args.with_DP_in_obverter_decision_head = True 
+
   if args.with_DP_in_obverter_decision_head or args.with_DP_in_obverter_decision_head_listener_only:
       if args.DP_in_obverter_decision_head == 0.0:
           args.DP_in_obverter_decision_head = 0.5
@@ -554,6 +577,7 @@ def main():
   
   normalize_rgb_values = False 
   
+  transformations = []
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
   transform = ResizeNormalize(
@@ -562,12 +586,39 @@ def main():
     rgb_scaler=rgb_scaler,
     use_cuda=False, #subprocess issue...s
   )
+  transformations.append(transform)
+  
+  if args.with_color_jitter_augmentation:
+    transformations = [T.RandomApply([T.ColorJitter(
+        brightness=0.8,
+        contrast=0.8,
+        saturation=0.8,
+        hue=0.1,
+        )
+    ], p=0.8)]+transformations
+
+  if args.with_gaussian_blur_augmentation:
+    transformations = [T.RandomApply([GaussianBlur([0.1,2.0])], p=0.5)]+transformations
 
   from ReferentialGym.datasets.utils import AddEgocentricInvariance
   ego_inv_transform = AddEgocentricInvariance()
 
   transform_degrees = args.egocentric_tr_degrees
   transform_translate = (args.egocentric_tr_xy, args.egocentric_tr_xy)
+  
+  if args.egocentric:
+    transformations = [
+        ego_inv_transform,
+        T.RandomAffine(degrees=transform_degrees, 
+                     translate=transform_translate, 
+                     scale=None, 
+                     shear=None, 
+                     interpolation=T.InterpolationMode.BILINEAR, 
+                     fill=0),
+        *transformations,
+    ]
+  
+  transformation = T.Compose(transformations)
 
   if args.with_descriptive_not_target_logit_language_conditioning:
     args.descriptive = True 
@@ -690,36 +741,10 @@ def main():
 
       "use_cuda":                 args.use_cuda,
   
-      "train_transform":            transform,
-      "test_transform":             transform,
+      "train_transform":            transformation,
+      "test_transform":             transformation,
   }
 
-  if args.egocentric:
-    rg_config["train_transform"]= T.Compose(
-      [
-        ego_inv_transform,
-        T.RandomAffine(degrees=transform_degrees, 
-                     translate=transform_translate, 
-                     scale=None, 
-                     shear=None, 
-                     resample=False, 
-                     fillcolor=0),
-        transform
-      ]
-    )
-    rg_config["test_transform"]=  T.Compose(
-      [
-        ego_inv_transform,
-        T.RandomAffine(degrees=transform_degrees, 
-                     translate=transform_translate, 
-                     scale=None, 
-                     shear=None, 
-                     resample=False, 
-                     fillcolor=0),
-        transform
-      ]
-    )
-  
   ## Train set:
   train_split_strategy = args.train_test_split_strategy
   test_split_strategy = args.train_test_split_strategy
@@ -1062,6 +1087,12 @@ def main():
   if args.egocentric:
     save_path += f"Egocentric-Rot{args.egocentric_tr_degrees}-XY{args.egocentric_tr_xy}/"
   
+  if args.with_gaussian_blur_augmentation:
+    save_path += f"GaussianBlurAug/"
+  
+  if args.with_color_jitter_augmentation:
+    save_path += f"ColorJitterAug/"
+  
   save_path += f"/{nbr_epoch}Ep_Emb{rg_config['symbol_embedding_size']}"
   
   if not args.baseline_only:
@@ -1184,7 +1215,7 @@ def main():
 
   save_path += "/WithSeparatedRoleMetric-AgentBased/DEBUG/"
 
-  save_path += f"MetricPeriod{args.metric_epoch_period}+{f'b{args.metric_batch_size}' if args.metric_resampling else 'NO'}Resampling+DISComp-{'fast-' if args.metric_fast else ''}"#TestArchTanh/"
+  save_path += f"MetricPeriod{args.metric_epoch_period}+DisMetricPeriod{args.dis_metric_epoch_period}+{f'b{args.metric_batch_size}' if args.metric_resampling else 'NO'}Resampling+DISComp-{'fast-' if args.metric_fast else ''}"#TestArchTanh/"
   save_path += f"{f'b{args.metric_batch_size}' if args.dis_metric_resampling else 'NO'}DisMetricResampling"
   save_path += f"+{'Active' if args.metric_active_factors_only else 'ALL'}Factors"
   save_path += "+NotNormalizedFeat+ResampleEncodeZ"
@@ -1830,7 +1861,7 @@ def main():
         # dealing with extracting z (mu in pos 1):
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -1861,7 +1892,7 @@ def main():
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -2052,7 +2083,7 @@ def main():
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points": args.nbr_train_points,#3000,
         "nbr_eval_points": args.nbr_eval_points,#2000,
@@ -2083,7 +2114,7 @@ def main():
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points": args.nbr_train_points,#3000,
         "nbr_eval_points": args.nbr_eval_points,#2000,
@@ -2114,7 +2145,7 @@ def main():
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -2144,7 +2175,7 @@ def main():
         #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
         "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -2185,7 +2216,7 @@ def main():
         # Sampling Mu||Logvar, assuming model has method encodeZ :
         #"postprocess_fn": (lambda x: torch.cat([x[1],x[2]], dim=-1).cpu().detach().numpy() if "BetaVAE" in baseline_vm_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points": args.nbr_train_points,#3000,
         "nbr_eval_points": args.nbr_eval_points,#2000,
@@ -2219,7 +2250,7 @@ def main():
         # Sampling Z, assuming model has method encodeZ :
         "postprocess_fn": (lambda x: x[0].cpu().detach().numpy() if "BetaVAE" in baseline_vm_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -2252,7 +2283,7 @@ def main():
         # Sampling Z, assuming model has method encodeZ :
         "postprocess_fn": (lambda x: x[0].cpu().detach().numpy() if "BetaVAE" in baseline_vm_config["architecture"] else x.cpu().detach().numpy()),
         "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-        "epoch_period":args.metric_epoch_period,
+        "epoch_period":args.dis_metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
