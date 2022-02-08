@@ -254,7 +254,7 @@ class ReferentialGame(object):
         
         init_curriculum_nbr_distractors = self.stream_handler["signals:curriculum_nbr_distractors"]
         if init_curriculum_nbr_distractors is None:
-            init_curriculum_nbr_distractors = 1
+            init_curriculum_nbr_distractors = self.config.get('init_curriculum_nbr_distractors', 1)
         if 'use_curriculum_nbr_distractors' in self.config\
             and self.config['use_curriculum_nbr_distractors']:
             windowed_accuracy = 0.0

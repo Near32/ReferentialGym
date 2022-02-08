@@ -395,6 +395,7 @@ def main():
   
   parser.add_argument("--homoscedastic_multitasks_loss", type=reg_bool, default="False")
   parser.add_argument("--use_curriculum_nbr_distractors", type=reg_bool, default="False")
+  parser.add_argument("--init_curriculum_nbr_distractors", type=int, default=1)
   parser.add_argument("--use_feat_converter", type=reg_bool, default="False")
   parser.add_argument("--descriptive", type=reg_bool, default="False")
   parser.add_argument("--with_descriptive_not_target_logit_language_conditioning", type=reg_bool, default="False")
@@ -719,6 +720,7 @@ def main():
       "use_feat_converter":       args.use_feat_converter,
 
       "use_curriculum_nbr_distractors": args.use_curriculum_nbr_distractors,
+      "init_curriculum_nbr_distractors": args.init_curriculum_nbr_distractors,
       "curriculum_distractors_window_size": 25, #100,
 
       "unsupervised_segmentation_factor": None, #1e5
