@@ -1,0 +1,145 @@
+project: RG_COMPO+DIS 
+entity: near3213
+program: train_wandb.py
+command:
+        - ${env}
+        - /scratch/kyd500/rg_env/bin/python
+        - ${program}
+        - ${args}
+method: grid
+parameters:
+        parent_folder:
+                values: ["./3dshapes_stimulus_richness_study_obverter"]
+        baseline_only:
+                values: [False]
+        dataset_length:
+                values: [4096]
+        with_color_jitter_augmentation:
+                values: [True]
+        with_gaussian_blur_augmentation:
+                values: [True]
+        egocentric:
+                values: [True]
+        with_baseline:
+                values: [False]
+        use_cuda:
+                values: [True]
+        seed:
+                values: [10, 20, 30]
+        obverter_nbr_games_per_round:
+                values: [2]
+        obverter_threshold_to_stop_message_generation:
+                values: [0.95]
+        obverter_sampling:
+                values: [False]
+        obverter_sampling_round_alternation_only:
+                values: [True]
+        batch_size:
+                values: [64]
+        mini_batch_size:
+                values: [64]
+        vae_lambda:
+                values: [0.0]
+        vae_factor_gamma:
+                values: [0.0]
+        resizeDim:
+                values: [64]
+        arch:
+                values: ["BN+BetaVAEEncoderOnly3x3"]
+        emb_dropout_prob:
+                values: [0.0]
+        dropout_prob:
+                values: [0.0]
+        max_sentence_length:
+                values: [10]
+        vocab_size:
+                values: [10]
+        epoch:
+                values: [21]
+        symbol_processing_nbr_hidden_units:
+                values: [128]
+        symbol_embedding_size:
+                values: [64]
+        distractor_sampling:
+                values: ["uniform"]
+        nbr_distractors:
+                values: [3]        
+        add_discriminative_test:
+                values: [True]
+        nbr_discriminative_test_distractors:
+                values: [7]
+        add_descriptive_test:
+                values: [True]
+
+        obverter_use_decision_head:
+                values: [True]
+        obverter_nbr_head_outputs:
+                values: [2]
+        agent_loss_type:
+                values: ["Hinge"]
+        graphtype:
+                values: ["obverter"]
+        synthetic_progression_end:
+                values: [10]
+
+        metric_epoch_period:
+                values: [2]
+        nbr_train_points:
+                values: [500]
+        nbr_eval_points:
+                values: [500]
+        metric_batch_size:
+                values: [64]
+        parallel_TS_worker:
+                values: [32]
+        dis_metric_resampling:
+                values: [True]
+        metric_resampling:
+                values: [True]
+        metric_active_factors_only:
+                values: [True]
+        
+        lr:
+                values: [1.0e-4]
+        
+        agent_nbr_latent_dim:
+                values: [32]
+        vae_nbr_latent_dim:
+                values: [32]
+        
+        descriptive_ratio:
+                values: [0.0]
+        descriptive:
+                values: [True]
+        shared_architecture:
+                values: [True, False]
+        with_DP_in_obverter_decision_head:
+                values: [False] 
+        with_BN_in_obverter_decision_head:
+                values: [False]
+        visual_context_consistent_obverter:
+                values: [False]
+        
+        object_centric:
+                values: [False]
+        nb_3dshapespybullet_shapes:
+                values: [10]
+        nb_3dshapespybullet_colors: 
+                values: [10]
+        nb_3dshapespybullet_samples:
+                values: [10]
+        nb_3dshapespybullet_train_colors:
+                values: [5]
+        dataset:
+                values: ["3dshapes"]
+        train_test_split_strategy:
+                values: [
+                        #"combinatorial2-FloorHue-1-S5-WallHue-1-S5-ObjectHue-1-S5-Scale-8-N-Shape-1-N-Orientation-2-N",
+                        "combinatorial2-FloorHue-2-S2-WallHue-2-S2-ObjectHue-2-S2-Scale-8-N-Shape-1-N-Orientation-3-N",
+                        "combinatorial2-FloorHue-3-S2-WallHue-3-S2-ObjectHue-3-S2-Scale-8-N-Shape-1-N-Orientation-4-N",
+                        "combinatorial2-FloorHue-4-S1-WallHue-4-S1-ObjectHue-4-S1-Scale-8-N-Shape-1-N-Orientation-4-N",
+                        "combinatorial2-FloorHue-5-S1-WallHue-5-S1-ObjectHue-5-S1-Scale-4-N-Shape-1-N-Orientation-5-N",
+                ]
+        vae_gaussian:
+                values: [False]
+
