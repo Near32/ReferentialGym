@@ -255,7 +255,10 @@ def discriminative_obverter_referential_game_loss(
                     dim=-1
                 )
                 # (batch_size, (nbr_distractors+2))
+            #PREVIOUSLY:
             decision_logits = final_decision_logits
+            #TESTING:
+            decision_logits = final_decision_logits.log_softmax(dim=-1)
             # (batch_size, (nbr_distractors+2) / 2)
             criterion = nn.NLLLoss(reduction="none")
             

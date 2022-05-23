@@ -331,6 +331,9 @@ def choose_architecture( architecture,
                                                                 net_depth=decoder_nbr_layer,
                                                                 conv_dim=decoder_conv_dim)
 
+        if 'DecoderFree' in architecture:
+            decoder = None
+
         body = BetaVAE(beta=beta,
                        encoder=encoder,
                        decoder=decoder,

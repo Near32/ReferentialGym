@@ -678,6 +678,10 @@ class ObverterAgent(DiscriminativeListener):
         )
 
         next_sentences_logits = next_sentences_probs.log()
+        next_sentences_one_hots = F.one_hot(
+            next_sentences_widx.reshape(-1, 1), 
+            num_classes=self.vocab_size+1,
+        ).reshape(batch_size, -1, self.vocab_size+1)
 
         """
         next_sentences_hidden_states, \

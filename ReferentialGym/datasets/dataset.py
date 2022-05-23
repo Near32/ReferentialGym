@@ -4,6 +4,9 @@ from torch.utils.data.dataset import Dataset as torchDataset
 import numpy as np 
 import copy
 
+import wandb 
+
+
 def shuffle(experiences, orders=None):
     st_size = experiences.shape
     batch_size = st_size[0]
@@ -103,12 +106,17 @@ class Dataset(torchDataset):
 
         from_class = None
         if 'similarity' in self.kwargs['distractor_sampling']:
-            similarity_ratio = float(self.kwargs['distractor_sampling'].split('-')[-1])
+            similarity_ratio = float(self.kwargs['distractor_sampling'].split('-')[-1])/100.0
             sampled_d = self.sample(idx=idx, target_only=True)
             exp_labels = sampled_d["exp_labels"]
             #_, _, exp_labels, _ = self.sample(idx=idx, target_only=True)
             from_class = None
-            if torch.rand(size=(1,)).item() < similarity_ratio:
+            rv = torch.rand(size=(1,)).item()  
+            wandb.log({
+                "Dataset/similarity_ratio": similarity_ratio,
+                "Dataset/random": rv,
+            })
+            if rv < similarity_ratio:
                 from_class = exp_labels
 
         sample_d = self.sample(idx=idx, from_class=from_class)

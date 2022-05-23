@@ -272,8 +272,17 @@ def main():
   parser.add_argument("--seed", type=int, default=0)
   parser.add_argument("--parent_folder", type=str, help="folder to save into.",default="TestObverter")
   parser.add_argument("--verbose", type=reg_bool, default="False")
+  parser.add_argument('--observability', type=str, default="partial")
   parser.add_argument('--synthetic_progression_end', type=int, default=1)
   parser.add_argument("--with_classification_test", type=reg_bool, default="False")
+  parser.add_argument("--classification_test_nbr_class", type=int, default=0)
+  parser.add_argument("--classification_test_loss_lambda", type=float, default=1.0)
+  parser.add_argument("--with_attached_classification_heads", type=reg_bool, default="False")
+  parser.add_argument("--with_classification_test_from_utterances", type=reg_bool, default="False")
+  parser.add_argument("--use_aitao", type=reg_bool, default="False")
+  parser.add_argument("--aitao_language_similarity_sampling_epoch_period", type=int, default=5)
+  parser.add_argument("--aitao_target_unique_prod_ratio", type=float, default=100.0)
+  parser.add_argument("--same_head", type=reg_bool, default="True")
   parser.add_argument("--use_priority", type=reg_bool, default="False")
   parser.add_argument("--restore", type=reg_bool, default="False")
   parser.add_argument("--force_eos", type=reg_bool, default="False")
@@ -306,6 +315,7 @@ def main():
              "BN+BetaVAE3x3",
              "BetaVAEEncoderOnly3x3",
              "BN+BetaVAEEncoderOnly3x3",
+             "BN+BetaVAEDecoderFree3x3",
              "BN+Coord2CNN3x3",
              "BN+Coord4CNN3x3",
              ], 
@@ -422,6 +432,10 @@ def main():
   parser.add_argument("--context_consistent_obverter", type=reg_bool, default="False")
   parser.add_argument("--visual_context_consistent_obverter", type=reg_bool, default="False")
   parser.add_argument("--normalised_context_consistent_obverter", type=reg_bool, default="False")
+  parser.add_argument("--use_learned_threshold", type=reg_bool, default="False")
+  parser.add_argument("--use_utterance_conditioned_threshold", type=reg_bool, default="False")
+  parser.add_argument("--use_sampling_in_obverter", type=reg_bool, default="False")
+  parser.add_argument("--scalar_product_context_consistent_obverter", type=reg_bool, default="False")
   parser.add_argument("--with_BN_in_obverter_decision_head", type=reg_bool, default="False")
   parser.add_argument("--with_DP_in_obverter_decision_head", type=reg_bool, default="False")
   parser.add_argument("--DP_in_obverter_decision_head", type=float, default=0.0)
@@ -518,8 +532,8 @@ def main():
   
   args = parser.parse_args()
   
-  if 'EncoderOnly' not in args.arch:
-      args.epoch = 11 
+  #if 'EncoderOnly' not in args.arch:
+  #    args.epoch = 11 
 
   if args.nbr_distractors is not None:
       args.nbr_train_distractors = args.nbr_distractors
@@ -657,7 +671,7 @@ def main():
     
 
   rg_config = {
-      "observability":            "partial",
+      "observability":            args.observability,
       "max_sentence_length":      args.max_sentence_length,
       "nbr_communication_round":  1,
       "nbr_distractors":          {"train":args.nbr_train_distractors, "test":args.nbr_test_distractors},
@@ -1021,8 +1035,12 @@ def main():
     print("WARNING: Using Beta-VAE-EncoderOnly arch.")
     agent_config["architecture"] = "BN+" if "BN" in agent_config["architecture"] else ""
     agent_config["architecture"] += "Beta-VAE-EncoderOnlyCNN3x3"
+  elif "DecoderFree" in agent_config["architecture"]:
+    print("WARNING: Using BetaVAE-DecoderFree arch.")
+    agent_config["architecture"] = "BN+" if "BN" in agent_config["architecture"] else ""
+    agent_config["architecture"] += "BetaVAE-DecoderFreeCNN3x3"
   else:
-    print("WARNING: Not using Beta-VAE-EncoderOnly arch.")
+    print("WARNING: Using Beta-VAE arch.")
 
   baseline_vm_config = copy.deepcopy(agent_config)
   if args.with_baseline:
@@ -1090,6 +1108,9 @@ def main():
     save_path += "WithPrioritizedSampling/"
   if args.use_obverter_sampling:
     save_path += f"WithObverterSampling{'RoundAlternationOnly' if args.obverter_sampling_round_alternation_only else ''}/"
+  
+  if args.use_aitao:
+    save_path += f"WithAITAO-Period{args.aitao_language_similarity_sampling_epoch_period}/"
 
   if args.egocentric:
     save_path += f"Egocentric-Rot{args.egocentric_tr_degrees}-XY{args.egocentric_tr_xy}/"
@@ -1286,6 +1307,10 @@ def main():
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
         use_normalized_scores=args.normalised_context_consistent_obverter,
+        use_scalar_product=args.scalar_product_context_consistent_obverter,
+        use_learned_threshold=args.use_learned_threshold,
+        use_utterance_conditioned_threshold=args.use_utterance_conditioned_threshold,
+        use_sampling=args.use_sampling_in_obverter,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
         DP_in_decision_head=args.DP_in_obverter_decision_head,
@@ -1347,6 +1372,11 @@ def main():
         logger=None,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
+        use_normalized_scores=args.normalised_context_consistent_obverter,
+        use_scalar_product=args.scalar_product_context_consistent_obverter,
+        use_learned_threshold=args.use_learned_threshold,
+        use_sampling=args.use_sampling_in_obverter,
+        use_utterance_conditioned_threshold=args.use_utterance_conditioned_threshold,
         with_BN_in_decision_head=args.with_BN_in_obverter_decision_head,
         with_DP_in_decision_head=args.with_DP_in_obverter_decision_head,
         DP_in_decision_head=args.DP_in_obverter_decision_head,
@@ -1445,6 +1475,14 @@ def main():
       "round_alternation_only": args.obverter_sampling_round_alternation_only,
       "obverter_nbr_games_per_round": args.obverter_nbr_games_per_round,
     }
+  
+  if args.use_aitao:
+    aitao_id = "aitao_0"
+    aitao_config = {
+        "update_epoch_period": args.aitao_language_similarity_sampling_epoch_period,
+        "init_similarity_ratio": 0.0,
+        "target_unique_prod_ratio": args.aitao_target_unique_prod_ratio,
+    }
 
   if not args.baseline_only:
     # Population:
@@ -1471,6 +1509,13 @@ def main():
       config=obverter_sampling_config,
     )
   
+  if args.use_aitao:
+    from aitao_module import AITAOModule
+    modules[aitao_id] = AITAOModule(
+      id=aitao_id,
+      config=aitao_config,
+    )
+ 
   if not args.baseline_only:
     modules[population_handler_id] = rg_modules.build_PopulationHandlerModule(
         id=population_handler_id,
@@ -1530,14 +1575,172 @@ def main():
     )
 
   if args.with_classification_test:
-    pass
+    nbr_latents = train_dataset[0]['exp_latents'].shape[-1]
+    nbr_attributes = args.classification_test_nbr_class if args.classification_test_nbr_class != 0 else 15 # 32 for dSprites maybe?
+    if args.with_attached_classification_heads:
+      rg_agents_downstream_features = "modules:current_speaker:ref_agent:features"
+    else:
+      rg_agents_downstream_features = "modules:current_speaker:ref_agent:features.detach"
+    
+    if args.with_classification_test_from_utterances:
+      lm_id = f"language_module"
+      lm_config = {
+        "use_cuda":agent_config["use_cuda"],
+        "use_pack_padding":False,
+        "use_sentences_one_hot_vectors":True,
+        "rnn_type":"gru",
+
+        "vocab_size":agent_config["vocab_size"]+1,
+        "symbol_embedding_size":agent_config["symbol_embedding_size"],
+        "embedding_dropout_prob":agent_config["embedding_dropout_prob"],
+
+        "symbol_processing_nbr_rnn_layers":agent_config["symbol_processing_nbr_rnn_layers"],
+        "symbol_processing_nbr_hidden_units":agent_config["symbol_processing_nbr_hidden_units"],
+        "processing_dropout_prob":agent_config["dropout_prob"],
+
+      }
+
+      lm_input_stream = "modules:current_speaker:sentences_one_hot.detach"
+      if args.with_attached_classification_heads:
+        lm_input_stream = "modules:current_speaker:sentences_one_hot"
+        
+      lm_input_stream_ids = {
+        "losses_dict":"losses_dict",
+        "logs_dict":"logs_dict",
+        "mode":"signals:mode",
+        "inputs":lm_input_stream,
+      }
+
+      assert lm_config["use_sentences_one_hot_vectors"] and "one_hot" in lm_input_stream_ids["inputs"]
+      rg_agents_downstream_features = f"modules:{lm_id}:final_rnn_outputs"
+      rg_agents_downstream_features_size = lm_config["symbol_processing_nbr_hidden_units"]
+    
+
+    fm_id = "flatten0"
+    fm_input_stream_keys = [
+      rg_agents_downstream_features,
+    ]
+  
+    if args.with_baseline:
+      fm_input_stream_keys.append(f"modules:{baseline_vm_id}:ref:features")
+    
+    next_features_input_stream_id = "modules:flatten0:output_0"
+    
+    ltial_id = "latentToIdAndLabel0"
+    ltial_config = {}
+    ltial_input_stream_ids = {
+        "logger":"modules:logger:ref",
+        "logs_dict":"logs_dict",
+        "epoch":"signals:epoch",
+        "mode":"signals:mode",
+
+        "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+        "latent_ohe_representations":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+        "latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+        "indices":"current_dataloader:sample:speaker_indices", 
+        
+    }
+ 
+    next_task_id_input_stream_id_base = f"modules:{ltial_id}:"
+    
+    cm_id = {}
+    cm_config = {}
+    cm_input_stream_keys = {}
+
+    mhcm_id = {}
+    mhcm_config = {}
+    mhcm_input_stream_ids = {}
+
+    # Baseline:
+    if args.with_baseline:
+      b_cm_id = {}
+      b_cm_config = {}
+      b_cm_input_stream_keys = {}
+
+      b_mhcm_id = {}
+      b_mhcm_config = {}
+      b_mhcm_input_stream_ids = {}
+
+    feature_size = nbr_latents
+    if args.with_classification_test_from_utterances:
+        feature_size += agent_config['symbol_processing_nbr_hidden_units']
+    else:
+        feature_size += speaker.cnn_encoder.get_feature_shape()
+        #pfs = 1
+        #for fs in feature_shape:
+        #    pfs *= fs
+        #feature_size += pfs
+
+    #mhcm_heads_arch = [256,'256-DP0.5',]
+    mhcm_heads_arch = ['256-DP0.5',]
+    mhcm_input_shape = feature_size
+
+    for lidx in range(nbr_latents):
+      cm_id[lidx] = f"concat_features_task_id_{lidx}"
+      cm_config[lidx] = {
+        'dim': -1,
+      }
+      cm_input_stream_keys[lidx] = [
+        next_features_input_stream_id,
+        f"{next_task_id_input_stream_id_base}latent_{lidx}_ids",
+      ]
+    
+    if args.same_head:
+      mhcm_id = f"mhcm"
+      
+      mhcm_config = {
+        "loss_ids": {},
+        "loss_lambdas":{},
+        "grouped_accuracies": {},
+        "heads_output_sizes":[],
+        "heads_archs":[],
+        "input_shapes": [],
+        "same_head": True,
+        "use_cuda":args.use_cuda,
+      }
+      mhcm_input_stream_ids = {
+        "losses_dict":"losses_dict",
+        "logs_dict":"logs_dict",
+        "mode":"signals:mode",
+      }
+
+      cmm_config = {
+        "labels": [i for i in range(nbr_attributes)],
+        "input_labels": {"predicted_labels_0": "ReferentialGame"},
+      }
+
+      cmm_input_stream_ids = {}
+      # Dictionnaries where each entry corresponds to a different input/prediction/loss/label
+      cmm_input_stream_ids[f"predicted_labels_0" ] = f"modules:mhcm:predicted_labels"
+      cmm_input_stream_ids[f"groundtruth_labels_0" ] = f"modules:mhcm:groundtruth_labels"
+      
+      group_keys = []
+      for lidx in range(nbr_latents):
+        loss_id = f"latent_{lidx}"
+        key_id = f"inputs_{lidx}"
+        mhcm_config['loss_ids'][key_id] = loss_id
+        mhcm_config['loss_lambdas'][key_id] = args.classification_test_loss_lambda
+        group_keys.append(key_id)
+        mhcm_config['heads_output_sizes'].append(nbr_attributes)
+        mhcm_config['heads_archs'].append(mhcm_heads_arch)
+        mhcm_config['input_shapes'].append(mhcm_input_shape)
+        
+        mhcm_input_stream_ids[f"inputs_{lidx}" ] = f"modules:concat_features_task_id_{lidx}:output_0"
+        mhcm_input_stream_ids[f"targets_{lidx}"] = f"{next_task_id_input_stream_id_base}latent_{lidx}_labels"
+
+      mhcm_config['grouped_accuracies']["overall_latents"] = group_keys
+  
+    # Baseline:
+    if args.with_baseline:
+        raise NotImplementedError
+
     if args.with_baseline:
       modules[baseline_vm_id] = rg_modules.build_VisualModule(
         id=baseline_vm_id, 
         config=baseline_vm_config,
         input_stream_ids=baselien_vm_input_stream_ids)
 
-    if args.from_utterances:
+    if args.with_classification_test_from_utterances:
       modules[lm_id] = rg_modules.build_LanguageModule(
         id=lm_id,
         config=lm_config,
@@ -1547,31 +1750,17 @@ def main():
       id=fm_id,
       input_stream_keys=fm_input_stream_keys)
     
-    modules[rrm_id] = rg_modules.build_BatchReshapeRepeatModule(
-      id=rrm_id,
-      config=rrm_config,
-      input_stream_keys=rrm_input_stream_keys)
-    modules[sqm_id] = rg_modules.build_SqueezeModule(
-      id=sqm_id,
-      config=sqm_config,
-      input_stream_keys=sqm_input_stream_keys)
+    modules[ltial_id] = rg_modules.build_LatentToIdAndLabelModule(
+      id=ltial_id,
+      config=ltial_config,
+      input_stream_ids=ltial_input_stream_ids)
 
-    for subtype_id in range(max(nb_nr_qs, nb_r_qs, nb_brq_qs)):
-      if subtype_id < nb_r_qs:
-        modules[cm_r_id[subtype_id]] = rg_modules.build_ConcatModule(
-          id=cm_r_id[subtype_id],
-          config=cm_r_config[subtype_id],
-          input_stream_keys=cm_r_input_stream_keys[subtype_id])
-      if subtype_id < nb_nr_qs:
-        modules[cm_nr_id[subtype_id]] = rg_modules.build_ConcatModule(
-          id=cm_nr_id[subtype_id],
-          config=cm_nr_config[subtype_id],
-          input_stream_keys=cm_nr_input_stream_keys[subtype_id])
-      if subtype_id < nb_brq_qs:
-        modules[cm_brq_id[subtype_id]] = rg_modules.build_ConcatModule(
-          id=cm_brq_id[subtype_id],
-          config=cm_brq_config[subtype_id],
-          input_stream_keys=cm_brq_input_stream_keys[subtype_id])
+    for lidx in range(nbr_latents):
+      modules[cm_id[lidx]] = rg_modules.build_ConcatModule(
+        id=cm_id[lidx],
+        config=cm_config[lidx],
+        input_stream_keys=cm_input_stream_keys[lidx],
+      )
 
     if args.same_head:
       modules["mhcm"] = rg_modules.build_MultiHeadClassificationModule(
@@ -1585,8 +1774,6 @@ def main():
         input_stream_ids=cmm_input_stream_ids)
     else:
       raise NotImplementedError 
-    #TODO:
-    # finish refactoring and add pipeline...
 
   homo_id = "homo0"
   homo_config = {"use_cuda":args.use_cuda}
@@ -1680,7 +1867,8 @@ def main():
         #"preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
         # cf _sense:
         "preprocess_fn": (lambda x: speaker._sense(agent_preprocess_fn(x))),
-        "epoch_period":args.epoch-1, #args.metric_epoch_period,
+        #"epoch_period":args.epoch-1, 
+        "epoch_period": args.metric_epoch_period,
         "batch_size":args.metric_batch_size,#5,
         "nbr_train_points":args.nbr_train_points,#3000,
         "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -1800,7 +1988,8 @@ def main():
           #"preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
           # cf _sense:
           "preprocess_fn": (lambda x: listener._sense(agent_preprocess_fn(x))),
-          "epoch_period":args.epoch-1, #args.metric_epoch_period,
+          #"epoch_period":args.epoch-1, 
+          "epoch_period":args.metric_epoch_period,
           "batch_size":args.metric_batch_size,#5,
           "nbr_train_points":args.nbr_train_points,#3000,
           "nbr_eval_points":args.nbr_eval_points,#2000,
@@ -2325,7 +2514,53 @@ def main():
         current_speaker_id,
         current_listener_id
       ]
+    
+    if args.use_aitao:
+      pipelines["referential_game"].append(aitao_id)
+ 
+  if args.with_classification_test:    
+    # Flatten and LTIAL:
+    pipelines[fm_id+"+"+ltial_id] = []
+    if args.with_classification_test_from_utterances:  pipelines[fm_id+"+"+ltial_id].append(lm_id)
+    pipelines[fm_id+"+"+ltial_id].append(fm_id)
+    pipelines[fm_id+"+"+ltial_id].append(ltial_id)
 
+    # Compute items:
+    if args.same_head:
+      for lidx in range(nbr_latents):
+        pipelines[cm_id[lidx]] = [
+          cm_id[lidx],
+        ]
+
+      pipelines["mhcm"] = [
+        "mhcm",
+        "cmm",
+      ]
+
+      #Baseline:
+      if args.with_baseline:
+        raise NotImplementedError
+        for subtype_id in range(max(nb_r_qs, nb_nr_qs, nb_brq_qs)):
+          if subtype_id < nb_r_qs:
+            pipelines[b_cm_r_id[subtype_id]] = [
+              b_cm_r_id[subtype_id],
+            ]
+          if subtype_id < nb_nr_qs:
+            pipelines[b_cm_nr_id[subtype_id]] = [
+              b_cm_nr_id[subtype_id],
+            ]
+          if subtype_id < nb_brq_qs:
+            pipelines[b_cm_brq_id[subtype_id]] = [
+              b_cm_brq_id[subtype_id],
+            ]
+        
+        pipelines["baseline_mhcm"] = [
+          "baseline_mhcm",
+          "baseline_cmm",
+        ]
+    else:
+      raise NotImplementedError
+     
   if args.with_baseline:
     pipelines[baseline_vm_id] = []
 

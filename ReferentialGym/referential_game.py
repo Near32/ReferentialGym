@@ -228,7 +228,7 @@ class ReferentialGame(object):
                     batch_size=self.config['batch_size'],
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    num_workers=self.config['dataloader_num_worker'],
+                    #num_workers=self.config['dataloader_num_worker'],
                     sampler=pbs,
                 )
             else:
@@ -238,10 +238,10 @@ class ReferentialGame(object):
                     shuffle=True,
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    num_workers=self.config['dataloader_num_worker']
+                    #num_workers=self.config['dataloader_num_worker']
                 )
             
-        print("Create dataloader: OK.")
+        print("Create dataloader: OK (WARNING: num_worker arg disabled...).")
         
         print("Launching training: ...")
 
@@ -397,7 +397,10 @@ class ReferentialGame(object):
                             prototype_speaker = self.stream_handler["modules:current_speaker:ref_agent"]
                             prototype_listener = self.stream_handler["modules:current_listener:ref_agent"]
                             image_save_path = logger.path 
-                            if prototype_speaker is not None and hasattr(prototype_speaker,'VAE') and idx_stimulus % 4 == 0:
+                            if prototype_speaker is not None \
+                            and hasattr(prototype_speaker,'VAE') \
+                            and prototype_speaker.VAE.decoder is not None \
+                            and idx_stimulus % 4 == 0:
                                 query_vae_latent_space(prototype_speaker.VAE, 
                                                        sample=sample['speaker_experiences'],
                                                        path=image_save_path,
@@ -407,7 +410,10 @@ class ReferentialGame(object):
                                                        suffix='speaker',
                                                        use_cuda=True)
                                 
-                            if prototype_listener is not None and hasattr(prototype_listener,'VAE') and idx_stimulus % 4 == 0:
+                            if prototype_listener is not None \
+                            and hasattr(prototype_listener,'VAE') \
+                            and prototype_listener.VAE.decoder is not None \
+                            and idx_stimulus % 4 == 0:
                                 query_vae_latent_space(prototype_listener.VAE, 
                                                        sample=sample['listener_experiences'],
                                                        path=image_save_path,

@@ -108,6 +108,10 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
         use_normalized_scores=True,
         use_language_projection=True,
         with_DP_in_decision_head=True,
+        use_scalar_product=False,
+        use_learned_threshold=False,
+        use_utterance_conditioned_threshold=False,
+        use_sampling=False,
         **other_kwargs):
         """
         :param obs_shape: tuple defining the shape of the experience following `(nbr_distractors+1, nbr_stimulus, *experience_shape)`
@@ -132,6 +136,10 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
 
         self.logging_it = 0
         self.use_normalized_scores = use_normalized_scores
+        self.use_scalar_product = use_scalar_product
+        self.use_learned_threshold = use_learned_threshold 
+        self.use_utterance_conditioned_threshold = use_utterance_conditioned_threshold
+        self.use_sampling = use_sampling,
 
         self.register_hook(sentence_length_entropy_logging_hook)
         
@@ -280,10 +288,19 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
                                           nn.Softplus())
 
         self.not_target_logits_per_token = nn.Parameter(torch.ones((1, 1, 1, 1)))
-        
+        if self.use_utterance_conditioned_threshold:
+            self.u_cond_thresh_fn = nn.Sequential(
+                nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 128, bias=True),
+                nn.ReLU(),
+                nn.Linear(128, 64, bias=True),
+                nn.ReLU(),
+                nn.Linear(64, 1, bias=True),
+                nn.Softplus(),
+            )
+
         self.reset()
 
-    def reset(self):
+    def reset(self, reset_language_model=False):
         # TODO: verify that initialization of decision head is not an issue:
         #self.visual_projection_head.apply(layer_init)
         
@@ -550,49 +567,75 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             language_proj_widx = language_proj[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
             decision_scores_until_widx = []
-            for b in range(batch_size):
-                #bemb = self.embedding_tf_final_outputs[b]
-                bvp = visual_proj[b]
-                # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 
-                # proj_feature_shape == kwargs['symbol_processing_nbr_hidden_units'])
-                blp = language_proj_widx[b].unsqueeze(1)
-                # (kwargs['symbol_processing_nbr_hidden_units'], 1)
-                #scores = torch.matmul( bvp, blp).view((1,-1))
-                bscores = torch.matmul( bvp, blp).reshape((-1,1)).transpose(0,1)
-                # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
-                if self.use_normalized_scores:
-                    nbvp = torch.norm(bvp, dim=-1, keepdim=True)
-                    # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
-                    nblp = torch.norm(blp, dim=0)
-                    # (1,)
-                    denominator = nbvp*nblp
-                    # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
-                    bscores = bscores/denominator.transpose(0,1)
+            if self.use_scalar_product:
+                for b in range(batch_size):
+                    #bemb = self.embedding_tf_final_outputs[b]
+                    bvp = visual_proj[b]
+                    # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 
+                    # proj_feature_shape == kwargs['symbol_processing_nbr_hidden_units'])
+                    blp = language_proj_widx[b].unsqueeze(1)
+                    # (kwargs['symbol_processing_nbr_hidden_units'], 1)
+                    #scores = torch.matmul( bvp, blp).view((1,-1))
+                    bscores = torch.matmul( bvp, blp).reshape((-1,1)).transpose(0,1)
                     # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
+                    if self.use_normalized_scores:
+                        nbvp = torch.norm(bvp, dim=-1, keepdim=True)
+                        # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
+                        nblp = torch.norm(blp, dim=0)
+                        # (1,)
+                        denominator = nbvp*nblp
+                        # ( (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), 1)
+                        bscores = bscores/denominator.transpose(0,1)
+                        # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
                     
-                decision_scores_until_widx.append(bscores)
-            decision_scores_until_widx = torch.cat(decision_scores_until_widx, dim=0)
-            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-            decision_scores.append(decision_scores_until_widx.unsqueeze(1))
-            # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                    decision_scores_until_widx.append(bscores)
+                decision_scores_until_widx = torch.cat(decision_scores_until_widx, dim=0)
+                # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+                decision_scores.append(decision_scores_until_widx.unsqueeze(1))
+                # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            else:
+                #L2 distance:
+                lproj = language_proj_widx.unsqueeze(1)
+                # (batch_size, 1, kwargs['symbol_processing_nbr_hidden_units'])
+                decision_scores_until_widx = 1.0*torch.cdist(
+                    x1=visual_proj,
+                    x2=lproj.contiguous(),
+                    p=2,
+                ).squeeze(-1)
+                # (batch_size, (nbr_distractors+1) / ? )
+                decision_scores.append(decision_scores_until_widx.unsqueeze(1))
+                # (batch_size, 1, (nbr_distractors+1) / ? )
         decision_scores = torch.cat(decision_scores, dim=1)
         # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
-
-        if self.kwargs["descriptive"]:
-            """
-            not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, nbr_distractors_po, 1).to(decision_scores.device)
+        
+        if self.use_utterance_conditioned_threshold:
+            not_target_logit = self.u_cond_thresh_fn(rnn_outputs.reshape(batch_size*max_sentence_length, -1)).reshape(batch_size, max_sentence_length, 1, -1).repeat(1, 1, nbr_distractors_po, 1).to(decision_scores.device)
+            decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit], dim=-1)
+            # (batch_size, mxsl, (nbr_distractors+1), 2)
+        elif self.use_learned_threshold:
+            not_target_logit = F.softplus(self.not_target_logits_per_token, beta=1.0, threshold=10.0).repeat(batch_size, max_sentence_length, nbr_distractors_po, 1).to(decision_scores.device)
             decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit], dim=-1 )
-            # (batch_size, (nbr_distractors+1), 2)
-            """
+            # (batch_size, mxsl, (nbr_distractors+1), 2)
             """
             not_target_logit = (-1)*torch.ones_like(decision_scores)-decision_scores
             # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             decision_logits = torch.cat([decision_scores.unsqueeze(-1), not_target_logit.unsqueeze(-1)], dim=-1 )
             # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
             """
-            not_target_logit = 1.0/torch.abs((-1)*torch.ones_like(decision_scores)-decision_scores)
-            target_logit = 1.0/torch.abs(torch.ones_like(decision_scores)-decision_scores)
-            # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+        elif self.kwargs["descriptive"]:
+            """
+            """
+            if self.use_scalar_product:
+                not_target_logit = 1.0/(1e-3+torch.abs((-1)*torch.ones_like(decision_scores)-decision_scores))
+                target_logit = 1.0/(1e-3+torch.abs(torch.ones_like(decision_scores)-decision_scores))
+                # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            else:
+                #target_logit = torch.log(1.0/torch.max(torch.ones_like(decision_scores), decision_scores))
+                #not_target_logit = torch.log(1.0-target_logit)
+                target_logit = torch.log(1.0+1e-8-torch.tanh(decision_scores))
+                not_target_logit = torch.log(1.0-target_logit)
+                # (batch_size, max_sentence_length, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            
             decision_logits = torch.cat([target_logit.unsqueeze(-1), not_target_logit.unsqueeze(-1)], dim=-1 )
             # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
             
@@ -659,6 +702,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
             logger=self.logger,
             logging_it=self.logging_it,
             prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
+            sampling=self.use_sampling,
         )
 
         next_sentences_logits = next_sentences_probs.log()
@@ -693,7 +737,7 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
 
         return next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences_one_hots, self.embedding_tf_final_outputs
 
-    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it, prob_threshold=0.95):
+    def decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it, prob_threshold=0.95, sampling=False):
         relevant_procs = list(range(all_inputs.size(0)))
 
         sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
@@ -730,7 +774,12 @@ class ContextConsistentObverterAgent(DiscriminativeListener):
 
             probs = probs.view((vocab_size, batch_size)).transpose(0, 1)
 
-            probs, sel_comm_idx = torch.max(probs, dim=1)
+            if sampling:
+                token_dist = torch.distributions.Categorical(probs=probs)
+                sel_comm_idx = token_dist.sample().reshape(-1)
+                probs = torch.gather(probs, index=sel_comm_idx.long().reshape(-1,1), dim=1).reshape(-1)
+            else:
+                probs, sel_comm_idx = torch.max(probs, dim=1)
 
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
             finished_p = []

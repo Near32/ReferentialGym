@@ -849,7 +849,9 @@ class BetaVAE(nn.Module) :
         self.h = self.encoder(self.x)
         self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
         self.z = self.reparameterize(self.mu, self.log_var)
-        self.out = self.decoder(self.z)
+        self.out = None
+        if self.decoder is not None:
+            self.out = self.decoder(self.z)
         return self.out, self.mu, self.log_var
     
     def encode(self,x) :
@@ -865,7 +867,9 @@ class BetaVAE(nn.Module) :
         return self.z, self.mu, self.log_var
 
     def decode(self, z):
-        return self.decoder(z)
+        if self.decoder is not None:
+            return self.decoder(z)
+        return None 
 
     def _forward(self,x=None,evaluation=False,fixed_latent=None,data=None) :
         if data is None and x is not None :
@@ -876,12 +880,17 @@ class BetaVAE(nn.Module) :
                 self.h = self.encoder(self.x)
                 self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
                 self.z = self.reparameterize(self.mu, self.log_var)
-                self.VAE_output = self.decoder(self.z)
+                if self.decoder is not None:
+                    self.VAE_output = self.decoder(self.z)
+                else:
+                    self.VAE_output = None
         elif data is not None :
             self.mu, self.log_var = data 
             self.z = self.reparameterize(self.mu, self.log_var)
-            if not(evaluation) :
+            if not(evaluation) and self.decoder is not None:
                 self.VAE_output = self.decoder(self.z)
+            else:
+                self.VAE_output = None
 
         self.batch_size = self.z.size()[0]
         if fixed_latent is not None :
@@ -913,22 +922,33 @@ class BetaVAE(nn.Module) :
         self.batch_size = xsize[0]
         
         self._forward(x=x,fixed_latent=fixed_latent,data=data,evaluation=evaluation)
-        
+                
         if evaluation :
             self.VAE_output = gtx 
+        
+        if self.decoder is None:
+            self.VAE_output = None
 
         output_dict = dict()
         #--------------------------------------------------------------------------------------------------------------
         # VAE loss :
         #--------------------------------------------------------------------------------------------------------------
         # Reconstruction loss :
-        self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, reduction='sum').div(self.batch_size)
-        
-        self.VAE_output = self.VAE_output.sigmoid()
+        if self.decoder is not None:
+            self.binary_crossentropy = F.binary_cross_entropy_with_logits(self.VAE_output, gtx, reduction='sum').div(self.batch_size)
+        else:
+            self.binary_crossentropy = torch.zeros((1,), device=gtx.device)
+
+        if self.VAE_output is not None:
+            self.VAE_output = self.VAE_output.sigmoid()
 
         if observation_sigma is not None:
             self.observation_sigma = observation_sigma
-        if self.NormalOutputDistribution:
+        
+        if self.VAE_output is None:
+            self.neg_log_lik = torch.zeros((self.batch_size, 1), device=gtx.device)
+            self.VAE_loss = torch.zeros((self.batch_size, 1), device=gtx.device)
+        elif self.NormalOutputDistribution:
             #Normal :
             self.neg_log_lik = -Normal(self.VAE_output, self.observation_sigma).log_prob( gtx)
 
@@ -950,8 +970,10 @@ class BetaVAE(nn.Module) :
             #self.VAE_loss = self.reconst_loss
             self.VAE_loss = self.binary_crossentropy
 
-        self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)        
-        
+        if self.VAE_output is not None:
+            self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)        
+        else:
+            self.reconst_loss = torch.zeros((self.batch_size, 1), device=gtx.device)
         #--------------------------------------------------------------------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------
         # KL Divergence :

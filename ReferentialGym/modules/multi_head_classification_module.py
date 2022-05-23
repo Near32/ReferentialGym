@@ -187,7 +187,7 @@ class MultiHeadClassificationModule(Module):
         
         # MultiHead Losses:
         for key, loss in losses.items():
-            losses_dict[f"{self.config['loss_ids'][key]}/loss"] = [1.0, loss]
+            losses_dict[f"{self.config['loss_ids'][key]}/loss"] = [self.config.get('loss_lambdas',{}).get(key, 1.0), loss]
 
         # MultiHead Accuracy:
         for key, acc in accuracies.items():
