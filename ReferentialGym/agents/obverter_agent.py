@@ -7,7 +7,7 @@ import copy
 
 from .discriminative_listener import DiscriminativeListener
 #from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
-from ..networks import choose_architecture, BetaVAE, reg_nan, hasnan
+from ..networks import choose_architecture, BetaVAE, ResidualLayer, reg_nan, hasnan
 # TODO: layer_init fn was not doing anything, previously, need to investigate that change...
 
 from ..utils import gumbel_softmax
@@ -169,6 +169,7 @@ class ObverterAgent(DiscriminativeListener):
         max_sentence_length=10, 
         agent_id='o0', 
         logger=None, 
+        use_residual_connections=False,
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
         with_DP_in_decision_head=True,
@@ -213,7 +214,7 @@ class ObverterAgent(DiscriminativeListener):
             'sentences_widx':'modules:current_speaker:sentences_widx.detach', 
         })
     
-
+        self.use_residual_connections = use_residual_connections
         self.use_sentences_one_hot_vectors = use_sentences_one_hot_vectors
         self.with_DP_in_listener_decision_head_only = with_DP_in_listener_decision_head_only
         
@@ -300,19 +301,23 @@ class ObverterAgent(DiscriminativeListener):
 
         decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
         head_arch = []
+        hidden_dim = 128
+        if self.use_residual_connections:   hidden_dim = decision_head_input_size
+
         if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
             head_arch.append(nn.Dropout(p=DP_in_decision_head))
             #head_arch.append(nn.Dropout(p=0.5))
             #head_arch.append(nn.Dropout(p=0.2))
             #head_arch.append(nn.Dropout(p=0.1))
         head_arch += [
-            nn.Linear(decision_head_input_size,128),
+            ResidualLayer(decision_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(decision_head_input_size,hidden_dim),
         ]
         if with_BN_in_decision_head:
-            head_arch.append(nn.BatchNorm1d(num_features=128))
+            head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
         head_arch += [
             nn.ReLU(),
-            nn.Linear(128, 2),
+            #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
+            nn.Linear(hidden_dim, 2),
         ]
         self.decision_head = nn.Sequential(*head_arch)
 
@@ -326,6 +331,8 @@ class ObverterAgent(DiscriminativeListener):
             else:
                 self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
         else:
+            # Makes sure that the EoS symbol is not part of the actual vocabulary, and can be used as a padding symbol:
+            # cf discriminator_listener agent's computing on the last token before the first EoS symbol encountered...
             self.vocab_stop_idx = self.vocab_size
             #self.vocab_size += 2
             self.symbol_encoder = nn.Embedding(
@@ -568,6 +575,9 @@ class ObverterAgent(DiscriminativeListener):
         # (batch_size, max_sentence_length, kwargs['symbol_processing_nbr_hidden_units'])
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
+        # TODO: check cumsum efficiency:
+        rnn_outputs = rnn_outputs.cumsum(dim=1)
+
         if kwargs is  None:
             self.rnn_states = next_rnn_states
         else:
@@ -755,6 +765,9 @@ class ObverterAgent(DiscriminativeListener):
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
             finished_p = []
             for i, (action, p, prob) in enumerate(zip(comm, relevant_procs, probs)):
+                # TODO: check this condition?
+                #if prob > prob_threshold \
+                #or prob < 0.65:
                 if prob > prob_threshold:
                     finished_p.append(p)
                     if prob.item() < 0:
@@ -771,7 +784,7 @@ class ObverterAgent(DiscriminativeListener):
             if len(relevant_procs) == 0:
                 break
 
-        sentences_widx[sentences_widx == -1] = vocab_size  # padding token
+        sentences_widx[sentences_widx == -1] = agent.vocab_stop_idx  # padding token
         sentences_widx = torch.Tensor(np.array(sentences_widx)).long().to(all_inputs.device)
 
 
