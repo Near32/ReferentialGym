@@ -282,6 +282,7 @@ def main():
   parser.add_argument("--use_aitao", type=reg_bool, default="False")
   parser.add_argument("--aitao_language_similarity_sampling_epoch_period", type=int, default=5)
   parser.add_argument("--aitao_target_unique_prod_ratio", type=float, default=100.0)
+  parser.add_argument("--aitao_max_similarity_ratio", type=float, default=100.0)
   parser.add_argument("--same_head", type=reg_bool, default="True")
   parser.add_argument("--use_priority", type=reg_bool, default="False")
   parser.add_argument("--restore", type=reg_bool, default="False")
@@ -411,6 +412,8 @@ def main():
   parser.add_argument("--with_descriptive_not_target_logit_language_conditioning", type=reg_bool, default="False")
   parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", type=reg_bool, default="False")
+  parser.add_argument("--object_centric_version", type=int, default=1)
+  parser.add_argument("--descriptive_version", type=int, default=1)
   parser.add_argument("--with_color_jitter_augmentation", type=reg_bool, default="False")
   parser.add_argument("--with_gaussian_blur_augmentation", type=reg_bool, default="False")
   parser.add_argument("--egocentric", type=reg_bool, default="False")
@@ -426,6 +429,7 @@ def main():
   # Obverter Hyperparameters:
   parser.add_argument("--use_sentences_one_hot_vectors", type=reg_bool, default="False")
   parser.add_argument("--obverter_use_decision_head", type=reg_bool, default="False")
+  parser.add_argument("--obverter_use_residual_connections", type=reg_bool, default="False")
   parser.add_argument("--obverter_nbr_head_outputs", type=int, default=2)
   
   parser.add_argument("--differentiable", type=reg_bool, default="False")
@@ -531,7 +535,14 @@ def main():
   
   
   args = parser.parse_args()
-  
+
+  ReferentialGym.datasets.dataset.OC_version = args.object_centric_version
+  print(f"OC_version = {ReferentialGym.datasets.dataset.OC_version}.")
+  ReferentialGym.datasets.dataset.DC_version = args.descriptive_version
+  #if args.descriptive_version == 2:
+  #    args.batch_size = args.batch_size // 2
+  print(f"DC_version = {ReferentialGym.datasets.dataset.DC_version} and BS={args.batch_size}.")
+    
   #if 'EncoderOnly' not in args.arch:
   #    args.epoch = 11 
 
@@ -1304,6 +1315,7 @@ def main():
         max_sentence_length=max_sentence_length,
         agent_id='s0',
         logger=None,
+        use_residual_connections=args.obverter_use_residual_connections,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
         use_normalized_scores=args.normalised_context_consistent_obverter,
@@ -1370,6 +1382,7 @@ def main():
         max_sentence_length=max_sentence_length,
         agent_id='l0',
         logger=None,
+        use_residual_connections=args.obverter_use_residual_connections,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
         use_normalized_scores=args.normalised_context_consistent_obverter,
@@ -1481,6 +1494,7 @@ def main():
     aitao_config = {
         "update_epoch_period": args.aitao_language_similarity_sampling_epoch_period,
         "init_similarity_ratio": 0.0,
+        "max_similarity_ratio": args.aitao_max_similarity_ratio,
         "target_unique_prod_ratio": args.aitao_target_unique_prod_ratio,
     }
 
@@ -1576,7 +1590,13 @@ def main():
 
   if args.with_classification_test:
     nbr_latents = train_dataset[0]['exp_latents'].shape[-1]
-    nbr_attributes = args.classification_test_nbr_class if args.classification_test_nbr_class != 0 else 15 # 32 for dSprites maybe?
+    #nbr_attributes = args.classification_test_nbr_class if args.classification_test_nbr_class != 0 else 15 # 32 for dSprites maybe?
+    nbr_attributes = getattr(
+        train_dataset, 
+        "nbr_attributes_per_latent_dimension",
+        [args.classification_test_nbr_class if args.classification_test_nbr_class!=0 else 15 for _ in range(train_dataset.latents_classes.shape[1])],
+    )
+
     if args.with_attached_classification_heads:
       rg_agents_downstream_features = "modules:current_speaker:ref_agent:features"
     else:
@@ -1705,9 +1725,13 @@ def main():
       }
 
       cmm_config = {
-        "labels": [i for i in range(nbr_attributes)],
+        "labels": {"predicted_labels_0":
+            {attri:nbr_attributes[attri]["values"] for attri in nbr_attributes.keys()}
+        },
+        #"labels": [i for i in range(nbr_attributes)],
         "input_labels": {"predicted_labels_0": "ReferentialGame"},
       }
+
 
       cmm_input_stream_ids = {}
       # Dictionnaries where each entry corresponds to a different input/prediction/loss/label
@@ -1721,7 +1745,7 @@ def main():
         mhcm_config['loss_ids'][key_id] = loss_id
         mhcm_config['loss_lambdas'][key_id] = args.classification_test_loss_lambda
         group_keys.append(key_id)
-        mhcm_config['heads_output_sizes'].append(nbr_attributes)
+        mhcm_config['heads_output_sizes'].append(int(max(nbr_attributes[lidx]['values']))+1)
         mhcm_config['heads_archs'].append(mhcm_heads_arch)
         mhcm_config['input_shapes'].append(mhcm_input_shape)
         

@@ -12,6 +12,24 @@ from .networks import layer_init
 
 from .networks import coordconv, coorddeconv, conv1x1, coordconv1x1, conv3x3, coordconv3x3
 
+class ResidualLayer(nn.Module):
+    def __init__(self, input_dim, output_dim=None):
+        nn.Module.__init__(self)
+        
+        if output_dim is None:  input_dim = output_dim
+        self.input_dim = input_dim
+        self.output_dim = output_dim 
+
+        self.layer = nn.Linear(input_dim, input_dim)
+        self.adaptation_layer = nn.Identity()
+        if input_dim != output_dim:
+            self.adaptation_layer = nn.Linear(input_dim, output_dim)
+
+    def forward(self, x):
+        y = F.relu(self.layer(x))
+        out = self.adaptation_layer(x + y)
+        return out
+
 # From torchvision.models.resnet:
 class ResNet(nn.Module):
 

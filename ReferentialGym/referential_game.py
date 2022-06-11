@@ -191,7 +191,11 @@ class ReferentialGame(object):
             self.config['batch_size'] = 32
         if 'dataloader_num_worker' not in self.config:
             self.config['dataloader_num_worker'] = 8
-
+        
+        effective_batch_size = self.config['batch_size']
+        from .datasets.dataset import DC_version
+        if DC_version == 2:
+            effective_batch_size = effective_batch_size // 2
         print("Create dataloader: ...")
         
         data_loaders = {}
@@ -219,13 +223,13 @@ class ReferentialGame(object):
                 """
                 pbs = PrioritizedSampler(
                     capacity=capacity,
-                    batch_size=self.config['batch_size'],
+                    batch_size=effective_batch_size, #self.config['batch_size'],
                     logger=logger,
                 )
                 self.pbss[mode] = pbs
                 data_loaders[mode] = torch.utils.data.DataLoader(
                     dataset,
-                    batch_size=self.config['batch_size'],
+                    batch_size=effective_batch_size, #self.config['batch_size'],
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
                     #num_workers=self.config['dataloader_num_worker'],
@@ -234,7 +238,7 @@ class ReferentialGame(object):
             else:
                 data_loaders[mode] = torch.utils.data.DataLoader(
                     dataset,
-                    batch_size=self.config['batch_size'],
+                    batch_size=effective_batch_size, #self.config['batch_size'],
                     shuffle=True,
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,

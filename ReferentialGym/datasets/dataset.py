@@ -7,6 +7,10 @@ import copy
 import wandb 
 
 
+DC_version = 1 
+OC_version = 1 
+
+
 def shuffle(experiences, orders=None):
     st_size = experiences.shape
     batch_size = st_size[0]
@@ -132,12 +136,14 @@ class Dataset(torchDataset):
 
         ##--------------------------------------------------------------
         ##--------------------------------------------------------------
+        global DC_version
 
         # Creating listener's dictionnary:
         listener_sample_d = copy.deepcopy(sample_d)
-        
+                
         retain_target = True
-        if self.kwargs["descriptive"]:
+        if DC_version == 1 \
+        and self.kwargs["descriptive"]:
             retain_target = torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']
             # Target experience is excluded from the experiences yielded to the listener:
             if not retain_target:
@@ -155,9 +161,33 @@ class Dataset(torchDataset):
                     if not(isinstance(v, torch.Tensor)):    
                         v = torch.Tensor(v)
                     listener_sample_d[k][:,0] = v.unsqueeze(0)
-                
+        elif DC_version ==2 \
+        and self.kwargs["descriptive"]:
+            """
+            listener_sample_d is the one with retain target,
+            and we create a diff_listener_sample_d which does not retain target...
+            """
+            diff_listener_sample_d = copy.deepcopy(sample_d)
+            # Sample a new element for the listener to consider.
+            # Different from the target element in itself, but also in its class:
+            new_target_for_listener_sample_d = self.sample(
+                idx=None, 
+                from_class=from_class, 
+                target_only=True, 
+                excepts=[idx], 
+                excepts_class=[exp_labels[0]]
+            )
+            # Adding batch dimension:
+            for k,v in new_target_for_listener_sample_d.items():
+                if not(isinstance(v, torch.Tensor)):    
+                    v = torch.Tensor(v)
+                diff_listener_sample_d[k][:,0] = v.unsqueeze(0)
+        
+
         # Object-Centric or Stimulus-Centric?
-        if retain_target and self.kwargs['object_centric']:
+        global OC_version
+        if OC_version == 1 \
+        and retain_target and self.kwargs['object_centric']:
             new_target_for_listener_sample_d = self.sample(
                 idx=None, 
                 from_class=[exp_labels[0]],
@@ -169,16 +199,38 @@ class Dataset(torchDataset):
                 if not(isinstance(v, torch.Tensor)):    
                     v = torch.Tensor(v)
                 listener_sample_d[k][:,0] = v.unsqueeze(0)
-            
+        elif OC_version == 2 \
+        and retain_target:
+            """
+            Independantly of OC, we need to resample in order to benefit from egocentrism:
+            """
+            new_target_for_listener_sample_d = self.sample(
+                idx=None if self.kwargs['object_centric'] else idx, 
+                from_class=[exp_labels[0]],
+                excepts=[idx] if self.kwargs['object_centric'] else None,  # Make sure to not sample the actual target!
+                target_only=True
+            )
+            # Adding batch dimension:
+            for k,v in new_target_for_listener_sample_d.items():
+                if not(isinstance(v, torch.Tensor)):    
+                    v = torch.Tensor(v)
+                listener_sample_d[k][:,0] = v.unsqueeze(0)
+
         listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
         if not retain_target:   
             # The target_decision_idx is set to `nbr_experiences`:
             target_decision_idx = (self.nbr_distractors[self.mode]+1)*torch.ones(1).long()
-        
+        if DC_version == 2 \
+        and self.kwargs['descriptive']:
+            diff_target_decision_idx = (self.nbr_distractors[self.mode]+1)*torch.ones(1).long()
+
         for k,v in listener_sample_d.items():
             if k == "experiences":  continue
             listener_sample_d[k], _, _ = shuffle(v, orders=orders)
-        
+            if DC_version == 2 \
+            and self.kwargs['descriptive']:
+                diff_listener_sample_d[k], _, _ = shuffle(diff_listener_sample_d[k], orders=orders)
+
         ##--------------------------------------------------------------
         ##--------------------------------------------------------------
 
@@ -188,10 +240,25 @@ class Dataset(torchDataset):
             for k,v in speaker_sample_d.items():
                 speaker_sample_d[k] = v[:,0].unsqueeze(1)
         
+        if DC_version == 2 \
+        and self.kwargs['descriptive']:
+            """
+            duplicating speaker dictionnary, and
+            collating everything together from listener dicts...
+            """
+            for k,v in speaker_sample_d.items():
+                speaker_sample_d[k] = torch.cat([v,v], dim=0)
+            for k,v in listener_sample_d.items():
+                listener_sample_d[k] = torch.cat(
+                    [v, diff_listener_sample_d[k]],
+                    dim=0,
+                )
+            target_decision_idx = torch.cat([target_decision_idx, diff_target_decision_idx], dim=0)
+
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
             output_dict[f"listener_{k}"] = v
         for k,v in speaker_sample_d.items():
             output_dict[f"speaker_{k}"] = v 
-
+        
         return output_dict

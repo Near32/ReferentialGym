@@ -148,8 +148,9 @@ class ConfusionMatrixMetricModule(Module):
               f_scores[key_input][f"balanced_{key}"], _ = precision_recall_fscore_support(
                 y_true=gtv, 
                 y_pred=pv, 
-                labels=self.config["labels"],
-                average='macro',
+                labels=self.config["labels"][key_input][int(key.split('_')[-1])],
+                #average='macro',
+                average='weighted',
                 sample_weight=sample_weights,
                 zero_division=0,
               )
@@ -161,7 +162,7 @@ class ConfusionMatrixMetricModule(Module):
               f_scores[key_input][key], _ = precision_recall_fscore_support(
                 y_true=gtv, 
                 y_pred=pv, 
-                labels=self.config["labels"],
+                labels=self.config["labels"][key_input][int(key.split('_')[-1])],
                 average=None,
                 zero_division=0,
               )
@@ -171,18 +172,18 @@ class ConfusionMatrixMetricModule(Module):
               
               temp = precisions[key_input][key]
               precisions[key_input][key] = {}
-              for sidx in has_support_idx:
-                precisions[key_input][key][sidx] = temp[sidx]
+              for sidx, lvidx in enumerate(has_support_idx):
+                precisions[key_input][key][lvidx] = temp[sidx]
 
               temp = recalls[key_input][key]
               recalls[key_input][key] = {}
-              for sidx in has_support_idx:
-                recalls[key_input][key][sidx] = temp[sidx]
+              for sidx, lvidx in enumerate(has_support_idx):
+                recalls[key_input][key][lvidx] = temp[sidx]
 
               temp = f_scores[key_input][key]
               f_scores[key_input][key] = {}
-              for sidx in has_support_idx:
-                f_scores[key_input][key][sidx] = temp[sidx]
+              for sidx, lvidx in enumerate(has_support_idx):
+                f_scores[key_input][key][lvidx] = temp[sidx]
 
               # Compute Per-Class Accuracies where there is support:
               pc_accuracies[key_input][key] = {}

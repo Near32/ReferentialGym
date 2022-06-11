@@ -148,12 +148,14 @@ class DualLabeledDataset(Dataset):
             indices = []
             nbr_samples = self.nbr_distractors[self.mode]
 
-            if idx is not None and not target_only:
+            #if idx is not None and not target_only:
+            if idx is not None:
                 # i.e. if we are not trying to resample the target stimulus...
                 if idx in set_indices:
                     set_indices.remove(idx)
                 indices.append(idx)
-            else:
+            #else:
+            if target_only:
                 # i.e. if we are only sampling the target stimulus:
                 nbr_samples = 1
 
@@ -164,7 +166,7 @@ class DualLabeledDataset(Dataset):
             else:
                 test = False 
 
-        for choice_idx in range(nbr_samples):
+        while len(indices) < nbr_samples:
             chosen = random.choice(list(set_indices))
             set_indices.remove(chosen)
             indices.append(chosen)

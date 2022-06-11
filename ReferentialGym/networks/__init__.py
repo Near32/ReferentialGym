@@ -1,6 +1,6 @@
 from .networks import FCBody, LSTMBody, GRUBody, MHDPA_RN 
 from .networks import ConvolutionalBody, EntityPrioredConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
-from .residual_networks import ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
+from .residual_networks import ResidualLayer, ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
 
 from .networks import layer_init, hasnan, handle_nan, reg_nan

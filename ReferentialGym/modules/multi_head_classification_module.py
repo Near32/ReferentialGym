@@ -32,6 +32,10 @@ def build_MultiHeadClassificationModule(id:str,
 
 
     heads = nn.ModuleList()
+    if config['same_head']:
+        #config['heads_output_sizes'][0] = max(config['heads_output_sizes'])
+        config['heads_archs'][0][-1] = max(config['heads_output_sizes'])
+    
     for idx, arch in enumerate(config["heads_archs"]):
         if isinstance(config["heads_output_sizes"][idx], int):
             arch = config["heads_archs"][idx]
@@ -64,7 +68,7 @@ def build_MultiHeadClassificationModule(id:str,
         
         if config["same_head"]:
             break
-
+    
     module = MultiHeadClassificationModule(id=id,
                                            config=config,
                                            heads=heads,

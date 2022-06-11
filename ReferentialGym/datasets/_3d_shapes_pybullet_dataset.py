@@ -970,6 +970,16 @@ class _3DShapesPyBulletDataset(Dataset) :
             for idx,lc in enumerate(self.latents_classes)
         }
         
+        self.nbr_attributes_per_latent_dimension = {}
+        for attr_id in range(self.latents_classes.shape[1]):
+            values = set(self.latents_classes[:,attr_id]) 
+            self.nbr_attributes_per_latent_dimension[attr_id] = {
+                'size': len(values),
+                'values': list(values),
+            }
+        
+        print("Dataset : nbr of attributes per latent:", self.nbr_attributes_per_latent_dimension)
+
         print('Dataset loaded : OK.')
 
     def sample_factors(self, num, random_state=None):

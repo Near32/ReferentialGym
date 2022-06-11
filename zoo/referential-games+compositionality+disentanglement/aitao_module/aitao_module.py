@@ -20,6 +20,7 @@ class AITAOModule(Module):
             - "update_epoch_period": Int, epoch period when updating the targets.
             - "init_similarity_ratio": Float, similarity ratio to initialise the 
                 distractor sampling scheme with, after one update of the dataset targets.
+            - "max_similarity_ratio": Float, similarity ratio maximal threhsold value.
             - "target_unique_prod_ratio": Float, target ratio of unique utterances.
         """
 
@@ -54,7 +55,7 @@ class AITAOModule(Module):
             config=config,
             input_stream_ids=input_stream_ids
         )
-
+        
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
         self.indices = []
         self.speaker_sentences = {} #from dataset's idx to sentence.
@@ -65,6 +66,7 @@ class AITAOModule(Module):
 
         self.update_epoch_period = self.config.get("update_epoch_period", 1)
         self.similarity_ratio = self.config.get("init_similarity_ratio", 10.0)
+        self.max_similarity_ratio = self.config.get("max_similarity_ratio", 100.0)
         self.target_unique_prod_ratio = self.config.get("target_unique_prod_ratio", 100.0)
 
     # Adapted from: 
@@ -136,7 +138,7 @@ class AITAOModule(Module):
                 ratio_diff = self.target_unique_prod_ratio - unique_prod_ratio
                 # [-100 ; 100]
                 self.similarity_ratio += 0.1*ratio_diff
-                self.similarity_ratio = max(0.0, min(self.similarity_ratio, 100.0))
+                self.similarity_ratio = max(0.0, min(self.similarity_ratio, self.max_similarity_ratio))
                 
                 logs_dict[f"{mode}/{self.id}/NbrUniqueSentences"] = len(idx_unique_sentences)
                 logs_dict[f"{mode}/{self.id}/NonAmbiguousProduction"] = unique_prod_ratio
