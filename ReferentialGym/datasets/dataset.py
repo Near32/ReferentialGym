@@ -9,7 +9,19 @@ import wandb
 
 DC_version = 1 
 OC_version = 1 
+"""
+DC_version ==2 implies that the batch size is split between
+examples where the target is retained, and examples where the target
+is made different.
 
+Need to find out how does this affect the descriptive ratio sampling?
+
+The batch size is artificially regularised to fit the user params, still.
+
+Upon retaining the target stimuli, they are still resampled in order
+to benefit from egocentrism, for instance.
+
+"""
 
 def shuffle(experiences, orders=None):
     st_size = experiences.shape
@@ -154,7 +166,7 @@ class Dataset(torchDataset):
                     from_class=from_class, 
                     target_only=True, 
                     excepts=[idx], 
-                    excepts_class=[exp_labels[0]]
+                    excepts_class=[exp_labels[0]] if self.kwargs['object_centric'] else [],
                 )
                 # Adding batch dimension:
                 for k,v in new_target_for_listener_sample_d.items():
@@ -165,7 +177,9 @@ class Dataset(torchDataset):
         and self.kwargs["descriptive"]:
             """
             listener_sample_d is the one with retain target,
-            and we create a diff_listener_sample_d which does not retain target...
+            and we create a diff_listener_sample_d which does not ever retain target,
+            especially not the target index, and possibly not the target class either
+            when object-centrism is in effect:
             """
             diff_listener_sample_d = copy.deepcopy(sample_d)
             # Sample a new element for the listener to consider.
@@ -175,7 +189,7 @@ class Dataset(torchDataset):
                 from_class=from_class, 
                 target_only=True, 
                 excepts=[idx], 
-                excepts_class=[exp_labels[0]]
+                excepts_class=[exp_labels[0]] if self.kwargs['object_centric'] else [],
             )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
@@ -202,7 +216,11 @@ class Dataset(torchDataset):
         elif OC_version == 2 \
         and retain_target:
             """
-            Independantly of OC, we need to resample in order to benefit from egocentrism:
+            Independently of OC, we need to resample in order to benefit from egocentrism:
+            So, if OC is in effect, we sample a new target stimulus from the target class,
+            with the exception of the actual target stimulus presented to the speaker ;
+            and if OC is not in effect then we resample the very same target stimulus, 
+            by carrying forward its index:
             """
             new_target_for_listener_sample_d = self.sample(
                 idx=None if self.kwargs['object_centric'] else idx, 
