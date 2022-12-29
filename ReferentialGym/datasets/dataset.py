@@ -196,7 +196,8 @@ class Dataset(torchDataset):
                 if not(isinstance(v, torch.Tensor)):    
                     v = torch.Tensor(v)
                 diff_listener_sample_d[k][:,0] = v.unsqueeze(0)
-        
+            
+             
 
         # Object-Centric or Stimulus-Centric?
         global OC_version
@@ -264,8 +265,24 @@ class Dataset(torchDataset):
             duplicating speaker dictionnary, and
             collating everything together from listener dicts...
             """
+            same_speaker_sample_d = copy.deepcopy(sample_d)
+            resampled_speaker_sample_d = self.sample(
+                idx=None if self.kwargs['object_centric'] else idx, 
+                from_class=[exp_labels[0]],
+                excepts=[idx] if self.kwargs['object_centric'] else None,  # Make sure to not sample the actual target!
+                target_only=True
+            )
+            # Adding batch dimension:
+            for k,v in resampled_speaker_sample_d.items():
+                if not(isinstance(v, torch.Tensor)):    
+                    v = torch.Tensor(v)
+                same_speaker_sample_d[k][:,0] = v.unsqueeze(0)
+
             for k,v in speaker_sample_d.items():
-                speaker_sample_d[k] = torch.cat([v,v], dim=0)
+                speaker_sample_d[k] = torch.cat(
+                    [v,same_speaker_sample_d[k]], 
+                    dim=0,
+                )
             for k,v in listener_sample_d.items():
                 listener_sample_d[k] = torch.cat(
                     [v, diff_listener_sample_d[k]],

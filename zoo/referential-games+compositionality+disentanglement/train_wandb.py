@@ -428,7 +428,8 @@ def main():
     default="uniform")
   # Obverter Hyperparameters:
   parser.add_argument("--use_sentences_one_hot_vectors", type=reg_bool, default="False")
-  parser.add_argument("--obverter_use_decision_head", type=reg_bool, default="False")
+  parser.add_argument("--obverter_use_decision_head", type=reg_bool, default="True")
+  parser.add_argument("--obverter_learn_not_target_logit", type=reg_bool, default="True")
   parser.add_argument("--obverter_use_residual_connections", type=reg_bool, default="False")
   parser.add_argument("--obverter_nbr_head_outputs", type=int, default=2)
   
@@ -449,6 +450,7 @@ def main():
   parser.add_argument("--obverter_nbr_games_per_round", type=int, default=20)
   parser.add_argument("--use_obverter_sampling", type=reg_bool, default="False")
   parser.add_argument("--obverter_sampling_round_alternation_only", type=reg_bool, default="False")
+  parser.add_argument("--obverter_sampling_repeat_experiences", type=reg_bool, default="True")
   # Iterade Learning Model:
   parser.add_argument("--iterated_learning_scheme", type=reg_bool, default="False")
   parser.add_argument("--iterated_learning_period", type=int, default=4)
@@ -1315,6 +1317,8 @@ def main():
         max_sentence_length=max_sentence_length,
         agent_id='s0',
         logger=None,
+        use_decision_head=args.obverter_use_decision_head,
+        learn_not_target_logit=args.obverter_learn_not_target_logit,
         use_residual_connections=args.obverter_use_residual_connections,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
@@ -1382,6 +1386,8 @@ def main():
         max_sentence_length=max_sentence_length,
         agent_id='l0',
         logger=None,
+        use_decision_head=args.obverter_use_decision_head,
+        learn_not_target_logit=args.obverter_learn_not_target_logit,
         use_residual_connections=args.obverter_use_residual_connections,
         use_sentences_one_hot_vectors=args.use_sentences_one_hot_vectors,
         use_language_projection=args.visual_context_consistent_obverter,
@@ -1487,6 +1493,7 @@ def main():
       "batch_size": rg_config["batch_size"],
       "round_alternation_only": args.obverter_sampling_round_alternation_only,
       "obverter_nbr_games_per_round": args.obverter_nbr_games_per_round,
+      "repeat_experiences": args.obverter_sampling_repeat_experiences,
     }
   
   if args.use_aitao:
@@ -2820,7 +2827,8 @@ def main():
   )
   wandb.tensorboard.patch(
     save=True, 
-    tensorboardX=True,
+    #tensorboardX=True,
+    tensorboard_x=True,
   )
   
   save_path = os.path.join(save_path, wandb.run.name)

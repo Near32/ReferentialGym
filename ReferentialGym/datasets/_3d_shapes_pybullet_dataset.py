@@ -462,7 +462,13 @@ def generate_datapoint(
             viewMatrix=viewMatrix,
             projectionMatrix=projectionMatrix
         )
-
+        
+        if isinstance(rgba_img, tuple):
+            rgba_img = np.reshape(
+                np.array(rgba_img),
+                (w,h,4),
+            )
+            
         rgb_img = rgba_img[:, :, :-1]
 
         return rgb_img

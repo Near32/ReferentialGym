@@ -9,6 +9,7 @@ import numpy as np
 import random 
 
 import copy
+import wandb
 
 from .listener import Listener
 
@@ -212,9 +213,10 @@ def discriminative_obverter_referential_game_loss(
     
     final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
     # (batch_size, (nbr_distractors+1), 2)
-    assert final_decision_logits.shape[1]==1
+    final_decision_logits = final_decision_logits.reshape(batch_size, nbr_distractors_po, 2)
     target_decision_idx = sample["target_decision_idx"]
     
+    # COMPUTE DESCRIPTIVE ACCURACY :
     if nbr_distractors_po != 1:
         per_stimulus_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
         # (batch_size, (nbr_distractors+1), 2)
@@ -229,15 +231,60 @@ def discriminative_obverter_referential_game_loss(
         # (batch_size, (nbr_distractors+1))
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
         outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
+    
+    #WANDB LOG:
+    if input_streams_dict['global_it_comm_round'] % 256 == 0 : #128*16 == 0:
+        columns = [f"token{idx}" for idx in range(agent.max_sentence_length)]
+        columns += [f"gt_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
+        columns += ["target_stimulus"]
+        columns += [f"listener_stimulus_{idx}" for idx in range(nbr_distractors_po)]
+        for didx in range(nbr_distractors_po):
+            columns += [f"gt_list_stim{didx}_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
+        columns += ['label']
+        text_table = wandb.Table(columns=columns)
+        for bidx in range(batch_size):
+            word_sentence = [chr(97+int(token.item())) if token.item() < agent.vocab_size else 'EoS' for token in sentences_token_idx[bidx]]
+            gt_latent = [latent_val.item() for latent_val in sample['speaker_exp_latents'][bidx,0,0]] 
+            target_stimulus = sample['speaker_experiences'][bidx].cpu()
+            target_stimulus = target_stimulus.squeeze().numpy()*255
+            target_stimulus = target_stimulus.astype(np.uint8)
+            target_stimulus = wandb.Image(target_stimulus.transpose(1,2,0), caption=f"Target Stimulus :: {gt_latent}")
+            distr_stimuli = []
+            gt_distr_latents = []
+            label = target_decision_idx[bidx].item()
+            list_stimuli = sample['listener_experiences'][bidx].cpu()
+            for didx in range(nbr_distractors_po):
+                gt_distr_latent = [latent_val.item() for latent_val in sample['listener_exp_latents'][bidx,didx,0]]
+                for lval in gt_distr_latent:    gt_distr_latents.append(lval)
+                distr_stimulus = list_stimuli[didx].squeeze().numpy()*255
+                distr_stimulus = distr_stimulus.astype(np.uint8)
+                img = wandb.Image(distr_stimulus.transpose(1,2,0), caption=f"Distr Stimulus {didx} :: {gt_distr_latent}")
+                distr_stimuli.append(img)
+            text_table.add_data(*[
+                *word_sentence, 
+                *gt_latent,
+                target_stimulus,
+                *distr_stimuli,
+                *gt_distr_latents,
+                label,
+                ]
+            )
+        wandb.log({f"{mode}/{agent.id}/SampleTable":text_table, "logging_step": agent.logging_it}, commit=True)
 
-
+    # COMPUTE LOSS FN :
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:
             final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
             if nbr_distractors_po == 1:
                 final_decision_logits = final_decision_logits.squeeze()
                 # (batch_size, 2)
+                decision_logits = final_decision_logits
+                # (batch_size, 2)
+                criterion = nn.NLLLoss(reduction="none")
+                loss = criterion( decision_logits, target_decision_idx)
+                # (batch_size, )
             else:
+                '''
                 # (batch_size, (nbr_distractors+1), 2)
                 isTarget_logits = final_decision_logits[...,0]
                 # (batch_size, (nbr_distractors+1))
@@ -255,15 +302,25 @@ def discriminative_obverter_referential_game_loss(
                     dim=-1
                 )
                 # (batch_size, (nbr_distractors+2))
-            #PREVIOUSLY:
-            decision_logits = final_decision_logits
-            #TESTING:
-            decision_logits = final_decision_logits.log_softmax(dim=-1)
-            # (batch_size, (nbr_distractors+2) / 2)
-            criterion = nn.NLLLoss(reduction="none")
+                #PREVIOUSLY:
+                decision_logits = final_decision_logits
+                decision_logits = final_decision_logits.log_softmax(dim=-1)
+                # (batch_size, (nbr_distractors+2) / 2)
+                criterion = nn.NLLLoss(reduction="none")
+                loss = criterion( decision_logits, target_decision_idx)
+                # (batch_size, )
+                '''
+                raise NotImplementedError
+                
+                #PREVIOUSLY:
+                decision_logits = final_decision_logits
+                #TESTING: linear outputs :
+                #decision_logits = final_decision_logits.log_softmax(dim=-1)
+                # (batch_size, (nbr_distractors+2) / 2)
+                criterion = nn.NLLLoss(reduction="none")
+                loss = criterion( decision_logits, target_decision_idx)
+                # (batch_size, )
             
-            loss = criterion( decision_logits, target_decision_idx)
-            # (batch_size, )
             decision_probs = decision_logits.exp()
             outputs_dict["decision_probs"] = decision_probs
         else:

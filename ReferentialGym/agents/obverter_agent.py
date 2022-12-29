@@ -169,6 +169,8 @@ class ObverterAgent(DiscriminativeListener):
         max_sentence_length=10, 
         agent_id='o0', 
         logger=None, 
+        use_decision_head=True,
+        learn_not_target_logit=True,
         use_residual_connections=False,
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
@@ -214,6 +216,8 @@ class ObverterAgent(DiscriminativeListener):
             'sentences_widx':'modules:current_speaker:sentences_widx.detach', 
         })
     
+        self.use_decision_head = use_decision_head
+        self.learn_not_target_logit = learn_not_target_logit
         self.use_residual_connections = use_residual_connections
         self.use_sentences_one_hot_vectors = use_sentences_one_hot_vectors
         self.with_DP_in_listener_decision_head_only = with_DP_in_listener_decision_head_only
@@ -292,35 +296,53 @@ class ObverterAgent(DiscriminativeListener):
             dropout=self.kwargs['dropout_prob'],
             bidirectional=False
         )
+        
+        if self.use_decision_head:
+            if self.with_DP_in_listener_decision_head_only:
+                self.listener_decision_head_dropout = nn.Dropout(p=DP_in_decision_head)
 
-        if self.with_DP_in_listener_decision_head_only:
-            self.listener_decision_head_dropout = nn.Dropout(p=DP_in_decision_head)
-            #self.listener_decision_head_dropout = nn.Dropout(p=0.5)
-            #self.listener_decision_head_dropout = nn.Dropout(p=0.2)
-            #self.listener_decision_head_dropout = nn.Dropout(p=0.1)
+            decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
+            head_arch = []
+            hidden_dim = 128
+            if self.use_residual_connections:   hidden_dim = decision_head_input_size
 
-        decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
-        head_arch = []
-        hidden_dim = 128
-        if self.use_residual_connections:   hidden_dim = decision_head_input_size
+            if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
+                head_arch.append(nn.Dropout(p=DP_in_decision_head))
+            head_arch += [
+                ResidualLayer(decision_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(decision_head_input_size,hidden_dim),
+            ]
+            if with_BN_in_decision_head:
+                head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
+            head_arch += [
+                nn.ReLU(),
+                #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
+                nn.Linear(hidden_dim, 2),
+            ]
+            self.decision_head = nn.Sequential(*head_arch)
+        else:
+            projection_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]
+            head_arch = []
+            hidden_dim = 128
+            if self.use_residual_connections:   hidden_dim = projection_head_input_size
 
-        if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
-            head_arch.append(nn.Dropout(p=DP_in_decision_head))
-            #head_arch.append(nn.Dropout(p=0.5))
-            #head_arch.append(nn.Dropout(p=0.2))
-            #head_arch.append(nn.Dropout(p=0.1))
-        head_arch += [
-            ResidualLayer(decision_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(decision_head_input_size,hidden_dim),
-        ]
-        if with_BN_in_decision_head:
-            head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
-        head_arch += [
-            nn.ReLU(),
-            #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
-            nn.Linear(hidden_dim, 2),
-        ]
-        self.decision_head = nn.Sequential(*head_arch)
-
+            if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
+                head_arch.append(nn.Dropout(p=DP_in_decision_head))
+            head_arch += [
+                ResidualLayer(projection_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(projection_head_input_size,hidden_dim),
+            ]
+            if with_BN_in_decision_head:
+                head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
+            head_arch += [
+                nn.ReLU(),
+                #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
+                nn.Linear(hidden_dim, self.cnn_encoder.get_feature_shape()),
+            ]
+            self.projection_head = nn.Sequential(*head_arch)
+            
+            if self.learn_not_target_logit:
+                self.not_target_logits_per_token = nn.Parameter(torch.zeros((self.kwargs['max_sentence_length'])))
+                self.register_parameter(name='not_target_logits_per_token', param=self.not_target_logits_per_token)
+        
         if self.use_sentences_one_hot_vectors:
             #self.symbol_encoder = nn.Linear(self.vocab_size, self.kwargs['symbol_embedding_size'], bias=False)
             if self.kwargs['embedding_dropout_prob'] > 0.0:
@@ -340,7 +362,12 @@ class ObverterAgent(DiscriminativeListener):
                 self.kwargs['symbol_embedding_size'], 
                 padding_idx=self.vocab_stop_idx, #self.vocab_size
             )
-        
+            if self.kwargs['embedding_dropout_prob'] > 0.0:
+                self.symbol_encoder = nn.Sequential(
+                    self.symbol_encoder,
+                    nn.Dropout( p=self.kwargs['embedding_dropout_prob'])
+                )
+         
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
@@ -367,7 +394,11 @@ class ObverterAgent(DiscriminativeListener):
         if reset_language_model:
             self.symbol_processing.apply(layer_init)
             self.symbol_encoder.apply(layer_init)
-            self.decision_head.apply(layer_init)
+            if self.use_decision_head:
+                self.decision_head.apply(layer_init)
+        
+        if not self.use_decision_head:
+            self.projection_head.apply(layer_init)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -576,7 +607,7 @@ class ObverterAgent(DiscriminativeListener):
         # (hidden_layer*num_directions, batch_size, kwargs['symbol_processing_nbr_hidden_units'])
         
         # TODO: check cumsum efficiency:
-        rnn_outputs = rnn_outputs.cumsum(dim=1)
+        #rnn_outputs = rnn_outputs.cumsum(dim=1)
 
         if kwargs is  None:
             self.rnn_states = next_rnn_states
@@ -602,24 +633,50 @@ class ObverterAgent(DiscriminativeListener):
         decision_logits = []
         bemb = embedding_tf_final_outputs.view((batch_size, nbr_distractors_po, -1))
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent), cnn_encoder_feature_shape)
-        bemb = embedding_tf_final_outputs.view((batch_size*nbr_distractors_po, -1))
-        # (batch_size*nbr_distractors_po, cnn_encoder_feature_shape)
-        
+        if self.use_decision_head:
+            bemb = embedding_tf_final_outputs.view((batch_size*nbr_distractors_po, -1))
+            # (batch_size*nbr_distractors_po, cnn_encoder_feature_shape)
+        else:
+            # Projection :
+            rnn_outputs = self.projection_head(
+                rnn_outputs.reshape((batch_size*max_sentence_length, -1)),
+            ).reshape((batch_size, max_sentence_length, -1))
+
         for widx in range(rnn_outputs.size(1)):
-            decision_inputs = rnn_outputs[:,widx,...].unsqueeze(1).repeat(1, nbr_distractors_po, 1)
-            # (batch_size, nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
-            decision_inputs = decision_inputs.reshape(batch_size*nbr_distractors_po, -1)
-            # (batch_size*nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
-            
-            decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
-            # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
-            
-            if self.with_DP_in_listener_decision_head_only and self.role=="listener":
-                decision_head_input = self.listener_decision_head_dropout(decision_head_input)
-            decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, -1))
-            # Linear output...
-            # (batch_size, nbr_distractors_po, 2)
+            if self.use_decision_head:
+                decision_inputs = rnn_outputs[:,widx,...].unsqueeze(1).repeat(1, nbr_distractors_po, 1)
+                # (batch_size, nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
+                decision_inputs = decision_inputs.reshape(batch_size*nbr_distractors_po, -1)
+                # (batch_size*nbr_distractors_po, kwargs['symbol_processing_nbr_hidden_units'])
                 
+                decision_head_input = torch.cat([decision_inputs, bemb], dim=-1)
+                # (batch_size*nbr_distractors_po, 2*kwargs['symbol_processing_nbr_hidden_units'])
+                
+                if self.with_DP_in_listener_decision_head_only and self.role=="listener":
+                    decision_head_input = self.listener_decision_head_dropout(decision_head_input)
+                decision_logits_until_widx = self.decision_head(decision_head_input).reshape((batch_size, nbr_distractors_po, -1))
+                # Linear output...
+                # (batch_size, nbr_distractors_po, nbr_head_outputs)
+            else:
+                decision_inputs = rnn_outputs[:,widx,...].reshape(batch_size, -1, 1)
+                # (batch_size, nbr_latent ,1)
+                decision_logits_until_widx = torch.bmm(bemb, decision_inputs).reshape(batch_size, -1, 1)
+                # (batch_size, (nbr_distractors+1), 1)
+
+                # Adding the not-target logit:
+                if not(self.learn_not_target_logit):
+                    l_shape = decision_logits_until_widx.size()
+                    not_target_logit = torch.zeros( *l_shape)
+                else:
+                    not_target_logit = self.not_target_logits_per_token[widx].reshape((1,1,1)).repeat(batch_size, nbr_distractors_po, 1)
+                not_target_logit = not_target_logit.to(decision_logits_until_widx.device)
+                decision_logits_until_widx = torch.cat([
+                    decision_logits_until_widx,
+                    not_target_logit,
+                    ],
+                    dim=-1,
+                )
+  
             decision_logits.append(decision_logits_until_widx.unsqueeze(1))
             # (batch_size, 1, (nbr_distractors+1), 2)
         decision_logits = torch.cat(decision_logits, dim=1)

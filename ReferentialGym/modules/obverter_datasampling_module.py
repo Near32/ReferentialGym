@@ -41,6 +41,7 @@ class ObverterDatasamplingModule(Module):
         self.collate_fn = collate_dict_wrapper
         self.counterRounds = 0
         self.current_round_batches = []
+        self.repeat_experiences = self.config['repeat_experiences']
         self.unloading = False
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -81,13 +82,15 @@ class ObverterDatasamplingModule(Module):
             self.counterRounds = counterRounds
 
         if newRound:
-            self.unloading = not (self.unloading)
-            size = len(self.current_round_batches) 
-            assert size==0 or size==self.config["obverter_nbr_games_per_round"]
+            if self.repeat_experiences:
+                self.unloading = not (self.unloading)
+                size = len(self.current_round_batches) 
+                assert size==0 or size==self.config["obverter_nbr_games_per_round"]
 
 
         if "train" in mode and it_step == 0:
-            if self.unloading:
+            if self.repeat_experiences \
+            and self.unloading:
                 assert len(self.current_round_batches)>0
                 new_sample = self.current_round_batches.pop(0)
                 outputs_dict["current_dataloader:sample"] = new_sample
@@ -95,7 +98,8 @@ class ObverterDatasamplingModule(Module):
 
             if self.config.get("round_alternation_only", False):
                 sample = input_streams_dict["sample"]
-                self.current_round_batches.append(sample)
+                if self.repeat_experiences:
+                    self.current_round_batches.append(sample)
                 return outputs_dict
 
             dataset = input_streams_dict["dataset"]
