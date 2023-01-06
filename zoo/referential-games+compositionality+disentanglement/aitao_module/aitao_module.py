@@ -46,7 +46,8 @@ class AITAOModule(Module):
             "dataset":"current_dataset:ref",
 
             "speaker_sentences_widx":"modules:current_speaker:sentences_widx", 
-            "speaker_exp_indices":"current_dataloader:sample:speaker_indices", 
+            "speaker_indices":"current_dataloader:sample:speaker_indices", 
+            "speaker_exp_indices":"current_dataloader:sample:speaker_exp_indices", 
         }
 
         super(AITAOModule, self).__init__(
@@ -167,23 +168,53 @@ class AITAOModule(Module):
 
                     new_train_classes = {}
                     new_mode2idx2class = {'train':{}, 'test':current_mode2idx2class['test']}
-                    missing_indices = set(range(len(dataset.datasets['train'])))
+                    
+                    '''
+                    WARNING: due to the dataset effective length,
+                    we need to regularise the mode2idx2class element,
+                    in order for the DualLabeledDataset to be able to
+                    use it despite being agnostic of the original dataset
+                    length, and relying solely on the effective length.
+                    '''
+                    original_dataset_length = len(dataset.datasets['train'].indices)
+                    effective_dataset_length = len(dataset.datasets['train'])
+                    max_length_factor = 1 + effective_dataset_length // original_dataset_length
+
+                    missing_indices = set(range(original_dataset_length))
                     missing_indices = missing_indices.difference(set_indices)
                     complete_list_indices = list(set_indices)+list(missing_indices)
-                    for didx in complete_list_indices:
+                    complete_list_effective_indices = list(range(effective_dataset_length))
+                    for didx in complete_list_effective_indices:
+                        original_didx = didx % original_dataset_length 
                         # Due to ObverterSamplingScheme,
                         # it is likely that not all indices will be seen through out an epoch:
-                        if didx in set_indices:
-                            cl = self.sentence2class[self.speaker_sentences[didx]]
+                        if original_didx in set_indices:
+                            cl = self.sentence2class[self.speaker_sentences[original_didx]]
                         else:
-                            cl = current_mode2idx2class['train'][didx]
+                            '''
+                            WARNING: in order to reuse the previous classes,
+                            we need to make sure that those indices do not clash with 
+                            the new sentence2class indices, thus we add an offset:
+                            '''
+                            offset = len(self.sentence2class)
+                            cl = offset + current_mode2idx2class['train'][original_didx] # or didx here should be similar...
                         if cl not in new_train_classes: new_train_classes[cl] = []
                         new_train_classes[cl].append(didx)
                         new_mode2idx2class['train'][didx] = cl
 
                     dataset.train_classes = new_train_classes 
 
-                    test_idx_offset = len(dataset.datasets['train'])
+                    '''
+                    WARNING: we need to apply an index offset :
+                    Should it rely on effective length or original length?
+                    The offsetted index is used in mode2idx2class, thus
+                    it is used by the DualLabeledDataset, which rely on the 
+                    effective length.
+                    Thus, we should add as offset the effective dataset length:
+                    '''
+                    # test_idx_offset = len(dataset.datasets['train'].indices)
+                    test_idx_offset = effective_dataset_length
+
                     new_test_classes = {}
                     for idx in range(len(dataset.datasets['test'])):
                         if hasattr(dataset.datasets['test'], 'getclass'):

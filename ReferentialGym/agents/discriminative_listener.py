@@ -233,7 +233,7 @@ def discriminative_obverter_referential_game_loss(
         outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
     
     #WANDB LOG:
-    if input_streams_dict['global_it_comm_round'] % 256 == 0 : #128*16 == 0:
+    if input_streams_dict['global_it_comm_round'] % 4096 == 0 : 
         columns = [f"token{idx}" for idx in range(agent.max_sentence_length)]
         columns += [f"gt_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
         columns += ["target_stimulus"]
@@ -278,7 +278,7 @@ def discriminative_obverter_referential_game_loss(
             if nbr_distractors_po == 1:
                 final_decision_logits = final_decision_logits.squeeze()
                 # (batch_size, 2)
-                decision_logits = final_decision_logits
+                decision_logits = final_decision_logits.log_softmax(dim=-1)
                 # (batch_size, 2)
                 criterion = nn.NLLLoss(reduction="none")
                 loss = criterion( decision_logits, target_decision_idx)
@@ -310,8 +310,31 @@ def discriminative_obverter_referential_game_loss(
                 loss = criterion( decision_logits, target_decision_idx)
                 # (batch_size, )
                 '''
-                raise NotImplementedError
+                # WARNING: the following expects dcision_logits to be linear outputs...
+                # When target is retained:
+                retain_target_mask = (target_decision_idx != nbr_distractors_po).float()
+                # ... increase the positive logit of the target stimulus, compared to the other ones.
+                reg_decision_logits = torch.cat([
+                    F.log_softmax(final_decision_logits[..., 0], dim=-1),
+                    torch.zeros((batch_size, 1)).to(retain_target_mask.device)],
+                    dim=-1,
+                )
+                criterion = nn.NLLLoss(reduction='none')
+                retain_target_loss = retain_target_mask*criterion(
+                    reg_decision_logits,
+                    target_decision_idx,
+                )
+                #( batch_size, )
+                # When target is not retained, increase all the negative logit:
+                not_retain_target_loss = (1-retain_target_mask)*torch.pow(
+                    (1-F.log_softmax(final_decision_logits, dim=-1)[..., 1]),
+                    2.0,
+                ).mean(dim=-1, keepdim=False)
                 
+                #loss = retain_target_loss + 1.0e-3*not_retain_target_loss
+                loss = retain_target_loss #+ 1.0e-3*not_retain_target_loss
+
+                '''
                 #PREVIOUSLY:
                 decision_logits = final_decision_logits
                 #TESTING: linear outputs :
@@ -320,8 +343,26 @@ def discriminative_obverter_referential_game_loss(
                 criterion = nn.NLLLoss(reduction="none")
                 loss = criterion( decision_logits, target_decision_idx)
                 # (batch_size, )
-            
-            decision_probs = decision_logits.exp()
+                '''
+
+            # (batch_size, (nbr_distractors+1), 2)
+            isTarget_logits = final_decision_logits[...,0]
+            # (batch_size, (nbr_distractors+1))
+            isNotTarget_logit = final_decision_logits[...,1]
+            # (batch_size, (nbr_distractors+1))
+            min_isNotTarget_logit = isNotTarget_logit.min(dim=-1, keepdim=True)[0]
+            #max_isNotTarget_logit = isNotTarget_logit.max(dim=-1, keepdim=True)[0]
+            #mean_isNotTarget_logit = isNotTarget_logit.mean(dim=-1, keepdim=True)
+            # (batch_size, 1)
+            decision_logits = torch.cat([
+                isTarget_logits,
+                min_isNotTarget_logit],
+                #max_isNotTarget_logit],
+                #mean_isNotTarget_logit],
+                dim=-1
+            )
+            # (batch_size, (nbr_distractors+2))
+            decision_probs = decision_logits.softmax(dim=-1)
             outputs_dict["decision_probs"] = decision_probs
         else:
             # GUIDANCE: Obverter approach without descriptive NLL is rather not worth your time...
@@ -418,7 +459,10 @@ def discriminative_obverter_referential_game_loss(
             # (batch_size, (nbr_distractors+1))
         # (batch_size, (nbr_distractors+1 or +2 if descriptive mode), )
         decision_logits = final_decision_logits
-        decision_probs = decision_logits.exp()
+        # Previously: with log softmax output:
+        #decision_probs = decision_logits.exp()
+        # TEST: linear output:
+        decision_probs = decision_logits.softmax(dim=-1)
         
         loss, _ = havrylov_hinge_learning_signal(
             decision_logits=decision_logits,
@@ -430,7 +474,7 @@ def discriminative_obverter_referential_game_loss(
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
         outputs_dict["decision_probs"] = decision_probs
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/listener_target_decision_probs"] =\
-         decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
+        decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
     
     # Accuracy:
     decision_idx = decision_probs.max(dim=-1)[1]

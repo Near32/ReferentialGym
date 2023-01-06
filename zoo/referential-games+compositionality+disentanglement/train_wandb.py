@@ -1438,6 +1438,7 @@ def main():
       nb_shapes=nb_shapes,
       nb_colors=nb_colors,
       split_strategy=train_split_strategy,
+      dataset_length=args.dataset_length if args.dataset_length!=0 else None,
     )
     
     test_dataset = ReferentialGym.datasets._3DShapesPyBulletDataset(
@@ -2831,7 +2832,8 @@ def main():
     tensorboard_x=True,
   )
   
-  save_path = os.path.join(save_path, wandb.run.name)
+  if wandb.run.name is not None:
+      save_path = os.path.join(save_path, wandb.run.name)
   print(f"NEW PATH: {save_path}")
 
   from ReferentialGym.utils import statsLogger

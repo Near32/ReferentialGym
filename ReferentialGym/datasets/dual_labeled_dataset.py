@@ -146,7 +146,9 @@ class DualLabeledDataset(Dataset):
                     set_indices = set_indices.difference(excepts)
                 
             indices = []
-            nbr_samples = self.nbr_distractors[self.mode]
+            nbr_samples = 1
+            if not target_only:
+                nbr_samples += self.nbr_distractors[self.mode]
 
             #if idx is not None and not target_only:
             if idx is not None:
@@ -154,11 +156,7 @@ class DualLabeledDataset(Dataset):
                 if idx in set_indices:
                     set_indices.remove(idx)
                 indices.append(idx)
-            #else:
-            if target_only:
-                # i.e. if we are only sampling the target stimulus:
-                nbr_samples = 1
-
+            
             if len(set_indices) < nbr_samples:
                 #print("WARNING: Dataset's class has not enough element to choose from...")
                 #print("WARNING: Using all the classes to sample...")

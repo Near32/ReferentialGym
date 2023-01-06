@@ -683,9 +683,13 @@ class ObverterAgent(DiscriminativeListener):
         # (batch_size, max sentence_lengths, (nbr_distractors+1), 2 )
         
         decision_probs = torch.softmax(decision_logits, dim=-1)
+        #TEST : linear output ...
+        # PREVIOUSLY 
+        '''
         if self.kwargs["descriptive"]:
             decision_logits = torch.log_softmax(decision_logits, dim=-1)
-        
+        '''
+
         if kwargs is not None:
             decision_probs = decision_probs[:,-1,..., 0]
             kwargs['decision_probs'] = decision_probs
@@ -1032,6 +1036,8 @@ class ObverterAgent(DiscriminativeListener):
 
             decision_logits, _ = agent._reason(sentences=sentences,features=bemb, kwargs=kwargs)
             # (batch_size*allowed_vocab_size, max_sentence_length/1, nbr_distractors_po)
+            raise NotImplementedError
+        # TEST in progress... with linear output...
             # NOW: actual logits: log_softmax output
             next_rnn_states = kwargs["next_rnn_states"]
             # (1, batch_size*allowed_vocab_size, hidden_size)

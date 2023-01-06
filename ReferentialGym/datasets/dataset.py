@@ -272,23 +272,28 @@ class Dataset(torchDataset):
                 excepts=[idx] if self.kwargs['object_centric'] else None,  # Make sure to not sample the actual target!
                 target_only=True
             )
-            # Adding batch dimension:
+            if self.kwargs['observability'] == "partial":
+                for k,v in same_speaker_sample_d.items():
+                    same_speaker_sample_d[k] = v[:,0].unsqueeze(1)
+             # Adding batch dimension:
             for k,v in resampled_speaker_sample_d.items():
                 if not(isinstance(v, torch.Tensor)):    
                     v = torch.Tensor(v)
                 same_speaker_sample_d[k][:,0] = v.unsqueeze(0)
-
-            for k,v in speaker_sample_d.items():
-                speaker_sample_d[k] = torch.cat(
-                    [v,same_speaker_sample_d[k]], 
-                    dim=0,
-                )
-            for k,v in listener_sample_d.items():
-                listener_sample_d[k] = torch.cat(
-                    [v, diff_listener_sample_d[k]],
-                    dim=0,
-                )
-            target_decision_idx = torch.cat([target_decision_idx, diff_target_decision_idx], dim=0)
+            
+            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            if add_extra:
+                for k,v in speaker_sample_d.items():
+                    speaker_sample_d[k] = torch.cat(
+                        [v,same_speaker_sample_d[k]], 
+                        dim=0,
+                    )
+                for k,v in listener_sample_d.items():
+                    listener_sample_d[k] = torch.cat(
+                        [v, diff_listener_sample_d[k]],
+                        dim=0,
+                    )
+                target_decision_idx = torch.cat([target_decision_idx, diff_target_decision_idx], dim=0)
 
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
