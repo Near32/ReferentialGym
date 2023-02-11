@@ -35,12 +35,26 @@ class StreamHandler(object):
 
         while ':' in placeholder_id:
             ptr, next_placeholder_id = placeholder_id.split(":", 1)
-            if ptr not in p_ptr:    p_ptr[ptr] = {}
+            #if ptr not in p_ptr:    p_ptr[ptr] = {}
+            
+            if isinstance(p_ptr, dict)\
+            and ptr not in p_ptr:   
+                p_ptr[ptr] = {}
+            elif not isinstance(p_ptr, dict)\
+            and not hasattr(p_ptr, ptr):    
+                setattr(p_ptr, ptr, {})
+            
             placeholder_id=next_placeholder_id
-            p_ptr=p_ptr[ptr]
+            if isinstance(p_ptr, dict):
+                p_ptr=p_ptr[ptr]
+            else:
+                p_ptr= getattr(p_ptr, ptr)
 
         if placeholder_id not in p_ptr:
-            p_ptr[placeholder_id] = {}
+            if isinstance(p_ptr, dict):
+                p_ptr[placeholder_id] = {}
+            else:
+                setattr(p_ptr, placeholder_id, {})
         
         # Not possible to copy leaves tensor at the moment with PyTorch...
         previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
