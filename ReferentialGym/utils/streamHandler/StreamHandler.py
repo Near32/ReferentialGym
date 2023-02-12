@@ -50,21 +50,30 @@ class StreamHandler(object):
             else:
                 p_ptr= getattr(p_ptr, ptr)
 
-        if placeholder_id not in p_ptr:
-            if isinstance(p_ptr, dict):
-                p_ptr[placeholder_id] = {}
-            else:
-                setattr(p_ptr, placeholder_id, {})
+        if isinstance(p_ptr, dict)\
+        and placeholder_id not in p_ptr:
+            p_ptr[placeholder_id] = {}
+        elif not isinstance(p_ptr, dict)\
+        and not hasattr(p_ptr, placeholder_id):
+            setattr(p_ptr, placeholder_id, {})
         
         # Not possible to copy leaves tensor at the moment with PyTorch...
         previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
 
-        if isinstance(stream_data, dict) and not(reset):
+        if isinstance(stream_data, dict)\
+        and not(reset):
+            if isinstance(p_ptr, dict):
+                pp_ptr = p_ptr[placeholder_id]
+            else:
+                pp_ptr = getattr(p_ptr, placehodler_id)
             for k,v in stream_data.items():
-                p_ptr[placeholder_id][k] = v 
+                pp_ptr[k] = v
         else:
-            p_ptr[placeholder_id] = stream_data
-        
+            if isinstance(p_ptr, dict):
+                p_ptr[placeholder_id] = stream_data
+            else:
+                setattr(p_ptr, placeholder_id, stream_data)
+
         return
 
     def serve(self, pipeline:List[object]):
