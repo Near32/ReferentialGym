@@ -1324,7 +1324,6 @@ class VGG(nn.Module):
 
 from torchvision.models.vgg import make_layers, cfgs
 from torch.hub import load_state_dict_from_url
-#, load_state_dict_from_url 
 from torchvision.models.vgg import model_urls as vgg_model_urls
 
 
