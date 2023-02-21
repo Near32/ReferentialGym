@@ -19,7 +19,7 @@ class DemonstrationDataset(Dataset) :
         transform=None, 
         split_strategy=None, 
         dataset_length=None,
-        img_key:str='s',
+        img_key:str='succ_s',
     ) :
         '''
         :param split_strategy: str 
@@ -41,9 +41,10 @@ class DemonstrationDataset(Dataset) :
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
         import ipdb; ipdb.set_trace()
         
-        self.latents_classes = np.zeros((len(self.replay_storage), 2))
+        self.latents_classes = np.zeros((len(self.replay_storage), 3))
         for idx in range(len(self.replay_storage)):
             action_idx = getattr(self.replay_storage, 'a')[idx]
+            terminal_bool = getattr(self.replay_storage, 'done')[idx]
             reward_sign = 0
             reward = getattr(self.replay_storage, 'r')[idx] 
             if reward > 0:
@@ -52,7 +53,7 @@ class DemonstrationDataset(Dataset) :
                 reward_sign = 1
             self.latents_classes[idx][0] = action_idx
             self.latents_classes[idx][1] = reward_sign
-
+            self.latents_classes[idx][2] = terminal_bool
         self.latents_values = self.latents_classes.copy()
         self.latents_classes = self.latents_classes.astype(int)
 
@@ -60,7 +61,8 @@ class DemonstrationDataset(Dataset) :
         self.targets = np.zeros(len(self.latents_classes)) 
         
         lpd2tensor_mult = np.asarray([
-            #3*len(self.action_set),
+            #3*len(self.action_set)*2,
+            3*len(self.action_set),
             3,
             1]
         )
