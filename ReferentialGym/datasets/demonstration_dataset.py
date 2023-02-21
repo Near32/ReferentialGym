@@ -44,7 +44,7 @@ class DemonstrationDataset(Dataset) :
         self.latents_classes = np.zeros((len(self.replay_storage), 3))
         for idx in range(len(self.replay_storage)):
             action_idx = getattr(self.replay_storage, 'a')[idx]
-            terminal_bool = getattr(self.replay_storage, 'done')[idx]
+            non_terminal_bool = getattr(self.replay_storage, 'non_terminal')[idx]
             reward_sign = 0
             reward = getattr(self.replay_storage, 'r')[idx] 
             if reward > 0:
@@ -53,7 +53,7 @@ class DemonstrationDataset(Dataset) :
                 reward_sign = 1
             self.latents_classes[idx][0] = action_idx
             self.latents_classes[idx][1] = reward_sign
-            self.latents_classes[idx][2] = terminal_bool
+            self.latents_classes[idx][2] = non_terminal_bool
         self.latents_values = self.latents_classes.copy()
         self.latents_classes = self.latents_classes.astype(int)
 
