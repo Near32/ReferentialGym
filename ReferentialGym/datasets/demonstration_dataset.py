@@ -1,7 +1,10 @@
 from typing import Dict, List, Tuple
-import Dataset from ReferentialGym.datasets
+
+from ReferentialGym.datasets import Dataset
+
 import torch
 from torch.utils.data import Dataset 
+
 import os
 import numpy as np
 import copy
@@ -19,7 +22,7 @@ class DemonstrationDataset(Dataset) :
         transform=None, 
         split_strategy=None, 
         dataset_length=None,
-        img_key:str='succ_s',
+        exp_key:str='succ_s',
     ) :
         '''
         :param split_strategy: str 
@@ -35,26 +38,31 @@ class DemonstrationDataset(Dataset) :
         print('Keys in the replay storage:')
         for k in self.replay_storage.keys: print(k)
         
-        self.img_key = img_key
+        self.exp_key = exp_key
         
-        self.action_set = set(getattr(self.replay_storage, 'a'))
+        self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
-        import ipdb; ipdb.set_trace()
         
         self.latents_classes = np.zeros((len(self.replay_storage), 3))
+        self.latents_values = np.zeros((len(self.replay_storage), 3))
         for idx in range(len(self.replay_storage)):
-            action_idx = getattr(self.replay_storage, 'a')[idx]
-            non_terminal_bool = getattr(self.replay_storage, 'non_terminal')[idx]
+            action_idx = getattr(self.replay_storage, 'a')[0][idx].item()
+            non_terminal_bool = getattr(self.replay_storage, 'non_terminal')[0][idx].item()
+            
             reward_sign = 0
-            reward = getattr(self.replay_storage, 'r')[idx] 
+            reward = getattr(self.replay_storage, 'r')[0][idx].item() 
             if reward > 0:
                 reward_sign = 2
-            elif reard < 0:
+            elif reward < 0:
                 reward_sign = 1
             self.latents_classes[idx][0] = action_idx
             self.latents_classes[idx][1] = reward_sign
             self.latents_classes[idx][2] = non_terminal_bool
-        self.latents_values = self.latents_classes.copy()
+            
+            self.latents_values[idx][0] = action_idx
+            self.latents_values[idx][1] = reward
+            self.latents_classes[idx][2] = non_terminal_bool
+
         self.latents_classes = self.latents_classes.astype(int)
 
         self.test_latents_mask = np.zeros_like(self.latents_classes)
@@ -254,9 +262,9 @@ class DemonstrationDataset(Dataset) :
             print(self.latent_dims)
             print(f"Dataset Size: {len(self.indices)} out of {len(self.replay_storage)} : {100*len(self.indices)/len(self.replay_storage)}%.")
             
-        max_values_per_latent = max(3, lent(action_set))
+        max_values_per_latent = max(3, max(self.action_set)+1)
         self.latents_one_hot_encodings = np.eye(max_values_per_latent)[self.latents_classes.reshape(-1)]
-        self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, 2*max_values_per_latent))
+        self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, self.latents_classes.shape[-1]*max_values_per_latent))
         
         """
         self.imgs = self.imgs[self.indices]
@@ -294,8 +302,10 @@ class DemonstrationDataset(Dataset) :
     
     def get_imgs(self, indices, key='s'):
         if isinstance(indices, int):    indices = [indices]
-        indices_ = self.traintest_indices[indices]
-        return getattr(self.replay_storage, key)[indices_]
+        indices_ = []
+        for idx in indices:
+            indices_.append(self.traintest_indices[idx])
+        return getattr(self.replay_storage, key)[0][indices_]
 
     def sample_factors(self, num, random_state=None):
         """
@@ -352,7 +362,7 @@ class DemonstrationDataset(Dataset) :
             im #Image.fromarray(im, mode='RGB') 
             for im in self.get_imgs(
                 indices=self.factors_indices,
-                key=self.img_key,
+                key=self.exp_key,
             )
         ]
         #images = [Image.fromarray((im*255).astype('uint8')) for im in self.imgs[self.factors_indices]]
@@ -425,9 +435,11 @@ class DemonstrationDataset(Dataset) :
 
         #image = Image.fromarray((self.imgs[trueidx]*255).astype('uint8'))
         #trueidx = self.traintest_indices[trueidx]
-        #image = Image.fromarray(self.get_imgs(indices=trueidx, key=self.img_key), mode='RGB')
-        image = self.get_imgs(indices=trueidx, key=self.img_key)
-
+        #image = Image.fromarray(self.get_imgs(indices=trueidx, key=self.exp_key), mode='RGB')
+        image = self.get_imgs(indices=trueidx, key=self.exp_key)
+        image = image[0][0]
+        #image.requires_grad=True
+        
         target = self.getclass(idx)
         latent_value = torch.from_numpy(self.getlatentvalue(idx))
         latent_class = torch.from_numpy(self.getlatentclass(idx))

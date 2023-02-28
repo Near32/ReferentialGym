@@ -45,7 +45,7 @@ def sentence_length_logging_hook(agent,
     
     sentence_length = sentence_lengths.mean()
     
-    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config["max_sentence_length"]
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength_/{config['max_sentence_length']}"] = sentence_lengths/config["max_sentence_length"]
 
 
 def entropy_logging_hook(agent,

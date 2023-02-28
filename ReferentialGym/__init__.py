@@ -78,8 +78,8 @@ def make(config,
                 inner_dataset_args['mode'] = mode
                 rg_datasets[mode] = Dataset(kwargs=inner_dataset_args)
 
-    modules = config.pop("modules")
-    pipelines = config.pop("pipelines")
+    modules = config["modules"]
+    pipelines = config["pipelines"]
     rg_instance = ReferentialGame(
         datasets=rg_datasets, 
         config=config,
