@@ -70,13 +70,19 @@ class OptimizationModule(Module):
             parameters += m.parameters()
 
         if "sgd" in self.config["optimizer_type"].lower():
-          self.optimizer = optim.SGD(parameters, 
-                                      lr=self.config["learning_rate"])
+            self.optimizer = optim.SGD(
+                parameters, 
+                lr=self.config["learning_rate"],
+                weight_decay=self.config["weight_decay"],
+            )
         else:
-          self.optimizer = optim.Adam(parameters, 
-                                      lr=self.config["learning_rate"], 
-                                      #betas=(0.9, 0.999), 
-                                      eps=self.config["adam_eps"])
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=self.config["learning_rate"], 
+                #betas=(0.9, 0.999), 
+                weight_decay=self.config["weight_decay"],
+                eps=self.config["adam_eps"],
+            )
 
     def save(self, path):
       torch.save(self.optimizer.state_dict(), os.path.join(path, self.id+".module"))

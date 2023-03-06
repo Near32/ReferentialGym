@@ -359,7 +359,7 @@ class DemonstrationDataset(Dataset) :
 
         #self.factors_indices = self.traintest_indices[self.factors_indices]
         images = [
-            im #Image.fromarray(im, mode='RGB') 
+            im.squeeze() #Image.fromarray(im, mode='RGB') 
             for im in self.get_imgs(
                 indices=self.factors_indices,
                 key=self.exp_key,

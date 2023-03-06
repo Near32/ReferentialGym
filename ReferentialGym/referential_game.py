@@ -196,7 +196,7 @@ class ReferentialGame(object):
         from .datasets.dataset import DC_version
         if DC_version == 2:
             effective_batch_size = effective_batch_size // 2
-        print("Create dataloader: ...")
+        #print("Create dataloader: ...")
         
         data_loaders = {}
         self.pbss = {}
@@ -245,9 +245,9 @@ class ReferentialGame(object):
                     #num_workers=self.config['dataloader_num_worker']
                 )
             
-        print("Create dataloader: OK (WARNING: num_worker arg disabled...).")
+        #print("Create dataloader: OK (WARNING: num_worker arg disabled...).")
         
-        print("Launching training: ...")
+        #print("Launching training: ...")
 
         it_datasamples = self.stream_handler['signals:it_datasamples']
         if it_datasamples is None:  it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
@@ -266,20 +266,24 @@ class ReferentialGame(object):
             for mode in self.datasets:
                 self.datasets[mode].setNbrDistractors(init_curriculum_nbr_distractors,mode=mode)
             
-        pbar = tqdm(total=nbr_epoch)
         if logger is not None:
             self.stream_handler.update("modules:logger:ref", logger)
         
         self.stream_handler.update("signals:use_cuda", self.config['use_cuda'])
-        self.stream_handler.update("signals:update_count", 0)
+        update_count = self.stream_handler["signals:update_count"]
+        if update_count is None:
+            self.stream_handler.update("signals:update_count", 0)
                 
         init_epoch = self.stream_handler["signals:epoch"]
         if init_epoch is None: 
             init_epoch = 0
+            print(f'WARNING: Referential Game : REINITIALIZED EPOCH COUNT.')
+            pbar = tqdm(total=nbr_epoch)
         else:
-            pbar.update(init_epoch)
+            pbar = tqdm(total=init_epoch+nbr_epoch)
+            pbar.update(init_epoch-1)
 
-        for epoch in range(init_epoch,nbr_epoch):
+        for epoch in range(init_epoch,init_epoch+nbr_epoch):
             self.stream_handler.update("signals:epoch", epoch)
             pbar.update(1)
             for it_dataset, (mode, data_loader) in enumerate(data_loaders.items()):
@@ -458,6 +462,8 @@ class ReferentialGame(object):
             # //------------------------------------------------------------//
             # //------------------------------------------------------------//
             # //------------------------------------------------------------//
+        
+        self.stream_handler.update("signals:epoch", init_epoch+nbr_epoch)
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//
