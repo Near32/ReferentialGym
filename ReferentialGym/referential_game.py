@@ -264,6 +264,7 @@ class ReferentialGame(object):
             windowed_accuracy = 0.0
             window_count = 0
             for mode in self.datasets:
+                if 'test' in mode:  continue
                 self.datasets[mode].setNbrDistractors(init_curriculum_nbr_distractors,mode=mode)
             
         if logger is not None:
@@ -392,8 +393,9 @@ class ReferentialGame(object):
                         # //------------------------------------------------------------//
                         
                         # TODO: CURRICULUM ON DISTRATORS as a module that handles the current dataloader reference....!!
-                        if 'use_curriculum_nbr_distractors' in self.config\
-                            and self.config['use_curriculum_nbr_distractors']:
+                        if 'use_curriculum_nbr_distractors' in self.config \
+                        and self.config['use_curriculum_nbr_distractors'] \
+                        and 'train' in mode:
                             nbr_distractors = self.datasets[mode].getNbrDistractors(mode=mode)
                             self.stream_handler.update("signals:curriculum_nbr_distractors", nbr_distractors)
                             logger.add_scalar( "{}/CurriculumNbrDistractors".format(mode), nbr_distractors, it_step)
@@ -446,6 +448,7 @@ class ReferentialGame(object):
                             windowed_accuracy = 0
                             window_count = 0
                             for mode in self.datasets:
+                                if 'test' in mode:  continue
                                 self.datasets[mode].setNbrDistractors(self.datasets[mode].getNbrDistractors(mode=mode)+1, mode=mode)
                     # //------------------------------------------------------------//
 
