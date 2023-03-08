@@ -23,11 +23,13 @@ class DemonstrationDataset(Dataset) :
         split_strategy=None, 
         dataset_length=None,
         exp_key:str='succ_s',
+        kwargs={},
     ) :
         '''
         :param split_strategy: str 
             e.g.: 'divider-10-offset-0'
         '''
+        self.kwargs = kwargs
         self.train = train
         self.replay_storage = replay_storage
         self.transform = transform
@@ -74,14 +76,23 @@ class DemonstrationDataset(Dataset) :
             3,
             1]
         )
-
-        for idx, latent_cls in enumerate(self.latents_classes):
-            """
-            self.targets[idx] = idx  
-            """
-            target = copy.deepcopy(latent_cls)
-            target = target*lpd2tensor_mult
-            self.targets[idx] = np.sum(target).item()
+        
+        
+        self.same_episode_target = kwargs.get('same_episode_target', False)
+        if self.same_episode_target:
+            target_idx = 0
+            for idx, latent_cls in enumerate(self.latents_classes):
+                self.targets[idx] = target_idx
+                if latent_cls[2] == 0:
+                    target_idx += 1
+        else:
+            for idx, latent_cls in enumerate(self.latents_classes):
+                """
+                self.targets[idx] = idx  
+                """
+                target = copy.deepcopy(latent_cls)
+                target = target*lpd2tensor_mult
+                self.targets[idx] = np.sum(target).item()
             
         if self.split_strategy is not None:
             strategy = self.split_strategy.split('-')
