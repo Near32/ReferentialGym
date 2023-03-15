@@ -225,6 +225,7 @@ class RNNCNNListener(DiscriminativeListener):
             else:
                 featout = self.cnn_encoder(stin)
                 if self.use_feat_converter:
+                    if len(featout.shape)>2:    featout = featout.reshape(total_size, -1)
                     featout = self.featout_converter(featout)
 
             features.append(featout)
