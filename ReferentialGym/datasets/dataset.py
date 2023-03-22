@@ -131,7 +131,9 @@ class Dataset(torchDataset):
             wandb.log({
                 "Dataset/similarity_ratio": similarity_ratio,
                 "Dataset/random": rv,
-            })
+                },
+                commit=False,
+            )
             if rv < similarity_ratio:
                 from_class = exp_labels
 
