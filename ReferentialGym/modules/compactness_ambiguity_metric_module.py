@@ -17,7 +17,24 @@ eps = 1e-20
 
 """
 """
+# Adapted from: 
+# https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L37
+def ht(t):
+    if isinstance(t, tuple):
+        return t
+    if isinstance(t, int):
+        return t
+    if isinstance(t, list):
+        return tuple(t)
 
+    try:
+        t = t.item()
+    except:
+        t = tuple(t.reshape(-1).tolist())
+    
+    return t
+
+    
 def build_CompactnessAmbiguityMetricModule(id:str,
                                config:Dict[str,object],
                                input_stream_ids:Dict[str,str]=None) -> Module:
@@ -73,6 +90,8 @@ class CompactnessAmbiguityMetricModule(Module):
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
         
+        self.idx2w = self.config['idx2w']
+
         current_random_state = np.random.get_state()
         np.random.seed(self.config['random_state_seed'])
         self.random_state = np.random.get_state()
@@ -85,155 +104,6 @@ class CompactnessAmbiguityMetricModule(Module):
 
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
     
-    def _generate_training_batch(
-        self,
-        dataset,
-        model,
-        batch_size,
-        nbr_points,
-        active_dims,
-    ):
-        """
-        Sample a set of training samples based on a batch of ground-truth data.
-        
-        Args:
-            dataset: dataset to be sampled from.
-            model: model that takes observations as input and
-                    outputs a dim_representation sized representation for each observation.
-            batch_size: Number of points to be used to compute the training_sample.
-            nbr_points: Number of points to be sampled for training/evaluation set.
-            active_dims: Indexes of active dimensions.
-        Returns:
-            (num_factors, dim_representation)-sized numpy array with votes.
-        
-        """
-        current_random_state = np.random.get_state()
-        np.random.set_state(copy.deepcopy(self.random_state))
-        
-        representations = []
-        latent_representations = []
-        i = 0
-        while i < nbr_points:
-            num_points = min(nbr_points-i, batch_size)
-            rep, lrep = self._generate_training_sample(
-                dataset=dataset,
-                model=model,
-                batch_size=num_points, 
-                active_dims=active_dims)
-            # (batch_size, dim)
-            representations.append(rep)
-            latent_representations.append(lrep)
-            i+= num_points
-        
-        representations = np.concatenate(representations, axis=0)
-        latent_representations = np.concatenate(latent_representations, axis=0)
-
-        self.random_state = copy.deepcopy(np.random.get_state())
-        np.random.set_state(current_random_state)
-        
-        return np.transpose(representations), np.transpose(latent_representations)
-
-    def _generate_training_sample(
-        self, 
-        dataset, 
-        model,
-        batch_size, 
-        active_dims,
-    ):
-        """
-        Sample a single training sample based on a mini-batch of ground-truth data.
-        
-        Args:
-        dataset: dataset to be sampled from.
-        model: model that takes observation as input and
-                outputs a representation.
-        batch_size: Number of points to generate a sample with.
-        active_dims: Indexes of active dimensions.
-        
-        Returns:
-            representation: np.array of size (repr_dim x batch_size)
-        
-        """
-        
-        # Select random coordinate to keep fixed.
-        if self.config["active_factors_only"]:
-            factor_index = np.random.choice(self.active_latent_dims)
-        else:
-            factor_index = np.random.choice(list(range(self.nbr_factors))) #self.random_state.randint(self.nbr_factors)
-        
-        if self.config["resample"]:
-            # Sample two mini batches of latent variables.
-            factors = dataset.sample_factors(
-                batch_size, 
-                random_state=None, #self.random_state
-            )
-            # Fix the selected factor across mini-batch.
-            factors[:, factor_index] = factors[0, factor_index]
-            # Obtain the observations.
-            observations = dataset.sample_observations_from_factors(
-              factors, 
-              random_state=None, #self.random_state
-            )
-            
-            if "preprocess_fn" in self.config:
-                observations = self.config["preprocess_fn"](observations)
-            
-            if hasattr(model,"encodeZ"):
-                relevant_representations = model.encodeZ(observations)
-            else:
-                relevant_representations = model(observations)
-
-            if "postprocess_fn" in self.config:
-                relevant_representations = self.config["postprocess_fn"](relevant_representations)
-            
-            relevant_latent_representations = factors
-        else:
-            # Sample from the current epoch"s samples the factor value to fix:
-            sample_to_fix_factor_value_idx = np.random.choice(np.arange(self.latent_representations.shape[0]))
-            factor_value = self.latent_representations[sample_to_fix_factor_value_idx,...,factor_index]
-            
-            # Sample from the current epoch the indices of relevant samples:
-            relevant_samples_indices = [
-                it for it, lr in enumerate(self.latent_representations) 
-                if lr[...,factor_index]== factor_value
-            ]
-            
-            if len(relevant_samples_indices) < batch_size:
-                if self.config["verbose"]:
-                    print(f"WARNING: generate_training_sample ::\
-                     too few relevant samples: {len(relevant_samples_indices)} < batch_size={batch_size}.\n\
-                     Falling back on this value...")
-                batch_size = len(relevant_samples_indices)
-            # No issue of batch_size = 0 ....
-            relevant_samples_indices_sampled = np.random.choice(relevant_samples_indices, 
-                size=batch_size,
-                replace=False)
-            relevant_representations = self.representations[relevant_samples_indices_sampled]
-            # (batch_size, repr_dim)
-            relevant_latent_representations = self.latent_representations[relevant_samples_indices_sampled]
-            # (batch_size, latent_repr_dim)
-
-        return relevant_representations, relevant_latent_representations
-
-    def _compute_entropy(self, rep):
-        rep_size = rep.shape[0]
-        ent = np.zeros([rep_size,])
-        for i in range(rep_size):
-            ent[i] = sklearn.metrics.mutual_info_score(rep[i, :], rep[i, :])
-        return ent
-
-    # Adapted from: 
-    # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L15
-    def entropy_dict(self, freq_table):
-        H = 0
-        n = sum(v for v in freq_table.values())
-
-        for m, freq in freq_table.items():
-            p = freq_table[m] / n
-            H += -p * np.log(p)
-        
-        return H / np.log(2)
-
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
@@ -244,18 +114,14 @@ class CompactnessAmbiguityMetricModule(Module):
         mode = input_streams_dict["mode"]
         epoch = input_streams_dict["epoch"]
         
-        if not( epoch != 0 \
-        and epoch % self.config["epoch_period"] == 0):
+        if not(epoch % self.config["epoch_period"] == 0):
             return outputs_stream_dict
 
         if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
-            experiences = input_streams_dict["experiences"].cpu().detach().numpy()
-            representations = input_streams_dict["representations"].cpu().detach().numpy()
-            latent_representations = input_streams_dict["latent_representations"].cpu().detach().numpy()
-            if 'test' in mode:
-                import ipdb; ipdb.set_trace()
-                #TODO need to check that index are consistent with dataset index.
-            indices = input_streams_dict["indices"].cpu().detach().numpy()
+            experiences = input_streams_dict["experiences"].cpu().detach().squeeze().numpy()
+            representations = input_streams_dict["representations"].cpu().detach().squeeze().numpy()
+            latent_representations = input_streams_dict["latent_representations"].cpu().detach().squeeze().numpy()
+            indices = input_streams_dict["indices"].cpu().detach().squeeze().numpy()
             
             for idx, tidx in enumerate(indices.tolist()):
                 self.experiences[tidx] = experiences[idx]
@@ -272,26 +138,26 @@ class CompactnessAmbiguityMetricModule(Module):
         if not(end_of_epoch and 'test' in mode): 
             return outputs_stream_dict
 
-        self.experiences = np.stack(self.experiences.values(), axis=0)
-        self.representations = np.stack(self.representations.values(), axis=0)
+        self.experiences = np.stack(list(self.experiences.values()), axis=0)
+        self.representations = np.stack(list(self.representations.values()), axis=0)
         
-        latent_shape = self.latent_representations.values()[-1].shape
-        self.latent_representations = np.stack(self.latent_representations.values(), axis=0)
+        latent_shape = self.latent_representations[0].shape
+        self.latent_representations = np.stack(list(self.latent_representations.values()), axis=0)
         self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
         # Make sure every index is only seen once:
         self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
-        import ipdb; ipdb.set_trace()
-        #TODO : check that values are ordered :S ?
-        print(self.representations.values()[0] == self.representations[0])
+        sorted_indices = np.argsort(self.indices)
+        self.experiences = self.experiences[sorted_indices]
+        self.representations = self.representations[sorted_indices]
+        self.latent_rapresentations = self.latent_representations[sorted_indices]
 
         #self.representations = self.representations[in_batch_indices,:]
         #self.latent_representations = self.latent_representations[in_batch_indices,:]
         
-        all_sentences = self.representations.values()
-        sentence_length = all_sentences[0].shape[0]
-        import ipdb; ipdb.set_trace()
-        unique_sentences = set(all_sentences)
+        all_sentences = [ht(s) for s in self.representations.tolist()]
+        sentence_length = len(all_sentences[0]) #.shape[0]
+        unique_sentences = set(all_sentences) #np.unique(all_sentences, axis=0)
         
         per_unique_sentence_stats = {}
         previous_sentence = None
@@ -312,11 +178,9 @@ class CompactnessAmbiguityMetricModule(Module):
 
                 compactness_count = 1
             previous_sentence = sentence
-        
-        model = input_streams_dict["model"]
-        training = model.training
-        if hasattr(model, "eval"):  model.eval()
-        
+        # Regularise the last sentence:
+        per_unique_sentence_stats[sentence]['compactness_counts'].append(compactness_count)
+
         mode = input_streams_dict["mode"]
         dataset = input_streams_dict["dataset"].datasets[mode]
         logger = input_streams_dict["logger"]
@@ -326,7 +190,7 @@ class CompactnessAmbiguityMetricModule(Module):
         columns += ["stimulus"]
         columns += ["nbr_compact_segment"]
         columns += ["min_compactness", "max_compactness"]
-        columns += [f"latent{idx}" for idx in range(latent_shape[1])]
+        columns += [f"latent{idx}" for idx in range(latent_shape[0])]
         
         self.sample_table = wandb.Table(columns=columns) 
                     
@@ -339,14 +203,15 @@ class CompactnessAmbiguityMetricModule(Module):
             data.append(idx)
 
             for widx in sentence:
-                word = model.idx2w[widx.item()]
+                word = self.idx2w[widx]
                 data.append(word)
 
             exp = self.experiences[idx]
             nbr_frames = exp.shape[0] // 4
             stimulus_t = exp.reshape(nbr_frames,4,*exp.shape[-2:])[:,:3]*255
             stimulus_t = stimulus_t.astype(np.uint8)
-            stimulus_t = wandb.Video(stimulus_t, fps=1, format="mp4")
+            #stimulus_t = wandb.Video(stimulus_t, fps=1, format="mp4")
+            stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
             data.append(stimulus_t)
                 
             stats = per_unique_sentence_stats[sentence]
@@ -370,9 +235,9 @@ class CompactnessAmbiguityMetricModule(Module):
 
         ## Compute Compactness Score:
         list_compactness_counts = []
-        for us, stat in per_unique_sentence_stat.items():
-            list_compactness_counts.append(*stat['compactness_counts'])
-        import ipdb; ipdb.set_trace()
+        for us, stat in per_unique_sentence_stats.items():
+            for cc in stat['compactness_counts']:
+                list_compactness_counts.append(cc)
         values = np.asarray(list_compactness_counts)
 
         mean_compactness_counts = values.mean()
@@ -412,7 +277,7 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Maximal/Mean"] = mean_max_compactness
 
         list_nbr_compact_segment = [len(ps['compactness_counts']) for ps in per_unique_sentence_stats.values()]
-        mean_nbr_compact_segment = mean(list_nbr_compact_segment)
+        mean_nbr_compact_segment = sum(list_nbr_compact_segment)/len(list_nbr_compact_segment)
         min_nbr_compact_segment = min(list_nbr_compact_segment)
         max_nbr_compact_segment = max(list_nbr_compact_segment)
         values = np.asarray(list_nbr_compact_segment)
@@ -461,7 +326,5 @@ class CompactnessAmbiguityMetricModule(Module):
         self.latent_representations = {}
         self.indices = []
         
-        if hasattr(model, "eval"):  model.train(training)
-                
         return outputs_stream_dict
  
