@@ -6,6 +6,7 @@ import torch.optim as optim
 
 import copy
 import numpy as np 
+import math
 import sklearn 
 from functools import partial 
 
@@ -187,7 +188,7 @@ class CompactnessAmbiguityMetricModule(Module):
 
         columns = [f"idx"]
         columns += [f"token{idx}" for idx in range(sentence_length)]
-        columns += ["stimulus"]
+        #columns += ["stimulus"]
         columns += ["nbr_compact_segment"]
         columns += ["min_compactness", "max_compactness"]
         columns += [f"latent{idx}" for idx in range(latent_shape[0])]
@@ -212,7 +213,7 @@ class CompactnessAmbiguityMetricModule(Module):
             stimulus_t = stimulus_t.astype(np.uint8)
             #stimulus_t = wandb.Video(stimulus_t, fps=1, format="mp4")
             stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-            data.append(stimulus_t)
+            #data.append(stimulus_t)
                 
             stats = per_unique_sentence_stats[sentence]
 
@@ -313,13 +314,14 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/IQR"] = iqr
         
         average_max_compactness_count = len(self.representations) / len(unique_sentences)
-        threshold = max(1, int(0.75*average_max_compactness_count))
+        threshold = 1+max(1, math.ceil(0.75*average_max_compactness_count))
         nbr_max_compactness_count_greater_than_threshold = len([
             count for count in list_compactness_counts if count >= threshold]
         )
-        compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)
+        compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
 
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguityScore"] = compactness_score 
+        logs_dict[f"{mode}/{self.id}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
 
         self.experiences = {}
         self.representations = {}
