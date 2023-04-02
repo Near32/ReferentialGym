@@ -207,6 +207,7 @@ class CompactnessAmbiguityMetricModule(Module):
                 word = self.idx2w[widx]
                 data.append(word)
 
+            '''
             exp = self.experiences[idx]
             nbr_frames = exp.shape[0] // 4
             stimulus_t = exp.reshape(nbr_frames,4,*exp.shape[-2:])[:,:3]*255
@@ -214,7 +215,8 @@ class CompactnessAmbiguityMetricModule(Module):
             #stimulus_t = wandb.Video(stimulus_t, fps=1, format="mp4")
             stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
             #data.append(stimulus_t)
-                
+            '''
+
             stats = per_unique_sentence_stats[sentence]
 
             nbr_compact_segment = len(stats['compactness_counts'])
