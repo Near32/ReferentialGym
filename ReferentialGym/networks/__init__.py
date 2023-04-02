@@ -1,4 +1,4 @@
-from .networks import FCBody, LSTMBody, GRUBody, MHDPA_RN 
+from .networks import DummyBody, FCBody, LSTMBody, GRUBody, MHDPA_RN 
 from .networks import ConvolutionalBody, EntityPrioredConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody, ConvolutionalMHDPABody
 from .residual_networks import ResidualLayer, ModelResNet18, ModelResNet18AvgPooled, ResNet18MHDPA, ResNet18AvgPooledMHDPA, ExtractorResNet18
 from .networks import ModelVGG16, ExtractorVGG16
@@ -36,6 +36,9 @@ def choose_architecture( architecture,
     
     if 'GRU-RNN' in architecture:
         return GRUBody(input_shape[0], hidden_units=rnn_hidden_units_list, gate=nn.LeakyReLU)
+    
+    if 'Dummy' in architecture:
+        return DummyBody(input_shape)
     
     if 'MLP' in architecture:
         return FCBody(input_shape, hidden_units=fc_hidden_units_list, non_linearities=[nn.LeakyReLU])
