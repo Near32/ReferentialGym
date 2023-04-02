@@ -23,6 +23,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         min_nbr_values_per_latent=2, 
         max_nbr_values_per_latent=10, 
         nbr_object_centric_samples=1,
+        dataset_length=None,
         prototype=None) :
         '''
         :param split_strategy: str 
@@ -36,6 +37,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         self.test_set_divider = 2
 
         self.prototype = prototype
+        self.dataset_length = dataset_length
 
         self.reset()
         self.imgs = [np.zeros((64,64,3))]
@@ -91,6 +93,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             self.offset = 0
 
         self.indices = []
+        self.traintest_indices = []
         if self.prototype is not None:
             assert not(self.train)
             self.indices = [idx for idx in range(self.dataset_size) if idx not in self.prototype.indices]
@@ -104,6 +107,8 @@ class SymbolicContinuousStimulusDataset(Dataset) :
 
             self.train_ratio = 0.8
             end = int(len(self.indices)*self.train_ratio)
+
+            self.traintest_indices = copy.deepcopy(self.indices)
             if self.train:
                 self.indices = self.indices[:end]
             else:
@@ -111,6 +116,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             print(f"Split Strategy: {self.split_strategy} --> d {self.divider} / o {self.offset}")
             print(f"Dataset Size: {len(self.indices)} out of {self.dataset_size}: {100*len(self.indices)/self.dataset_size}%.")
         elif 'combinatorial' in self.split_strategy:
+            self.traintest_indices = []
             for idx in range(self.dataset_size):
                 object_centric_sidx = idx//self.nbr_object_centric_samples
                 coord = self.idx2coord(object_centric_sidx)
@@ -149,7 +155,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                         
                 if skip_it: continue
 
-
+                self.traintest_indices.append(idx)
                 if self.train:
                     if len(counter_test) >= effective_test_threshold:#self.counter_test_threshold:
                         continue
@@ -166,7 +172,16 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         else:
             raise NotImplementedError            
 
+        self.traintest_targets = self.targets[self.traintest_indices]
         self.targets = self.targets[self.indices]
+        
+        self.latents_classes = []
+        for trueidx in self.traintest_indices:
+            object_centric_sidx = trueidx//self.nbr_object_centric_samples
+            coord = self.idx2coord(object_centric_sidx)
+            latent_class = np.array(coord)
+            self.latents_classes.append(latent_class)
+        self.latents_classes = np.asarray(self.latents_classes)
         print('Dataset loaded : OK.')
     
     def reset(self):
@@ -177,7 +192,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             self.latent_sizes = []
             self.dataset_size = 1
             for l_idx in range(self.nbr_latents):
-                l_size = np.random.randint(low=self.min_nbr_values_per_latent, high=self.max_nbr_values_per_latent)
+                l_size = np.random.randint(low=self.min_nbr_values_per_latent, high=self.max_nbr_values_per_latent+1)
                 self.dataset_size *= l_size
                 self.latent_sizes.append(l_size)
                 self.latent_dims[l_idx] = {'size': l_size}
@@ -242,7 +257,7 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                     oc_samples.append(lvalue_sample)
                 self.latent_dims[lidx]['sections'][lvalue]['object_centric_samples'] = oc_samples
 
-    def generate_object_centric_observations(self, latent_class):
+    def generate_object_centric_observations(self, latent_class, sample=True):
         """
         :arg latent_class: Numpy.ndarray of shape (batch_size, self.nbr_latents).
 
@@ -263,8 +278,11 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                     size=1,
                 )
                 """
-                lvalue_sample = self.latent_dims[lidx]['sections'][lvalue]['object_centric_samples'][object_centric_sample_idx]
-                observations[bidx,lidx] = lvalue_sample
+                if sample:
+                    lvalue_sample = self.latent_dims[lidx]['sections'][lvalue]['object_centric_samples'][object_centric_sample_idx]
+                else:
+                    lvalue_sample = self.latent_dims[lidx]['sections'][lvalue]['mean']
+                observations[bidx,lidx] = float(lvalue_sample)
 
         return observations
 
@@ -325,38 +343,60 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         return coord 
     
     def __len__(self) -> int:
+        if self.dataset_length is not None:
+            return self.dataset_length
         return len(self.indices)
+    
 
-    def getclass(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
-        target = self.targets[idx]
+    def getclass(self, idx, from_traintest=False):
+        if from_traintest:
+            indices = self.traintest_indices
+        else:
+            indices = self.indices
+        if idx >= len(indices):
+            idx = idx%len(indices)
+        if from_traintest:
+            target = self.traintest_targets[idx]
+        else:
+            target = self.targets[idx]
         return target
 
-    def getlatentvalue(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
-        trueidx = self.indices[idx]
+    def getlatentvalue(self, idx, from_traintest=False):
+        if from_traintest:
+            indices = self.traintest_indices
+        else:
+            indices = self.indices
+        if idx >= len(indices):
+            idx = idx%len(indices)
+        trueidx = indices[idx]
         object_centric_sidx = trueidx//self.nbr_object_centric_samples
         coord = self.idx2coord(object_centric_sidx)
         latent_class = np.array(coord).reshape((1,-1))
         latent_value = self.generate_observations(latent_class, sample=False)
         return latent_value
 
-    def getlatentclass(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
-        trueidx = self.indices[idx]
+    def getlatentclass(self, idx, from_traintest=False):
+        if from_traintest:
+            indices = self.traintest_indices
+        else:
+            indices = self.indices
+        if idx >= len(indices):
+            idx = idx%len(indices)
+        trueidx = indices[idx]
         object_centric_sidx = trueidx//self.nbr_object_centric_samples
         coord = self.idx2coord(object_centric_sidx)
         latent_class = np.array(coord)
         return latent_class
 
-    def getlatentonehot(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
+    def getlatentonehot(self, idx, from_traintest=False):
+        if from_traintest:
+            indices = self.traintest_indices
+        else:
+            indices = self.indices
+        if idx >= len(indices):
+            idx = idx%len(indices)
         # object-centrism is taken into account in getlatentclass fn:
-        latent_class = self.getlatentclass(idx)
+        latent_class = self.getlatentclass(idx, from_traintest=from_traintest)
         latent_one_hot_encoded = np.zeros(sum(self.latent_sizes))
         startidx = 0
         for lsize, lvalue in zip(self.latent_sizes, latent_class):
@@ -364,14 +404,18 @@ class SymbolicContinuousStimulusDataset(Dataset) :
             startidx += lsize 
         return latent_one_hot_encoded
 
-    def gettestlatentmask(self, idx):
-        if idx >= len(self):
-            idx = idx%len(self)
-        trueidx = self.indices[idx]
+    def gettestlatentmask(self, idx, from_traintest=False):
+        if from_traintest:
+            indices = self.traintest_indices
+        else:
+            indices = self.indices
+        if idx >= len(indices):
+            idx = idx%len(indices)
+        trueidx = indices[idx]
         test_latents_mask = self.test_latents_mask[trueidx]
         return test_latents_mask
 
-    def sample_factors(self, num, random_state):
+    def sample_factors(self, num, random_state=None):
         """
         Sample a batch of factors Y.
         """
@@ -379,32 +423,35 @@ class SymbolicContinuousStimulusDataset(Dataset) :
         # It turns out the random state is not really being updated apparently.
         # Therefore it was always sampling the same values...
         random_indices = np.random.randint(low=0, high=self.dataset_size, size=(num,))
-        return np.stack([self.getlatentclass(ridx) for ridx in random_indices], axis=0)
+        return np.stack([self.getlatentclass(ridx, from_traintest=True) for ridx in random_indices], axis=0)
         
-    def sample_observations_from_factors(self, factors, random_state):
+    def sample_observations_from_factors(self, factors, random_state=None):
         """
         Sample a batch of observations X given a batch of factors Y.
         """
-        return self.generate_object_centric_observations(factors)
+        obs = torch.from_numpy(
+            self.generate_object_centric_observations(factors),
+        )
+        return obs.float()
 
-    def sample_latents_values_from_factors(self, factors, random_state):
+    def sample_latents_values_from_factors(self, factors, random_state=None):
         """
         Sample a batch of observations X given a batch of factors Y.
         """
         return self.generate_observations(factors, sample=False)
 
-    def sample_latents_ohe_from_factors(self, factors, random_state):
+    def sample_latents_ohe_from_factors(self, factors, random_state=None):
         """
         Sample a batch of observations X given a batch of factors Y.
         """
         batch_size = factors.shape[0]
         ohe = np.zeros((batch_size, sum(self.latent_sizes)))
         for bidx in range(batch_size):
-            idx = self.coord2idx(factors[idx])
+            idx = self.coord2idx(factors[bidx])
             ohe[bidx] = self.getlatentonehot(idx)
         return ohe
 
-    def sample(self, num, random_state):
+    def sample(self, num, random_state=None):
         """
         Sample a batch of factors Y and observations X.
         """
@@ -424,11 +471,17 @@ class SymbolicContinuousStimulusDataset(Dataset) :
                 - `"exp_latents_one_hot_encoded"`: Tensor representation of the latent of the experience in one-hot-encoded class form.
                 - `"exp_test_latent_mask"`: Tensor that highlights the presence of test values, if any on each latent axis.
         """
-        if idx >= len(self):
-            idx = idx%len(self)
+        if idx >= len(self.indices):
+            idx = idx%len(self.indices)
 
         latent_class = self.getlatentclass(idx)
-        stimulus = torch.from_numpy(self.generate_object_centric_observations(latent_class.reshape((1,-1))))
+        stimulus = torch.from_numpy(
+                self.generate_object_centric_observations(
+                    latent_class.reshape(
+                        (1,-1)
+                    )
+                )
+        ).float()
         latent_class = torch.from_numpy(latent_class)
 
         target = self.getclass(idx)

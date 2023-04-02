@@ -296,15 +296,21 @@ def main():
              "dSprites",
              "3DShapesPyBullet",
              "3dshapes",
+             "SCS",
              ], 
     help="dataset to train on.",
     default="3DShapesPyBullet")
+  parser.add_argument('--scs_nbr_latents', type=int, default=3)
+  parser.add_argument('--scs_min_nbr_values_per_latent', type=int, default=2)
+  parser.add_argument('--scs_max_nbr_values_per_latent', type=int, default=3)
+  parser.add_argument('--scs_nbr_object_centric_samples', type=int, default=1)
   parser.add_argument('--nb_3dshapespybullet_shapes', type=int, default=5)
   parser.add_argument('--nb_3dshapespybullet_colors', type=int, default=8)
   parser.add_argument('--nb_3dshapespybullet_train_colors', type=int, default=6)
   parser.add_argument('--nb_3dshapespybullet_samples', type=int, default=100)
   parser.add_argument("--arch", type=str, 
-    choices=["BaselineCNN",
+    choices=["Dummy",
+             "BaselineCNN",
              "ShortBaselineCNN",
              "BN+BaselineCNN",
              "BN+Baseline1CNN",
@@ -394,7 +400,7 @@ def main():
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
   parser.add_argument("--nbr_train_distractors", type=int, default=0)
   
-  parser.add_argument("--resizeDim", default=128, type=int,help="input image resize")
+  parser.add_argument("--resizeDim", default=128, help="input image resize")
   parser.add_argument("--agent_nbr_latent_dim", type=int, default=50)
   parser.add_argument("--symbol_processing_nbr_hidden_units", default=64, type=int,help="GRU cells")
   parser.add_argument("--symbol_embedding_size", default=64, type=int,help="GRU cells")
@@ -494,6 +500,7 @@ def main():
         "combinatorial2-Y-1-S16-X-1-S16-Orientation-1-N-Scale-1-S3-Shape-1-S1", 
         "combinatorial2-Y-8-S2-X-8-S2-Orientation-4-N-Scale-2-S1-Shape-1-S1",
         "divider-1-offset-0",
+        "divider-2-offset-0",
         "divider-10-offset-0",
         "divider-100-offset-0",
     ],
@@ -613,13 +620,14 @@ def main():
   transformations = []
   rgb_scaler = 1.0 #255.0
   from ReferentialGym.datasets.utils import ResizeNormalize
-  transform = ResizeNormalize(
-    size=stimulus_resize_dim, 
-    normalize_rgb_values=normalize_rgb_values,
-    rgb_scaler=rgb_scaler,
-    use_cuda=False, #subprocess issue...s
-  )
-  transformations.append(transform)
+  if stimulus_resize_dim != "None":
+    transform = ResizeNormalize(
+      size=stimulus_resize_dim, 
+      normalize_rgb_values=normalize_rgb_values,
+      rgb_scaler=rgb_scaler,
+      use_cuda=False, #subprocess issue...s
+    )
+    transformations.append(transform)
   
   if args.with_color_jitter_augmentation:
     transformations = [T.RandomApply([T.ColorJitter(
@@ -651,7 +659,10 @@ def main():
         *transformations,
     ]
   
-  transformation = T.Compose(transformations)
+  if len(transformations):
+    transformation = T.Compose(transformations)
+  else:
+    transformation = None
 
   if args.with_descriptive_not_target_logit_language_conditioning:
     args.descriptive = True 
@@ -995,7 +1006,8 @@ def main():
     agent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
     agent_config["symbol_processing_nbr_rnn_layers"] = 1
   
-  elif "CNN" in agent_config["architecture"]:
+  elif "CNN" in agent_config["architecture"] \
+  or "Dummy" in agent_config["architecture"]:
     rg_config["use_feat_converter"] = False
     agent_config["use_feat_converter"] = False
     
@@ -1041,6 +1053,19 @@ def main():
   
   elif "BetaVAE" in agent_config["architecture"]:
     make_VAE(agent_config, args, rg_config)
+  elif "MLP" in agent_config["architecture"]:
+    if "BN" in args.arch:
+      agent_config["hidden_units"] = ["BN256","BN256",256]
+    else:
+      agent_config["hidden_units"] = [256, 256, 256]
+    
+    agent_config['non_linearities'] = [nn.LeakyReLU]
+
+    agent_config["temporal_encoder_nbr_hidden_units"] = 0
+    agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+    agent_config["temporal_encoder_mini_batch_size"] = args.mini_batch_size
+    aagent_config["symbol_processing_nbr_hidden_units"] = args.symbol_processing_nbr_hidden_units
+    agent_config["symbol_processing_nbr_rnn_layers"] = 1
   else:
     raise NotImplementedError
 
@@ -1274,13 +1299,20 @@ def main():
   nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
   nbr_stimulus = agent_config['nbr_stimulus']
   
-  obs_shape = [
-    nbr_distractors+1,
-    nbr_stimulus, 
-    rg_config['stimulus_depth_dim'],
-    rg_config['stimulus_resize_dim'],
-    rg_config['stimulus_resize_dim']
-  ]
+  if 'SCS' in args.dataset:
+    obs_shape = [
+      nbr_distractors+1,
+      nbr_stimulus,
+      args.scs_nbr_latents,
+    ]
+  else:
+    obs_shape = [
+      nbr_distractors+1,
+      nbr_stimulus, 
+      rg_config['stimulus_depth_dim'],
+      rg_config['stimulus_resize_dim'],
+      rg_config['stimulus_resize_dim']
+   ]
 
   vocab_size = rg_config['vocab_size']
   max_sentence_length = rg_config['max_sentence_length']
@@ -1427,6 +1459,29 @@ def main():
     root = './'
     train_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=True, transform=rg_config['train_transform'], split_strategy=train_split_strategy, dataset_length=args.dataset_length if args.dataset_length!=0 else None)
     test_dataset = ReferentialGym.datasets.Shapes3DDataset(root=root, train=False, transform=rg_config['test_transform'], split_strategy=test_split_strategy)
+  elif 'SCS' in args.dataset:
+    train_dataset = ReferentialGym.datasets.SymbolicContinuousStimulusDataset(
+      train=True, 
+      transform=rg_config['train_transform'],
+      nbr_latents=args.scs_nbr_latents,
+      min_nbr_values_per_latent=args.scs_min_nbr_values_per_latent,
+      max_nbr_values_per_latent=args.scs_max_nbr_values_per_latent,
+      nbr_object_centric_samples=args.scs_nbr_object_centric_samples,
+      split_strategy=train_split_strategy,
+      dataset_length=args.dataset_length if args.dataset_length!=0 else None,
+    )
+    
+    test_dataset = ReferentialGym.datasets.SymbolicContinuousStimulusDataset(
+      train=False, 
+      transform=rg_config['test_transform'],
+      nbr_latents=args.scs_nbr_latents,
+      min_nbr_values_per_latent=args.scs_min_nbr_values_per_latent,
+      max_nbr_values_per_latent=args.scs_max_nbr_values_per_latent,
+      nbr_object_centric_samples=args.scs_nbr_object_centric_samples,
+      split_strategy=train_split_strategy,
+      dataset_length=args.dataset_length if args.dataset_length!=0 else None,
+      prototype=train_dataset,
+    )
   elif '3DShapesPyBullet' in args.dataset:
     train_dataset = ReferentialGym.datasets._3DShapesPyBulletDataset(
       root=root, 

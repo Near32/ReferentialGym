@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim 
 
+import copy
 import numpy as np 
 
 from .module import Module
@@ -78,7 +79,9 @@ class PerEpochLoggerModule(Module):
         self.storages = {}
 
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
-        
+        # Maintain results for extraction later:
+        self.latest_logs = {}
+ 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
@@ -130,6 +133,9 @@ class PerEpochLoggerModule(Module):
             else:
               continue
 
+            self.latest_logs[f"epoch"] = epoch
+            self.latest_logs[f"update_count"] = update_count
+            
             if need_stats:
               averaged_value = values.mean()
               std_value = values.std()
@@ -143,6 +149,8 @@ class PerEpochLoggerModule(Module):
               #logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
               wandb.log({f"PerUpdate/{key}/Std": std_value, "update_count":update_count}, commit=False)
               
+              self.latest_logs[f"PerEpoch/{key}/Mean"] = averaged_value
+              self.latest_logs[f"PerEpoch/{key}/Std"] = std_value
 
               median_value = np.nanpercentile(
                 values,
@@ -182,12 +190,18 @@ class PerEpochLoggerModule(Module):
               #logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
               wandb.log({f"PerUpdate/{key}/IQR": iqr, "update_count":update_count}, commit=False)
               
+              self.latest_logs[f"PerEpoch/{key}/Median"] = median_value
+              self.latest_logs[f"PerEpoch/{key}/Q1"] = q1_value
+              self.latest_logs[f"PerEpoch/{key}/Q3"] = q3_value
+              self.latest_logs[f"PerEpoch/{key}/IQR"] = iqr 
+              
               #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               #logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
               wandb.log({f"PerEpoch/{key}": valuelist[-1], "epoch":epoch}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
               wandb.log({f"PerUpdate/{key}": valuelist[-1], "update_count":update_count}, commit=False)
+              self.latest_logs[f"PerEpoch/{key}"] = valuelist[-1]
               
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)

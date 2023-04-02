@@ -442,6 +442,28 @@ class FCBody(Module):
         return self.feature_dim
 
 
+class DummyBody(nn.Module):
+    def __init__(self, input_shape ):
+        '''
+        :param input_shape: dimensions of the input.
+        '''
+        super(DummyBody, self).__init__()
+        self.input_shape = input_shape
+        if isinstance(self.input_shape, list):
+            self.feature_dim = self.input_shape[-1]
+        else:
+            self.feature_dim = self.input_shape
+
+    def forward(self, x, non_lin_output=True):
+        self.features = x 
+        return x
+
+    def get_input_shape(self):
+        return self.input_shape
+
+    def get_feature_shape(self):
+        return self.feature_dim
+
 class ConvolutionalBody(nn.Module):
     def __init__(self, 
                  input_shape, 
@@ -1324,7 +1346,6 @@ class VGG(nn.Module):
 
 from torchvision.models.vgg import make_layers, cfgs
 from torch.hub import load_state_dict_from_url
-#, load_state_dict_from_url 
 from torchvision.models.vgg import model_urls as vgg_model_urls
 
 

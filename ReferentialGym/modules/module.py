@@ -27,13 +27,14 @@ class Module(nn.Module):
 
     def compute(self, inputs_dict:Dict[str,object]) -> Dict[str,object] :
         """
-        Operates on inputs_dict that is made up of referents to the available stream.
+        Operates on inputs_dict that is made up of referents to the requested 
+        data stream, as values of the `self.input_stream_ids` dict.
         Make sure that accesses to its element are non-destructive.
 
-        :param inputs_dict: dict of str and data elements that 
-                            follows `self.input_stream_ids`'s keywords
-                            and are extracted from `self.input_stream_keys`
-                            -named streams.
+        :param inputs_dict: Dict[str, object] where the keys are the keys of 
+                            `self.input_stream_ids`, and the values are the values
+                            stored in the `StreamHandler`'s placeholder path defined
+                            by the values of `self.input_stream_ids`.
 
         :returns:
             - outputs_sream_dict: 

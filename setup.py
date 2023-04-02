@@ -47,8 +47,8 @@ setup(
         'tensorboardX',
 	'matplotlib',
 	'docopt',
-	'pycocotools',
         'pybullet==3.1.7',
+	#'pycocotools'
 	] + test_requirements,
 
     python_requires=">=3.6",

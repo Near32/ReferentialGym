@@ -9,6 +9,7 @@ from .extended_sort_of_CLEVR_dataset import XSortOfCLEVRDataset
 #from .ah_so_CLEVR_dataset import AhSoCLEVRDataset
 from .spatial_queries_on_object_tuples_dataset import SQOOTDataset 
 from .symbolic_continuous_stimulus_dataset import SymbolicContinuousStimulusDataset
+from .demonstration_dataset import DemonstrationDataset
 
 try:
 	import pybullet 

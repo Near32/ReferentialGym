@@ -124,21 +124,12 @@ class DualLabeledDataset(Dataset):
             for class_idx in from_class:
                 list_indices += classes[class_idx]
             set_indices = set(list_indices) 
-            """
-            set_indices = set()
-            for class_idx in from_class:
-                set_indices = set_indices.union(set(classes[class_idx]))
-            """
 
             if excepts_class is not None:
                 excepts_list_indices = []
                 for class_idx in excepts_class:
                     excepts_list_indices += classes[class_idx]
                 set_indices = set_indices.difference(set(excepts_list_indices))
-                """
-                for class_idx in excepts_class:
-                    set_indices = set_indices.difference(set(classes[class_idx]))
-                """
             
             if excepts is not None:
                 # check that the current class contains more than just one element:
@@ -150,7 +141,6 @@ class DualLabeledDataset(Dataset):
             if not target_only:
                 nbr_samples += self.nbr_distractors[self.mode]
 
-            #if idx is not None and not target_only:
             if idx is not None:
                 # i.e. if we are not trying to resample the target stimulus...
                 if idx in set_indices:

@@ -1,6 +1,8 @@
 from typing import Dict, List
 
 import copy
+import types 
+
 
 class StreamHandler(object):
     def __init__(self):
@@ -33,22 +35,45 @@ class StreamHandler(object):
 
         while ':' in placeholder_id:
             ptr, next_placeholder_id = placeholder_id.split(":", 1)
-            if ptr not in p_ptr:    p_ptr[ptr] = {}
+            #if ptr not in p_ptr:    p_ptr[ptr] = {}
+            
+            if isinstance(p_ptr, dict)\
+            and ptr not in p_ptr:   
+                p_ptr[ptr] = {}
+            elif not isinstance(p_ptr, dict)\
+            and not hasattr(p_ptr, ptr):    
+                setattr(p_ptr, ptr, {})
+            
             placeholder_id=next_placeholder_id
-            p_ptr=p_ptr[ptr]
+            if isinstance(p_ptr, dict):
+                p_ptr=p_ptr[ptr]
+            else:
+                p_ptr= getattr(p_ptr, ptr)
 
-        if placeholder_id not in p_ptr:
+        if isinstance(p_ptr, dict)\
+        and placeholder_id not in p_ptr:
             p_ptr[placeholder_id] = {}
+        elif not isinstance(p_ptr, dict)\
+        and not hasattr(p_ptr, placeholder_id):
+            setattr(p_ptr, placeholder_id, {})
         
         # Not possible to copy leaves tensor at the moment with PyTorch...
         previous_placeholder = None #copy.deepcopy(p_ptr[placeholder_id])
 
-        if isinstance(stream_data, dict) and not(reset):
+        if isinstance(stream_data, dict)\
+        and not(reset):
+            if isinstance(p_ptr, dict):
+                pp_ptr = p_ptr[placeholder_id]
+            else:
+                pp_ptr = getattr(p_ptr, placehodler_id)
             for k,v in stream_data.items():
-                p_ptr[placeholder_id][k] = v 
+                pp_ptr[k] = v
         else:
-            p_ptr[placeholder_id] = stream_data
-        
+            if isinstance(p_ptr, dict):
+                p_ptr[placeholder_id] = stream_data
+            else:
+                setattr(p_ptr, placeholder_id, stream_data)
+
         return
 
     def serve(self, pipeline:List[object]):
@@ -56,6 +81,10 @@ class StreamHandler(object):
             module = self[f"modules:{module_id}:ref"]
             module_input_stream_dict = self._serve_module(module)    
             module_output_stream_dict = module.compute(input_streams_dict=module_input_stream_dict)
+            
+            if isinstance(module_output_stream_dict, types.GeneratorType):
+                module_output_stream_dict = next(module_output_stream_dict)
+
             for stream_id, stream_data in module_output_stream_dict.items():
                 if ":" in stream_id:
                     self.update(stream_id, stream_data)
