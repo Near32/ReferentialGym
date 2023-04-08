@@ -9,12 +9,12 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c train_wandb.py \
 --scs_max_nbr_values_per_latent=3 --scs_nbr_object_centric_samples=4 \
 --nb_3dshapespybullet_colors=10 --nb_3dshapespybullet_samples=10 \
 --nb_3dshapespybullet_shapes=10 --nb_3dshapespybullet_train_colors=5 \
---nbr_discriminative_test_distractors=7 --nbr_distractors=31 \
---descriptive=True --descriptive_ratio=0 \
+--nbr_discriminative_test_distractors=7 --nbr_distractors=7 \
+--descriptive=False --descriptive_ratio=0 \
 --dis_metric_resampling=True --distractor_sampling=uniform \
 --dropout_prob=0 --emb_dropout_prob=0.0 \
 --egocentric=False --egocentric_tr_degrees=15 --egocentric_tr_xy=0.125 \
---epoch=4001 --graphtype=obverter \
+--epoch=4001 --graphtype=straight_through_gumbel_softmax \
 --max_sentence_length=10 --vocab_size=20 \
 --metric_active_factors_only=True --metric_batch_size=64 \
 --dis_metric_epoch_period=201 --metric_epoch_period=100 \
@@ -22,7 +22,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c train_wandb.py \
 --nbr_eval_points=40 --nbr_train_points=50 \
 --object_centric=False --obverter_nbr_games_per_round=32 \
 --obverter_use_decision_head=False --obverter_learn_not_target_logit=True \
---obverter_nbr_head_outputs=2 --use_obverter_sampling=False --obverter_sampling_round_alternation_only=True --obverter_sampling_repeat_experiences=False \
+--obverter_nbr_head_outputs=2 --use_obverter_sampling=False \
+--obverter_sampling_round_alternation_only=False --obverter_sampling_repeat_experiences=False \
 --obverter_threshold_to_stop_message_generation=0.95 --obverter_use_residual_connections=False \
 --parallel_TS_worker=32 --parent_folder=./scs_obverter_test \
 --resizeDim=None --seed=11 --shared_architecture=True \
