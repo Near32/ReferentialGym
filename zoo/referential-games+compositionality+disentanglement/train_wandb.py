@@ -354,6 +354,7 @@ def main():
     default="adam")
   parser.add_argument("--agent_loss_type", type=str,
     choices=[
+      "Impatient+Hinge",
       "Hinge",
       "NLL",
       "CE",
@@ -367,6 +368,7 @@ def main():
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
+  parser.add_argument("--weight_decay", type=float, default=0.0)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--dataloader_num_worker", type=int, default=8)
   #parser.add_argument("--dataloader_num_worker", type=int, default=1)
@@ -1878,6 +1880,7 @@ def main():
   optim_config = {
     "modules":modules,
     "learning_rate":args.lr,
+    "weight_decay":args.weight_decay,
     "optimizer_type":args.optimizer_type,
     "with_gradient_clip":rg_config["with_gradient_clip"],
     "adam_eps":rg_config["adam_eps"],

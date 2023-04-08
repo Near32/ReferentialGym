@@ -15,7 +15,12 @@ from .listener import Listener
 
 
 
-def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled_decision_idx=None, multi_round=False):
+def havrylov_hinge_learning_signal(
+    decision_logits, 
+    target_decision_idx, 
+    sampled_decision_idx=None, 
+    multi_round=False,
+):
     target_decision_logits = decision_logits.gather(dim=1, index=target_decision_idx)
     # (batch_size, 1)
 
@@ -35,6 +40,84 @@ def havrylov_hinge_learning_signal(decision_logits, target_decision_idx, sampled
     done = (target_decision_idx == decision_logits.argmax(dim=-1))
     
     return loss, done
+
+
+def havrylov_hinge_loss(
+    final_decision_logits,
+    sample,
+    batch_size,
+    nbr_distractors_po,
+    config,
+    input_streams_dict,
+):
+    final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+    # (batch_size, (nbr_distractors+1), 2)
+    if config["descriptive"]:
+        # then we make sure to aggregated all not_target logits into a new category: 
+        isTarget_logits = final_decision_logits[...,0]
+        # (batch_size, (nbr_distractors+1))
+        isNotTarget_logit = final_decision_logits[...,1]
+        # (batch_size, (nbr_distractors+1))
+        #min_isNotTarget_logit = isNotTarget_logit.min(dim=-1, keepdim=True)[0]
+        #max_isNotTarget_logit = isNotTarget_logit.max(dim=-1, keepdim=True)[0]
+        mean_isNotTarget_logit = isNotTarget_logit.mean(dim=-1, keepdim=True)
+        # (batch_size, 1)
+        
+        final_decision_logits = torch.cat([
+            isTarget_logits,
+            #min_isNotTarget_logit],
+            #max_isNotTarget_logit],
+            mean_isNotTarget_logit],
+            dim=-1
+        )
+        # (batch_size, (nbr_distractors+2))
+    else:
+        # we simply take the target prediction logits for all stimuli:
+        #TODO: it might not be the best situation though,
+        # as :
+        # 1- the other logit values are not accounted for and trained
+        # 2- the softmax has not been computed against the current set of categories...
+        # TODO: check whether 2 matters or not : it does: without the consideration
+        # of the other logit, then the sentence lengths never decreases...
+        # A change has been made : TEST1
+        if nbr_distractors_po <= 1:
+            # it is probably a descriptive test:
+            # we regularise the shape of the tensor after detaching it:
+            # i.e. we make sure that the correct index remains in position 0.
+            isTarget_logits = final_decision_logits[...,0]
+            # (batch_size, (nbr_distractors+1))
+            isNotTarget_logit = final_decision_logits[...,1]
+            # (batch_size, (nbr_distractors+1))
+            final_decision_logits = torch.cat([
+                isTarget_logits,
+                isNotTarget_logit,
+                ], 
+                dim=-1,
+            ).unsqueeze(-1).detach()
+            # batch_size, nbr_distractors+1=2, 1)
+        final_decision_logits = final_decision_logits[...,0]
+        #TEST1:PREVIOUSLY: nothing
+        #TEST!:NOW: when non-descriptive, the log_softmax is not computed over
+        # the two logits of the decision head, so instead
+        # we compute it here over all the stimuli:
+        final_decision_logits = torch.log_softmax(final_decision_logits, dim=-1)
+        # (batch_size, (nbr_distractors+1))
+    # (batch_size, (nbr_distractors+1 or +2 if descriptive mode), )
+    decision_logits = final_decision_logits
+    # Previously: with log softmax output:
+    #decision_probs = decision_logits.exp()
+    # TEST: linear output:
+    decision_probs = decision_logits.softmax(dim=-1)
+    
+    loss, _ = havrylov_hinge_learning_signal(
+        decision_logits=decision_logits,
+        target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
+        multi_round=input_streams_dict["multi_round"]
+    )
+    # (batch_size, )
+        
+    return decision_logits, decision_probs, loss
+
 
 
 def discriminative_st_gs_referential_game_loss(agent,
@@ -144,6 +227,31 @@ def discriminative_st_gs_referential_game_loss(agent,
             # (batch_size, )
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]
     
+    elif config["agent_loss_type"].lower() == "impatient+hinge":
+        list_losses = []
+        for idx in range(decision_logits.shape[1]):
+            dl2use = decision_logits[:,idx] #.gather(dim=1, index=idx-1)
+            dl2use = dl2use.squeeze(1)
+            # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+            #Havrylov"s Hinge loss:
+            loss, _ = havrylov_hinge_learning_signal(
+                decision_logits=dl2use,
+                target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
+                multi_round=input_streams_dict["multi_round"]
+            )
+            list_losses.append(loss)
+             
+        loss = torch.stack(list_losses, dim=1).mean(dim=1, keepdim=False)
+        # (batch_size, )
+        
+        decision_logits = final_decision_logits
+        decision_probs = decision_logits.softmax(dim=-1)
+        
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
+        outputs_dict["decision_probs"] = decision_probs
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/listener_target_decision_probs"] =\
+         decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
+    
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
         # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
@@ -233,7 +341,7 @@ def discriminative_obverter_referential_game_loss(
         outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
     
     #WANDB LOG:
-    if input_streams_dict['global_it_comm_round'] % 4096 == 0 : 
+    if False: # input_streams_dict['global_it_comm_round'] % 4096 == 0 : 
         columns = [f"token{idx}" for idx in range(agent.max_sentence_length)]
         columns += [f"gt_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
         columns += ["target_stimulus"]
@@ -405,71 +513,53 @@ def discriminative_obverter_referential_game_loss(
     
     elif config["agent_loss_type"].lower() == "hinge":
         #Havrylov"s Hinge loss:
-        final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
-        # (batch_size, (nbr_distractors+1), 2)
-        if config["descriptive"]:
-            # then we make sure to aggregated all not_target logits into a new category: 
-            isTarget_logits = final_decision_logits[...,0]
-            # (batch_size, (nbr_distractors+1))
-            isNotTarget_logit = final_decision_logits[...,1]
-            # (batch_size, (nbr_distractors+1))
-            #min_isNotTarget_logit = isNotTarget_logit.min(dim=-1, keepdim=True)[0]
-            #max_isNotTarget_logit = isNotTarget_logit.max(dim=-1, keepdim=True)[0]
-            mean_isNotTarget_logit = isNotTarget_logit.mean(dim=-1, keepdim=True)
-            # (batch_size, 1)
-            
-            final_decision_logits = torch.cat([
-                isTarget_logits,
-                #min_isNotTarget_logit],
-                #max_isNotTarget_logit],
-                mean_isNotTarget_logit],
-                dim=-1
-            )
-            # (batch_size, (nbr_distractors+2))
-        else:
-            # we simply take the target prediction logits for all stimuli:
-            #TODO: it might not be the best situation though,
-            # as :
-            # 1- the other logit values are not accounted for and trained
-            # 2- the softmax has not been computed against the current set of categories...
-            # TODO: check whether 2 matters or not : it does: without the consideration
-            # of the other logit, then the sentence lengths never decreases...
-            # A change has been made : TEST1
-            if nbr_distractors_po <= 1:
-                # it is probably a descriptive test:
-                # we regularise the shape of the tensor after detaching it:
-                # i.e. we make sure that the correct index remains in position 0.
-                isTarget_logits = final_decision_logits[...,0]
-                # (batch_size, (nbr_distractors+1))
-                isNotTarget_logit = final_decision_logits[...,1]
-                # (batch_size, (nbr_distractors+1))
-                final_decision_logits = torch.cat([
-                    isTarget_logits,
-                    isNotTarget_logit,
-                    ], 
-                    dim=-1,
-                ).unsqueeze(-1).detach()
-                # batch_size, nbr_distractors+1=2, 1)
-            final_decision_logits = final_decision_logits[...,0]
-            #TEST1:PREVIOUSLY: nothing
-            #TEST!:NOW: when non-descriptive, the log_softmax is not computed over
-            # the two logits of the decision head, so instead
-            # we compute it here over all the stimuli:
-            final_decision_logits = torch.log_softmax(final_decision_logits, dim=-1)
-            # (batch_size, (nbr_distractors+1))
-        # (batch_size, (nbr_distractors+1 or +2 if descriptive mode), )
-        decision_logits = final_decision_logits
-        # Previously: with log softmax output:
-        #decision_probs = decision_logits.exp()
-        # TEST: linear output:
-        decision_probs = decision_logits.softmax(dim=-1)
-        
-        loss, _ = havrylov_hinge_learning_signal(
-            decision_logits=decision_logits,
-            target_decision_idx=sample["target_decision_idx"].unsqueeze(1),
-            multi_round=input_streams_dict["multi_round"]
+        decision_logits, decision_probs, loss = havrylov_hinge_loss(
+            final_decision_logits=final_decision_logits,
+            sample=sample,
+            batch_size=batch_size,
+            nbr_distractors_po=nbr_distractors_po,
+            config=config,
+            input_streams_dict=input_streams_dict,
         )
+        
+        losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
+        outputs_dict["decision_probs"] = decision_probs
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/listener_target_decision_probs"] =\
+        decision_probs.gather(index=sample["target_decision_idx"].unsqueeze(1), dim=-1) #.exp()
+    
+    elif config["agent_loss_type"].lower() == "impatient+hinge":
+        list_dl = []
+        list_dp = []
+        list_losses = []
+        for idx in range(decision_logits.shape[1]):
+            dl2use = decision_logits[:,idx] #.gather(dim=1, index=idx-1)
+            dl2use = dl2use.reshape(batch_size, nbr_distractors_po, 2)
+            # (batch_size, (nbr_distractors+1), 2)
+            #Havrylov"s Hinge loss:
+            dl, dp, loss = havrylov_hinge_loss(
+                final_decision_logits=dl2use,
+                sample=sample,
+                batch_size=batch_size,
+                nbr_distractors_po=nbr_distractors_po,
+                config=config,
+                input_streams_dict=input_streams_dict,
+            )
+            list_dl.append(dl)
+            list_dp.append(dp)
+            list_losses.append(loss)
+             
+        loss = torch.stack(list_losses, dim=1).mean(dim=1, keepdim=False)
         # (batch_size, )
+        
+        # Compute original decision probs :
+        _, decision_probs, _ = havrylov_hinge_loss(
+            final_decision_logits=final_decision_logits,
+            sample=sample,
+            batch_size=batch_size,
+            nbr_distractors_po=nbr_distractors_po,
+            config=config,
+            input_streams_dict=input_streams_dict,
+        )
         
         losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/referential_game_loss"] = [1.0, loss]    
         outputs_dict["decision_probs"] = decision_probs
