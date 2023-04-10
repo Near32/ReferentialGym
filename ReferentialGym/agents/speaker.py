@@ -165,6 +165,52 @@ def mdl_principle_loss_hook(agent,
         mdl_loss
     ]   
 
+def logits_mdl_principle_loss_hook(
+    agent,
+    losses_dict,
+    input_streams_dict,
+    outputs_dict,
+    logs_dict,
+    **kwargs,
+):
+    it_rep = input_streams_dict["it_rep"]
+    it_comm_round = input_streams_dict["it_comm_round"]
+    config = input_streams_dict["config"]
+
+    batch_size = len(input_streams_dict["experiences"])
+
+    arange_token = torch.arange(config["max_sentence_length"])
+    arange_token = (config["vocab_size"]*arange_token).float().view((1,-1)).repeat(batch_size,1)
+    if config["use_cuda"]: arange_token = arange_token.cuda()
+
+    print(agent.vocab_stop_idx)
+    import ipdb; ipdb.set_trace()
+    # check that stop idx is vocab_size 
+    # and that sentences logits shape is vocab_size +1 then ?
+    #Thus, padding would be done with EoS symbol...
+
+    speaker_reweighted_utterances = 1+non_pad_mask*outputs_dict["sentences_widx"] 
+    #speaker_reweighted_utterances -= (1-non_pad_mask)*outputs_dict["sentences_widx"]/config["vocab_size"]
+    # ( batch_size, max_sentence_length)
+    import ipdb; ipdb.set_trace()
+    # verify shape ...
+
+    kl_logits_EoS = -outputs_dict["sentences_logits"][..., agent.vocab_stop_idx]
+    # Logits are assumed to be true log_softmax outputs...
+    # Since KL(EoS_distr|P) = CrossEntr(EoS_distr,P)-Entr(EoS_distr),
+    # we have Entr(EoS_distr) = 0, 
+    # and CrossEntr(EoS_distr,P) = - log P(EoS) , since EoS_distr is 
+    # zero everywhere but in EoS logit where it is 1.
+    # (batch_size x max_sentence_length)
+    mdl_loss = (arange_token*kl_logits_EoS).mean(dim=-1)
+    # (batch_size, )
+    losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/logits_mdl_loss"] = [
+        config["logits_mdl_principle_factor"], 
+        mdl_loss
+    ]   
+
+    return
+
 
 def oov_loss_hook(agent,
                   losses_dict,
@@ -230,6 +276,10 @@ class Speaker(Agent):
         if "with_mdl_principle" in self.kwargs \
          and self.kwargs["with_mdl_principle"]:
             self.register_hook(mdl_principle_loss_hook)
+
+        if "with_logits_mdl_principle" in self.kwargs \
+         and self.kwargs["with_logits_mdl_principle"]:
+            self.register_hook(logits_mdl_principle_loss_hook)
 
         if ("with_utterance_penalization" in self.kwargs or "with_utterance_promotion" in self.kwargs) \
          and (self.kwargs["with_utterance_penalization"] or self.kwargs["with_utterance_promotion"]):

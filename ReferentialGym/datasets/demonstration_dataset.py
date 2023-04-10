@@ -208,7 +208,7 @@ class DemonstrationDataset(Dataset) :
                 if idx % self.divider == self.offset:
                     self.indices.append(idx)
 
-            self.train_ratio = 0.8
+            self.train_ratio = 0.75
             end = int(len(self.indices)*self.train_ratio)
 
             self.traintest_indices = copy.deepcopy(self.indices)

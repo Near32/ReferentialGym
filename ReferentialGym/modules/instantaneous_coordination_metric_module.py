@@ -132,7 +132,7 @@ class InstantaneousCoordinationMetricModule(Module):
                 for batch_listener_actions, batch_sentences in zip(self.listener_decision_indices, self.sentences_widx):
                     for batch_idx in range(batch_listener_actions.shape[0]):
                         action = int(batch_listener_actions[batch_idx])
-                        sentence = batch_sentences[batch_idx].tostring()
+                        sentence = batch_sentences[batch_idx].tobytes()
                         if sentence not in co_occ_matrix:
                             co_occ_matrix[sentence] = {} 
                         if action not in co_occ_matrix[sentence]:
