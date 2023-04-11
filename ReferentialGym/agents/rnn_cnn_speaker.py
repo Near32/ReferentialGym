@@ -225,12 +225,16 @@ class RNNCNNSpeaker(Speaker):
                 if self.use_feat_converter:
                     featout = self.featout_converter(featout)
 
-                feat_map = self.cnn_encoder.get_feat_map()
+                if hasattr(self.cnn_encoder, "get_feat_map"):
+                    feat_map = self.cnn_encoder.get_feat_map()
+                else:
+                    feat_map = featout 
             
             features.append(featout)
             feat_maps.append(feat_map)
 
-        self.features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
+        self.features = torch.cat(features, dim=0).reshape((-1, featout.shape[-1]))
+        self.features = self.cnn_encoder_normalization(self.features)
         self.feat_maps = torch.cat(feat_maps, dim=0)
         
         self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)

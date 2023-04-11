@@ -427,6 +427,8 @@ def main():
   parser.add_argument("--egocentric", type=reg_bool, default="False")
   parser.add_argument("--egocentric_tr_degrees", type=int, default=45)
   parser.add_argument("--egocentric_tr_xy", type=float, default=0.125)
+  parser.add_argument("--with_logits_mdl_principle", type=reg_bool, default="False")
+  parser.add_argument("--logits_mdl_principle_factor", type=float, default=1.0)
   parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
               "similarity-0.98",
@@ -781,6 +783,8 @@ def main():
       "with_listener_entropy_regularization":  False,
       "entropy_regularization_factor":    -1e-2,
 
+      "with_logits_mdl_principle":       args.with_logits_mdl_principle,
+      "logits_mdl_principle_factor":       float(args.logits_mdl_principle_factor),
       "with_mdl_principle":       False,
       "mdl_principle_factor":     5e-2,
 

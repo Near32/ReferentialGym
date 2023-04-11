@@ -1037,7 +1037,12 @@ class DiscriminativeListener(Listener):
         else:
             self.register_hook(discriminative_st_gs_referential_game_loss)
         
-
+        '''
+        if self.kwargs.get("with_logits_mdl_principle", False):
+            from ReferentialGym.agents.speaker import logits_mdl_principle_loss_hook
+            self.register_hook(logits_mdl_principle_loss_hook)
+        '''
+        
     def _compute_tau(self, tau0):
         raise NotImplementedError
         

@@ -231,7 +231,8 @@ class RNNCNNListener(DiscriminativeListener):
 
             features.append(featout)
         
-        self.features = self.cnn_encoder_normalization(torch.cat(features, dim=0))
+        self.features = torch.cat(features, dim=0).reshape((-1, featout.shape[-1]))
+        self.features = self.cnn_encoder_normalization(self.features)
         
         self.features = self.features.view(batch_size, nbr_distractors_po, self.config['nbr_stimulus'], -1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)

@@ -183,19 +183,27 @@ def logits_mdl_principle_loss_hook(
     arange_token = (config["vocab_size"]*arange_token).float().view((1,-1)).repeat(batch_size,1)
     if config["use_cuda"]: arange_token = arange_token.cuda()
 
-    print(agent.vocab_stop_idx)
-    import ipdb; ipdb.set_trace()
-    # check that stop idx is vocab_size 
-    # and that sentences logits shape is vocab_size +1 then ?
-    #Thus, padding would be done with EoS symbol...
-
+    '''
+    non_pad_mask = (outputs_dict["sentences_widx"] != (agent.vocab_stop_idx)).float()
     speaker_reweighted_utterances = 1+non_pad_mask*outputs_dict["sentences_widx"] 
     #speaker_reweighted_utterances -= (1-non_pad_mask)*outputs_dict["sentences_widx"]/config["vocab_size"]
     # ( batch_size, max_sentence_length)
-    import ipdb; ipdb.set_trace()
-    # verify shape ...
+    '''
 
-    kl_logits_EoS = -outputs_dict["sentences_logits"][..., agent.vocab_stop_idx]
+    kl_logits_EoS = []
+    pad = -torch.inf*torch.ones((1, config['vocab_size'])).to(arange_token.device)
+    pad[:,agent.vocab_stop_idx] = 0.0
+    for sl in outputs_dict['sentences_logits']:
+        # distr :
+        sl = sl.log_softmax(dim=-1)
+        #padding:
+        if sl.shape[0] < agent.max_sentence_length:
+            n_pads = agent.max_sentence_length-sl.shape[0]
+            sl = torch.cat([sl]+[pad]*n_pads, dim=0)
+        eos_kl_sl = -sl[:, agent.vocab_stop_idx]
+        kl_logits_EoS.append(eos_kl_sl)
+    kl_logits_EoS = torch.stack(kl_logits_EoS, dim=0)
+    kl_logits_EoS = kl_logits_EoS.reshape((batch_size, agent.max_sentence_length))
     # Logits are assumed to be true log_softmax outputs...
     # Since KL(EoS_distr|P) = CrossEntr(EoS_distr,P)-Entr(EoS_distr),
     # we have Entr(EoS_distr) = 0, 
@@ -204,6 +212,7 @@ def logits_mdl_principle_loss_hook(
     # (batch_size x max_sentence_length)
     mdl_loss = (arange_token*kl_logits_EoS).mean(dim=-1)
     # (batch_size, )
+    
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/logits_mdl_loss"] = [
         config["logits_mdl_principle_factor"], 
         mdl_loss
@@ -277,8 +286,7 @@ class Speaker(Agent):
          and self.kwargs["with_mdl_principle"]:
             self.register_hook(mdl_principle_loss_hook)
 
-        if "with_logits_mdl_principle" in self.kwargs \
-         and self.kwargs["with_logits_mdl_principle"]:
+        if self.kwargs.get("with_logits_mdl_principle", False):
             self.register_hook(logits_mdl_principle_loss_hook)
 
         if ("with_utterance_penalization" in self.kwargs or "with_utterance_promotion" in self.kwargs) \
