@@ -429,6 +429,7 @@ def main():
   parser.add_argument("--egocentric_tr_xy", type=float, default=0.125)
   parser.add_argument("--with_logits_mdl_principle", type=reg_bool, default="False")
   parser.add_argument("--logits_mdl_principle_factor", type=float, default=1.0)
+  parser.add_argument("--logits_mdl_principle_accuracy_threshold", type=float, help='in percent', default=20)
   parser.add_argument("--distractor_sampling", type=str,
     choices=[ "uniform",
               "similarity-0.98",
@@ -785,6 +786,7 @@ def main():
 
       "with_logits_mdl_principle":       args.with_logits_mdl_principle,
       "logits_mdl_principle_factor":       float(args.logits_mdl_principle_factor),
+      "logits_mdl_principle_accuracy_threshold":       float(args.logits_mdl_principle_accuracy_threshold),
       "with_mdl_principle":       False,
       "mdl_principle_factor":     5e-2,
 

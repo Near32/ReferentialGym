@@ -25,6 +25,63 @@ from .utils import StreamHandler
 VERBOSE = False 
 
 
+class RunningMeanStd(object):
+    def __init__(
+        self, 
+        mean=None, 
+        std=None, 
+        count=0,
+        shape=(1,),
+    ):
+        if mean is None:
+            self.mean = mean
+        else:
+            self.mean = mean*torch.ones(shape)
+        if std is None:
+            self.std = std
+        else:
+            self.std = std*torch.ones(shape)
+        self.count = count
+
+    def update(self, bdata:List[torch.Tensor]):
+        if isinstance(bdata, list):
+            bdata = torch.stack(bdata, dim=0)
+
+        bmean = torch.mean(bdata, dim=0)
+        bstd = torch.std(bdata, dim=0)
+        bcount = len(bdata)
+        
+        if self.count == 0:
+            self.mean = bmean
+            self.std = bstd
+            self.count = bcount
+
+            return
+
+        self.update_from_moments(
+            bmean=bmean,
+            bstd=bstd,
+            bcount=bcount,
+        )
+    
+    def update_from_moments(self, bmean, bstd, bcount):
+        delta = bmean - self.mean
+        tot_count = self.count + bcount
+        
+        new_mean = self.mean + delta * bcount / tot_count
+        
+        bvar = torch.square(bstd)
+        var = torch.square(self.std)
+        m_a = var * self.count 
+        m_b = bvar * bcount
+        M2 = m_a + m_b + torch.square(delta) * self.count * bcount / tot_count
+        new_var = M2 / tot_count
+        
+        self.mean = new_mean
+        self.std = torch.sqrt(new_var)
+        self.count = tot_count
+
+
 class ReferentialGame(object):
     def __init__(self, 
                  datasets, 
@@ -248,6 +305,8 @@ class ReferentialGame(object):
         #print("Create dataloader: OK (WARNING: num_worker arg disabled...).")
         
         #print("Launching training: ...")
+        
+        self.accuracy_rms = RunningMeanStd()
 
         it_datasamples = self.stream_handler['signals:it_datasamples']
         if it_datasamples is None:  it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
@@ -274,7 +333,9 @@ class ReferentialGame(object):
         update_count = self.stream_handler["signals:update_count"]
         if update_count is None:
             self.stream_handler.update("signals:update_count", 0)
-                
+        
+        self.stream_handler.update("signals:running_accuracy", 0.0)
+
         init_epoch = self.stream_handler["signals:epoch"]
         if init_epoch is None: 
             init_epoch = 0
@@ -367,6 +428,15 @@ class ReferentialGame(object):
                         acc_keys = [k for k in logs_dict.keys() if '/referential_game_accuracy' in k]
                         if len(acc_keys):
                             acc = logs_dict[acc_keys[-1]].mean()
+
+                        for ak in acc_keys:
+                            if 'train' not in ak:   continue
+                            self.accuracy_rms.update(logs_dict[ak])
+                            rms_acc = self.accuracy_rms.mean.mean().item()
+                            rms_acc_std = self.accuracy_rms.std.mean().item()
+                            logger.add_scalar( "{}/RunningAccuracy/Mean".format(mode), rms_acc, it_step)
+                            logger.add_scalar( "{}/RunningAccuracy/Std".format(mode), rms_acc_std, it_step)
+                            self.stream_handler.update(f"signals:running_accuracy", rms_acc)
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
                             descr = f"GPU{os.environ.get('CUDA_VISIBLE_DEVICES', None)}-Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
