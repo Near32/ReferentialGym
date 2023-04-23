@@ -7,9 +7,12 @@ import torch.nn.functional as F
 from .module import Module
 from ..networks import layer_init
 
-def build_LanguageModule(id:str,
-                       config:Dict[str,object],
-                       input_stream_ids:Dict[str,str]) -> Module:
+def build_LanguageModule(
+    id:str,
+    config:Dict[str,object],
+    input_stream_ids:Dict[str,str],
+    **kwargs:Dict[str,object],
+) -> Module:
     
     use_sentences_one_hot_vectors = config['use_sentences_one_hot_vectors']
     
@@ -23,7 +26,10 @@ def build_LanguageModule(id:str,
         )
     else:
         # Assumes vocab_size is given WITHOUT SoS, EoS, and PAD at the end here.
-        symbol_embedding = nn.Embedding(config['vocab_size']+3, config['symbol_embedding_size'], padding_idx=config['vocab_size']+3)
+        symbol_embedding = nn.Embedding(
+            config['vocab_size']+3, 
+            config['symbol_embedding_size'], 
+        ) #padding_idx=config['vocab_size']+3)
         
     
     rnn_type = config['rnn_type']
@@ -61,16 +67,18 @@ def build_LanguageModule(id:str,
     return module
 
 class LanguageModule(Module):
-    def __init__(self, 
-                 id, 
-                 embedding,
-                 processing,
-                 config,
-                 input_stream_ids):
-        
+    def __init__(
+        self, 
+        id, 
+        embedding,
+        processing,
+        config,
+        input_stream_ids,
+    ):
         assert "inputs" in input_stream_ids.keys(),\
                "LanguageModule relies on 'inputs' id to start its pipeline.\n\
                 Not found in input_stream_ids."
+        '''
         assert "losses_dict" in input_stream_ids.keys(),\
                "LanguageModule relies on 'losses_dict' id to record the computated losses.\n\
                 Not found in input_stream_ids."
@@ -80,8 +88,18 @@ class LanguageModule(Module):
         assert "mode" in input_stream_ids.keys(),\
                "LanguageModule relies on 'mode' key to record the computated losses and accuracies.\n\
                 Not found in input_stream_ids."
+        '''
 
-        
+        default_input_stream_ids = {
+            "logger":"modules:logger:ref",
+            "logs_dict":"logs_dict",
+            "epoch":"signals:epoch",
+            "mode":"signals:mode",
+        }
+        for k,v in default_input_stream_ids.items():
+            if k not in input_stream_ids:
+                input_stream_ids[k] = v
+           
         super(LanguageModule, self).__init__(id=id, 
             type="LanguageModule", 
             config=config, 
