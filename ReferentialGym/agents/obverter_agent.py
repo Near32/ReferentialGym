@@ -8,6 +8,7 @@ import copy
 from .discriminative_listener import DiscriminativeListener
 #from ..networks import choose_architecture, layer_init, BetaVAE, reg_nan, hasnan
 from ..networks import choose_architecture, BetaVAE, ResidualLayer, reg_nan, hasnan
+from ..networks import DummyBody
 # TODO: layer_init fn was not doing anything, previously, need to investigate that change...
 
 from ..utils import gumbel_softmax
@@ -159,6 +160,56 @@ def sentence_length_entropy_logging_hook(agent,
     # (batch_size, )
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLengthNormalizedPerplexity"] = perplexities_per_sentence.mean().item()
     """
+
+
+def build_ObverterAgent(
+    obs_shape,
+    vocab_size,
+    max_sentence_length,
+    config={
+        'graphtype': 'obverter',
+        'use_decision_head':True,
+        'learn_not_target_logit':True,
+        'use_residual_connections':False,
+        'use_sentences_one_hot_vectors':True,
+        'with_BN_in_decision_head':True,
+        'with_DP_in_decision_head':True,
+        'DP_in_decision_head':0.5,
+        'with_DP_in_listener_decision_head_only':False,
+        'with_descriptive_not_target_logit_language_conditioning':True,
+    },
+) -> ObverterAgent:
+    reg_obs_shape = obs_shape
+    while len(reg_obs_shape) < 3:
+        reg_obs_shape.insert(1, 0)
+
+    kwargs = {
+        'force_eos': True, #TODO : investigate how it is actually handled
+        'cnn_encoder': DummyBody(reg_obs_shape),
+        'graphtype': config['graphtype'],
+        'gumbel_softmax_eps': 1.0e-8,
+        'nbr_communication_round': 0,
+    }
+
+    agent = ObverterAgent(
+        kwargs=kwargs,
+        obs_shape=reg_obs_shape,
+        vocab_size=vocab_size,
+        max_sentence_length=max_sentence_length,
+        agent_id='o0',
+        logger=None,
+        use_decision_head=config['use_decision_head'],
+        learn_not_target_logit=config['learn_not_target_logit'],
+        use_residual_connections=config['use_residual_connections'],
+        use_sentences_one_hot_vectors=config['use_sentences_one_hot_vectors'],
+        with_BN_in_decision_head=config['with_BN_in_decision_head'],
+        with_DP_in_decision_head=config['with_DP_in_decision_head'],
+        DP_in_decision_head=config['DP_in_decision_head'],
+        with_DP_in_listener_decision_head_only=config['with_DP_in_listener_decision_head_only'],
+        with_descriptive_not_target_logit_language_conditioning=config['with_descriptive_not_target_logit_language_conditioning'],
+        
+    return agent
+
 
 class ObverterAgent(DiscriminativeListener):
     def __init__(

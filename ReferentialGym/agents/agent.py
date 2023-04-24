@@ -138,7 +138,7 @@ class Agent(Module):
         self.vocab_pad_idx = self.vocab_size
         
         self.hooks = []
-        if self.kwargs["with_weight_maxl1_loss"]:
+        if self.kwargs.get("with_weight_maxl1_loss", False):
             self.register_hook(maxl1_loss_hook)
 
         self.role = role        
