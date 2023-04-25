@@ -162,55 +162,6 @@ def sentence_length_entropy_logging_hook(agent,
     """
 
 
-def build_ObverterAgent(
-    obs_shape,
-    vocab_size,
-    max_sentence_length,
-    config={
-        'graphtype': 'obverter',
-        'use_decision_head':True,
-        'learn_not_target_logit':True,
-        'use_residual_connections':False,
-        'use_sentences_one_hot_vectors':True,
-        'with_BN_in_decision_head':True,
-        'with_DP_in_decision_head':True,
-        'DP_in_decision_head':0.5,
-        'with_DP_in_listener_decision_head_only':False,
-        'with_descriptive_not_target_logit_language_conditioning':True,
-    },
-) -> ObverterAgent:
-    reg_obs_shape = obs_shape
-    while len(reg_obs_shape) < 3:
-        reg_obs_shape.insert(1, 0)
-
-    kwargs = {
-        'force_eos': True, #TODO : investigate how it is actually handled
-        'cnn_encoder': DummyBody(reg_obs_shape),
-        'graphtype': config['graphtype'],
-        'gumbel_softmax_eps': 1.0e-8,
-        'nbr_communication_round': 0,
-    }
-
-    agent = ObverterAgent(
-        kwargs=kwargs,
-        obs_shape=reg_obs_shape,
-        vocab_size=vocab_size,
-        max_sentence_length=max_sentence_length,
-        agent_id='o0',
-        logger=None,
-        use_decision_head=config['use_decision_head'],
-        learn_not_target_logit=config['learn_not_target_logit'],
-        use_residual_connections=config['use_residual_connections'],
-        use_sentences_one_hot_vectors=config['use_sentences_one_hot_vectors'],
-        with_BN_in_decision_head=config['with_BN_in_decision_head'],
-        with_DP_in_decision_head=config['with_DP_in_decision_head'],
-        DP_in_decision_head=config['DP_in_decision_head'],
-        with_DP_in_listener_decision_head_only=config['with_DP_in_listener_decision_head_only'],
-        with_descriptive_not_target_logit_language_conditioning=config['with_descriptive_not_target_logit_language_conditioning'],
-        
-    return agent
-
-
 class ObverterAgent(DiscriminativeListener):
     def __init__(
         self,
@@ -324,7 +275,7 @@ class ObverterAgent(DiscriminativeListener):
         self.encoder_feature_shape = self.cnn_encoder.get_feature_shape()
         
         temporal_encoder_input_dim = self.cnn_encoder.get_feature_shape()
-        if self.kwargs['temporal_encoder_nbr_rnn_layers'] > 0:
+        if self.kwargs.get('temporal_encoder_nbr_rnn_layers', 0) > 0:
             self.temporal_feature_encoder = layer_init(
                 nn.GRU(input_size=temporal_encoder_input_dim,
                       hidden_size=self.kwargs['temporal_encoder_nbr_hidden_units'],
@@ -901,11 +852,16 @@ class ObverterAgent(DiscriminativeListener):
 
 
         sentences_probs = torch.from_numpy(all_probs).to(all_inputs.device)
+        
+        if logger is None:
+            return sentences_widx, sentences_probs
+
         values = all_probs
         # (batch_size, )
 
         averaged_value = values.mean()
         std_value = values.std()
+        
         logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
         logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
 
@@ -1238,4 +1194,78 @@ class ObverterAgent(DiscriminativeListener):
         return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots
 
 
+def build_ObverterAgent(
+    id,
+    obs_shape,
+    vocab_size,
+    max_sentence_length,
+    config={
+        'confidence_threshold': 0.9,
+        'graphtype': 'obverter',
+        'tau0': 1.0,
+        'use_decision_head':True,
+        'learn_not_target_logit':True,
+        'use_residual_connections':False,
+        'use_sentences_one_hot_vectors':False,
+        'with_BN_in_decision_head':True,
+        'with_DP_in_decision_head':True,
+        'DP_in_decision_head':0.5,
+        'with_DP_in_listener_decision_head_only':False,
+        'with_descriptive_not_target_logit_language_conditioning':True,
+        'symbol_embedding_size': 128,
+        'symbol_processing_nbr_hidden_units': 512,
+        'symbol_processing_nbr_rnn_layers': 1,
+        'embedding_dropout_prob': 0.0,
+        'dropout_prob': 0.0,
+        'use_cuda': True,
+    },
+    input_stream_ids=None,
+) -> ObverterAgent:
+    reg_obs_shape = obs_shape
+    while len(reg_obs_shape) < 3:
+        reg_obs_shape.insert(0, 1)
+
+    kwargs = {
+        'use_obverter_threshold_to_stop_message_generation': config['confidence_threshold'],
+        'force_eos': False, #TODO : it is currently not used, but should be investigated.
+        'architecture': 'DummyBody',
+        'cnn_encoder': DummyBody(reg_obs_shape),
+        'cnn_encoder_mini_batch_size': 512,
+        'graphtype': config['graphtype'],
+        'tau0': config['tau0'],
+        'gumbel_softmax_eps': 1.0e-8,
+        'nbr_communication_round': 0,
+        'nbr_stimulus': config.get('nbr_stimulus', 1),
+        'symbol_embedding_size': config['symbol_embedding_size'],
+        'symbol_processing_nbr_hidden_units': config['symbol_processing_nbr_hidden_units'],
+        'symbol_processing_nbr_rnn_layers': config['symbol_processing_nbr_rnn_layers'],
+        'embedding_dropout_prob': config['embedding_dropout_prob'],
+        'dropout_prob': config['dropout_prob'],
+        'use_cuda': config['use_cuda'],
+    }
+
+    agent = ObverterAgent(
+        kwargs=kwargs,
+        obs_shape=reg_obs_shape,
+        vocab_size=vocab_size,
+        max_sentence_length=max_sentence_length,
+        agent_id=id,
+        logger=None,
+        use_decision_head=config['use_decision_head'],
+        learn_not_target_logit=config['learn_not_target_logit'],
+        use_residual_connections=config['use_residual_connections'],
+        use_sentences_one_hot_vectors=config['use_sentences_one_hot_vectors'],
+        with_BN_in_decision_head=config['with_BN_in_decision_head'],
+        with_DP_in_decision_head=config['with_DP_in_decision_head'],
+        DP_in_decision_head=config['DP_in_decision_head'],
+        with_DP_in_listener_decision_head_only=config['with_DP_in_listener_decision_head_only'],
+        with_descriptive_not_target_logit_language_conditioning=config['with_descriptive_not_target_logit_language_conditioning'],
+    )
     
+    agent.role = 'module_role'
+    agent.input_stream_ids[agent.role] = input_stream_ids
+
+    return agent
+
+
+  

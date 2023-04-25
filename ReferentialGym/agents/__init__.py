@@ -31,7 +31,7 @@ from .lstm_mlp_generative_listener import LSTMMLPGenerativeListener
 
 from .caption_speaker import CaptionSpeaker 
 
-from .obverter_agent import ObverterAgent
+from .obverter_agent import ObverterAgent, build_ObverterAgent
 from .context_consistent_obverter_agent import ContextConsistentObverterAgent
 from .differentiable_obverter_agent import DifferentiableObverterAgent
 from .differentiable_relational_obverter import DifferentiableRelationalObverterAgent 

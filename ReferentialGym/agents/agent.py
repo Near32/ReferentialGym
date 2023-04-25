@@ -230,41 +230,49 @@ class Agent(Module):
             - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
             - `'it'`: Integer specifying the iteration number of the current function call.
         """
-        config = input_streams_dict["config"]
-        mode = input_streams_dict["mode"]
-        it_rep = input_streams_dict["it_rep"]
-        it_comm_round = input_streams_dict["it_comm_round"]
-        global_it_comm_round = input_streams_dict["global_it_comm_round"]
+        config = input_streams_dict.get("config", None)
+        mode = input_streams_dict.get("mode", 'train')
+        it_rep = input_streams_dict.get("it_rep", 0)
+        it_comm_round = input_streams_dict.get("it_comm_round", 0)
+        global_it_comm_round = input_streams_dict.get("global_it_comm_round", 0)
         
-        losses_dict = input_streams_dict["losses_dict"]
-        logs_dict = input_streams_dict["logs_dict"]
+        losses_dict = input_streams_dict.get("losses_dict", {})
+        logs_dict = input_streams_dict.get("logs_dict", {})
         
-        self.sample = input_streams_dict["sample"]
-        # TODO: handle the case where None?
+        self.sample = input_streams_dict.get("sample", {})
         self.experiences = input_streams_dict["experiences"]
-        self.indices = input_streams_dict["indices"]
-        self.exp_latents = input_streams_dict["exp_latents"]
-        self.exp_latents_values = input_streams_dict["exp_latents_values"]
+        if isinstance(self.experiences, list):  
+            self.experiences = self.experiences[0]
+            while len(self.experiences.shape) < 4:
+                self.experiences = self.experiences.unsqueeze(1)
+        
+        self.indices = input_streams_dict.get("indices", None)
+        self.exp_latents = input_streams_dict.get("exp_latents", None)
+        self.exp_latents_values = input_streams_dict.get("exp_latents_values", None)
 
 
-        input_sentence = input_streams_dict["sentences_widx"]
+        input_sentence = input_streams_dict.get("sentences_widx", None)
         if self.use_sentences_one_hot_vectors:
-            input_sentence = input_streams_dict["sentences_one_hot"]
-
-        if input_streams_dict["experiences"] is not None:
-            batch_size = input_streams_dict["experiences"].shape[0]
+            input_sentence = input_streams_dict.get("sentences_one_hot", None)
+        
+        assert self.experiences is not None or input_sentence is not none
+        if self.experiences is not None:
+            batch_size = self.experiences.shape[0]
         else:
             batch_size = input_sentence.shape[0]
             
-        outputs_dict = self(sentences=input_sentence,
-                           experiences=input_streams_dict["experiences"],
-                           multi_round=input_streams_dict["multi_round"],
-                           graphtype=input_streams_dict["graphtype"],
-                           tau0=input_streams_dict["tau0"])
+        outputs_dict = self(
+            sentences=input_sentence,
+            experiences=self.experiences,
+            multi_round=input_streams_dict.get("multi_round", False),
+            graphtype=input_streams_dict.get("graphtype", self.kwargs['graphtype']),
+            tau0=input_streams_dict.get("tau0", self.kwargs['tau0']),
+        )
 
-        outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
-        outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
-        outputs_dict["exp_latents_one_hot_encoded"] = input_streams_dict["exp_latents_one_hot_encoded"]
+        if self.exp_latents is not None:
+            outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
+            outputs_dict["exp_latents_values"] = input_streams_dict["exp_latents_values"]
+            outputs_dict["exp_latents_one_hot_encoded"] = input_streams_dict["exp_latents_one_hot_encoded"]
         self._log(outputs_dict, batch_size=batch_size, it_rep=it_rep)
 
         # //------------------------------------------------------------//
@@ -309,3 +317,5 @@ class Agent(Module):
         outputs_dict["losses"] = losses_dict
 
         return outputs_dict    
+
+
