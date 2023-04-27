@@ -285,12 +285,13 @@ def discriminative_obverter_referential_game_loss(
     outputs_dict,
     logs_dict,
     **kwargs):
-    it_rep = input_streams_dict["it_rep"]
-    it_comm_round = input_streams_dict["it_comm_round"]
-    config = input_streams_dict["config"]
-    mode = input_streams_dict["mode"]
-
+    
     if "listener" not in agent.role:    return outputs_dict
+    
+    it_rep = input_streams_dict.get("it_rep", 0)
+    it_comm_round = input_streams_dict.get("it_comm_round", 0)
+    config = input_streams_dict.get("config", None)
+    mode = input_streams_dict.get("mode", 'train')
 
     batch_size = len(input_streams_dict["experiences"])
 

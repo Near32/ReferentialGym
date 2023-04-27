@@ -84,18 +84,20 @@ def layer_init(layer, w_scale=1.0):
 
 
 
-def sentence_length_entropy_logging_hook(agent,
-                                 losses_dict,
-                                 input_streams_dict,
-                                 outputs_dict,
-                                 logs_dict,
-                                 **kwargs):
+def sentence_length_entropy_logging_hook(
+    agent,
+    losses_dict,
+    input_streams_dict,
+    outputs_dict,
+    logs_dict,
+    **kwargs,
+):
+    if 'speaker' not in agent.role: return
+    
     it_rep = input_streams_dict['it_rep']
     it_comm_round = input_streams_dict['it_comm_round']
     mode = input_streams_dict['mode']
     config = input_streams_dict['config']
-
-    if 'speaker' not in agent.role: return
 
     batch_size = len(input_streams_dict['experiences'])
     speaker_sentences_logits = outputs_dict["sentences_logits"]
@@ -738,19 +740,34 @@ class ObverterAgent(DiscriminativeListener):
         next_sentences_hidden_states = None
         next_sentences_one_hots = None 
 
-        next_sentences_widx, \
-        next_sentences_probs = ObverterAgent.decode(
-            agent=self,
-            all_inputs=self.embedding_tf_final_outputs,
-            vocab_size=self.vocab_size,
-            max_sentence_len=self.max_sentence_length,
-            model=(lambda features,sentences,kwargs: self._reason(sentences, features, kwargs=kwargs)),
-            logger=self.logger,
-            logging_it=self.logging_it,
-            prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
-        )
+        if not self.force_eos:
+            next_sentences_widx, \
+            next_sentences_probs = ObverterAgent.decode(
+                agent=self,
+                all_inputs=self.embedding_tf_final_outputs,
+                vocab_size=self.vocab_size,
+                max_sentence_len=self.max_sentence_length,
+                model=(lambda features,sentences,kwargs: self._reason(sentences, features, kwargs=kwargs)),
+                logger=self.logger,
+                logging_it=self.logging_it,
+                prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
+            )
+            next_sentences_logits = next_sentences_probs.log()
+        else:
+            next_sentences_widx, \
+            next_sentences_probs, \
+            next_sentences_logits = ObverterAgent.forcing_eos_decode(
+                agent=self,
+                all_inputs=self.embedding_tf_final_outputs,
+                vocab_size=self.vocab_size,
+                max_sentence_len=self.max_sentence_length,
+                model=(lambda features,sentences,kwargs: self._reason(sentences, features, kwargs=kwargs)),
+                logger=self.logger,
+                logging_it=self.logging_it,
+                prob_threshold=self.kwargs['use_obverter_threshold_to_stop_message_generation'],
+            )
 
-        next_sentences_logits = next_sentences_probs.log()
+
         next_sentences_one_hots = F.one_hot(
             next_sentences_widx.reshape(-1, 1), 
             num_classes=self.vocab_size+1,
@@ -791,7 +808,7 @@ class ObverterAgent(DiscriminativeListener):
 
         sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
         all_probs = np.array([-1. for _ in relevant_procs])
-
+        
         for l in range(max_sentence_len):
             inputs = all_inputs[relevant_procs]
             batch_size = inputs.size(0)
@@ -819,10 +836,13 @@ class ObverterAgent(DiscriminativeListener):
                 sentences,
                 kwargs,
             )
+            # (batch_size*vocab_size, 1+l, (nbr_distractors+1), 2 )
+
             probs = kwargs['decision_probs']
 
             probs = probs.view((vocab_size, batch_size)).transpose(0, 1)
-
+            
+            
             probs, sel_comm_idx = torch.max(probs, dim=1)
 
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
@@ -849,7 +869,6 @@ class ObverterAgent(DiscriminativeListener):
 
         sentences_widx[sentences_widx == -1] = agent.vocab_stop_idx  # padding token
         sentences_widx = torch.Tensor(np.array(sentences_widx)).long().to(all_inputs.device)
-
 
         sentences_probs = torch.from_numpy(all_probs).to(all_inputs.device)
         
@@ -889,6 +908,158 @@ class ObverterAgent(DiscriminativeListener):
         logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
 
         return sentences_widx, sentences_probs
+    
+    def forcing_eos_decode(agent, model, all_inputs, max_sentence_len, vocab_size, logger, logging_it, prob_threshold=0.95):
+        relevant_procs = list(range(all_inputs.size(0)))
+
+        sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
+        all_probs = np.array([-1. for _ in relevant_procs])
+        
+        sentences_logits = []
+        # (batch_size x max (sentence_lengths) x 2)
+        eos_fake_logits = torch.zeros(vocab_size+1)
+        # +1 in order to account for EoS being possibly the last index
+        # Setting default decision_logits to EoS 
+        eos_fake_logits[agent.vocab_stop_idx] = 1.0
+
+        for l in range(max_sentence_len):
+            ##################################
+            # MODIF1:
+            #inputs = all_inputs[relevant_procs]
+            inputs = all_inputs
+            ##################################
+            batch_size = inputs.size(0)
+            next_symbol = np.tile(np.expand_dims(np.arange(0, vocab_size), 1), batch_size).transpose()
+
+            if l > 0:
+                run_communications = np.concatenate(
+                    (   np.expand_dims(
+            ##################################
+            # MODIF1:
+                            #sentences_widx[relevant_procs, :l].transpose(),
+                            sentences_widx[:, :l].transpose(),
+            ##################################
+                            2
+                        ).repeat(vocab_size, axis=2),
+                        np.expand_dims(next_symbol, 0)
+                    ), 
+                    axis=0
+                )
+            else:
+                run_communications = np.expand_dims(next_symbol, 0)
+
+            expanded_inputs = inputs.repeat(vocab_size, 1, 1)
+            sentences = torch.Tensor(run_communications.transpose().reshape(-1, 1 + l)).long().to(all_inputs.device)
+
+            kwargs = {"rnn_states":None}
+            logits, _ = model(
+                expanded_inputs, 
+                sentences,
+                kwargs,
+            )
+            # (batch_size*vocab_size, 1+l, (nbr_distractors+1), 2 )
+            decision_logits = logits[:, -1, 0, 0]
+            # target stimulus is in position 0.
+            # positive logit is in position 0.
+            # (batch_size*vocab_size)
+            decision_logits = decision_logits.reshape((vocab_size, batch_size)).transpose(1,0)
+            # (batch_size x vocab_size)
+            
+            # Adding EoS logits with lowest prob and detach:
+            decision_logits = torch.cat([
+                decision_logits,
+                decision_logits.min(dim=-1, keepdim=True)[0].detach()],
+                dim=-1,
+            )
+            # Regularisation of decision logits with respect to actual relevant_procs:
+            # If the batch index is not in relevant_procs then we use the default logits
+            for bidx in range(batch_size):
+                if bidx in relevant_procs:   continue
+                decision_logits[bidx] = eos_fake_logits
+
+            sentences_logits.append(decision_logits)
+
+            probs = kwargs['decision_probs']
+
+            probs = probs.view((vocab_size, batch_size)).transpose(0, 1)
+            
+            ##################################
+            # MODIF1: only care about relevant procs :
+            if len(relevant_procs) > 0 :
+                probs = probs[relevant_procs]
+            ##################################
+            
+                probs, sel_comm_idx = torch.max(probs, dim=1)
+
+                comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
+                finished_p = []
+                for i, (action, p, prob) in enumerate(zip(comm, relevant_procs, probs)):
+                    # TODO: check this condition?
+                    #if prob > prob_threshold \
+                    #or prob < 0.65:
+                    if prob > prob_threshold:
+                        finished_p.append(p)
+                        if prob.item() < 0:
+                            continue
+
+                    for j, symb in enumerate(action):
+                        sentences_widx[p][j] = symb
+
+                    all_probs[p] = prob
+
+                for p in finished_p:
+                    relevant_procs.remove(p)
+
+            ###############################
+            # MODIF1 : we now want to run the loop for all positions...
+            #if len(relevant_procs) == 0:
+            #    break
+            ###############################
+
+        sentences_widx[sentences_widx == -1] = agent.vocab_stop_idx  # padding token
+        sentences_widx = torch.Tensor(np.array(sentences_widx)).long().to(all_inputs.device)
+
+        sentences_logits = torch.stack(sentences_logits, dim=1)
+        # (batch_size x max_sentence_length x vocab_size)
+
+        sentences_probs = torch.from_numpy(all_probs).to(all_inputs.device)
+        
+        if logger is None:
+            return sentences_widx, sentences_probs, sentences_logits
+
+        values = all_probs
+        # (batch_size, )
+
+        averaged_value = values.mean()
+        std_value = values.std()
+        
+        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
+        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
+
+        median_value = np.nanpercentile(
+            values,
+            q=50,
+            axis=None,
+            interpolation="nearest"
+        )
+        q1_value = np.nanpercentile(
+            values,
+            q=25,
+            axis=None,
+            interpolation="lower"
+        )
+        q3_value = np.nanpercentile(
+            values,
+            q=75,
+            axis=None,
+            interpolation="higher"
+        )
+
+        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
+        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
+        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+
+        return sentences_widx, sentences_probs, sentences_logits
     
     def _compute_sentence(features_embedding, 
                           target_idx, 
@@ -1202,6 +1373,7 @@ def build_ObverterAgent(
     config={
         'confidence_threshold': 0.9,
         'graphtype': 'obverter',
+        'force_eos': False,
         'tau0': 1.0,
         'use_decision_head':True,
         'learn_not_target_logit':True,
@@ -1227,7 +1399,7 @@ def build_ObverterAgent(
 
     kwargs = {
         'use_obverter_threshold_to_stop_message_generation': config['confidence_threshold'],
-        'force_eos': False, #TODO : it is currently not used, but should be investigated.
+        'force_eos': config['force_eos'], #TODO : test implementation with some logits mdl principle...
         'architecture': 'DummyBody',
         'cnn_encoder': DummyBody(reg_obs_shape),
         'cnn_encoder_mini_batch_size': 512,

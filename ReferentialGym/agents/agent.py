@@ -255,6 +255,9 @@ class Agent(Module):
         if self.use_sentences_one_hot_vectors:
             input_sentence = input_streams_dict.get("sentences_one_hot", None)
         
+        if isinstance(input_sentence, list):  
+            input_sentence = input_sentence[0]
+        
         assert self.experiences is not None or input_sentence is not none
         if self.experiences is not None:
             batch_size = self.experiences.shape[0]
