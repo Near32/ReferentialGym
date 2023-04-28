@@ -209,16 +209,19 @@ class ObverterAgent(DiscriminativeListener):
         
         self.kwargs = kwargs 
         self.force_eos = self.kwargs["force_eos"] if "force_eos" in self.kwargs else False
+        
+        import ipdb; ipdb.set_trace()
+        # TODO: ascertain that his condition is safe with == ?
+        if self.kwargs['graphtype'] == 'obverter':
+            self.input_stream_ids['speaker'].update({
+                'sentences_one_hot':'modules:current_listener:sentences_one_hot.detach',
+                'sentences_widx':'modules:current_listener:sentences_widx.detach',
+            })
 
-        self.input_stream_ids['speaker'].update({
-            'sentences_one_hot':'modules:current_listener:sentences_one_hot.detach',
-            'sentences_widx':'modules:current_listener:sentences_widx.detach',
-        })
-
-        self.input_stream_ids['listener'].update({
-            'sentences_one_hot':'modules:current_speaker:sentences_one_hot.detach',
-            'sentences_widx':'modules:current_speaker:sentences_widx.detach', 
-        })
+            self.input_stream_ids['listener'].update({
+                'sentences_one_hot':'modules:current_speaker:sentences_one_hot.detach',
+                'sentences_widx':'modules:current_speaker:sentences_widx.detach', 
+            })
     
         self.use_decision_head = use_decision_head
         self.learn_not_target_logit = learn_not_target_logit
