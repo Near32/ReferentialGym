@@ -43,3 +43,4 @@ from .obverter_datasampling_module import ObverterDatasamplingModule
 
 from .compactness_ambiguity_metric_module import build_CompactnessAmbiguityMetricModule, CompactnessAmbiguityMetricModule
 
+from .co_occurrence_semantic_grounding_loss_module import build_CoOccurrenceSemanticGroundingLossModule, CoOccurrenceSemanticGroundingLossModule

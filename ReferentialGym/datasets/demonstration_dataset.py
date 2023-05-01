@@ -23,6 +23,7 @@ class DemonstrationDataset(Dataset) :
         split_strategy=None, 
         dataset_length=None,
         exp_key:str='succ_s',
+        grounding_signal_key:str="info:desired_goal",
         kwargs={},
     ) :
         '''
@@ -41,7 +42,8 @@ class DemonstrationDataset(Dataset) :
         for k in self.replay_storage.keys: print(k)
         
         self.exp_key = exp_key
-        
+        self.grounding_signal_key = grounding_signal_key
+
         self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
         
@@ -287,6 +289,8 @@ class DemonstrationDataset(Dataset) :
         """
 
         #self.imgs = self.imgs[self.traintest_indices]
+        #self.grounding_signals = self.grounding_signals[self.traintest_indices]
+
         self.latents_values = self.latents_values[self.traintest_indices]
         self.latents_classes = self.latents_classes[self.traintest_indices]
         self.latents_one_hot_encodings = self.latents_one_hot_encodings[self.traintest_indices]
@@ -317,6 +321,28 @@ class DemonstrationDataset(Dataset) :
         for idx in indices:
             indices_.append(self.traintest_indices[idx])
         return getattr(self.replay_storage, key)[0][indices_]
+
+    def get_grounding_signal(self, indices, key='s'):
+        if isinstance(indices, int):    indices = [indices]
+        indices_ = []
+        for idx in indices:
+            indices_.append(self.traintest_indices[idx])
+        
+        splitted_keys = key.split(':')
+        data = getattr(self.replay_storage, splitted_keys.pop(0))[0][indices_]
+
+        while len(splitted_keys):
+            ddata = []
+            for idx in range(data.shape[0]):
+                ddata.append(
+                    data[idx][splitted_keys.pop(0)]
+                )
+            data = ddata
+
+        data = [torch.from_numpy(d[0]) for d in data]
+        data = torch.cat(data, dim=0)
+
+        return data
 
     def sample_factors(self, num, random_state=None):
         """
@@ -459,7 +485,7 @@ class DemonstrationDataset(Dataset) :
 
         if self.transform is not None:
             image = self.transform(image)
-        
+
         sampled_d = {
             "experiences":image, 
             "exp_labels":target, 
@@ -468,5 +494,13 @@ class DemonstrationDataset(Dataset) :
             "exp_latents_one_hot_encoded":latent_one_hot_encoded,
             "exp_test_latents_masks":test_latents_mask,
         }
+        
+        if self.grounding_signal_key is not None:
+            grounding_signal = self.get_grounding_signal(
+                indices=trueidx, 
+                key=self.grounding_signal_key,
+            )
+            
+            sampled_d["grounding_signal"] = grounding_signal
 
         return sampled_d
