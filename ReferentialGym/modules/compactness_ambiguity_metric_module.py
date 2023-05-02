@@ -147,8 +147,12 @@ class CompactnessAmbiguityMetricModule(Module):
         self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
         # Make sure every index is only seen once:
+        self.original_indices = self.indices
         self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
         sorted_indices = np.argsort(self.indices)
+        
+        #all_unique = len(sorted_indices) == len(self.original_indices)
+        
         self.experiences = self.experiences[sorted_indices]
         self.representations = self.representations[sorted_indices]
         self.latent_rapresentations = self.latent_representations[sorted_indices]
@@ -186,9 +190,16 @@ class CompactnessAmbiguityMetricModule(Module):
         dataset = input_streams_dict["dataset"].datasets[mode]
         logger = input_streams_dict["logger"]
 
+        
+        nbr_frames = self.config["kwargs"]['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
+        frame_depth = self.config["kwargs"]['task_config']['frame_depth']
+        
         columns = [f"idx"]
         columns += [f"token{idx}" for idx in range(sentence_length)]
-        #columns += ["stimulus"]
+        
+        if self.config['show_stimuli']:
+            columns += ["stimulus"]
+        
         columns += ["nbr_compact_segment"]
         columns += ["min_compactness", "max_compactness"]
         columns += [f"latent{idx}" for idx in range(latent_shape[0])]
@@ -207,15 +218,13 @@ class CompactnessAmbiguityMetricModule(Module):
                 word = self.idx2w[widx]
                 data.append(word)
 
-            '''
-            exp = self.experiences[idx]
-            nbr_frames = exp.shape[0] // 4
-            stimulus_t = exp.reshape(nbr_frames,4,*exp.shape[-2:])[:,:3]*255
-            stimulus_t = stimulus_t.astype(np.uint8)
-            #stimulus_t = wandb.Video(stimulus_t, fps=1, format="mp4")
-            stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-            #data.append(stimulus_t)
-            '''
+            if self.config['show_stimuli']:
+                exp = self.experiences[idx]
+                stimulus_t = exp.reshape(nbr_frames,frame_depth, *exp.shape[-2:])
+                stimulus_t = stimulus_t[:,:3]*255
+                stimulus_t = stimulus_t.astype(np.uint8)
+                stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
+                data.append(stimulus_t)
 
             stats = per_unique_sentence_stats[sentence]
 
@@ -316,13 +325,21 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/IQR"] = iqr
         
         average_max_compactness_count = len(self.representations) / len(unique_sentences)
-        threshold = 1+max(1, math.ceil(0.75*average_max_compactness_count))
-        nbr_max_compactness_count_greater_than_threshold = len([
-            count for count in list_compactness_counts if count >= threshold]
-        )
-        compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/NbrRepresentations"] = len(self.representations) 
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/NbrUniqueSentences"] = len(unique_sentences) 
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/AverageMaxCompactnessCount"] = average_max_compactness_count 
+        
+        percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5]
+        thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
+            for percent in percentages]
+        for tidx, threshold in enumerate(thresholds):
+            logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Threshold{tidx}"] = threshold 
+            nbr_max_compactness_count_greater_than_threshold = len([
+                count for count in list_compactness_counts if count >= threshold]
+            )
+            compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
 
-        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguityScore"] = compactness_score 
+            logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Score@Threshold{tidx}"] = compactness_score 
         logs_dict[f"{mode}/{self.id}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
 
         self.experiences = {}
