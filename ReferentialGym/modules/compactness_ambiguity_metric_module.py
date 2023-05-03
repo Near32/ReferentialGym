@@ -148,18 +148,20 @@ class CompactnessAmbiguityMetricModule(Module):
 
         # Make sure every index is only seen once:
         self.original_indices = self.indices
-        self.indices, in_batch_indices = np.unique(self.indices, return_index=True)
-        sorted_indices = np.argsort(self.indices)
+        sorted_unique_indices, sampling_indices = np.unique(self.indices, return_index=True)
         
-        #all_unique = len(sorted_indices) == len(self.original_indices)
-        
-        self.experiences = self.experiences[sorted_indices]
-        self.representations = self.representations[sorted_indices]
-        self.latent_rapresentations = self.latent_representations[sorted_indices]
+        assert len(sorted_unique_indices) == len(self.original_indices)
 
-        #self.representations = self.representations[in_batch_indices,:]
-        #self.latent_representations = self.latent_representations[in_batch_indices,:]
-        
+        self.experiences = self.experiences[sampling_indices]
+        self.representations = self.representations[sampling_indices]
+        self.latent_rapresentations = self.latent_representations[sampling_indices]
+
+        # From here on, the previous tensors are ordered with respect to
+        # their actual position in the dataset :
+        # i.e. self.experiences[i] corresponds to the i-th element of the dataset.
+        # Thus, assumming the i-th element of the dataset is the i-th experience tuple
+        # sampled, we can be sure that the clustering is done over episode timesteps.
+
         all_sentences = [ht(s) for s in self.representations.tolist()]
         sentence_length = len(all_sentences[0]) #.shape[0]
         unique_sentences = set(all_sentences) #np.unique(all_sentences, axis=0)
@@ -329,7 +331,7 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/NbrUniqueSentences"] = len(unique_sentences) 
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/AverageMaxCompactnessCount"] = average_max_compactness_count 
         
-        percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5]
+        percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5, 0.75]
         thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
             for percent in percentages]
         for tidx, threshold in enumerate(thresholds):
