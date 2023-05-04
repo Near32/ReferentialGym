@@ -206,7 +206,7 @@ class CompactnessAmbiguityMetricModule(Module):
         columns += ["min_compactness", "max_compactness"]
         columns += [f"latent{idx}" for idx in range(latent_shape[0])]
         
-        self.sample_table = wandb.Table(columns=columns) 
+        #self.sample_table = wandb.Table(columns=columns) 
                     
         min_sum = 0
         max_sum = 0
@@ -220,6 +220,7 @@ class CompactnessAmbiguityMetricModule(Module):
                 word = self.idx2w[widx]
                 data.append(word)
 
+            '''
             if self.config['show_stimuli']:
                 exp = self.experiences[idx]
                 stimulus_t = exp.reshape(nbr_frames,frame_depth, *exp.shape[-2:])
@@ -227,6 +228,7 @@ class CompactnessAmbiguityMetricModule(Module):
                 stimulus_t = stimulus_t.astype(np.uint8)
                 stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
                 data.append(stimulus_t)
+            '''
 
             stats = per_unique_sentence_stats[sentence]
 
@@ -243,9 +245,9 @@ class CompactnessAmbiguityMetricModule(Module):
             for lidx in self.latent_representations[idx]:
                 data.append(lidx.item())
 
-            self.sample_table.add_data(*data)
-        
-        wandb.log({f"{mode}/{self.id}/PerEpoch/CompactnessTable":self.sample_table}, commit=False)
+            #self.sample_table.add_data(*data)
+                    
+        #wandb.log({f"{mode}/{self.id}/PerEpoch/CompactnessTable":self.sample_table}, commit=False)
 
         ## Compute Compactness Score:
         list_compactness_counts = []

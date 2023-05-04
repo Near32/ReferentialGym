@@ -379,6 +379,9 @@ class ObverterAgent(DiscriminativeListener):
                                           nn.Softplus())
 
         self.reset()
+        
+        if self.kwargs['use_cuda']:
+            self = self.cuda()
 
     def clone(self, clone_id="a0"):
         logger = self.logger

@@ -156,6 +156,9 @@ class RNNCNNListener(DiscriminativeListener):
         self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
 
         self.reset()
+        
+        if self.kwargs['use_cuda']:
+            self = self.cuda()
 
     def reset(self, reset_language_model=False):
         self.symbol_processing.apply(layer_init)
