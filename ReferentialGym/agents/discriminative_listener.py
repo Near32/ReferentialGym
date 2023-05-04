@@ -170,6 +170,24 @@ def discriminative_st_gs_referential_game_loss(agent,
     
     final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1)).squeeze(1)
     # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
+    target_decision_idx = sample["target_decision_idx"]
+    
+    if config['descriptive']:
+        per_stimulus_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
+        per_stimulus_decision_probs = per_stimulus_decision_logits.softmax(dim=-1)
+        # (batch_size, (nbr_distractors+1), 2)
+        per_stimulus_decision_index = per_stimulus_decision_logits.max(dim=-1, keepdim=False)[1]
+        # (batch_size, (nbr_distractors+1))
+        per_stimulus_target_index = torch.ones_like(per_stimulus_decision_index)
+        # (batch_size, (nbr_distractors+1))
+        for bidx in range(batch_size):
+            if target_decision_idx[bidx].long().item() < nbr_distractors_po:
+                per_stimulus_target_index[bidx, target_decision_idx[bidx].long()] = 0
+        descriptive_accuracy = (per_stimulus_target_index==per_stimulus_decision_index).float()*100.0
+        # (batch_size, (nbr_distractors+1))
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
+        #logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_prob_target"] = per_stimulus_decision_probs_target.mean(dim=-1)
+        outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
     
     if config["agent_loss_type"].lower() == "nll":
         if config["descriptive"]:
@@ -276,6 +294,12 @@ def discriminative_st_gs_referential_game_loss(agent,
     acc = (decision_idx==sample["target_decision_idx"]).float()*100
     logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy"] = acc
     outputs_dict["accuracy"] = acc
+    acc = (decision_idx==sample["target_decision_idx"]).float()*100
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_decision_index/prediction"] = decision_idx.float()
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_decision_index/target"] = sample["target_decision_idx"].float()
+    if nbr_distractors_po == 1:
+        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = acc
+        outputs_dict["descriptive_accuracy"] = acc
 
 
 def discriminative_obverter_referential_game_loss(
