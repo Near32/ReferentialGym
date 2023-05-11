@@ -230,16 +230,17 @@ class PopulationHandlerModule(Module):
         
         if epoch != self.previous_epoch:
             self.previous_epoch = epoch
-            # Save agent:
-            for agent in self.speakers:
-                agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
-            for agent in self.listeners:
-                agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
-            
-            if 'cultural_reset_strategy' in self.config\
-            and 'meta' in self.config['cultural_reset_strategy']:
-                for agent in self.meta_agents.values():
+            if epoch % self.config.get("agent_saving_epoch_period", 100) == 0:
+                # Save agent:
+                for agent in self.speakers:
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
+                for agent in self.listeners:
+                    agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
+            
+                if 'cultural_reset_strategy' in self.config\
+                and 'meta' in self.config['cultural_reset_strategy']:
+                    for agent in self.meta_agents.values():
+                        agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
 
         # Reset agent(s):
         if 'train' in mode \

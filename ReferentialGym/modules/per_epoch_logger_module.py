@@ -145,9 +145,9 @@ class PerEpochLoggerModule(Module):
               wandb.log({f"PerEpoch/{key}/Std": std_value, "epoch":epoch}, commit=False)
               
               #logger.add_scalar(f"PerUpdate/{key}/Mean", averaged_value, update_count)
-              wandb.log({f"PerUpdate/{key}/Mean": averaged_value, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/Mean": averaged_value, "update_count":update_count}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
-              wandb.log({f"PerUpdate/{key}/Std": std_value, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/Std": std_value, "update_count":update_count}, commit=False)
               
               self.latest_logs[f"PerEpoch/{key}/Mean"] = averaged_value
               self.latest_logs[f"PerEpoch/{key}/Std"] = std_value
@@ -182,13 +182,13 @@ class PerEpochLoggerModule(Module):
               wandb.log({f"PerEpoch/{key}/IQR": iqr, "epoch":epoch}, commit=False)
               
               #logger.add_scalar(f"PerUpdate/{key}/Median", median_value, update_count)
-              wandb.log({f"PerUpdate/{key}/Median": median_value, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/Median": median_value, "update_count":update_count}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}/Q1", q1_value, update_count)
-              wandb.log({f"PerUpdate/{key}/Q1": q1_value, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/Q1": q1_value, "update_count":update_count}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
-              wandb.log({f"PerUpdate/{key}/Q3": q3_value, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/Q3": q3_value, "update_count":update_count}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
-              wandb.log({f"PerUpdate/{key}/IQR": iqr, "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}/IQR": iqr, "update_count":update_count}, commit=False)
               
               self.latest_logs[f"PerEpoch/{key}/Median"] = median_value
               self.latest_logs[f"PerEpoch/{key}/Q1"] = q1_value
@@ -200,7 +200,7 @@ class PerEpochLoggerModule(Module):
               #logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
               wandb.log({f"PerEpoch/{key}": valuelist[-1], "epoch":epoch}, commit=False)
               #logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
-              wandb.log({f"PerUpdate/{key}": valuelist[-1], "update_count":update_count}, commit=False)
+              #wandb.log({f"PerUpdate/{key}": valuelist[-1], "update_count":update_count}, commit=False)
               self.latest_logs[f"PerEpoch/{key}"] = valuelist[-1]
               
               # Remove the value form the logs_dict if it is present:

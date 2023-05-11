@@ -103,21 +103,29 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         # Compute Loss Function: 
         noise = 0.0
         targets_logits = (-1)*torch.ones((batch_size, nbr_text_features, nbr_visual_features))
+        mask = torch.zeros((batch_size, nbr_text_features, nbr_visual_features))
         for tfidx in range(nbr_text_features):
             for vfidx in range(nbr_visual_features):
                 tfidx_mask = (grounding_signal == tfidx)
                 tfidx_indices = torch.nonzero(tfidx_mask.sum(-1), as_tuple=True)
                 target = 1.0
+                
+                # Only address values where something positive occurs.
+                # Otherwise, they are masked out of the loss...
                 if len(tfidx_indices[0]) == batch_size:
                     # filtering out the text features with zero entropy
                     # TODO: investigate whether putting a null target could be beneficial?
                     continue
-                elif len(tfidx_indices[0]) == 0 :   continue
+                elif len(tfidx_indices[0]) == 0 :   
+                    continue
+                
                 if self.noisy:  noise = torch.rand(1).item()*self.noise_magnitude
                 targets_logits[tfidx_indices[0], tfidx, vfidx] = target-noise
+                mask[tfidx_indices[0], tfidx, vfidx] = 1.0
         
         targets_logits = targets_logits.to(semantic_prior.device)
-        loss = torch.square(semantic_prior_logits-targets_logits).mean(-1).mean(-1)
+        mask = mask.to(semantic_prior.device)
+        loss = (mask*torch.square(semantic_prior_logits-targets_logits)).mean(-1).mean(-1)
         # (batch_size, )
         
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/Entropy"] = entropy
