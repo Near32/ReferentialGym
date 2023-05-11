@@ -411,8 +411,8 @@ class CompactnessAmbiguityMetricModule(Module):
         cluster_change_indices,
         episode_change_indices,
         cluster_sentences,
-        color_start=np.array([0,0,1]),
-        color_end=np.array([1,0,0]),
+        color_start=np.array([0,0,1,1]),
+        color_end=np.array([1,0,0,1]),
     ):
         log_dict = {} 
 
@@ -420,7 +420,8 @@ class CompactnessAmbiguityMetricModule(Module):
         episode_idx = 0
         start_episode_idx = 0
         for end_episode_idx in episode_change_indices:
-            visualisation = top_views[start_episode_idx+1]
+            visualisation = top_views[(start_episode_idx+end_episode_idx)//2]
+            visualisation = cv.cvtColor(visualisation, cv.COLOR_RGB2RGBA)
             path_vis = visualisation.copy()
             perspective_vis = visualisation.copy()
             
@@ -430,14 +431,15 @@ class CompactnessAmbiguityMetricModule(Module):
             for idx in range(start_episode_idx, end_episode_idx+1):
                 offset = idx-start_episode_idx
                 color_blend = float(offset) / episode_length
-                color = (1-color_blend)*color_start+color_blend*color_end
+                color = 255*((1-color_blend)*color_start+color_blend*color_end)
                 radius = 3
 
                 agent_pos = agent_pos_in_top_views[idx]
                 if idx in cluster_change_indices \
                 or idx==start_episode_idx:
                     current_sentence = cluster_sentences[cluster_sentence_idx]
-                    cluster_sentence_idx += 1
+                    if idx in cluster_change_indices:
+                        cluster_sentence_idx += 1
                     nbr_cluster_changes += 1
 
                     # If that sentence is already drawn,
@@ -447,13 +449,27 @@ class CompactnessAmbiguityMetricModule(Module):
                         drawn_sentences.append(current_sentence)
                         
                         # Draw triangle:
+                        persp_color = color.copy()
+                        persp_color[-1] = 192
                         prespective_vis = cv.drawContours(
                             perspective_vis,
                             contours=[agent_pos.astype(int)],
                             contourIdx=-1, # draw all contours
-                            color=255*color,
+                            color=persp_color.astype(int).tolist(),
                             thickness=-1,
                         )
+                        
+                        # Draw triangle's contour:
+                        persp_color = color.copy()
+                        persp_color[-1] = 223
+                        prespective_vis = cv.drawContours(
+                            perspective_vis,
+                            contours=[agent_pos.astype(int)],
+                            contourIdx=-1, # draw all contours
+                            color=persp_color.astype(int).tolist(),
+                            thickness=2,
+                        )
+
                         # This point is drawn differently:
                         #color = color_start
                         radius = 5
@@ -463,7 +479,7 @@ class CompactnessAmbiguityMetricModule(Module):
                     path_vis,
                     center=agent_pos[0].astype(int), 
                     radius=radius, 
-                    color=(255*color).tolist(), 
+                    color=color.tolist(), 
                     thickness=-1, # Filled
                 )
             
