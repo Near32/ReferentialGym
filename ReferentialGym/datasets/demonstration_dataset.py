@@ -23,7 +23,9 @@ class DemonstrationDataset(Dataset) :
         split_strategy=None, 
         dataset_length=None,
         exp_key:str='succ_s',
-        grounding_signal_key:str="info:desired_goal",
+        extra_keys_dict:Dict[str,str]={
+            "grounding_signal":"info:desired_goal",
+        },
         kwargs={},
     ) :
         '''
@@ -42,7 +44,7 @@ class DemonstrationDataset(Dataset) :
         for k in self.replay_storage.keys: print(k)
         
         self.exp_key = exp_key
-        self.grounding_signal_key = grounding_signal_key
+        self.extra_keys_dict = extra_keys_dict
 
         self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
@@ -322,7 +324,7 @@ class DemonstrationDataset(Dataset) :
             indices_.append(self.traintest_indices[idx])
         return getattr(self.replay_storage, key)[0][indices_]
 
-    def get_grounding_signal(self, indices, key='s'):
+    def get_extra_key_value(self, indices, key='s'):
         if isinstance(indices, int):    indices = [indices]
         indices_ = []
         for idx in indices:
@@ -495,12 +497,13 @@ class DemonstrationDataset(Dataset) :
             "exp_test_latents_masks":test_latents_mask,
         }
         
-        if self.grounding_signal_key is not None:
-            grounding_signal = self.get_grounding_signal(
-                indices=trueidx, 
-                key=self.grounding_signal_key,
-            )
+        if self.extra_keys_dict is not None:
+            for key, path in self.extra_keys_dict.items():
+                value = self.get_extra_key_value(
+                    indices=trueidx, 
+                    key=path,
+                )
             
-            sampled_d["grounding_signal"] = grounding_signal
+                sampled_d[key] = value
 
         return sampled_d
