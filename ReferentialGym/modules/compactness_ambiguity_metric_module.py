@@ -326,6 +326,7 @@ class CompactnessAmbiguityMetricModule(Module):
         )
         iqr = q3_value-q1_value
         
+        '''
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Mean"] = mean_compactness_counts
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Std"] = std_compactness_counts
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Min"] = min(values)
@@ -334,11 +335,12 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Q1"] = q1_value
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/Q3"] = q3_value
         logs_dict[f"{mode}/{self.id}/CompactnessCounts/IQR"] = iqr
-        
+        '''
+
         mean_min_compactness = float(min_sum) / normalizer
-        logs_dict[f"{mode}/{self.id}/CompactnessCounts/Minimal/Mean"] = mean_min_compactness
+        #logs_dict[f"{mode}/{self.id}/CompactnessCounts/Minimal/Mean"] = mean_min_compactness
         mean_max_compactness =  float(max_sum) / normalizer
-        logs_dict[f"{mode}/{self.id}/CompactnessCounts/Maximal/Mean"] = mean_max_compactness
+        #logs_dict[f"{mode}/{self.id}/CompactnessCounts/Maximal/Mean"] = mean_max_compactness
 
         list_nbr_compact_segment = [len(ps['compactness_counts']) for ps in per_unique_sentence_stats.values()]
         mean_nbr_compact_segment = sum(list_nbr_compact_segment)/len(list_nbr_compact_segment)
@@ -367,6 +369,7 @@ class CompactnessAmbiguityMetricModule(Module):
         )
         iqr = q3_value-q1_value
         
+        '''
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/Mean"] = mean_nbr_compact_segment
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/Std"] = std_nbr_compact_segment
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/Min"] = min_nbr_compact_segment
@@ -375,12 +378,13 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/Q1"] = q1_value
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/Q3"] = q3_value
         logs_dict[f"{mode}/{self.id}/NbrCompactSegments/IQR"] = iqr
-        
+        '''
+
         average_max_compactness_count = len(self.representations) / len(unique_sentences)
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/NbrRepresentations"] = len(self.representations) 
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/NbrUniqueSentences"] = len(unique_sentences) 
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/AverageMaxCompactnessCount"] = average_max_compactness_count 
-        
+
         percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5, 0.75]
         thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
             for percent in percentages]
