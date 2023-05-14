@@ -341,7 +341,7 @@ class DemonstrationDataset(Dataset) :
                 )
             data = ddata
 
-        data = [torch.from_numpy(d[0]) for d in data]
+        data = [torch.from_numpy(d[0] if isinstance(d,list) else d) for d in data]
         data = torch.cat(data, dim=0)
 
         return data
