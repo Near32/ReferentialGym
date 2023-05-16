@@ -134,7 +134,7 @@ class SemanticGroundingMetricModule(Module):
             d2v = {
                 'shape':visible_shapes,
                 'color':visible_colors,
-                #'object':visible_objects,
+                'object':visible_objects,
             }
             for k in accuracies:
                 if 'object' in k:  continue
@@ -143,14 +143,30 @@ class SemanticGroundingMetricModule(Module):
                     filter_fn = any
                 else:
                     filter_fn = all
+                '''
                 occs = [word==sem
                     for word in sentences_w[bidx]
                     for sem in d2v[acc_domain]
                 ]
                 acc = filter_fn(occs)
+                '''
+
+                occs = {}
+                for sem in d2v[acc_domain]:
+                    if sem in occs \
+                    and occs[sem]==1:
+                        continue
+                    occs[sem]=0
+                    for word in sentences_w[bidx]:
+                        if word==sem:
+                            occs[sem]=1
+                            break
+
+                acc = filter_fn(occs.values())
                 accuracies[k]['occs'] = occs
                 accuracies[k]['nbr_success'] += int(acc)
-                accuracies[k]['nbr_occ'] += 1
+                if len(d2v[acc_domain]):
+                    accuracies[k]['nbr_occ'] += 1
             # Need to compute it for each parts before computing for objects as whole:
             for k in accuracies:
                 if 'object' not in k:   
@@ -160,6 +176,7 @@ class SemanticGroundingMetricModule(Module):
                     filter_fn = any
                 else:
                     filter_fn = all
+                '''
                 occs = [all([
                     accuracies[f"{acc_type}-color"]['occs'][occ_idx],
                     accuracies[f"{acc_type}-shape"]['occs'][occ_idx],
@@ -167,12 +184,21 @@ class SemanticGroundingMetricModule(Module):
                     for occ_idx in range(len(accuracies[f'{acc_type}-color']['occs']))
                 ]
                 acc = filter_fn(occs)
+                '''
+                occs = [all([
+                    accuracies[f"{acc_type}-color"]['occs'][color],
+                    accuracies[f"{acc_type}-shape"]['occs'][shape],
+                    ])
+                    for color,shape in visible_objects
+                ]
+                acc = filter_fn(occs)
                 accuracies[k]['occs'] = occs
                 accuracies[k]['nbr_success'] += int(acc)
-                accuracies[k]['nbr_occ'] += 1
+                if len(d2v[acc_domain]):
+                    accuracies[k]['nbr_occ'] += 1
         
         for k in accuracies:
-            accuracies[k]['accuracy'] = float(accuracies[k]['nbr_success'])/accuracies[k]['nbr_occ']*100.0
+            accuracies[k]['accuracy'] = float(accuracies[k]['nbr_success'])/(1.0e-4+accuracies[k]['nbr_occ'])*100.0
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/Accuracy-{k}"] = accuracies[k]['accuracy']
 
         return outputs_stream_dict

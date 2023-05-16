@@ -107,9 +107,11 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         for tfidx in range(nbr_text_features):
             for vfidx in range(nbr_visual_features):
                 tfidx_mask = (grounding_signal == tfidx)
+                nontfidx_mask = (grounding_signal != tfidx)
                 tfidx_indices = torch.nonzero(tfidx_mask.sum(-1), as_tuple=True)
-                target = 1.0
+                nontfidx_indices = torch.nonzero(nontfidx_mask.sum(-1), as_tuple=True)
                 
+                '''
                 # Only address values where something positive occurs.
                 # Otherwise, they are masked out of the loss...
                 if len(tfidx_indices[0]) == batch_size:
@@ -118,10 +120,26 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
                     continue
                 elif len(tfidx_indices[0]) == 0 :   
                     continue
+                '''
+
+                # Address values when entropy over batch is non null:
+                # i.e. either something positive or negative occurs.
+                # Otherwise, they are masked out of the loss...
+                if len(tfidx_indices[0]) == batch_size:
+                    # filtering out the text features with zero entropy
+                    continue
                 
+                if len(tfidx_indices[0]):
+                    mask[tfidx_indices[0], tfidx, vfidx] = 1.0
+                    mask[nontfidx_indices[0], tfidx, vfidx] = 1.0
+
                 if self.noisy:  noise = torch.rand(1).item()*self.noise_magnitude
-                targets_logits[tfidx_indices[0], tfidx, vfidx] = target-noise
-                mask[tfidx_indices[0], tfidx, vfidx] = 1.0
+                postarget = 1.0-noise
+                negtarget = -1.0+noise
+                
+                targets_logits[tfidx_indices[0], tfidx, vfidx] = postarget
+                targets_logits[nontfidx_indices[0], tfidx, vfidx] = negtarget
+
         
         targets_logits = targets_logits.to(semantic_prior.device)
         mask = mask.to(semantic_prior.device)
