@@ -344,6 +344,11 @@ class RNNCNNListener(DiscriminativeListener):
                 # kwargs['temporal_encoder_nbr_hidden_units']==kwargs['symbol_processing_nbr_hidden_units'])
                 bdin = decision_inputs[b].unsqueeze(1)
                 # (kwargs['symbol_processing_nbr_hidden_units'], 1)
+                
+                if self.kwargs.get('normalize_features', False):
+                    bemb = F.normalize(bemb, p=2.0, dim=-1)
+                    bdin = F.normalize(bdin, p=2.0, dim=0)
+
                 dl = torch.matmul( bemb, bdin).view((1,-1))
                 # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
                 decision_logits_until_widx.append(dl)
