@@ -9,6 +9,8 @@ import numpy as np
 
 from .module import Module
 
+import wandb
+
 
 def build_CoOccurrenceSemanticGroundingLossModule(
     id:str,
@@ -104,6 +106,8 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         noise = 0.0
         targets_logits = (-1)*torch.ones((batch_size, nbr_text_features, nbr_visual_features))
         mask = torch.zeros((batch_size, nbr_text_features, nbr_visual_features))
+        
+        #histogram_tfidx = []
         for tfidx in range(nbr_text_features):
             for vfidx in range(nbr_visual_features):
                 tfidx_mask = (grounding_signal == tfidx)
@@ -125,22 +129,31 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
                 # Address values when entropy over batch is non null:
                 # i.e. either something positive or negative occurs.
                 # Otherwise, they are masked out of the loss...
+                
                 if len(tfidx_indices[0]) == batch_size:
                     # filtering out the text features with zero entropy
                     continue
+                    #
+                    #histogram_tfidx.append(tfidx)
+                    # 
+                    # After examination, it turns out that the only words
+                    # with zero entropy are indeed words that we do not want
+                    # to ground, because either already grounded (e.g. EoS token)
+                    # or not really helping (e.g. 'pick up' from a PickUpDist task).
                 
-                if len(tfidx_indices[0]):
-                    mask[tfidx_indices[0], tfidx, vfidx] = 1.0
-                    mask[nontfidx_indices[0], tfidx, vfidx] = 1.0
-
                 if self.noisy:  noise = torch.rand(1).item()*self.noise_magnitude
                 postarget = 1.0-noise
                 negtarget = -1.0+noise
                 
-                targets_logits[tfidx_indices[0], tfidx, vfidx] = postarget
-                targets_logits[nontfidx_indices[0], tfidx, vfidx] = negtarget
+                if len(tfidx_indices[0]):
+                    mask[tfidx_indices[0], tfidx, vfidx] = 1.0
+                    targets_logits[tfidx_indices[0], tfidx, vfidx] = postarget
+                if len(nontfidx_indices[0]):
+                    mask[nontfidx_indices[0], tfidx, vfidx] = 1.0
+                    targets_logits[nontfidx_indices[0], tfidx, vfidx] = negtarget
+                
 
-        
+        #wandb.log({f"{mode}/co_occurrence_semantic_grounding/{agent.agent_id}/TokenIdxFullBatch":wandb.Histogram(histogram_tfidx),}, commit=False)
         targets_logits = targets_logits.to(semantic_prior.device)
         mask = mask.to(semantic_prior.device)
         loss = (mask*torch.square(semantic_prior_logits-targets_logits)).mean(-1).mean(-1)
