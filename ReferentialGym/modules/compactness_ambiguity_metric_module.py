@@ -92,6 +92,8 @@ class CompactnessAmbiguityMetricModule(Module):
             input_stream_ids=input_stream_ids,
         )
         
+        self.sanity_check_shuffling = self.config['sanity_check_shuffling']
+
         # Default = 0.0
         self.repr_dim_filtering_threshold = self.config["threshold"]
         
@@ -178,6 +180,13 @@ class CompactnessAmbiguityMetricModule(Module):
             self.agent_pos_in_top_views = self.agent_pos_in_top_views[sampling_indices]
         self.representations = self.representations[sampling_indices]
         self.latent_representations = self.latent_representations[sampling_indices]
+        
+        if self.sanity_check_shuffling:
+            rng = np.random.default_rng()
+            perm = rng.permutation(len(self.experiences))
+            #self.experiences = self.experiences[perm]
+            self.representations = self.representations[perm]
+            #self.latent_representations = self.latent_representations[perm]
 
         # From here on, the previous tensors are ordered with respect to
         # their actual position in the dataset :
