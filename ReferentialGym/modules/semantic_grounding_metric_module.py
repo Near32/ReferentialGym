@@ -161,8 +161,11 @@ class SemanticGroundingMetricModule(Module):
                         if word==sem:
                             occs[sem]=1
                             break
-
-                acc = filter_fn(occs.values())
+                # WARNING: all([]) -> True, which defies the purpose...
+                if len(occs) == 0:
+                    acc = 0
+                else:
+                    acc = filter_fn(occs.values())
                 accuracies[k]['occs'] = occs
                 accuracies[k]['nbr_success'] += int(acc)
                 if len(d2v[acc_domain]):
@@ -191,7 +194,11 @@ class SemanticGroundingMetricModule(Module):
                     ])
                     for color,shape in visible_objects
                 ]
-                acc = filter_fn(occs)
+                # WARNING: all([]) -> True, which defies the purpose...
+                if len(occs) == 0:
+                    acc = 0
+                else:
+                    acc = filter_fn(occs)
                 accuracies[k]['occs'] = occs
                 accuracies[k]['nbr_success'] += int(acc)
                 if len(d2v[acc_domain]):
@@ -199,6 +206,8 @@ class SemanticGroundingMetricModule(Module):
         
         for k in accuracies:
             accuracies[k]['accuracy'] = float(accuracies[k]['nbr_success'])/(1.0e-4+accuracies[k]['nbr_occ'])*100.0
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrOcc-{k}"] = accuracies[k]['nbr_occ']
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrSucc-{k}"] = accuracies[k]['nbr_success']
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/Accuracy-{k}"] = accuracies[k]['accuracy']
 
         return outputs_stream_dict
