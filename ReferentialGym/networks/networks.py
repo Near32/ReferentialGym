@@ -49,6 +49,24 @@ def handle_nan(layer, verbose=True):
             print("WARNING: NaN found in the GRADIENT of {} of {}.".format(name, layer))
         layer._parameters[name].grad.data[nan_indices] = 0
         
+def l1_reg(cum_loss_dict, module):
+    for name, param in module.named_parameters():
+        if 'bias' in name or \
+        param is None \
+        or not(hasattr(param, 'grad')) or param.grad is None \
+        or torch.norm(param.grad, p=1) < 1e-12 :
+            continue
+        cum_loss_dict[name] = torch.norm(param, p=1)
+
+def l2_reg(cum_loss_dict, module):
+    for name, param in module.named_parameters():
+        if 'bias' in name or \
+        param is None \
+        or not(hasattr(param, 'grad')) or param.grad is None \
+        or torch.norm(param.grad, p=1) < 1e-12 :
+            continue
+        cum_loss_dict[name] = torch.norm(param, p=2)
+
 def layer_init(layer, w_scale=1.0):
     return layer 
 

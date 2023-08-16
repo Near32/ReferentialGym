@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim 
 
 from .module import Module
-from ..networks import handle_nan
+from ..networks import handle_nan, l1_reg, l2_reg
 
 #TODO:
 """
@@ -24,6 +24,12 @@ def build_OptimizationModule(id:str,
 
 
 class OptimizationModule(Module):
+    """
+    Apply L1/L2 regularization by passing 'l1/2_reg_lambda' greater than 0.0.
+    Only applied to parameters with non-null gradient, in order to leave parts of a 
+    module that did not contribute to any loss's computation graph out.
+    """
+
     def __init__(self,
                  id:str,
                  config:Dict[str,object],
@@ -122,11 +128,29 @@ class OptimizationModule(Module):
         if "train" in mode:
             self.optimizer.zero_grad()
             loss.backward()
-
+            
+            if self.config["l1_reg_lambda"] > 0.0:
+                l1_regularization = {}
+            if self.config["l2_reg_lambda"] > 0.0:
+                l2_regularization = {}
             for k,m in self.config["modules"].items():
                 m.apply(handle_nan)
                 if self.config["with_gradient_clip"]:
                     nn.utils.clip_grad_value_(m.parameters(), self.config["gradient_clip"])
+                if self.config["l1_reg_lambda"] > 0.0:
+                    l1_reg(cum_loss_dict=l1_regularization, module=m)
+                if self.config["l2_reg_lambda"] > 0.0:
+                    l2_reg(cum_loss_dict=l2_regularization, module=m)
+            if self.config["l1_reg_lambda"] > 0.0:
+                l1_regularization = sum(l1_regularization.values())
+                (l1_regularization*self.config["l1_reg_lambda"]).backward()
+                logs_dict[f"{mode}/L1_regularization/loss"] = l1_regularization.item()
+                logs_dict[f"{mode}/L1_regularization/lambda"] = self.config["l1_reg_lambda"]
+            if self.config["l2_reg_lambda"] > 0.0:
+                l2_regularization = sum(l2_regularization.values())
+                (l2_regularization*self.config["l2_reg_lambda"]).backward()
+                logs_dict[f"{mode}/L2_regularization/loss"] = l2_regularization.item()
+                logs_dict[f"{mode}/L2_regularization/lambda"] = self.config["l2_reg_lambda"]
             
             self.optimizer.step()
             self.update_count += 1
