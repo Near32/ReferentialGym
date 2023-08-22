@@ -79,7 +79,7 @@ class ResizeNormalize(object):
 
 
 class AddEgocentricInvariance(object):
-    def __init__(self, marker_demisize=2):
+    def __init__(self, marker_demisize=1):
         '''
             Add a central marker to enable egocentric invariance.
             
@@ -88,7 +88,7 @@ class AddEgocentricInvariance(object):
         self.marker_demisize = marker_demisize
     
     def __call__(self, x):
-        x = np.array(x)
+        #x = np.array(x)
         dim = x.shape[-2]
         xmax = x.max()
         marker_colour = 0 if x.mean() > 127 else xmax
@@ -96,7 +96,7 @@ class AddEgocentricInvariance(object):
         end = int(dim//2+self.marker_demisize)
         x[start:end, :, ...] = marker_colour
         x[:,start:end, ...] = marker_colour
-        x = Image.fromarray(x.astype('uint8'))
+        #x = Image.fromarray(x.astype('uint8'))
         return x
 
     def __repr__(self):

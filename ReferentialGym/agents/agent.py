@@ -8,10 +8,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
+import torchvision
 
 import numpy as np 
 
 from ..modules import Module
+
+import wandb
 
 
 def vae_loss_hook(agent,
@@ -43,8 +46,74 @@ def maxl1_loss_hook(agent,
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}_maxl1_weight_loss"] = [1.0, weight_maxl1_loss]
     
 
+wandb_logging_table = None
 
+def wandb_logging_hook(
+    agent,
+    losses_dict,
+    input_streams_dict,
+    outputs_dict,
+    logs_dict,
+    **kwargs,
+):
+    if 'listener' not in agent.role:  return
+    
+    global_it = input_streams_dict['global_it_comm_round']
+    mode = input_streams_dict['mode']
 
+    if global_it % 32 != 0:    return
+    
+    listener_experiences = input_streams_dict['experiences']
+    speaker_experiences = input_streams_dict['sample']['speaker_experiences']
+    #listener_experiences = input_streams_dict['sample']['listener_experiences']
+    nbr_distractors_po = listener_experiences.shape[1]
+    
+    #imgs = experiences.reshape((-1, *experiences.shape[-3:]))
+    #grid_imgs = torchvision.utils.make_grid(imgs, nrow=nbr_distractors_po)
+    
+    sentences = input_streams_dict['sentences_widx']
+    max_sentence_length = agent.config['max_sentence_length']
+    
+    target_indices = input_streams_dict['sample']['target_decision_idx']
+    
+    global wandb_logging_table
+    if wandb_logging_table is None:
+        columns = [
+            "it",
+            "mode",
+            "bidx",
+            "sentence",
+            "target_stimulus",
+        ]
+        for didx in range(nbr_distractors_po):
+            columns.append(f"distr_stimulus_{didx}")
+        for tidx in range(max_sentence_length):
+            columns.append(f"token_{tidx}")
+
+        wandb_logging_table = wandb.Table(columns)
+    
+    for bidx in range(listener_experiences.shape[0]):
+        data = []
+        data.append(global_it)
+        data.append(mode)
+        data.append(bidx)
+        sentence = sentences[bidx].cpu().reshape(max_sentence_length).numpy().tolist()
+        data.append(sentence)
+        target_stimulus = speaker_experiences[bidx,0,0].cpu()#*255
+        data.append(wandb.Image(target_stimulus.transpose(1,2)))
+        for didx in range(nbr_distractors_po):
+            dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
+            data.append(wandb.Image(dstimulus.transpose(1,2)))
+        for tidx in range(max_sentence_length):
+            data.append(sentence[tidx])
+        wandb_logging_table.add_data(*data)
+    
+    wandb.log({f"{mode}/WandbLoggingTable":wandb_logging_table}, commit=False)
+    wandb_logging_table = None
+    
+    return 
+
+    
 class Agent(Module):
     def __init__(self, 
                  agent_id="l0", 
@@ -140,7 +209,8 @@ class Agent(Module):
         self.hooks = []
         if self.kwargs.get("with_weight_maxl1_loss", False):
             self.register_hook(maxl1_loss_hook)
-
+        self.register_hook(wandb_logging_hook)
+        
         self.role = role        
     
     def get_input_stream_ids(self):
