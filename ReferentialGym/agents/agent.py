@@ -64,6 +64,7 @@ def wandb_logging_hook(
     if global_it % 1024 != 0:    return
     
     listener_experiences = input_streams_dict['experiences']
+    listener_experience_indices = input_streams_dict['sample']['listener_indices']
     speaker_experiences = input_streams_dict['sample']['speaker_experiences']
     #listener_experiences = input_streams_dict['sample']['listener_experiences']
     nbr_distractors_po = listener_experiences.shape[1]
@@ -87,6 +88,8 @@ def wandb_logging_hook(
         ]
         for didx in range(nbr_distractors_po):
             columns.append(f"distr_stimulus_{didx}")
+        for didx in range(nbr_distractors_po):
+            columns.append(f"idx_distr_stimulus_{didx}")
         for tidx in range(max_sentence_length):
             columns.append(f"token_{tidx}")
 
@@ -104,6 +107,9 @@ def wandb_logging_hook(
         for didx in range(nbr_distractors_po):
             dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
             data.append(wandb.Image(dstimulus.transpose(1,2)))
+        for didx in range(nbr_distractors_po):
+            dstim_idx = listener_experience_indices[bidx,didx].cpu().item()
+            data.append(dstim_idx)
         for tidx in range(max_sentence_length):
             data.append(sentence[tidx])
         wandb_logging_table.add_data(*data)

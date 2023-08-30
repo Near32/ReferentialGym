@@ -94,10 +94,16 @@ class AddEgocentricInvariance(object):
         marker_colour = 0 if x.mean() > 127 else xmax
         start = int(dim//2-self.marker_demisize)
         end = int(dim//2+self.marker_demisize)
-        x[start:end, :, ...] = marker_colour
-        x[:,start:end, ...] = marker_colour
+        if isinstance(x, np.ndarray):
+            y = x.copy()
+        elif isinstance(x, torch.Tensor):
+            y = x.clone()
+        else:
+            raise NotImplementedError
+        y[start:end, :, ...] = marker_colour
+        y[:,start:end, ...] = marker_colour
         #x = Image.fromarray(x.astype('uint8'))
-        return x
+        return y
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
