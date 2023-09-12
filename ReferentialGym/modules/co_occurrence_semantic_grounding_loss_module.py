@@ -123,6 +123,9 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         # Sentence level :
         sentences_targets_logits = torch.zeros((batch_size, nbr_text_features))
         sentences_mask = torch.zeros((batch_size, nbr_text_features))
+        # Eos Filtering:
+        eos_idx = agent.vocab_stop_idx
+        sentences_logits[..., eos_idx] = sentences_logits.min(dim=-1, keepdim=False)[0]
         # Aggregation can be done in many different ways:
         #sentences_mean_logits = torch.mean(sentences_logits, dim=1, keepdim=False)
         sentences_mean_logits, _ = torch.max(sentences_logits, dim=1, keepdim=False)
