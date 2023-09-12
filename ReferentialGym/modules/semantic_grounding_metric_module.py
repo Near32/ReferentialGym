@@ -33,7 +33,7 @@ class SemanticGroundingMetricModule(Module):
         '''
         :param config:
             - 'idx2w' : Dict[int, str] describing the vocabulary used by the agent.
-
+            - 'semantic_percentiles': List[float] between 0 and 100 inclusives.
         '''
         default_input_stream_ids = {
             "logger":"modules:logger:ref",
@@ -46,6 +46,7 @@ class SemanticGroundingMetricModule(Module):
             "agent":"modules:current_speaker:ref:ref_agent",
             "sentences":"modules:current_speaker:sentences_widx",
             "semantic_signal":"current_dataloader:sample:speaker_semantic_signal",
+            "semantic_prior":"modules:current_speaker:ref:ref_agent:model:modules:InstructionGenerator:semantic_prior",
         }
         if input_stream_ids is None:
             input_stream_ids = default_input_stream_ids
@@ -62,6 +63,8 @@ class SemanticGroundingMetricModule(Module):
         )
 
         self.idx2w = self.config['idx2w']
+        self.w2idx = dict(zip(self.idx2w.values(), self.idx2w.keys()))
+        self.semantic_percentiles = self.config['semantic_percentiles']
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
@@ -83,7 +86,9 @@ class SemanticGroundingMetricModule(Module):
         max_sentence_length = sentences.shape[-1]
         semantic_signal = input_streams_dict['semantic_signal']
         # (batch_size x nbr_stimuli=1 x nbr_distractors_po=1 x **semantic_dims)
-        
+        semantic_prior = input_streams_dict['semantic_prior']
+        # (batch_size x vocab_size)
+	 
         idx2w = self.idx2w
         COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
         IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
@@ -116,6 +121,24 @@ class SemanticGroundingMetricModule(Module):
                 'all-object', # Are all the visible objects mentioned, and none more?
             ]
         }
+        domains = ['color', 'shape', 'object']
+        types = ['any', 'all']
+        for pidx in range(len(self.semantic_percentiles)):
+            for t in types:
+                for d in domains:
+                    accuracies[f"sem-{t}-{d}-{pidx}"] = {
+                        'nbr_success':0,
+                        'nbr_occ':0,
+                        'occs': None
+                    }
+        
+        percentiles = np.percentile(
+            a=semantic_prior.cpu().detach().numpy(),
+            q=self.semantic_percentiles,
+            axis=-1,
+            keepdims=False,
+        )
+        # (pidx x batch_size)
         for bidx in range(batch_size):
             visible_shapes = []
             visible_colors = []
@@ -138,29 +161,38 @@ class SemanticGroundingMetricModule(Module):
             }
             for k in accuracies:
                 if 'object' in k:  continue
-                acc_type, acc_domain = k.split('-')
+                splits = k.split('-')
+                if 'sem' in splits:
+                    acc_type = splits[1]
+                    acc_domain = splits[2]
+                    percentile_idx = int(splits[3])
+                else:
+                    acc_type = splits[0]
+                    acc_domain = splits[1]
                 if acc_type=='any':
                     filter_fn = any
                 else:
                     filter_fn = all
-                '''
-                occs = [word==sem
-                    for word in sentences_w[bidx]
-                    for sem in d2v[acc_domain]
-                ]
-                acc = filter_fn(occs)
-                '''
-
+                
                 occs = {}
                 for sem in d2v[acc_domain]:
                     if sem in occs \
                     and occs[sem]==1:
                         continue
                     occs[sem]=0
-                    for word in sentences_w[bidx]:
-                        if word==sem:
-                            occs[sem]=1
-                            break
+                    if 'sem' in splits:
+                        # occs[sem] = 1 if and only if the likelihood
+                        # of the token is above the pidx-th percentile:
+                        threshold_prob = percentiles[percentile_idx, bidx]
+                        token_idx = self.w2idx[sem]
+                        token_prob = semantic_prior[bidx, token_idx]
+                        if token_prob.item() >= threshold_prob:
+                            occs[sem] = 1
+                    else:
+                        for word in sentences_w[bidx]:
+                            if word==sem:
+                                occs[sem]=1
+                                break
                 # WARNING: all([]) -> True, which defies the purpose...
                 if len(occs) == 0:
                     acc = 0
@@ -174,23 +206,25 @@ class SemanticGroundingMetricModule(Module):
             for k in accuracies:
                 if 'object' not in k:   
                     continue
-                acc_type, acc_domain = k.split('-')
+                splits = k.split('-')
+                if 'sem' in splits:
+                    acc_type = splits[1]
+                    acc_domain = splits[2]
+                    pidx = splits[3]
+                    color_k = f"sem-{acc_type}-color-{pidx}"
+                    shape_k = f"sem-{acc_type}-shape-{pidx}"
+                else:
+                    acc_type = splits[0]
+                    acc_domain = splits[1]
+                    color_k = f"{acc_type}-color"
+                    shape_k = f"{acc_type}-shape"
                 if acc_type=='any':
                     filter_fn = any
                 else:
                     filter_fn = all
-                '''
                 occs = [all([
-                    accuracies[f"{acc_type}-color"]['occs'][occ_idx],
-                    accuracies[f"{acc_type}-shape"]['occs'][occ_idx],
-                    ])
-                    for occ_idx in range(len(accuracies[f'{acc_type}-color']['occs']))
-                ]
-                acc = filter_fn(occs)
-                '''
-                occs = [all([
-                    accuracies[f"{acc_type}-color"]['occs'][color],
-                    accuracies[f"{acc_type}-shape"]['occs'][shape],
+                    accuracies[color_k]['occs'][color],
+                    accuracies[shape_k]['occs'][shape],
                     ])
                     for color,shape in visible_objects
                 ]
