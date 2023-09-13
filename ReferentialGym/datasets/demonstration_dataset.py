@@ -14,6 +14,36 @@ import h5py
 from tqdm import tqdm
 
 
+def default_latents_build_fn(
+    storage,
+    exp_key,
+    extra_keys_dict,
+):
+    action_set = set([a.item() for a in getattr(storage, 'a')[0] if isinstance(a, torch.Tensor)])
+    latents_classes = np.zeros((len(storage), 3))
+    latents_values = np.zeros((len(storage), 3))
+    for idx in range(len(storage)):
+        action_idx = getattr(storage, 'a')[0][idx].item()
+        non_terminal_bool = getattr(storage, 'non_terminal')[0][idx].item()
+        
+        reward_sign = 0
+        reward = getattr(storage, 'r')[0][idx].item() 
+        if reward > 0:
+            reward_sign = 2
+        elif reward < 0:
+            reward_sign = 1
+        latents_classes[idx][0] = action_idx
+        latents_classes[idx][1] = reward_sign
+        latents_classes[idx][2] = non_terminal_bool
+        
+        latents_values[idx][0] = action_idx
+        latents_values[idx][1] = reward
+        latents_classes[idx][2] = non_terminal_bool
+    
+    nbr_classes_per_latent = [len(action_set), 3, 2]
+    return latents_classes, latents_values, nbr_classes_per_latent
+        
+
 class DemonstrationDataset(Dataset) :
     def __init__(
         self, 
@@ -26,6 +56,7 @@ class DemonstrationDataset(Dataset) :
         extra_keys_dict:Dict[str,str]={
             "grounding_signal":"info:desired_goal",
         },
+        latents_build_fn=default_latents_build_fn,
         kwargs={},
     ) :
         '''
@@ -49,38 +80,31 @@ class DemonstrationDataset(Dataset) :
         self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
         
-        self.latents_classes = np.zeros((len(self.replay_storage), 3))
-        self.latents_values = np.zeros((len(self.replay_storage), 3))
-        for idx in range(len(self.replay_storage)):
-            action_idx = getattr(self.replay_storage, 'a')[0][idx].item()
-            non_terminal_bool = getattr(self.replay_storage, 'non_terminal')[0][idx].item()
-            
-            reward_sign = 0
-            reward = getattr(self.replay_storage, 'r')[0][idx].item() 
-            if reward > 0:
-                reward_sign = 2
-            elif reward < 0:
-                reward_sign = 1
-            self.latents_classes[idx][0] = action_idx
-            self.latents_classes[idx][1] = reward_sign
-            self.latents_classes[idx][2] = non_terminal_bool
-            
-            self.latents_values[idx][0] = action_idx
-            self.latents_values[idx][1] = reward
-            self.latents_classes[idx][2] = non_terminal_bool
+        self.latents_build_fn = latents_build_fn
+        self.latents_classes, self.latents_values, \
+        self.nbr_classes_per_latent = self.latents_build_fn(
+            storage=self.replay_storage,
+            exp_key=self.exp_key,
+            extra_keys_dict=self.extra_keys_dict,
+        )
 
         self.latents_classes = self.latents_classes.astype(int)
 
         self.test_latents_mask = np.zeros_like(self.latents_classes)
         self.targets = np.zeros(len(self.latents_classes)) 
         
-        lpd2tensor_mult = np.asarray([
+        lpd = copy.deepcopy(self.nbr_classes_per_latent)
+        lpd[-1] = 1
+        lpd2tensor_mult = [np.prod(lpd[idx:]) for idx in range(len(lpd))]
+        lpd2tensor_mult = np.asarray(lpd2tensor_mult)
+        '''
+        lpd2tensor_mult = [
             #3*len(self.action_set)*2,
             3*len(self.action_set),
             3,
             1]
         )
-        
+        '''
         
         self.same_episode_target = kwargs.get('same_episode_target', False)
         if self.same_episode_target:
@@ -106,6 +130,7 @@ class DemonstrationDataset(Dataset) :
                 self.offset = int(strategy[-1])
                 assert(self.offset>=0 and self.offset<self.divider)
             elif 'combinatorial' in self.split_strategy:
+                raise NotImplementedError
                 self.counter_test_threshold = int(strategy[0][len('combinatorial'):])
                 # (default: 2) Specifies the threshold on the number of latent dimensions
                 # whose values match a test value. Below this threshold, samples are used in training.

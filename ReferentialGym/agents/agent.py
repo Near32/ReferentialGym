@@ -63,6 +63,8 @@ def wandb_logging_hook(
 
     if global_it % 1024 != 0:    return
     
+    idx2w = agent.idx2w
+
     listener_experiences = input_streams_dict['experiences']
     listener_experience_indices = input_streams_dict['sample']['listener_indices']
     speaker_experiences = input_streams_dict['sample']['speaker_experiences']
@@ -101,7 +103,11 @@ def wandb_logging_hook(
         data.append(mode)
         data.append(bidx)
         sentence = sentences[bidx].cpu().reshape(max_sentence_length).numpy().tolist()
-        data.append(sentence)
+        if idx2w is not None:
+            sentence = [idx2w[t] for t in sentence]
+            data.append(' '.join(sentence))
+        else:
+            data.append(sentence)
         target_stimulus = speaker_experiences[bidx,0,0].cpu()#*255
         data.append(wandb.Image(target_stimulus.transpose(1,2)))
         for didx in range(nbr_distractors_po):
@@ -111,7 +117,8 @@ def wandb_logging_hook(
             dstim_idx = listener_experience_indices[bidx,didx].cpu().item()
             data.append(dstim_idx)
         for tidx in range(max_sentence_length):
-            data.append(sentence[tidx])
+            token = sentence[tidx]
+            data.append(token)
         wandb_logging_table.add_data(*data)
     
     wandb.log({f"{mode}/WandbLoggingTable":wandb_logging_table}, commit=False)
@@ -199,6 +206,25 @@ class Agent(Module):
         
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
+        
+        vocabulary = set('key ball red green blue purple \
+            yellow grey verydark dark neutral light verylight \
+            tiny small medium large giant get go fetch go get \
+            a fetch a you must fetch a'.split(' ')
+        )
+        self.vocabulary = set([w.lower() for w in vocabulary])
+        self.vocabulary = list(self.vocabulary)
+        while len(self.vocabulary) < self.vocab_size-2:
+            self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
+        self.vocabulary = self.vocabulary[:self.vocab_size-2]
+        self.vocabulary = list(set(self.vocabulary))
+        self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
+        self.w2idx = {}
+        self.idx2w = {}
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
         self.max_sentence_length = max_sentence_length
         
         self.logger = logger 
@@ -219,6 +245,12 @@ class Agent(Module):
         
         self.role = role        
     
+    def set_vocabulary(self, vocabulary):
+        self.vocabulary = vocabulary
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
     def get_input_stream_ids(self):
         return self.input_stream_ids[self.role]
 
