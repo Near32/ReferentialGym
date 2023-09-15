@@ -23,6 +23,9 @@ to benefit from egocentrism, for instance.
 
 """
 
+from ReferentialGym.datasets.utils import unsqueeze, concatenate
+
+
 def shuffle(experiences, orders=None):
     st_size = experiences.shape
     batch_size = st_size[0]
@@ -38,9 +41,9 @@ def shuffle(experiences, orders=None):
         #if experiences.is_cuda: perm = perm.cuda()
         output_order.append(perm)
         perms.append(perm.unsqueeze(0))
-        shuffled_experiences.append( experiences[b,perm,...].unsqueeze(0))
-    perms = torch.cat(perms, dim=0)
-    shuffled_experiences = torch.cat(shuffled_experiences, dim=0)
+        shuffled_experiences.append( unsqueeze(experiences[b,perm,...], 0))
+    perms = concatenate(perms,  dim=0)
+    shuffled_experiences = concatenate(shuffled_experiences,  dim=0)
     decision_target = (perms==0).max(dim=1)[1].long()
     return shuffled_experiences, decision_target, output_order
 
@@ -142,9 +145,11 @@ class Dataset(torchDataset):
         
         # Adding batch dimension:
         for k,v in sample_d.items():
-            if not(isinstance(v, torch.Tensor)):    
-                v = torch.Tensor(v)
-            sample_d[k] = v.unsqueeze(0)
+            #if not(isinstance(v, torch.Tensor)):    
+            #    v = torch.Tensor(v)
+            if isinstance(v, torch.Tensor): v = v.unsqueeze(0)
+            else:   v = np.array(v)[np.newaxis, ...]
+            sample_d[k] = v#.unsqueeze(0)
 
          
 
@@ -172,9 +177,11 @@ class Dataset(torchDataset):
                 )
                 # Adding batch dimension:
                 for k,v in new_target_for_listener_sample_d.items():
-                    if not(isinstance(v, torch.Tensor)):    
-                        v = torch.Tensor(v)
-                    listener_sample_d[k][:,0] = v.unsqueeze(0)
+                    #if not(isinstance(v, torch.Tensor)):    
+                    #    v = torch.Tensor(v)
+                    if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                    else:   v = np.array(v)[np.newaxis, ...]
+                    listener_sample_d[k][:,0] = v#.unsqueeze(0)
         elif DC_version ==2 \
         and self.kwargs["descriptive"]:
             """
@@ -195,9 +202,11 @@ class Dataset(torchDataset):
             )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
-                if not(isinstance(v, torch.Tensor)):    
-                    v = torch.Tensor(v)
-                diff_listener_sample_d[k][:,0] = v.unsqueeze(0)
+                #if not(isinstance(v, torch.Tensor)):    
+                #    v = torch.Tensor(v)
+                if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                else:   v = np.array(v)[np.newaxis, ...]
+                diff_listener_sample_d[k][:,0] = v#.unsqueeze(0)
             
              
 
@@ -213,9 +222,11 @@ class Dataset(torchDataset):
             )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
-                if not(isinstance(v, torch.Tensor)):    
-                    v = torch.Tensor(v)
-                listener_sample_d[k][:,0] = v.unsqueeze(0)
+                #if not(isinstance(v, torch.Tensor)):    
+                #    v = torch.Tensor(v)
+                if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                else:   v = np.array(v)[np.newaxis, ...]
+                listener_sample_d[k][:,0] = v#.unsqueeze(0)
         elif OC_version == 2 \
         and retain_target:
             """
@@ -233,9 +244,11 @@ class Dataset(torchDataset):
             )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
-                if not(isinstance(v, torch.Tensor)):    
-                    v = torch.Tensor(v)
-                listener_sample_d[k][:,0] = v.unsqueeze(0)
+                #if not(isinstance(v, torch.Tensor)):    
+                #    v = torch.Tensor(v)
+                if isinstance(v, torch.Tensor): v = v.unsqueeze(0)
+                else:   v = np.array(v)[np.newaxis, ...]
+                listener_sample_d[k][:,0] = v#.unsqueeze(0)
 
         listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
         if not retain_target:   
@@ -259,7 +272,7 @@ class Dataset(torchDataset):
         speaker_sample_d = copy.deepcopy(sample_d)
         if self.kwargs['observability'] == "partial":
             for k,v in speaker_sample_d.items():
-                speaker_sample_d[k] = v[:,0].unsqueeze(1)
+                speaker_sample_d[k] = unsqueeze(v[:,0], 1)
         
         if DC_version == 2 \
         and self.kwargs['descriptive']:
@@ -276,26 +289,28 @@ class Dataset(torchDataset):
             )
             if self.kwargs['observability'] == "partial":
                 for k,v in same_speaker_sample_d.items():
-                    same_speaker_sample_d[k] = v[:,0].unsqueeze(1)
+                    same_speaker_sample_d[k] = unsqueeze(v[:,0], 1)
              # Adding batch dimension:
             for k,v in resampled_speaker_sample_d.items():
-                if not(isinstance(v, torch.Tensor)):    
-                    v = torch.Tensor(v)
-                same_speaker_sample_d[k][:,0] = v.unsqueeze(0)
+                #if not(isinstance(v, torch.Tensor)):    
+                #    v = torch.Tensor(v)
+                if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                else:   v = np.array(v)[np.newaxis, ...]
+                same_speaker_sample_d[k][:,0] = v#.unsqueeze(0)
             
             add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
             if add_extra:
                 for k,v in speaker_sample_d.items():
-                    speaker_sample_d[k] = torch.cat(
+                    speaker_sample_d[k] = concatenate(
                         [v,same_speaker_sample_d[k]], 
-                        dim=0,
+                         dim=0,
                     )
                 for k,v in listener_sample_d.items():
-                    listener_sample_d[k] = torch.cat(
+                    listener_sample_d[k] = concatenate(
                         [v, diff_listener_sample_d[k]],
-                        dim=0,
+                         dim=0,
                     )
-                target_decision_idx = torch.cat([target_decision_idx, diff_target_decision_idx], dim=0)
+                target_decision_idx = concatenate([target_decision_idx, diff_target_decision_idx],  dim=0)
 
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():

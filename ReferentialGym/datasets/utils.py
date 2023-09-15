@@ -5,6 +5,30 @@ import cv2
 from PIL import Image 
 
 
+def unsqueeze(v, dim):
+    if isinstance(v, torch.Tensor):
+        return v.unsqueeze(dim)
+    return np.expand_dims(v, axis=dim)
+
+
+def concatenate(cl, **kwargs):
+    dim = 0 
+    if 'dim' in kwargs:
+        dim = kwargs['dim']
+    elif 'axis' in kwargs:
+        dim = kwargs['axis']
+    if isinstance(cl[0], torch.Tensor):
+        return torch.cat(cl, dim=dim)
+    if isinstance(cl[0], np.ndarray):
+        # Check whether we can turn everything into torch.Tensor:
+        try:
+            cl = [torch.from_numpy(el) for el in cl]
+            return torch.cat(cl, dim=dim)
+        except Exception as e:
+            return np.concatenate(cl, axis=dim)
+    else:
+        raise NotImplementedError
+
 class DictBatch(object):
     def __init__(self, data):
         """
@@ -14,17 +38,21 @@ class DictBatch(object):
         values = list(zip(*[list(d.values()) for d in data]))
 
         for idx, key in enumerate(self.keys):
-            setattr(self, key, torch.cat(values[idx], dim=0))
+            setattr(self, key, concatenate(values[idx], dim=0))
         
     def pin_memory(self):
         for key in self.keys:
-            attr = getattr(self, key).pin_memory()
+            attr = getattr(self, key)
+            if hasattr(attr, 'pin_memory'):
+                attr = attr.pin_memory()
             setattr(self, key, attr)
         return self
 
     def cuda(self):
         for key in self.keys:
-            attr = getattr(self, key).cuda()
+            attr = getattr(self, key)
+            if hasattr(attr, 'cuda'):
+                attr = attr.cuda()
             setattr(self, key, attr)
         return self
 

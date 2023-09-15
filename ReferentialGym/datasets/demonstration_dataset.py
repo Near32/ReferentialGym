@@ -1,7 +1,8 @@
 from typing import Dict, List, Tuple
 
-from ReferentialGym.datasets import Dataset
-
+from ReferentialGym.datasets.dataset import Dataset
+from ReferentialGym.utils import copy_hdict
+ 
 import torch
 from torch.utils.data import Dataset 
 
@@ -366,9 +367,13 @@ class DemonstrationDataset(Dataset) :
                 )
             data = ddata
 
-        data = [torch.from_numpy(d[0] if isinstance(d,list) else d) for d in data]
-        data = torch.cat(data, dim=0)
-
+        if not isinstance(data, np.ndarray):
+            data = [torch.from_numpy(d[0] if isinstance(d,list) else d) for d in data]
+            data = torch.cat(data, dim=0)
+        else:
+            if isinstance(data[0], dict):
+                data = np.array([copy_hdict(d) for d in data])
+         
         return data
 
     def sample_factors(self, num, random_state=None):

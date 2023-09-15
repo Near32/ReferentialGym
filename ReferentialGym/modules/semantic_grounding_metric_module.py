@@ -121,23 +121,27 @@ class SemanticGroundingMetricModule(Module):
                 'all-object', # Are all the visible objects mentioned, and none more?
             ]
         }
-        domains = ['color', 'shape', 'object']
-        types = ['any', 'all']
-        for pidx in range(len(self.semantic_percentiles)):
-            for t in types:
-                for d in domains:
-                    accuracies[f"sem-{t}-{d}-{pidx}"] = {
-                        'nbr_success':0,
-                        'nbr_occ':0,
-                        'occs': None
-                    }
         
-        percentiles = np.percentile(
-            a=semantic_prior.cpu().detach().numpy(),
-            q=self.semantic_percentiles,
-            axis=-1,
-            keepdims=False,
-        )
+        percentiles = None
+        if semantic_prior is not None:
+            domains = ['color', 'shape', 'object']
+            types = ['any', 'all']
+            for pidx in range(len(self.semantic_percentiles)):
+                for t in types:
+                    for d in domains:
+                        accuracies[f"sem-{t}-{d}-{pidx}"] = {
+                            'nbr_success':0,
+                            'nbr_occ':0,
+                            'occs': None
+                        }
+            
+            percentiles = np.percentile(
+                a=semantic_prior.cpu().detach().numpy(),
+                q=self.semantic_percentiles,
+                axis=-1,
+                keepdims=False,
+            )
+        
         # (pidx x batch_size)
         for bidx in range(batch_size):
             visible_shapes = []
