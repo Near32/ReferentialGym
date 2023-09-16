@@ -176,10 +176,11 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
                 postarget = 1.0-noise
                 negtarget = noise
                 sentences_targets_logits[tfidx_indices[0], tfidx] = postarget
+                sentences_mask[tfidx_indices[0], tfidx] = 1.0
                 if self.sentence_level_ungrounding:
                     sentences_targets_logits[nontfidx_indices[0], tfidx] = negtarget
-                sentences_mask[tfidx_indices[0], tfidx] = 1.0
-            
+                    sentences_mask[nontfidx_indices[0], tfidx] = 1.0
+ 
         #wandb.log({f"{mode}/co_occurrence_semantic_grounding/{agent.agent_id}/TokenIdxFullBatch":wandb.Histogram(histogram_tfidx),}, commit=False)
         if self.semantic_level_grounding:
             targets_logits = targets_logits.to(semantic_prior.device)
