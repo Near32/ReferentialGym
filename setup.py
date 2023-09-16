@@ -37,7 +37,8 @@ setup(
 	    'scikit-image',
         # previously: 'scikit-learn==0.23',
         # now:
-        'scikit-learn==1.0',
+        #'scikit-learn==1.0',
+        'scikit-learn',
 	    'h5py',
 	    'opencv-python',
 	    #'torch==1.4',
