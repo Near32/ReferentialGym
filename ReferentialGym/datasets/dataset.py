@@ -9,6 +9,7 @@ import wandb
 
 DC_version = 1 
 OC_version = 1 
+DSS_version = 1
 """
 DC_version ==2 implies that the batch size is split between
 examples where the target is retained, and examples where the target
@@ -21,6 +22,9 @@ The batch size is artificially regularised to fit the user params, still.
 Upon retaining the target stimuli, they are still resampled in order
 to benefit from egocentrism, for instance.
 
+DSS_version == 2 implies that the Distractors Sampling Scheme is relying
+on a per-target distractor sampling likelihood confusion matrix that can be 
+updated by the user in an online fashion.
 """
 
 from ReferentialGym.datasets.utils import unsqueeze, concatenate

@@ -1,6 +1,8 @@
 from typing import Dict, List, Tuple
-from .dataset import Dataset
+import ReferentialGym
+from ReferentialGym.datasets.dataset import Dataset
 import torch
+import numpy as np
 import random
 
 
@@ -45,6 +47,11 @@ class DualLabeledDataset(Dataset):
                 self.mode2idx2class['test'][idx] = cl
 
         self.nbr_classes = len(self.test_classes.keys())
+        
+        # Per-Target Distributional Distractor Sampling Scheme : 
+        # initialized uniformely.
+        train_test_size = sum([len(d) for d in self.datasets.values()])
+        self.distractor_sampling_likelihoods = np.ones((train_test_size, train_test_size))
     
     def _get_class_from_idx(self, idx):
         dataset = self.datasets['train']
@@ -107,10 +114,58 @@ class DualLabeledDataset(Dataset):
             if idx is not None:
                 idx += len(self.datasets['train'])
 
-        test = True
-        not_enough_elements = False
-        while test:
-            if from_class is None or not_enough_elements:
+        DSS_version = ReferentialGym.datasets.dataset.DSS_version
+        if DSS_version == 1:
+            test = True
+            not_enough_elements = False
+            while test:
+                if from_class is None or not_enough_elements:
+                    from_class = set(classes.keys())
+             
+                # If object_centric, then make sure the distractors
+                # are not sampled from the target's class:
+                if idx is not None and self.kwargs['object_centric']:
+                    class_of_idx = self._get_class_from_idx(idx)
+                    if class_of_idx in from_class:
+                        from_class.remove(class_of_idx)
+    
+                list_indices = []
+                for class_idx in from_class:
+                    list_indices += classes[class_idx]
+                set_indices = set(list_indices) 
+    
+                if excepts_class is not None:
+                    excepts_list_indices = []
+                    for class_idx in excepts_class:
+                        excepts_list_indices += classes[class_idx]
+                    set_indices = set_indices.difference(set(excepts_list_indices))
+             
+                if excepts is not None:
+                    # check that the current class contains more than just one element:
+                    if len(set_indices) != 1:
+                        set_indices = set_indices.difference(excepts)
+                 
+                indices = []
+                nbr_samples = 1
+                if not target_only:
+                    nbr_samples += self.nbr_distractors[self.mode]
+    
+                if idx is not None:
+                    # i.e. if we are not trying to resample the target stimulus...
+                    if idx in set_indices:
+                        set_indices.remove(idx)
+                    indices.append(idx)
+             
+                if len(set_indices) < nbr_samples:
+                    #print("WARNING: Dataset's class has not enough element to choose from...")
+                    #print("WARNING: Using all the classes to sample...")
+                    not_enough_elements = True
+                else:
+                    test = False 
+        elif DSS_version==2:
+            if idx is None:
+                raise NotImplementedError
+            if from_class is None:
                 from_class = set(classes.keys())
             
             # If object_centric, then make sure the distractors
@@ -119,12 +174,12 @@ class DualLabeledDataset(Dataset):
                 class_of_idx = self._get_class_from_idx(idx)
                 if class_of_idx in from_class:
                     from_class.remove(class_of_idx)
-
+    
             list_indices = []
             for class_idx in from_class:
                 list_indices += classes[class_idx]
             set_indices = set(list_indices) 
-
+    
             if excepts_class is not None:
                 excepts_list_indices = []
                 for class_idx in excepts_class:
@@ -135,27 +190,35 @@ class DualLabeledDataset(Dataset):
                 # check that the current class contains more than just one element:
                 if len(set_indices) != 1:
                     set_indices = set_indices.difference(excepts)
-                
+             
             indices = []
             nbr_samples = 1
             if not target_only:
                 nbr_samples += self.nbr_distractors[self.mode]
-
+    
             if idx is not None:
                 # i.e. if we are not trying to resample the target stimulus...
                 if idx in set_indices:
                     set_indices.remove(idx)
                 indices.append(idx)
             
-            if len(set_indices) < nbr_samples:
-                #print("WARNING: Dataset's class has not enough element to choose from...")
-                #print("WARNING: Using all the classes to sample...")
-                not_enough_elements = True
-            else:
-                test = False 
-
+        else:
+            raise NotImplementedError 
+        
+        if idx is not None:
+            target_idx = idx
+        else:
+            #TODO: need to figure out when does this occur:
+            import ipdb; idpb.set_trace()
+        
         while len(indices) < nbr_samples:
-            chosen = random.choice(list(set_indices))
+            list_indices = list(set_indices)
+            list_likelihoods = self.distractor_sampling_likelihoods[target_idx, list_indices]
+            list_norm_likelihoods = list_likelihoods/len(list_likelihoods)
+            chosen = np.random.choice(
+                a=list_indices,
+                p=list_norm_likelihoods,
+            )
             set_indices.remove(chosen)
             indices.append(chosen)
         
