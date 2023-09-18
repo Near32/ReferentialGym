@@ -40,6 +40,7 @@ from .confusion_matrix_metric_module import build_ConfusionMatrixMetricModule, C
 
 from .vocabulary_grounding_loss_module import build_VocabularyGroundingLossModule, VocabularyGroundingLossModule 
 from .obverter_datasampling_module import ObverterDatasamplingModule 
+from .adversarial_iterative_amplification_module import AITAModule
 
 from .compactness_ambiguity_metric_module import build_CompactnessAmbiguityMetricModule, CompactnessAmbiguityMetricModule
 

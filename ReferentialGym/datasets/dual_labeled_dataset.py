@@ -214,7 +214,11 @@ class DualLabeledDataset(Dataset):
         while len(indices) < nbr_samples:
             list_indices = list(set_indices)
             list_likelihoods = self.distractor_sampling_likelihoods[target_idx, list_indices]
-            list_norm_likelihoods = list_likelihoods/len(list_likelihoods)
+            norm = np.sum(list_likelihoods)
+            if norm!=0 :
+                list_norm_likelihoods = list_likelihoods/norm
+            else:
+                list_norm_likelihoods = np.ones_like(list_likelihoods)/len(list_likelihoods)
             chosen = np.random.choice(
                 a=list_indices,
                 p=list_norm_likelihoods,
