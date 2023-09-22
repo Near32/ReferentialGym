@@ -15,6 +15,7 @@ class DualLabeledDataset(Dataset):
                             }
         self.mode = kwargs['mode']
         self.mode2idx2class = {'train':{}, 'test':{}}
+        self.with_replacement= kwargs["with_replacement"]
 
         self.train_classes = {}
         for idx in range(len(self.datasets['train'])):
@@ -163,45 +164,52 @@ class DualLabeledDataset(Dataset):
                 else:
                     test = False 
         elif DSS_version==2:
-            if idx is None:
-                raise NotImplementedError
-            if from_class is None:
-                from_class = set(classes.keys())
-            
-            # If object_centric, then make sure the distractors
-            # are not sampled from the target's class:
-            if idx is not None and self.kwargs['object_centric']:
-                class_of_idx = self._get_class_from_idx(idx)
-                if class_of_idx in from_class:
-                    from_class.remove(class_of_idx)
-    
-            list_indices = []
-            for class_idx in from_class:
-                list_indices += classes[class_idx]
-            set_indices = set(list_indices) 
-    
-            if excepts_class is not None:
-                excepts_list_indices = []
-                for class_idx in excepts_class:
-                    excepts_list_indices += classes[class_idx]
-                set_indices = set_indices.difference(set(excepts_list_indices))
-            
-            if excepts is not None:
-                # check that the current class contains more than just one element:
-                if len(set_indices) != 1:
-                    set_indices = set_indices.difference(excepts)
+            test = True
+            not_enough_elements = False
+            while test:
+                if from_class is None or not_enough_elements:
+                    from_class = set(classes.keys())
              
-            indices = []
-            nbr_samples = 1
-            if not target_only:
-                nbr_samples += self.nbr_distractors[self.mode]
+                # If object_centric, then make sure the distractors
+                # are not sampled from the target's class:
+                if idx is not None and self.kwargs['object_centric']:
+                    class_of_idx = self._get_class_from_idx(idx)
+                    if class_of_idx in from_class:
+                        from_class.remove(class_of_idx)
     
-            if idx is not None:
-                # i.e. if we are not trying to resample the target stimulus...
-                if idx in set_indices:
-                    set_indices.remove(idx)
-                indices.append(idx)
-            
+                list_indices = []
+                for class_idx in from_class:
+                    list_indices += classes[class_idx]
+                set_indices = set(list_indices) 
+    
+                if excepts_class is not None:
+                    excepts_list_indices = []
+                    for class_idx in excepts_class:
+                        excepts_list_indices += classes[class_idx]
+                    set_indices = set_indices.difference(set(excepts_list_indices))
+             
+                if excepts is not None:
+                    # check that the current class contains more than just one element:
+                    if len(set_indices) != 1:
+                        set_indices = set_indices.difference(excepts)
+                 
+                indices = []
+                nbr_samples = 1
+                if not target_only:
+                    nbr_samples += self.nbr_distractors[self.mode]
+    
+                if idx is not None:
+                    # i.e. if we are not trying to resample the target stimulus...
+                    if idx in set_indices:
+                        set_indices.remove(idx)
+                    indices.append(idx)
+             
+                if len(set_indices) < 2:
+                    #print("WARNING: Dataset's class has not enough element to choose from...")
+                    #print("WARNING: Using all the classes to sample...")
+                    not_enough_elements = True
+                else:
+                    test = False 
         else:
             raise NotImplementedError 
         
@@ -223,7 +231,8 @@ class DualLabeledDataset(Dataset):
                 a=list_indices,
                 p=list_norm_likelihoods,
             )
-            set_indices.remove(chosen)
+            if not self.with_replacement:
+                set_indices.remove(chosen)
             indices.append(chosen)
         
         sample_d = {
