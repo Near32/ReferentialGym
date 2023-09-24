@@ -47,6 +47,14 @@ def maxl1_loss_hook(agent,
     
 
 wandb_logging_table = None
+def wandb_ImageOrGIF(data):
+    if data.shape[0] == 3:
+        return wandb.Image(data)
+    nbr_frames = data.shape[0] // 3
+    data = data.reshape(3, nbr_frames, *data.shape[-2:]).transpose(0,1)
+    if data.max().item() <= 1.0:
+        data = data*255
+    return wandb.Video(data, fps=1, format='gif')
 
 def wandb_logging_hook(
     agent,
@@ -108,11 +116,12 @@ def wandb_logging_hook(
             data.append(' '.join(sentence))
         else:
             data.append(sentence)
-        target_stimulus = speaker_experiences[bidx,0,0].cpu()#*255
-        data.append(wandb.Image(target_stimulus.transpose(1,2)))
+        target_stimulus = speaker_experiences[bidx,0,0].cpu().transpose(1,2)#*255
+        target_stimulus = wandb_ImageOrGIF(target_stimulus)
+        data.append(target_stimulus)
         for didx in range(nbr_distractors_po):
             dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
-            data.append(wandb.Image(dstimulus.transpose(1,2)))
+            data.append(wandb_ImageOrGIF(dstimulus.transpose(1,2)))
         for didx in range(nbr_distractors_po):
             dstim_idx = listener_experience_indices[bidx,didx].cpu().item()
             data.append(dstim_idx)
