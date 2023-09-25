@@ -94,24 +94,35 @@ class SemanticGroundingMetricModule(Module):
         IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
 
         OBJECT_TO_IDX = {
-            "unseen": 0,
-            "empty": 1,
-            "wall": 2,
-            "floor": 3,
+            #"unseen": 0,
+            #"empty": 1,
+            #"wall": 2,
+            #"floor": 3,
             "door": 4,
             "key": 5,
             "ball": 6,
             "box": 7,
             "goal": 8,
-            "lava": 9,
-            "agent": 10,
+            #"lava": 9,
+            #"agent": 10,
         }
         IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+        domain2semantics = {'color':list(IDX_TO_COLOR.values()), 'shape':list(IDX_TO_OBJECT.values())}
+        semantics = [*list(IDX_TO_OBJECT.values()), *list(COLOR_TO_IDX.keys())]
         
         sentences_w = [[self.idx2w[token.item()] for token in sentence] for sentence in sentences] 
         symb_image = semantic_signal.squeeze().cpu()
         accuracies = {
-            k: {'nbr_success':0, 'nbr_occ':0, 'occs':None}
+            k: {
+                'true_positives':0, # True Positive
+                'false_positives':0,
+                'true_negatives':0,
+                'false_negatives':0,
+                'nbr_positives':0, # nbr positives
+                'nbr_negatives':0, # nbr negatics
+                'occs':None,
+                'rejects':None,
+            }
             for k in [
                 'any-shape', # Is any of the visible shapes mentioned?
                 'all-shape', # Are all the visible shapes mentioned, and none more?
@@ -130,8 +141,8 @@ class SemanticGroundingMetricModule(Module):
                 for t in types:
                     for d in domains:
                         accuracies[f"sem-{t}-{d}-{pidx}"] = {
-                            'nbr_success':0,
-                            'nbr_occ':0,
+                            'true_positives':0,
+                            'nbr_positives':0,
                             'occs': None
                         }
             
@@ -158,6 +169,11 @@ class SemanticGroundingMetricModule(Module):
                     visible_shapes.append(shape)
                     visible_colors.append(color)
                     visible_objects.append((color,shape))
+            not_visible_objects = []
+            for color in IDX_TO_COLOR.values():
+                for shape in IDX_TO_OBJECT.values():
+                    if (color,shape) not in visible_objects:
+                        not_visible_objects.append((color,shape))
             d2v = {
                 'shape':visible_shapes,
                 'color':visible_colors,
@@ -179,7 +195,10 @@ class SemanticGroundingMetricModule(Module):
                     filter_fn = all
                 
                 occs = {}
-                for sem in d2v[acc_domain]:
+                #for sem in d2v[acc_domain]:
+                for sem in domain2semantics[acc_domain]:
+                    if sem not in d2v[acc_domain]:
+                        continue
                     if sem in occs \
                     and occs[sem]==1:
                         continue
@@ -197,15 +216,32 @@ class SemanticGroundingMetricModule(Module):
                             if word==sem:
                                 occs[sem]=1
                                 break
+                rejections = {}
+                for sem in domain2semantics[acc_domain]:
+                    if sem in d2v[acc_domain]:
+                        continue
+                    rejections[sem]=1
+                    for word in sentences_w[bidx]:
+                        if word==sem:
+                            rejections[sem]=0
+                            break
                 # WARNING: all([]) -> True, which defies the purpose...
                 if len(occs) == 0:
                     acc = 0
                 else:
                     acc = filter_fn(occs.values())
+                if len(rejections) == 0:
+                    neg_acc = 0
+                else:
+                    neg_acc = filter_fn(rejections.values())
                 accuracies[k]['occs'] = occs
-                accuracies[k]['nbr_success'] += int(acc)
+                accuracies[k]['true_positives'] += int(acc)
+                accuracies[k]['rejects'] = rejections
+                accuracies[k]['true_negatives'] += int(neg_acc)
                 if len(d2v[acc_domain]):
-                    accuracies[k]['nbr_occ'] += 1
+                    accuracies[k]['nbr_positives'] += 1
+                else:
+                    accuracies[k]['nbr_negatives'] += 1
             # Need to compute it for each parts before computing for objects as whole:
             for k in accuracies:
                 if 'object' not in k:   
@@ -232,20 +268,43 @@ class SemanticGroundingMetricModule(Module):
                     ])
                     for color,shape in visible_objects
                 ]
+                rejects = [all([
+                    accuracies[color_k]['rejects'][color] if color in accuracies[color_k]['rejects'] else 1-accuracies[color_k]['occs'][color],
+                    accuracies[shape_k]['rejects'][shape] if shape in accuracies[shape_k]['rejects'] else 1-accuracies[shape_k]['occs'][shape],
+                    ])
+                    for color,shape in not_visible_objects
+                ]
                 # WARNING: all([]) -> True, which defies the purpose...
                 if len(occs) == 0:
                     acc = 0
                 else:
                     acc = filter_fn(occs)
+                if len(rejects) == 0:
+                    neg_acc = 0 
+                else:
+                    neg_acc = filter_fn(rejects)
                 accuracies[k]['occs'] = occs
-                accuracies[k]['nbr_success'] += int(acc)
+                accuracies[k]['true_positives'] += int(acc)
+                accuracies[k]['rejects'] = rejects
+                accuracies[k]['true_negatives'] += int(neg_acc)
                 if len(d2v[acc_domain]):
-                    accuracies[k]['nbr_occ'] += 1
+                    accuracies[k]['nbr_positives'] += 1
+                else:
+                    accuracies[k]['nbr_negatives'] += 1
         
         for k in accuracies:
-            accuracies[k]['accuracy'] = float(accuracies[k]['nbr_success'])/(1.0e-4+accuracies[k]['nbr_occ'])*100.0
-            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrOcc-{k}"] = accuracies[k]['nbr_occ']
-            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrSucc-{k}"] = accuracies[k]['nbr_success']
+            if 'sem' not in k:
+                accuracies[k]['false_negatives'] = accuracies[k]['nbr_positives']-accuracies[k]['true_positives']
+                accuracies[k]['false_positives'] = batch_size - accuracies[k]['true_positives']
+                #accuracies[k]['true_negatives'] = batch_size-accuracies[k]['nbr_positives']-accuracies[k]['false_positives']
+                recall = accuracies[k]['true_positives']/(1.0e-4+accuracies[k]['true_positives']+accuracies[k]['false_negatives'])
+                precision = accuracies[k]['true_positives']/(1.0e-4+accuracies[k]['true_positives']+accuracies[k]['false_positives'])
+                logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/Recall-{k}"] = recall
+                logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/Precision-{k}"] = precision 
+            
+            accuracies[k]['accuracy'] = float(accuracies[k]['true_positives'])/(1.0e-4+accuracies[k]['nbr_positives'])*100.0
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrOcc-{k}"] = accuracies[k]['nbr_positives']
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/NbrSucc-{k}"] = accuracies[k]['true_positives']
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.id}/{agent.agent_id}/Accuracy-{k}"] = accuracies[k]['accuracy']
 
         return outputs_stream_dict
