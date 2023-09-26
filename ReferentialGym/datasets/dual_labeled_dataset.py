@@ -204,7 +204,11 @@ class DualLabeledDataset(Dataset):
                         set_indices.remove(idx)
                     indices.append(idx)
              
-                if len(set_indices) < 2:
+                if not self.with_replacement \
+                and len(set_indices) < nbr_samples:
+                    not_enough_elements = True
+                elif self.with_replacement \
+                and len(set_indices) < 2:
                     #print("WARNING: Dataset's class has not enough element to choose from...")
                     #print("WARNING: Using all the classes to sample...")
                     not_enough_elements = True
