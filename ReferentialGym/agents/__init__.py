@@ -16,7 +16,9 @@ from .eos_priored_lstm_cnn_speaker import EoSPrioredLSTMCNNSpeaker
 
 from .rnn_listener import RNNListener 
 from .rnn_cnn_listener import RNNCNNListener
+from .rnn_obs_listener import RNNObsListener
 from .lstm_cnn_listener import LSTMCNNListener
+from .lstm_obs_listener import LSTMObsListener
 from .gru_cnn_listener import GRUCNNListener
 from .mlp_rnn_cnn_listener import MLPRNNCNNListener
 from .mlp_gru_cnn_listener import MLPGRUCNNListener
