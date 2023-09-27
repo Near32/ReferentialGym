@@ -116,12 +116,21 @@ def wandb_logging_hook(
             data.append(' '.join(sentence))
         else:
             data.append(sentence)
-        target_stimulus = speaker_experiences[bidx,0,0].cpu().transpose(1,2)#*255
-        target_stimulus = wandb_ImageOrGIF(target_stimulus)
+        try:
+            target_stimulus = speaker_experiences[bidx,0,0].cpu().transpose(1,2)#*255
+            target_stimulus = wandb_ImageOrGIF(target_stimulus)
+        except Exception as e:
+            print(e)
+            target_stimulus = speaker_experiences[bidx].cpu().numpy().tolist()
         data.append(target_stimulus)
         for didx in range(nbr_distractors_po):
-            dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
-            data.append(wandb_ImageOrGIF(dstimulus.transpose(1,2)))
+            try:
+                dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
+                dstimulus = wandb_ImageOrGIF(dstimulus.transpose(1,2))
+            except Exception as e:
+                print(e)
+                dstimulus = listener_experiences[bidx,didx].cpu().numpy().tolist()
+            data.append(dstimulus)
         for didx in range(nbr_distractors_po):
             dstim_idx = listener_experience_indices[bidx,didx].cpu().item()
             data.append(dstim_idx)

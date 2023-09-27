@@ -166,11 +166,13 @@ class RNNCNNListener(DiscriminativeListener):
         if self.kwargs['use_cuda']:
             self = self.cuda()
 
-    def reset(self, reset_language_model=False):
+    def reset(self, reset_language_model=False, whole=False):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
+        if whole:
+            self.cnn_encoder.apply(layer_init)
 
     def _tidyup(self):
         """

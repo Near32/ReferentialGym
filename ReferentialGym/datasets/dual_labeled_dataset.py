@@ -221,8 +221,16 @@ class DualLabeledDataset(Dataset):
             target_idx = idx
         else:
             #TODO: need to figure out when does this occur:
-            import ipdb; idpb.set_trace()
-        
+            # this occurs when trying to sample listener distractor for DC_version==2 
+            # from Dataset __getitem__ method.
+            # What can we use as the target_idx to sample from then?
+            # Anything from the current class sounds OK?
+            assert from_class is not None
+            possible_target_list = []
+            for class_idx in from_class:
+                possible_target_list += classes[class_idx]
+            target_idx = np.random.choice(possible_target_list)
+
         while len(indices) < nbr_samples:
             list_indices = list(set_indices)
             list_likelihoods = self.distractor_sampling_likelihoods[target_idx, list_indices]

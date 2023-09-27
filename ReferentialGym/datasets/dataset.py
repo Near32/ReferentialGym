@@ -310,8 +310,9 @@ class Dataset(torchDataset):
                 else:   v = np.array(v)[np.newaxis, ...]
                 same_speaker_sample_d[k][:,0] = v#.unsqueeze(0)
             
-            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
-            if add_extra:
+            #TODO: check whether the following is necessary or not:
+            #add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            if True: #add_extra:
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = concatenate(
                         [v,same_speaker_sample_d[k]], 
