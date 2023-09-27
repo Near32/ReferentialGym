@@ -34,6 +34,13 @@ def shuffle(experiences, orders=None):
     st_size = experiences.shape
     batch_size = st_size[0]
     nbr_distractors_po = st_size[1]
+    if nbr_distractors_po == 1:
+        shuffled_experiences = experiences
+        perms = [torch.randperm(1).unsqueeze(0)]*batch_size
+        perms = concatenate(perms, dim=0)
+        decision_target = (perms==0).max(dim=1)[1].long()
+        output_order = [0]*batch_size
+        return shuffled_experiences, decision_target, output_order
     perms = []
     shuffled_experiences = []
     output_order = []
@@ -262,12 +269,13 @@ class Dataset(torchDataset):
         and self.kwargs['descriptive']:
             diff_target_decision_idx = (self.nbr_distractors[self.mode]+1)*torch.ones(1).long()
 
-        for k,v in listener_sample_d.items():
-            if k == "experiences":  continue
-            listener_sample_d[k], _, _ = shuffle(v, orders=orders)
-            if DC_version == 2 \
-            and self.kwargs['descriptive']:
-                diff_listener_sample_d[k], _, _ = shuffle(diff_listener_sample_d[k], orders=orders)
+        if self.nbr_distractors[self.mode] > 0 :
+            for k,v in listener_sample_d.items():
+                if k == "experiences":  continue
+                listener_sample_d[k], _, _ = shuffle(v, orders=orders)
+                if DC_version == 2 \
+                and self.kwargs['descriptive']:
+                    diff_listener_sample_d[k], _, _ = shuffle(diff_listener_sample_d[k], orders=orders)
 
         ##--------------------------------------------------------------
         ##--------------------------------------------------------------
@@ -316,10 +324,12 @@ class Dataset(torchDataset):
                     )
                 target_decision_idx = concatenate([target_decision_idx, diff_target_decision_idx],  dim=0)
 
+        #output_dict = {"target_decision_idx":target_decision_idx.long()}
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
-            output_dict[f"listener_{k}"] = v
+            output_dict[f"listener_{k}"] = v.float() if isinstance(v, torch.Tensor) else v.astype(np.float32)
         for k,v in speaker_sample_d.items():
-            output_dict[f"speaker_{k}"] = v 
+            output_dict[f"speaker_{k}"] = v.float() if isinstance(v, torch.Tensor) else v.astype(np.float32)
+            #output_dict[f"speaker_{k}"] = v.float() 
         
         return output_dict

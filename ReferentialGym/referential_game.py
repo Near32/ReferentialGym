@@ -481,7 +481,7 @@ class ReferentialGame(object):
                                 multi_round = False
                             self.stream_handler.update("signals:multi_round", multi_round)
                             self.stream_handler.update('current_dataloader:sample', sample)
-
+                            
                             for pipe_id, pipeline in self.pipelines.items():
                                 if "referential_game" in pipe_id: 
                                     self.stream_handler.serve(pipeline)

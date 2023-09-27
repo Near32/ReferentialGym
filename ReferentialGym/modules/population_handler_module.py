@@ -230,7 +230,8 @@ class PopulationHandlerModule(Module):
         
         if epoch != self.previous_epoch:
             self.previous_epoch = epoch
-            if epoch % self.config.get("agent_saving_epoch_period", 100) == 0:
+            if self.config.get("agent_saving", False) \
+            and epoch % self.config.get("agent_saving_epoch_period", 100) == 0:
                 # Save agent:
                 for agent in self.speakers:
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))
