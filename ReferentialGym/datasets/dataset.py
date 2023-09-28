@@ -215,9 +215,11 @@ class Dataset(torchDataset):
             for k,v in new_target_for_listener_sample_d.items():
                 #if not(isinstance(v, torch.Tensor)):    
                 #    v = torch.Tensor(v)
-                if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
-                else:   v = np.array(v)[np.newaxis, ...]
-                diff_listener_sample_d[k][:,0] = v#.unsqueeze(0)
+                #if isinstance(v, list): v = concatenate(v, dim=0)
+                if isinstance(v, np.ndarray): v = torch.from_numpy(v)
+                #if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                #else:   v = np.array(v)[np.newaxis, ...]
+                diff_listener_sample_d[k][:,0] = unsqueeze(v, 0)
             
              
 
@@ -257,9 +259,10 @@ class Dataset(torchDataset):
             for k,v in new_target_for_listener_sample_d.items():
                 #if not(isinstance(v, torch.Tensor)):    
                 #    v = torch.Tensor(v)
-                if isinstance(v, torch.Tensor): v = v.unsqueeze(0)
-                else:   v = np.array(v)[np.newaxis, ...]
-                listener_sample_d[k][:,0] = v#.unsqueeze(0)
+                #if isinstance(v, torch.Tensor): v = v.unsqueeze(0)
+                #else:   v = np.array(v)[np.newaxis, ...]
+                #listener_sample_d[k][:,0] = v#.unsqueeze(0)
+                listener_sample_d[k][:,0]= unsqueeze(v, 0)
 
         listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
         if not retain_target:   
@@ -311,14 +314,19 @@ class Dataset(torchDataset):
                 same_speaker_sample_d[k][:,0] = v#.unsqueeze(0)
             
             #TODO: check whether the following is necessary or not:
-            #add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
-            if True: #add_extra:
+            # it seems it is necessary to make sure we do not have 50%accuracy as target:
+            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            if add_extra:
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = concatenate(
                         [v,same_speaker_sample_d[k]], 
                          dim=0,
                     )
                 for k,v in listener_sample_d.items():
+                    if isinstance(v, np.ndarray):
+                        v = torch.from_numpy(v)
+                    if isinstance(diff_listener_sample_d[k], np.ndarray):
+                        diff_listener_sample_d[k] = torch.from_numpy(diff_listener_sample_d[k])
                     listener_sample_d[k] = concatenate(
                         [v, diff_listener_sample_d[k]],
                          dim=0,
@@ -328,8 +336,10 @@ class Dataset(torchDataset):
         #output_dict = {"target_decision_idx":target_decision_idx.long()}
         output_dict = {"target_decision_idx":target_decision_idx}
         for k,v in listener_sample_d.items():
+            if isinstance(v, np.ndarray): v = torch.from_numpy(v)
             output_dict[f"listener_{k}"] = v.float() if isinstance(v, torch.Tensor) else v.astype(np.float32)
         for k,v in speaker_sample_d.items():
+            if isinstance(v, np.ndarray): v = torch.from_numpy(v)
             output_dict[f"speaker_{k}"] = v.float() if isinstance(v, torch.Tensor) else v.astype(np.float32)
             #output_dict[f"speaker_{k}"] = v.float() 
         
