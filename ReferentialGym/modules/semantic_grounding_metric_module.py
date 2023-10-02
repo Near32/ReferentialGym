@@ -142,8 +142,13 @@ class SemanticGroundingMetricModule(Module):
                     for d in domains:
                         accuracies[f"sem-{t}-{d}-{pidx}"] = {
                             'true_positives':0,
+                            'false_positives':0,
+                            'true_negatives':0,
+                            'false_negatives':0,
                             'nbr_positives':0,
-                            'occs': None
+                            'nbr_negatives':0, 
+                            'occs': None,
+                            'rejects':None,
                         }
             
             percentiles = np.percentile(
