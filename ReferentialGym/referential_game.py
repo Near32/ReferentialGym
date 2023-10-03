@@ -426,6 +426,7 @@ class ReferentialGame(object):
             self.stream_handler.update("signals:epoch", epoch)
             pbar.update(1)
             for it_dataset, (mode, data_loader) in enumerate(data_loaders.items()):
+                print(" ")
                 self.stream_handler.update("current_dataset:ref", self.datasets[mode])
                 self.stream_handler.update("signals:mode", mode)
                 
@@ -518,7 +519,8 @@ class ReferentialGame(object):
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
                             descr = f"GPU{os.environ.get('CUDA_VISIBLE_DEVICES', None)}-Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
                             if isinstance(loss, torch.Tensor): loss = loss.item()
-                            descr += f" (Rep:{it_rep+1}/{nbr_experience_repetition}):: Loss {it+1} = {loss}"
+                            descr += f" (Rep:{it_rep+1}/{nbr_experience_repetition}):: Loss {it+1} = {loss:4f} //"
+                            descr += f" Running Acc.: {self.accuracy_rms.mean.mean().item():2f} % //"
                             pbar.set_description_str(descr)
                         
                         self.stream_handler.reset("losses_dict")
