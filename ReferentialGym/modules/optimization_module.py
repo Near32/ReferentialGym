@@ -74,6 +74,10 @@ class OptimizationModule(Module):
         parameters = []
         for k,m in self.config["modules"].items():
             parameters += m.parameters()
+            #for name, param in m.named_parameters():
+            #    parameters += param
+            #    #print((name, param.shape))
+            print(f"Module {k} of type {type(m)} : {len(list(m.parameters()))} params.")
 
         if "sgd" in self.config["optimizer_type"].lower():
             self.optimizer = optim.SGD(
