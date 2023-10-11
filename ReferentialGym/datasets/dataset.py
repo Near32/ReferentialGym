@@ -67,6 +67,7 @@ class Dataset(torchDataset):
         self.nbr_stimulus = self.kwargs['nbr_stimulus']
         
         self.classes = None 
+        self.original_object_centric_type = self.kwargs.get('object_centric_type', 'extra-simple')
 
     def getNbrDistractors(self, mode='train'):
         return self.nbr_distractors[mode]
@@ -240,10 +241,40 @@ class Dataset(torchDataset):
             and if OC is not in effect then we resample the very same target stimulus, 
             by carrying forward its index:
             """
+            # Make sure to not sample the actual target!
+            excepts = [idx] 
+            new_idx = None
+            
+            if self.kwargs['object_centric'] \
+            and 'ratio' in self.original_object_centric_type:
+                percentage = float(self.original_object_centric_type.split('-')[-1])
+                OC_rv = torch.rand(size=(1,)).item()
+                hard_OC = OC_rv < percentage/100.0
+                if hard_OC:
+                    self.kwargs['object_centric_type'] = 'hard'
+                else:
+                    self.kwargs['object_centric_type'] = 'extra-simple'
+                wandb.log({
+                  "Dataset/OC_ratio": percentage/100.0,
+                  "Dataset/OC_random": OC_rv,
+                  },
+                  commit=False,
+                )
+             
+            if self.kwargs['object_centric'] \
+            and self.kwargs.get('object_centric_type', 'hard')=='extra-simple':
+                excepts = None
+                new_idx = idx
+            elif self.kwargs['object_centric'] \
+            and self.kwargs.get('object_centric_type', 'hard')=='simple':
+                # Make sure to not sample the actual target!
+                excepts = None 
+                new_idx = None
+            
             new_target_for_listener_sample_d = self.sample(
-                idx=None if self.kwargs['object_centric'] else idx, 
+                idx=new_idx, 
                 from_class=[exp_labels[0]],
-                excepts=[idx] if self.kwargs['object_centric'] else None,  # Make sure to not sample the actual target!
+                excepts=excepts,
                 target_only=True
             )
             # Adding batch dimension:
