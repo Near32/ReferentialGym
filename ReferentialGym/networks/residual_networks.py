@@ -6,7 +6,10 @@ import torch.utils.model_zoo as model_zoo
 
 import torchvision
 from torchvision import models
-from torchvision.models.resnet import model_urls, BasicBlock
+try:
+    from torchvision.models.resnet import model_urls, BasicBlock
+except Exception as e:
+    print(e)
 
 from .networks import layer_init
 

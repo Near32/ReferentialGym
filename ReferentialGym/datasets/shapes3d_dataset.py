@@ -543,6 +543,7 @@ class Shapes3DDataset(Dataset) :
             "exp_latents_values":latent_value,
             "exp_latents_one_hot_encoded":latent_one_hot_encoded,
             "exp_test_latents_masks":test_latents_mask,
+            "exp_indices": idx,
         }
 
         return sampled_d

@@ -409,9 +409,9 @@ def discriminative_obverter_referential_game_loss(
         if config["descriptive"]:
             final_decision_logits = final_decision_logits.reshape((batch_size, nbr_distractors_po, -1))
             if nbr_distractors_po == 1:
-                final_decision_logits = final_decision_logits.squeeze()
+                eff_final_decision_logits = final_decision_logits.squeeze()
                 # (batch_size, 2)
-                decision_logits = final_decision_logits.log_softmax(dim=-1)
+                decision_logits = eff_final_decision_logits.log_softmax(dim=-1)
                 # (batch_size, 2)
                 criterion = nn.NLLLoss(reduction="none")
                 loss = criterion( decision_logits, target_decision_idx)

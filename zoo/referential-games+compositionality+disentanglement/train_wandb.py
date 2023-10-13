@@ -402,7 +402,7 @@ def main():
   parser.add_argument("--nbr_test_distractors", type=int, default=0)
   parser.add_argument("--nbr_train_distractors", type=int, default=0)
   
-  parser.add_argument("--resizeDim", default=128, help="input image resize")
+  parser.add_argument("--resizeDim", type=int, default=128, help="input image resize")
   parser.add_argument("--agent_nbr_latent_dim", type=int, default=50)
   parser.add_argument("--symbol_processing_nbr_hidden_units", default=64, type=int,help="GRU cells")
   parser.add_argument("--symbol_embedding_size", default=64, type=int,help="GRU cells")

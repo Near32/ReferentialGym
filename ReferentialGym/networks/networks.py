@@ -8,7 +8,10 @@ import torch.utils.model_zoo as model_zoo
 
 import torchvision
 from torchvision import models
-from torchvision.models.resnet import model_urls, BasicBlock
+try:
+    from torchvision.models.resnet import model_urls, BasicBlock
+except Exception as e:
+    print(e)
 
 from ..modules import Module 
 
@@ -517,6 +520,7 @@ class ConvolutionalBody(nn.Module):
 
         self.cnn = []
         dim = input_shape[1] # height
+        if isinstance(dim, str):  dim=int(dim)
         in_ch = channels[0]
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             conv_fn = original_conv_fn
@@ -1346,8 +1350,10 @@ class VGG(nn.Module):
 
 from torchvision.models.vgg import make_layers, cfgs
 from torch.hub import load_state_dict_from_url
-from torchvision.models.vgg import model_urls as vgg_model_urls
-
+try:
+    from torchvision.models.vgg import model_urls as vgg_model_urls
+except Exception as e:
+    print(e)
 
 def _vgg(arch, cfg, batch_norm, pretrained, progress, **kwargs):
     if pretrained:
