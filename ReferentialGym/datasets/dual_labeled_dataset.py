@@ -63,6 +63,12 @@ class DualLabeledDataset(Dataset):
     def set_mode(self, newmode='train'):
         self.mode = newmode
 
+    def size(self) -> int:
+        if 'test' in self.mode:
+            return self.datasets['test'].size()
+        else:
+            return self.datasets['train'].size()
+    
     def __len__(self) -> int:
         if 'test' in self.mode:
             return len(self.datasets['test'])

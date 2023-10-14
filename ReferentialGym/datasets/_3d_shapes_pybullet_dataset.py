@@ -1124,6 +1124,9 @@ class _3DShapesPyBulletDataset(Dataset) :
                 self.counter_saving = min(self.counter_saving-1,0)
         """
         
+    def size(self) -> int:
+        return len(self.indices)
+    
     def __len__(self) -> int:
         if self.dataset_length is not None:
             return self.dataset_length
@@ -1226,7 +1229,7 @@ class _3DShapesPyBulletDataset(Dataset) :
             "exp_latents_values":latent_value,
             "exp_latents_one_hot_encoded":latent_one_hot,
             "exp_test_latents_masks":test_latents_mask,
-            "exp_indices": idx,
+            "exp_indices": trueidx,
         }
         
         return sampled_d

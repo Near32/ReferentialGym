@@ -2197,6 +2197,14 @@ def main():
     )
     modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
     
+    jaccard_sim_metric_id = f"jaccard_sim_metric"
+    jaccard_sim_metric_module = rg_modules.JaccardSimilarityMetricModule(
+      id=jaccard_sim_metric_id,
+      config = {
+      },
+    )
+    modules[jaccard_sim_metric_id] = jaccard_sim_metric_module
+    
     inst_coord_metric_id = f"inst_coord_metric"
     inst_coord_input_stream_ids = {
       "logger":"modules:logger:ref",
@@ -2695,6 +2703,7 @@ def main():
     if "obverter" in args.graphtype:
       pipelines[optim_id].append(listener_topo_sim_metric_id)
       pipelines[optim_id].append(listener_posbosdis_metric_id)
+    pipelines[optim_id].append(jaccard_sim_metric_id)
     pipelines[optim_id].append(inst_coord_metric_id)
     pipelines[optim_id].append(speaker_inst_coord_metric_id)
     pipelines[optim_id].append(listener_inst_coord_metric_id)

@@ -68,6 +68,9 @@ class Dataset(torchDataset):
         assert(nbr_distractors > 0)
         self.nbr_distractors[mode] = nbr_distractors
 
+    def size(self) -> int:
+        raise NotImplementedError
+    
     def __len__(self) -> int:
         raise NotImplementedError
 

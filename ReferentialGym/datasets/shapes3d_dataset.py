@@ -464,6 +464,9 @@ class Shapes3DDataset(Dataset) :
         
         return images
 
+    def size(self) -> int:
+        return len(self.indices)
+    
     def __len__(self) -> int:
         if self.dataset_length is not None:
             return self.dataset_length
@@ -543,7 +546,7 @@ class Shapes3DDataset(Dataset) :
             "exp_latents_values":latent_value,
             "exp_latents_one_hot_encoded":latent_one_hot_encoded,
             "exp_test_latents_masks":test_latents_mask,
-            "exp_indices": idx,
+            "exp_indices": trueidx,
         }
 
         return sampled_d
