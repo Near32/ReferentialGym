@@ -92,7 +92,7 @@ class OCCModule(Module):
                     0.0,
                 )
                 if test_accuracy >= self.accuracy_threshold:
-                    self.hard_object_centric_ratio = int((test_accuracy-self.accuracy_threshold)/(100-self.accuracy_threshold))
+                    self.hard_object_centric_ratio = int(100*(test_accuracy-self.accuracy_threshold)/(100-self.accuracy_threshold))
                 else:
                     self.hard_object_centric_ratio = 0
                 
