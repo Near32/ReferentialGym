@@ -22,12 +22,13 @@ CUDA_VISIBLE_DEVICES=0 python -m ipdb -c c train_wandb.py \
 --nb_3dshapespybullet_shapes=10 --nb_3dshapespybullet_train_colors=8 \
 --nbr_discriminative_test_distractors=7 \
 --nbr_distractors=7 \
---nbr_eval_points=200 --nbr_train_points=500 \
---object_centric=True \
+--nbr_eval_points=500 --nbr_train_points=500 \
+--object_centric=True --object_centric_type=hard \
+--use_object_centric_curriculum=True --object_centric_curriculum_accuracy_threshold=50 \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \
---use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.75 \
+--use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.90 \
 --obverter_use_decision_head=False \
 --parallel_TS_worker=32 \
 --parent_folder=./PyBullet3DShapes_obverter_aita_test \

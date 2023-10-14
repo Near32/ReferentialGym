@@ -420,7 +420,10 @@ def main():
   parser.add_argument("--with_descriptive_not_target_logit_language_conditioning", type=reg_bool, default="False")
   parser.add_argument("--descriptive_ratio", type=float, default=0.0)
   parser.add_argument("--object_centric", type=reg_bool, default="False")
+  parser.add_argument("--object_centric_type", type=str, default="hard")
   parser.add_argument("--object_centric_version", type=int, default=1)
+  parser.add_argument("--use_object_centric_curriculum", type=reg_bool, default="False")
+  parser.add_argument("--object_centric_curriculum_accuracy_threshold", type=float, default=0.0)
   parser.add_argument("--descriptive_version", type=int, default=1)
   parser.add_argument("--with_color_jitter_augmentation", type=reg_bool, default="False")
   parser.add_argument("--with_gaussian_blur_augmentation", type=reg_bool, default="False")
@@ -560,6 +563,9 @@ def main():
   #if 'EncoderOnly' not in args.arch:
   #    args.epoch = 11 
 
+  if args.use_object_centric_curriculum:
+      args.object_centric = True 
+  
   if args.nbr_distractors is not None:
       args.nbr_train_distractors = args.nbr_distractors
       args.nbr_test_distractors = args.nbr_distractors
@@ -716,6 +722,7 @@ def main():
       "descriptive_target_ratio": descriptive_ratio,
 
       "object_centric":           args.object_centric,
+      "object_centric_type":      args.object_centric_type,
       "nbr_stimulus":             1,
 
       "graphtype":                args.graphtype,
@@ -1569,6 +1576,12 @@ def main():
         "target_unique_prod_ratio": args.aitao_target_unique_prod_ratio,
     }
 
+  if args.use_object_centric_curriculum:
+    occ_id = "occ_0"
+    occ_config = {
+        "accuracy_threshold": args.object_centric_curriculum_accuracy_threshold,
+    }
+
   if not args.baseline_only:
     # Population:
     population_handler_id = "population_handler_0"
@@ -1599,6 +1612,12 @@ def main():
     modules[aitao_id] = AITAOModule(
       id=aitao_id,
       config=aitao_config,
+    )
+ 
+  if args.use_object_centric_curriculum:
+    modules[occ_id] = rg_modules.OCCModule(
+      id=occ_id,
+      config=occ_config,
     )
  
   if not args.baseline_only:
@@ -2727,25 +2746,13 @@ def main():
   """
 
   pipelines[optim_id].append(logger_id)
+  if args.use_object_centric_curriculum:
+    pipelines[optim_id].append(occ_id)
 
   rg_config["modules"] = modules
   rg_config["pipelines"] = pipelines
 
 
-  # dataset_args = {
-  #     "dataset_class":            "DualLabeledDataset",
-  #     "modes": {"train": train_dataset,
-  #               "test": test_dataset,
-  #               },
-  #     "need_dict_wrapping":       need_dict_wrapping,
-  #     "nbr_stimulus":             rg_config["nbr_stimulus"],
-  #     "distractor_sampling":      rg_config["distractor_sampling"],
-  #     "nbr_distractors":          rg_config["nbr_distractors"],
-  #     "observability":            rg_config["observability"],
-  #     "object_centric":           rg_config["object_centric"],
-  #     "descriptive":              rg_config["descriptive"],
-  #     "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
-  # }
   dataset_args = {"modes":["train", "test"]}
   dataset_args["train"] = {
       "dataset_class":            "DualLabeledDataset",
@@ -2759,6 +2766,7 @@ def main():
       "nbr_distractors":          rg_config["nbr_distractors"],
       "observability":            rg_config["observability"],
       "object_centric":           rg_config["object_centric"],
+      "object_centric_type":      rg_config["object_centric_type"],
       "descriptive":              rg_config["descriptive"],
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
@@ -2774,6 +2782,7 @@ def main():
       "nbr_distractors":          rg_config["nbr_distractors"],
       "observability":            rg_config["observability"],
       "object_centric":           rg_config["object_centric"],
+      "object_centric_type":      rg_config["object_centric_type"],
       "descriptive":              rg_config["descriptive"],
       "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
   }
@@ -2794,6 +2803,7 @@ def main():
         "nbr_distractors":          nbd,
         "observability":            rg_config["observability"],
         "object_centric":           rg_config["object_centric"],
+        "object_centric_type":      rg_config["object_centric_type"],
         "descriptive":              True, #rg_config["descriptive"],
         "descriptive_target_ratio": 0.5, #rg_config["descriptive_target_ratio"],
     }  
@@ -2813,6 +2823,7 @@ def main():
         "nbr_distractors":          nbd,
         "observability":            rg_config["observability"],
         "object_centric":           rg_config["object_centric"],
+        "object_centric_type":      rg_config["object_centric_type"],
         "descriptive":              False, #rg_config["descriptive"],
         "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
     }
@@ -2833,6 +2844,7 @@ def main():
         "nbr_distractors":          nbd,
         "observability":            rg_config["observability"],
         "object_centric":           rg_config["object_centric"],
+        "object_centric_type":      rg_config["object_centric_type"],
         "descriptive":              False, #rg_config["descriptive"],
         "descriptive_target_ratio": 1.0, #rg_config["descriptive_target_ratio"],
     }
@@ -2854,6 +2866,7 @@ def main():
         "nbr_distractors":          nbd,
         "observability":            rg_config["observability"],
         "object_centric":           rg_config["object_centric"],
+        "object_centric_type":      rg_config["object_centric_type"],
         "descriptive":              rg_config["descriptive"],
         "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
     }
@@ -2874,6 +2887,7 @@ def main():
         "nbr_distractors":          nbd,
         "observability":            rg_config["observability"],
         "object_centric":           rg_config["object_centric"],
+        "object_centric_type":      rg_config["object_centric_type"],
         "descriptive":              rg_config["descriptive"],
         "descriptive_target_ratio": rg_config["descriptive_target_ratio"],
     }

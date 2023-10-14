@@ -40,6 +40,7 @@ from .dsprites_per_latent_accuracy_metric_module import build_dSpritesPerLatentA
 from .confusion_matrix_metric_module import build_ConfusionMatrixMetricModule, ConfusionMatrixMetricModule
 
 from .vocabulary_grounding_loss_module import build_VocabularyGroundingLossModule, VocabularyGroundingLossModule 
+from .object_centric_curriculum_module import OCCModule 
 from .obverter_datasampling_module import ObverterDatasamplingModule 
 
 from .compactness_ambiguity_metric_module import build_CompactnessAmbiguityMetricModule, CompactnessAmbiguityMetricModule

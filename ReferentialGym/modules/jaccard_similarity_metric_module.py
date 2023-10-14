@@ -14,8 +14,8 @@ from ReferentialGym.utils.utils import (
 def compute_levenshtein_distances_with_cache(
     idx2sentences1,
     idx2sentences2,
+    cache_dict={}, 
 ):
-    cache_dict = {} 
     levs = []
     for idx1, s1 in idx2sentences1.items(): 
         if idx1 not in idx2sentences2:  continue
@@ -143,7 +143,7 @@ class JaccardSimilarityMetricModule(Module):
             
             # Is it the end of the epoch?
             end_of_epoch = all([input_streams_dict[key] for key in self.end_of_])
-            
+            cache_dict = {} 
             if end_of_epoch:
                 self.speaker_id_set = sorted(list(set(self.speaker_ids)), key=str.lower)
                 speaker2levs = {}
@@ -156,6 +156,7 @@ class JaccardSimilarityMetricModule(Module):
                         levs = speaker2levs[speaker_id1][speaker_id2] = compute_levenshtein_distances_with_cache(
                             idx2sentences1=self.speaker2idx2widx[speaker_id1],
                             idx2sentences2=self.speaker2idx2widx[speaker_id2],
+                            cache_dict=cache_dict, 
                         )
                         #speaker2levs[speaker_id2][speaker_id1] = levs
                         nbr_levs = len(levs)
