@@ -1,5 +1,6 @@
-CUDA_VISIBLE_DEVICES=0 python -m ipdb -c c train_wandb.py \
+python -m ipdb -c c train_wandb.py \
 --project=AITAO-Debug \
+--seed=20 \
 --add_descriptive_test=True --add_discriminative_test=False \
 --agent_loss_type=Hinge --agent_nbr_latent_dim=32 \
 --arch=BN+BetaVAEEncoderOnly3x3 \
@@ -24,16 +25,15 @@ CUDA_VISIBLE_DEVICES=0 python -m ipdb -c c train_wandb.py \
 --nbr_distractors=7 \
 --nbr_eval_points=500 --nbr_train_points=500 \
 --object_centric=True --object_centric_type=hard \
---use_object_centric_curriculum=True --object_centric_curriculum_accuracy_threshold=50 \
+--use_object_centric_curriculum=True --object_centric_curriculum_accuracy_threshold=0 \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \
---use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.90 \
+--use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.75 \
 --obverter_use_decision_head=False \
 --parallel_TS_worker=32 \
 --parent_folder=./PyBullet3DShapes_obverter_aita_test \
 --resizeDim=64 \
---seed=11 \
 --shared_architecture=True \
 --symbol_embedding_size=64 --symbol_processing_nbr_hidden_units=64 \
 --synthetic_progression_end=10 \
