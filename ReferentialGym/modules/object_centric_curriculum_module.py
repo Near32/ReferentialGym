@@ -54,8 +54,11 @@ class OCCModule(Module):
         
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
         self.accuracy_threshold = self.config.get('accuracy_threshold', 10.0)
+        self.test_accuracy = 0.0
         self.hard_object_centric_ratio = 0.0
-        
+        self.update_epoch_period = int(self.config.get('update_epoch_period', 1))
+        self.last_update_epoch = 0
+
     def update_object_centric_type(self, input_streams_dict:Dict[str,object]):
         dataset = input_streams_dict['dataset']
         assert dataset.kwargs['object_centric']
@@ -82,27 +85,31 @@ class OCCModule(Module):
         dataset_size = dataset.size()
         
         if mode=='test' \
+        and (epoch-self.last_update_epoch) % self.update_epoch_period == 0 \
         and it_step == 0:
             # Is it the end of the epoch?
             end_of_epoch = all([input_streams_dict[key] for key in self.end_of_])
             
             if end_of_epoch:
-                test_accuracy = epoch_logs_dict.get(
+                self.test_accuracy = epoch_logs_dict.get(
                     "PerEpoch/test/repetition0/comm_round0/referential_game_accuracy/Mean",
                     0.0,
                 )
-                if test_accuracy >= self.accuracy_threshold:
-                    self.hard_object_centric_ratio = int(100*(test_accuracy-self.accuracy_threshold)/(100-self.accuracy_threshold))
+                if self.test_accuracy >= self.accuracy_threshold:
+                    self.hard_object_centric_ratio = int(100*(self.test_accuracy-self.accuracy_threshold)/(100-self.accuracy_threshold))
+                    self.last_update_epoch = epoch
                 else:
                     self.hard_object_centric_ratio = 0
                 
-                wandb.log({
-                    "ObjectCentricCurriculum/OCC_ratio": self.hard_object_centric_ratio,
-                    "ObjectCentricCurriculum/TestAccuracy": test_accuracy,
-                    "ObjectCentricCurriculum/AccuracyThreshold": self.accuracy_threshold,
-                    },
-                    commit=False,
-                )
+        wandb.log({
+            "ObjectCentricCurriculum/OCC_ratio": self.hard_object_centric_ratio,
+            "ObjectCentricCurriculum/TestAccuracy": self.test_accuracy,
+            "ObjectCentricCurriculum/AccuracyThreshold": self.accuracy_threshold,
+            "ObjectCentricCurriculum/UpdateEpochPeriod": self.update_epoch_period,
+            "ObjectCentricCurriculum/LastUpdateEpoch": self.last_update_epoch,
+            },
+            commit=False,
+        )
         
         self.update_object_centric_type(input_streams_dict)
         

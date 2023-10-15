@@ -1,6 +1,6 @@
 python -m ipdb -c c train_wandb.py \
 --project=AITAO-Debug \
---seed=10 \
+--seed=20 \
 --add_descriptive_test=True --add_discriminative_test=False \
 --agent_loss_type=Hinge --agent_nbr_latent_dim=32 \
 --arch=BN+BetaVAEEncoderOnly3x3 \
@@ -25,7 +25,8 @@ python -m ipdb -c c train_wandb.py \
 --nbr_distractors=7 \
 --nbr_eval_points=500 --nbr_train_points=500 \
 --object_centric=True --object_centric_type=hard \
---use_object_centric_curriculum=True --object_centric_curriculum_accuracy_threshold=50 \
+--use_object_centric_curriculum=True \
+--object_centric_curriculum_update_epoch_period=2 --object_centric_curriculum_accuracy_threshold=50 \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \

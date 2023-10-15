@@ -423,6 +423,7 @@ def main():
   parser.add_argument("--object_centric_type", type=str, default="hard")
   parser.add_argument("--object_centric_version", type=int, default=1)
   parser.add_argument("--use_object_centric_curriculum", type=reg_bool, default="False")
+  parser.add_argument("--object_centric_curriculum_update_epoch_period", type=int, default=1)
   parser.add_argument("--object_centric_curriculum_accuracy_threshold", type=float, default=0.0)
   parser.add_argument("--descriptive_version", type=int, default=1)
   parser.add_argument("--with_color_jitter_augmentation", type=reg_bool, default="False")
@@ -1579,6 +1580,7 @@ def main():
   if args.use_object_centric_curriculum:
     occ_id = "occ_0"
     occ_config = {
+        "update_epoch_period": args.object_centric_curriculum_update_epoch_period,
         "accuracy_threshold": args.object_centric_curriculum_accuracy_threshold,
     }
 
