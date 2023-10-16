@@ -91,9 +91,15 @@ class RNNCNNListener(DiscriminativeListener):
         self.encoder_feature_shape = self.cnn_encoder.get_feature_shape()
         if self.use_feat_converter:
             self.featout_converter = []
-            self.featout_converter.append(nn.Linear(self.feat_converter_input, self.kwargs['cnn_encoder_feature_dim']*2))
+            hidden = int((self.feat_converter_input+self.kwargs['feat_converter_output_size'])/2)
+            #self.featout_converter.append(nn.Linear(self.feat_converter_input, self.kwargs['cnn_encoder_feature_dim']*2))
+            self.featout_converter.append(nn.Linear(self.feat_converter_input, hidden))
+            #self.featout_converter.append(nn.BatchNorm1d(num_features=self.kwargs['cnn_encoder_feature_dim']*2))
+            self.featout_converter.append(nn.BatchNorm1d(num_features=hidden))
             self.featout_converter.append(nn.ReLU())
-            self.featout_converter.append(nn.Linear(self.kwargs['cnn_encoder_feature_dim']*2, self.kwargs['feat_converter_output_size'])) 
+            #self.featout_converter.append(nn.Linear(self.kwargs['cnn_encoder_feature_dim']*2, self.kwargs['feat_converter_output_size'])) 
+            self.featout_converter.append(nn.Linear(hidden, self.kwargs['feat_converter_output_size'])) 
+            self.featout_converter.append(nn.BatchNorm1d(num_features=self.kwargs['feat_converter_output_size']))
             self.featout_converter.append(nn.ReLU())
             self.featout_converter =  nn.Sequential(*self.featout_converter)
             self.encoder_feature_shape = self.kwargs['feat_converter_output_size']
@@ -160,11 +166,13 @@ class RNNCNNListener(DiscriminativeListener):
         if self.kwargs['use_cuda']:
             self = self.cuda()
 
-    def reset(self, reset_language_model=False):
+    def reset(self, reset_language_model=False, whole=False):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None
         self._reset_rnn_states()
+        if whole:
+            self.cnn_encoder.apply(layer_init)
 
     def _tidyup(self):
         """
@@ -229,7 +237,7 @@ class RNNCNNListener(DiscriminativeListener):
                 featout = self.cnn_encoder(stin)
                 if self.use_feat_converter:
                     if len(featout.shape)>2:    
-                        featout = featout.reshape(mini_batch_size, -1)
+                        featout = featout.reshape(stin.shape[0], -1)
                     featout = self.featout_converter(featout)
 
             features.append(featout)
@@ -332,11 +340,15 @@ class RNNCNNListener(DiscriminativeListener):
             rnn_outputs = rnn_outputs.reshape((batch_size, -1, self.kwargs['symbol_processing_nbr_hidden_units']))
 
         # Compute the decision: following each hidden/output vector from the rnn:
+        if self.kwargs.get('normalize_features', False):
+            self.embedding_tf_final_outputs = F.normalize(self.embedding_tf_final_outputs, p=2.0, dim=-1)
+        
         decision_logits = []
         max_sentence_length = rnn_outputs.size(1)
         for widx in range(max_sentence_length):
             decision_inputs = rnn_outputs[:,widx,...]
             # (batch_size, kwargs['symbol_processing_nbr_hidden_units'])
+            '''
             decision_logits_until_widx = []
             for b in range(batch_size):
                 bemb = self.embedding_tf_final_outputs[b]
@@ -353,6 +365,14 @@ class RNNCNNListener(DiscriminativeListener):
                 # ( 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent))
                 decision_logits_until_widx.append(dl)
             decision_logits_until_widx = torch.cat(decision_logits_until_widx, dim=0)
+            '''
+            emb = self.embedding_tf_final_outputs
+            din = decision_inputs.unsqueeze(-1)
+            
+            if self.kwargs.get('normalize_features', False):
+                din = F.normalize(din, p=2.0, dim=-2)
+            
+            decision_logits_until_widx = torch.matmul( emb, din).reshape(batch_size, -1)
             # (batch_size, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
             decision_logits.append(decision_logits_until_widx.unsqueeze(1))
             # (batch_size, 1, (nbr_distractors+1) / ? (descriptive mode depends on the role of the agent) )
@@ -363,6 +383,8 @@ class RNNCNNListener(DiscriminativeListener):
             not_target_logit = self.not_target_logits_per_token.repeat(batch_size, max_sentence_length, 1).to(decision_logits.device)
             decision_logits = torch.cat([decision_logits, not_target_logit], dim=-1 )
             # (batch_size, (nbr_distractors+2) )
+        elif not self.kwargs.get("normalize_features", False):
+            decision_logits = torch.tanh(decision_logits)
         if self.kwargs["agent_loss_type"].lower() == "nll":
             decision_logits = torch.log_softmax(decision_logits, dim=-1)
         

@@ -29,27 +29,27 @@ setup(
     zip_safe=False,
 
     install_requires=[
-	    'tqdm',
-      'cloudpickle',
-      #'Cython',
-	    'numpy',
-	    'scipy',
-	    'scikit-image',
-      # previously: 'scikit-learn==0.23',
-      # now:
-      'scikit-learn==1.0',
-	    'h5py',
-	    'opencv-python',
-	    #'torch==1.4',
-      #'torchvision==0.5.0',
-	    'torch>=1.4',
-	    'torchvision>=0.5.0',
-      'tensorboardX',
-	    'matplotlib',
-	    'docopt',
-      'pybullet==3.1.7',
-	    #'pycocotools'
-	] + test_requirements,
+        'tqdm',
+        'cloudpickle',
+        #'Cython',
+	'numpy',
+	'scipy',
+	'scikit-image',
+        # previously: 'scikit-learn==0.23',
+        # now:
+        'scikit-learn', #==1.0',
+	'h5py',
+	'opencv-python',
+	#'torch==1.4',
+        #'torchvision==0.5.0',
+	'torch>=1.4',
+	'torchvision>=0.5.0',
+       'tensorboardX',
+	'matplotlib',
+	'docopt',
+       'pybullet==3.1.7',
+	#'pycocotools'
+    ] + test_requirements,
 
     python_requires=">=3.6",
 )

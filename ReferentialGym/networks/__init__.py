@@ -4,6 +4,7 @@ from .residual_networks import ResidualLayer, ModelResNet18, ModelResNet18AvgPoo
 from .networks import ModelVGG16, ExtractorVGG16
 
 from .networks import layer_init, hasnan, handle_nan, reg_nan
+from .networks import l1_reg, l2_reg
 
 from .autoregressive_networks import DeconvolutionalBody
 from .autoregressive_networks import ResNetEncoder, ResNetAvgPooledEncoder, BroadcastingDecoder, ResNetParallelAttentionEncoder, ParallelAttentionBroadcastingDeconvDecoder

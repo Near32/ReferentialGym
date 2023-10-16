@@ -64,7 +64,7 @@ class PopulationHandlerModule(Module):
         if 'cultural_speaker_substrate_size' not in self.config:
             self.config['cultural_speaker_substrate_size'] = 1
         nbr_speaker = self.config['cultural_speaker_substrate_size']
-        self.speakers = nn.ModuleList()
+        self.speakers = [] #nn.ModuleList()
         self.dspeakers = dict()
         speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
         for speaker in speakers:
@@ -74,7 +74,7 @@ class PopulationHandlerModule(Module):
         if 'cultural_listener_substrate_size' not in self.config:
             self.config['cultural_listener_substrate_size'] = 1
         nbr_listener = self.config['cultural_listener_substrate_size']
-        self.listeners = nn.ModuleList()
+        self.listeners = [] #nn.ModuleList()
         self.dlisteners = dict()
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
         for listener in listeners:
@@ -114,7 +114,7 @@ class PopulationHandlerModule(Module):
         self.previous_global_it_datasample = {}
         self.counterGames = -1
         self.counterRounds = -1
-
+    
     def save(self, path):
         path = os.path.join(path, self.id)
         os.makedirs(path, exist_ok=True)
@@ -230,7 +230,8 @@ class PopulationHandlerModule(Module):
         
         if epoch != self.previous_epoch:
             self.previous_epoch = epoch
-            if epoch % self.config.get("agent_saving_epoch_period", 100) == 0:
+            if self.config.get("agent_saving", False) \
+            and epoch % self.config.get("agent_saving_epoch_period", 100) == 0:
                 # Save agent:
                 for agent in self.speakers:
                     agent.save(path=os.path.join(self.config['save_path'],'{}_{}.pt'.format(agent.kwargs['architecture'], agent.agent_id)))

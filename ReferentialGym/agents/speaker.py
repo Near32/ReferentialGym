@@ -338,7 +338,7 @@ class Speaker(Agent):
         """
         raise NotImplementedError
 
-    def forward(self, experiences, sentences=None, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
+    def forward(self, experiences, sentences=None, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2, **kwargs):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 

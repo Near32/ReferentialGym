@@ -7,7 +7,9 @@ from .generative_listener import GenerativeListener
 
 from .rnn_speaker import RNNSpeaker 
 from .rnn_cnn_speaker import RNNCNNSpeaker 
+from .rnn_obs_speaker import RNNObsSpeaker
 from .lstm_cnn_speaker import LSTMCNNSpeaker
+from .lstm_obs_speaker import LSTMObsSpeaker
 from .gru_cnn_speaker import GRUCNNSpeaker
 
 from .transcoding_lstm_cnn_speaker import TranscodingLSTMCNNSpeaker
@@ -16,7 +18,9 @@ from .eos_priored_lstm_cnn_speaker import EoSPrioredLSTMCNNSpeaker
 
 from .rnn_listener import RNNListener 
 from .rnn_cnn_listener import RNNCNNListener
+from .rnn_obs_listener import RNNObsListener
 from .lstm_cnn_listener import LSTMCNNListener
+from .lstm_obs_listener import LSTMObsListener
 from .gru_cnn_listener import GRUCNNListener
 from .mlp_rnn_cnn_listener import MLPRNNCNNListener
 from .mlp_gru_cnn_listener import MLPGRUCNNListener

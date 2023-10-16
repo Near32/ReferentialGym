@@ -8,10 +8,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
+import torchvision
 
 import numpy as np 
 
 from ..modules import Module
+
+import wandb
 
 
 def vae_loss_hook(agent,
@@ -43,8 +46,105 @@ def maxl1_loss_hook(agent,
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/{agent.role}_maxl1_weight_loss"] = [1.0, weight_maxl1_loss]
     
 
+wandb_logging_table = None
+def wandb_ImageOrGIF(data):
+    if data.shape[0] == 3:
+        return wandb.Image(data)
+    nbr_frames = data.shape[0] // 3
+    data = data.reshape(3, nbr_frames, *data.shape[-2:]).transpose(0,1)
+    if data.max().item() <= 1.0:
+        data = data*255
+    return wandb.Video(data, fps=1, format='gif')
 
+def wandb_logging_hook(
+    agent,
+    losses_dict,
+    input_streams_dict,
+    outputs_dict,
+    logs_dict,
+    **kwargs,
+):
+    if 'listener' not in agent.role:  return
+    
+    global_it = input_streams_dict['global_it_comm_round']
+    mode = input_streams_dict['mode']
 
+    if global_it % 1024 != 0:    return
+    
+    idx2w = agent.idx2w
+
+    listener_experiences = input_streams_dict['experiences']
+    listener_experience_indices = input_streams_dict['sample']['listener_indices']
+    speaker_experiences = input_streams_dict['sample']['speaker_experiences']
+    #listener_experiences = input_streams_dict['sample']['listener_experiences']
+    nbr_distractors_po = listener_experiences.shape[1]
+    
+    #imgs = experiences.reshape((-1, *experiences.shape[-3:]))
+    #grid_imgs = torchvision.utils.make_grid(imgs, nrow=nbr_distractors_po)
+    
+    sentences = input_streams_dict['sentences_widx']
+    max_sentence_length = agent.config['max_sentence_length']
+    
+    target_indices = input_streams_dict['sample']['target_decision_idx']
+    
+    global wandb_logging_table
+    if wandb_logging_table is None:
+        columns = [
+            "it",
+            "mode",
+            "bidx",
+            "sentence",
+            "target_stimulus",
+        ]
+        for didx in range(nbr_distractors_po):
+            columns.append(f"distr_stimulus_{didx}")
+        for didx in range(nbr_distractors_po):
+            columns.append(f"idx_distr_stimulus_{didx}")
+        for tidx in range(max_sentence_length):
+            columns.append(f"token_{tidx}")
+
+        wandb_logging_table = wandb.Table(columns)
+    
+    for bidx in range(listener_experiences.shape[0]):
+        data = []
+        data.append(global_it)
+        data.append(mode)
+        data.append(bidx)
+        sentence = sentences[bidx].cpu().reshape(max_sentence_length).numpy().tolist()
+        if idx2w is not None:
+            sentence = [idx2w[t] for t in sentence]
+            data.append(' '.join(sentence))
+        else:
+            data.append(sentence)
+        try:
+            target_stimulus = speaker_experiences[bidx,0,0].cpu().transpose(1,2)#*255
+            target_stimulus = wandb_ImageOrGIF(target_stimulus)
+        except Exception as e:
+            print(e)
+            target_stimulus = speaker_experiences[bidx].cpu().numpy().tolist()
+        data.append(target_stimulus)
+        for didx in range(nbr_distractors_po):
+            try:
+                dstimulus = listener_experiences[bidx,didx,0].cpu()#*255
+                dstimulus = wandb_ImageOrGIF(dstimulus.transpose(1,2))
+            except Exception as e:
+                print(e)
+                dstimulus = listener_experiences[bidx,didx].cpu().numpy().tolist()
+            data.append(dstimulus)
+        for didx in range(nbr_distractors_po):
+            dstim_idx = listener_experience_indices[bidx,didx].cpu().item()
+            data.append(dstim_idx)
+        for tidx in range(max_sentence_length):
+            token = sentence[tidx]
+            data.append(token)
+        wandb_logging_table.add_data(*data)
+    
+    wandb.log({f"{mode}/WandbLoggingTable":wandb_logging_table}, commit=False)
+    wandb_logging_table = None
+    
+    return 
+
+    
 class Agent(Module):
     def __init__(self, 
                  agent_id="l0", 
@@ -124,6 +224,25 @@ class Agent(Module):
         
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
+        
+        vocabulary = set('key ball red green blue purple \
+            yellow grey verydark dark neutral light verylight \
+            tiny small medium large giant get go fetch go get \
+            a fetch a you must fetch a'.split(' ')
+        )
+        self.vocabulary = set([w.lower() for w in vocabulary])
+        self.vocabulary = list(self.vocabulary)
+        while len(self.vocabulary) < self.vocab_size-2:
+            self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
+        self.vocabulary = self.vocabulary[:self.vocab_size-2]
+        self.vocabulary = list(set(self.vocabulary))
+        self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
+        self.w2idx = {}
+        self.idx2w = {}
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
         self.max_sentence_length = max_sentence_length
         
         self.logger = logger 
@@ -140,9 +259,16 @@ class Agent(Module):
         self.hooks = []
         if self.kwargs.get("with_weight_maxl1_loss", False):
             self.register_hook(maxl1_loss_hook)
-
+        self.register_hook(wandb_logging_hook)
+        
         self.role = role        
     
+    def set_vocabulary(self, vocabulary):
+        self.vocabulary = vocabulary
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
     def get_input_stream_ids(self):
         return self.input_stream_ids[self.role]
 
@@ -193,7 +319,7 @@ class Agent(Module):
         """
         raise NotImplementedError
 
-    def forward(self, sentences, experiences, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2):
+    def forward(self, sentences, experiences, multi_round=False, graphtype="straight_through_gumbel_softmax", tau0=0.2, **kwargs):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
@@ -270,6 +396,7 @@ class Agent(Module):
             multi_round=input_streams_dict.get("multi_round", False),
             graphtype=input_streams_dict.get("graphtype", self.kwargs['graphtype']),
             tau0=input_streams_dict.get("tau0", self.kwargs['tau0']),
+            sample=input_streams_dict.get("sample", None),
         )
 
         if self.exp_latents is not None:

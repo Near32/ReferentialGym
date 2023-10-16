@@ -106,7 +106,7 @@ class Listener(Agent):
         """
         raise NotImplementedError
     
-    def _utter(self, features, sentences):
+    def _utter(self, features, sentences, rnn_states):
         """
         Reasons about the features and the listened sentences to yield the sentences to utter back.
         
