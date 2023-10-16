@@ -368,6 +368,8 @@ def main():
       ],
     default="Baseline")
   parser.add_argument("--lr", type=float, default=6e-4)
+  parser.add_argument("--l1_reg_lambda", type=float, default=0.0)
+  parser.add_argument("--l2_reg_lambda", type=float, default=0.0)
   parser.add_argument("--weight_decay", type=float, default=0.0)
   parser.add_argument("--epoch", type=int, default=10000)
   parser.add_argument("--dataloader_num_worker", type=int, default=8)
@@ -426,6 +428,8 @@ def main():
   parser.add_argument("--object_centric_curriculum_update_epoch_period", type=int, default=1)
   parser.add_argument("--object_centric_curriculum_accuracy_threshold", type=float, default=0.0)
   parser.add_argument("--descriptive_version", type=int, default=1)
+  parser.add_argument("--distractors_sampling_scheme_version", type=int, default=1)
+  parser.add_argument("--distractors_sampling_scheme_with_replacement", type=reg_bool, default="True")
   parser.add_argument("--with_color_jitter_augmentation", type=reg_bool, default="False")
   parser.add_argument("--with_gaussian_blur_augmentation", type=reg_bool, default="False")
   parser.add_argument("--egocentric", type=reg_bool, default="False")
@@ -561,6 +565,9 @@ def main():
   #    args.batch_size = args.batch_size // 2
   print(f"DC_version = {ReferentialGym.datasets.dataset.DC_version} and BS={args.batch_size}.")
     
+  ReferentialGym.datasets.dataset.DSS_version = args.distractors_sampling_scheme_version
+  print(f"DSS_version = {ReferentialGym.datasets.dataset.DSS_version}.")
+  
   #if 'EncoderOnly' not in args.arch:
   #    args.epoch = 11 
 
@@ -1907,6 +1914,8 @@ def main():
   optim_config = {
     "modules":modules,
     "learning_rate":args.lr,
+    "l1_reg_lambda":args.l1_reg_lambda,
+    "l2_reg_lambda":args.l2_reg_lambda,
     "weight_decay":args.weight_decay,
     "optimizer_type":args.optimizer_type,
     "with_gradient_clip":rg_config["with_gradient_clip"],
@@ -2763,6 +2772,7 @@ def main():
         "test": test_dataset,
       },
       "need_dict_wrapping":       need_dict_wrapping,
+      "with_replacement":         args.distractors_sampling_scheme_with_replacement,
       "nbr_stimulus":             rg_config["nbr_stimulus"],
       "distractor_sampling":      rg_config["distractor_sampling"],
       "nbr_distractors":          rg_config["nbr_distractors"],
@@ -2779,6 +2789,7 @@ def main():
         "test": test_dataset,
       },
       "need_dict_wrapping":       need_dict_wrapping,
+      "with_replacement":         args.distractors_sampling_scheme_with_replacement,
       "nbr_stimulus":             rg_config["nbr_stimulus"],
       "distractor_sampling":      rg_config["distractor_sampling"],
       "nbr_distractors":          rg_config["nbr_distractors"],
@@ -2800,6 +2811,7 @@ def main():
           "descriptive_test": test_dataset,
         },
         "need_dict_wrapping":       need_dict_wrapping,
+        "with_replacement":         args.distractors_sampling_scheme_with_replacement,
         "nbr_stimulus":             rg_config["nbr_stimulus"],
         "distractor_sampling":      rg_config["distractor_sampling"],
         "nbr_distractors":          nbd,
@@ -2820,6 +2832,7 @@ def main():
           "discriminative_test": test_dataset,
         },
         "need_dict_wrapping":       need_dict_wrapping,
+        "with_replacement":         args.distractors_sampling_scheme_with_replacement,
         "nbr_stimulus":             rg_config["nbr_stimulus"],
         "distractor_sampling":      rg_config["distractor_sampling"],
         "nbr_distractors":          nbd,
@@ -2841,6 +2854,7 @@ def main():
           "discriminative_validation_test": train_dataset,
         },
         "need_dict_wrapping":       need_dict_wrapping,
+        "with_replacement":         args.distractors_sampling_scheme_with_replacement,
         "nbr_stimulus":             rg_config["nbr_stimulus"],
         "distractor_sampling":      rg_config["distractor_sampling"],
         "nbr_distractors":          nbd,
@@ -2863,6 +2877,7 @@ def main():
           "descr_discriminative_test": test_dataset,
         },
         "need_dict_wrapping":       need_dict_wrapping,
+        "with_replacement":         args.distractors_sampling_scheme_with_replacement,
         "nbr_stimulus":             rg_config["nbr_stimulus"],
         "distractor_sampling":      rg_config["distractor_sampling"],
         "nbr_distractors":          nbd,

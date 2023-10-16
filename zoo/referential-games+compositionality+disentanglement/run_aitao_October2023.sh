@@ -11,10 +11,11 @@ python -m ipdb -c c train_wandb.py \
 --metric_fast=False \
 --dis_metric_epoch_period=2 --dis_metric_resampling=True \
 --distractor_sampling=uniform \
---dropout_prob=0 --emb_dropout_prob=0.25 \
+--dropout_prob=0 --emb_dropout_prob=0.0 \
 --egocentric=False \
 --epoch=1001 \
 --graphtype=obverter --lr=0.0001 \
+--l1_reg_lambda=1e-3 --l2_reg_lambda=0.0 \
 --max_sentence_length=10 \
 --metric_active_factors_only=True \
 --metric_batch_size=64 --metric_epoch_period=5 \
@@ -26,7 +27,8 @@ python -m ipdb -c c train_wandb.py \
 --nbr_eval_points=500 --nbr_train_points=500 \
 --object_centric=True --object_centric_type=hard \
 --use_object_centric_curriculum=True \
---object_centric_curriculum_update_epoch_period=4 --object_centric_curriculum_accuracy_threshold=50 \
+--object_centric_curriculum_update_epoch_period=4 \
+--object_centric_curriculum_accuracy_threshold=50 \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \
@@ -56,6 +58,8 @@ python -m ipdb -c c train_wandb.py \
 --aitao_max_similarity_ratio=50.0 --aitao_target_unique_prod_ratio=10.0 \
 --aitao_language_similarity_sampling_epoch_period=3 \
 --object_centric_version=2 --descriptive_version=1 \
+--distractors_sampling_scheme_version=1 \
+--distractors_sampling_scheme_with_replacement=True \
 --obverter_use_residual_connections=False
 
 # --dataset=3dshapes
