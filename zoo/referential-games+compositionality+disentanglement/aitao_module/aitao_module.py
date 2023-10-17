@@ -164,14 +164,14 @@ class AITAOModule(Module):
                     dataset = input_streams_dict["dataset"]
                     ## assumes DualLabeledDataset...
                     current_target_indices = dataset.train_classes
-                    current_mode2idx2class = dataset.mode2idx2class
+                    current_mode2offsetidx2class = dataset.mode2offsetidx2class
 
                     new_train_classes = {}
-                    new_mode2idx2class = {'train':{}, 'test':current_mode2idx2class['test']}
+                    new_mode2offsetidx2class = {'train':{}, 'test':current_mode2offsetidx2class['test']}
                     
                     '''
                     WARNING: due to the dataset effective length,
-                    we need to regularise the mode2idx2class element,
+                    we need to regularise the mode2offsetidx2class element,
                     in order for the DualLabeledDataset to be able to
                     use it despite being agnostic of the original dataset
                     length, and relying solely on the effective length.
@@ -197,17 +197,17 @@ class AITAOModule(Module):
                             the new sentence2class indices, thus we add an offset:
                             '''
                             offset = len(self.sentence2class)
-                            cl = offset + current_mode2idx2class['train'][original_didx] # or didx here should be similar...
+                            cl = offset + current_mode2offsetidx2class['train'][original_didx] # or didx here should be similar...
                         if cl not in new_train_classes: new_train_classes[cl] = []
                         new_train_classes[cl].append(didx)
-                        new_mode2idx2class['train'][didx] = cl
+                        new_mode2offsetidx2class['train'][didx] = cl
 
                     dataset.train_classes = new_train_classes 
 
                     '''
                     WARNING: we need to apply an index offset :
                     Should it rely on effective length or original length?
-                    The offsetted index is used in mode2idx2class, thus
+                    The offsetted index is used in mode2offsetidx2class, thus
                     it is used by the DualLabeledDataset, which rely on the 
                     effective length.
                     Thus, we should add as offset the effective dataset length:
@@ -223,7 +223,7 @@ class AITAOModule(Module):
                             _, cl = dataset.datasets['test'][idx]
                         if cl not in new_test_classes: new_test_classes[cl] = []
                         new_test_classes[cl].append(test_idx_offset+idx)
-                        new_mode2idx2class['test'][test_idx_offset+idx] = cl
+                        new_mode2offsetidx2class['test'][test_idx_offset+idx] = cl
                 
                     # Adding the train classes to the test classes so that we can sample
                     # distractors from the train set:
@@ -232,10 +232,10 @@ class AITAOModule(Module):
                             new_test_classes[cl] = []
                         for idx in new_train_classes[cl]:
                             new_test_classes[cl].append(idx)
-                            new_mode2idx2class['test'][idx] = cl
+                            new_mode2offsetidx2class['test'][idx] = cl
                 
                     dataset.test_classes = new_test_classes
-                    dataset.mode2idx2class = new_mode2idx2class
+                    dataset.mode2offsetidx2class = new_mode2offsetidx2class
                 ### END IF
 
                 # Reset:
