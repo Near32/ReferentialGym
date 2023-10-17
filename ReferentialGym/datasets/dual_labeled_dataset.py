@@ -14,7 +14,7 @@ class DualLabeledDataset(Dataset):
                             'test':kwargs['test_dataset']
                             }
         self.mode = kwargs['mode']
-        self.mode2idx2class = {'train':{}, 'test':{}}
+        self.mode2offsetidx2class = {'train':{}, 'test':{}}
         self.with_replacement= kwargs["with_replacement"]
 
         self.train_classes = {}
@@ -25,7 +25,7 @@ class DualLabeledDataset(Dataset):
                 _, cl = self.datasets['train'][idx]
             if cl not in self.train_classes: self.train_classes[cl] = []
             self.train_classes[cl].append(idx)
-            self.mode2idx2class['train'][idx] = cl
+            self.mode2offsetidx2class['train'][idx] = cl
 
         test_idx_offset = len(self.datasets['train'])
         self.test_classes = {}
@@ -36,7 +36,7 @@ class DualLabeledDataset(Dataset):
                 _, cl = self.datasets['test'][idx]
             if cl not in self.test_classes: self.test_classes[cl] = []
             self.test_classes[cl].append(test_idx_offset+idx)
-            self.mode2idx2class['test'][idx] = cl
+            self.mode2offsetidx2class['test'][test_idx_offset+idx] = cl
 
         # Adding the train classes to the test classes so that we can sample
         # distractors from the train set:
@@ -45,7 +45,7 @@ class DualLabeledDataset(Dataset):
                 self.test_classes[cl] = []
             for idx in self.train_classes[cl]:
                 self.test_classes[cl].append(idx)
-                self.mode2idx2class['test'][idx] = cl
+                self.mode2offsetidx2class['test'][idx] = cl
 
         self.nbr_classes = len(self.test_classes.keys())
         
@@ -55,6 +55,13 @@ class DualLabeledDataset(Dataset):
         self.distractor_sampling_likelihoods = np.ones((train_test_size, train_test_size))
     
     def _get_class_from_idx(self, idx):
+        '''
+        This function expects an index that may be offset
+        by the length of the training dataset, which 
+        means that it is a at-test-time sampling.
+        This function then checks the class with a 
+        regularised index.
+        '''
         dataset = self.datasets['train']
         sampling_idx = idx 
         if sampling_idx>=len(dataset):
@@ -116,10 +123,10 @@ class DualLabeledDataset(Dataset):
                 - some other keys provided by the dataset used...
         '''
         classes = self.train_classes 
+        idx_offset = 0 
         if 'test' in self.mode:
             classes = self.test_classes
-            if idx is not None:
-                idx += len(self.datasets['train'])
+            idx_offset = len(self.datasets['train'])
 
         DSS_version = ReferentialGym.datasets.dataset.DSS_version
         if DSS_version == 1:
@@ -132,7 +139,8 @@ class DualLabeledDataset(Dataset):
                 # If object_centric, then make sure the distractors
                 # are not sampled from the target's class:
                 if idx is not None and self.kwargs['object_centric']:
-                    class_of_idx = self._get_class_from_idx(idx)
+                    # Expect an offset index if testing:
+                    class_of_idx = self._get_class_from_idx(idx+idx_offset)
                     if class_of_idx in from_class:
                         from_class.remove(class_of_idx)
     
@@ -140,7 +148,8 @@ class DualLabeledDataset(Dataset):
                 for class_idx in from_class:
                     list_indices += classes[class_idx]
                 set_indices = set(list_indices) 
-    
+                # these indices contain the offset.
+
                 if excepts_class is not None:
                     excepts_list_indices = []
                     for class_idx in excepts_class:
@@ -159,9 +168,9 @@ class DualLabeledDataset(Dataset):
     
                 if idx is not None:
                     # i.e. if we are not trying to resample the target stimulus...
-                    if idx in set_indices:
-                        set_indices.remove(idx)
-                    indices.append(idx)
+                    if idx+idx_offset in set_indices:
+                        set_indices.remove(idx+idx_offset)
+                    indices.append(idx+idx_offset)
              
                 if len(set_indices) < nbr_samples:
                     #print("WARNING: Dataset's class has not enough element to choose from...")
@@ -179,7 +188,8 @@ class DualLabeledDataset(Dataset):
                 # If object_centric, then make sure the distractors
                 # are not sampled from the target's class:
                 if idx is not None and self.kwargs['object_centric']:
-                    class_of_idx = self._get_class_from_idx(idx)
+                    # Expect an offset index if testing:
+                    class_of_idx = self._get_class_from_idx(idx+idx_offset)
                     if class_of_idx in from_class:
                         from_class.remove(class_of_idx)
     
@@ -187,6 +197,7 @@ class DualLabeledDataset(Dataset):
                 for class_idx in from_class:
                     list_indices += classes[class_idx]
                 set_indices = set(list_indices) 
+                # these indices contain the offset.
     
                 if excepts_class is not None:
                     excepts_list_indices = []
@@ -206,9 +217,10 @@ class DualLabeledDataset(Dataset):
     
                 if idx is not None:
                     # i.e. if we are not trying to resample the target stimulus...
-                    if idx in set_indices:
-                        set_indices.remove(idx)
-                    indices.append(idx)
+                    #if idx in set_indices:
+                    if idx+idx_offset in set_indices:
+                        set_indices.remove(idx+idx_offset)
+                    indices.append(idx+idx_offset)
              
                 if not self.with_replacement \
                 and len(set_indices) < nbr_samples:
@@ -224,7 +236,7 @@ class DualLabeledDataset(Dataset):
             raise NotImplementedError 
         
         if idx is not None:
-            target_idx = idx
+            target_idx = idx+idx_offset
         else:
             #TODO: need to figure out when does this occur:
             # this occurs when trying to sample listener distractor for DC_version==2 
@@ -260,15 +272,17 @@ class DualLabeledDataset(Dataset):
             "exp_latents_values":[]
         }
 
-        for idx in indices:
+        for idx_with_offset in indices:
+            idx = idx_with_offset - idx_offset
             need_reg = {k:True for k in sample_d}
 
             dataset = self.datasets['train']
-            if idx>=len(self.datasets['train']):
+            if idx_with_offset>=len(self.datasets['train']):
                 dataset = self.datasets['test']
-                idx -= len(self.datasets['train'])
-
-            sampled_d = dataset[idx]
+                sampled_d = dataset[idx]
+            else:
+                sampled_d = dataset[idx_with_offset]
+            
             for key, value in sampled_d.items():
                 if key not in sample_d:
                     sample_d[key] = []
@@ -278,7 +292,7 @@ class DualLabeledDataset(Dataset):
                 if key=="exp_labels":
                     current_mode = 'train'
                     if 'test' in self.mode: current_mode = 'test'
-                    value = self.mode2idx2class[current_mode][idx]
+                    value = self.mode2offsetidx2class[current_mode][idx_with_offset]
                 sample_d[key].append(value)
 
             # We assume that it is a supervision learning dataset,
@@ -308,7 +322,7 @@ class DualLabeledDataset(Dataset):
             if not(isinstance(v, torch.Tensor)):    continue
             sample_d[k] = v.unsqueeze(1)
         
-        # Adding the sampled indices:
+        # Adding the sampled indices, with their offset:
         sample_d["indices"] = indices 
 
         return sample_d

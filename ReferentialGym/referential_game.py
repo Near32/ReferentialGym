@@ -426,7 +426,6 @@ class ReferentialGame(object):
             self.stream_handler.update("signals:epoch", epoch)
             pbar.update(1)
             for it_dataset, (mode, data_loader) in enumerate(data_loaders.items()):
-                print(" ")
                 self.stream_handler.update("current_dataset:ref", self.datasets[mode])
                 self.stream_handler.update("signals:mode", mode)
                 

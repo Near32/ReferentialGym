@@ -49,9 +49,10 @@ def maxl1_loss_hook(agent,
 wandb_logging_table = None
 def wandb_ImageOrGIF(data):
     if data.shape[0] == 3:
-        return wandb.Image(data)
+        return wandb.Image(data.transpose(1,2))
     nbr_frames = data.shape[0] // 3
     data = data.reshape(3, nbr_frames, *data.shape[-2:]).transpose(0,1)
+    #.transpose(2,3)
     if data.max().item() <= 1.0:
         data = data*255
     return wandb.Video(data, fps=1, format='gif')
@@ -75,6 +76,9 @@ def wandb_logging_hook(
 
     listener_experiences = input_streams_dict['experiences']
     listener_experience_indices = input_streams_dict['sample']['listener_indices']
+    batch_size = listener_experience_indices.shape[0]
+    listener_experience_indices = listener_experience_indices.reshape((batch_size, -1))
+
     speaker_experiences = input_streams_dict['sample']['speaker_experiences']
     #listener_experiences = input_streams_dict['sample']['listener_experiences']
     nbr_distractors_po = listener_experiences.shape[1]
@@ -86,7 +90,7 @@ def wandb_logging_hook(
     max_sentence_length = agent.config['max_sentence_length']
     
     target_indices = input_streams_dict['sample']['target_decision_idx']
-    
+
     global wandb_logging_table
     if wandb_logging_table is None:
         columns = [
@@ -232,9 +236,9 @@ class Agent(Module):
         )
         self.vocabulary = set([w.lower() for w in vocabulary])
         self.vocabulary = list(self.vocabulary)
-        while len(self.vocabulary) < self.vocab_size-2:
+        while len(self.vocabulary) < self.vocab_size+2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
-        self.vocabulary = self.vocabulary[:self.vocab_size-2]
+        self.vocabulary = self.vocabulary[:self.vocab_size+2]
         self.vocabulary = list(set(self.vocabulary))
         self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
         self.w2idx = {}

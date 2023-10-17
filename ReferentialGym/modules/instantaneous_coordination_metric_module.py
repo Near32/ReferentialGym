@@ -104,7 +104,7 @@ class InstantaneousCoordinationMetricModule(Module):
                 # Account for descriptive mode:
                 non_target_stimulus_idx = (-1)*np.ones((1, 1))
                 self.listener_indices = [
-                    np.concatenate([el, np.tile(non_target_stimulus_idx, reps=(el.shape[0], 1))], axis=-1)
+                    np.concatenate([np.reshape(el, (el.shape[0], -1)), np.tile(non_target_stimulus_idx, reps=(el.shape[0], 1))], axis=-1)
                     for el in self.listener_indices
                 ]
                 # (nbr_element, batch_size may vary.., nbr_stimulus+1)

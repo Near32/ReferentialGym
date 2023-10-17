@@ -918,13 +918,12 @@ class _3DShapesPyBulletDataset(Dataset) :
                 "No valid data, maybe try a smaller divider..."
 
         elif 'compositional' in self.split_strategy:
+            self.traintest_indices = [] 
+            color_selection = self.training_shape_2_possible_colors
+            if not(self.train): color_selection = self.testing_shape_2_possible_colors
             for idx in range(self.latents_classes.shape[0]):
                 shape_id = self.latents_classes[idx][1]
                 color_id = self.latents_classes[idx][0]
-
-                color_selection = self.training_shape_2_possible_colors
-                if not(self.train): color_selection = self.testing_shape_2_possible_colors
-                
                 self.traintest_indices.append(idx)
                 if color_id in color_selection[shape_id]:
                     self.indices.append(len(self.traintest_indices)-1)

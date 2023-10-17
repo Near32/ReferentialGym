@@ -279,6 +279,10 @@ class Dataset(torchDataset):
                 excepts=excepts,
                 target_only=True,
             )
+            
+            if (new_target_for_listener_sample_d['exp_latents'] != listener_sample_d['exp_latents'][:,0]).all():
+                import ipdb; ipdb.set_trace()
+
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
                 #if not(isinstance(v, torch.Tensor)):    
