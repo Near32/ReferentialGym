@@ -146,6 +146,7 @@ class AITAModule(Module):
         self.target_unique_prod_ratio = self.config.get("target_unique_prod_ratio", 100.0)
         
         self.updated_distractor_sampling_likelihoods = None
+        self.base_likelihood_factor = self.config.get('base_likelihood_factor', 1.0)
         self.init_done = False 
         
     def update_similarity_ratio(self, input_streams_dict:Dict[str,object]):
@@ -154,8 +155,9 @@ class AITAModule(Module):
 
     def update_distractor_sampling_likelihoods(self, input_streams_dict:Dict[str,object]):
         dataset = input_streams_dict['dataset']
-        dataset.distractor_sampling_likelihoods = self.updated_distractor_sampling_likelihoods
-
+        train_size = len(self.updated_distractor_sampling_likelihoods)
+        dataset.distractor_sampling_likelihoods[:train_size, :train_size] = self.updated_distractor_sampling_likelihoods
+    
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         
@@ -176,8 +178,8 @@ class AITAModule(Module):
         speaker_sentences_widx = input_streams_dict["speaker_sentences_widx"]
         speaker_exp_indices = input_streams_dict["speaker_exp_indices"]
 
-        #if "train" in mode \
-        if it_step == 0:
+        if "train" in mode \
+        and it_step == 0:
             # Record speaker's sentences:
             if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
                 speaker_widx = input_streams_dict["speaker_sentences_widx"].cpu().detach()
@@ -196,8 +198,10 @@ class AITAModule(Module):
             # Is it the end of the epoch?
             end_of_epoch = all([input_streams_dict[key] for key in self.end_of_])
             
+            # We solely update the training distractors in order to maintain
+            # uniform sampling during testing times.
             if end_of_epoch \
-            and 'test' in mode:
+            and mode == 'train': #'test': # in mode:
                 set_indices = set(self.indices)
                 #all_sentences = np.asarray(list(self.speaker_sentences.values()))
                 # Unclear whether the above will order proprely...
@@ -246,6 +250,7 @@ class AITAModule(Module):
                 )
                 
                 self.updated_distractor_sampling_likelihoods = lev_dists.astype(float)
+                self.updated_distractor_sampling_likelihoods *= self.base_likelihood_factor
                 self.update_distractor_sampling_likelihoods(input_streams_dict) 
                 
                 self.init_done = True 

@@ -70,7 +70,7 @@ def wandb_logging_hook(
     global_it = input_streams_dict['global_it_comm_round']
     mode = input_streams_dict['mode']
 
-    if global_it % 1024 != 0:    return
+    if global_it % 16384 != 0:    return
     
     idx2w = agent.idx2w
 

@@ -2,7 +2,7 @@ python -m ipdb -c c train_wandb.py \
 --project=AITAO-Debug \
 --seed=10 \
 --add_descriptive_test=True --add_discriminative_test=False \
---agent_loss_type=Hinge --agent_nbr_latent_dim=32 \
+--agent_loss_type=Impatient+Hinge --agent_nbr_latent_dim=32 \
 --arch=BN+BetaVAEEncoderOnly3x3 \
 --baseline_only=False --force_eos=False \
 --batch_size=16 --fast=True \
@@ -25,14 +25,14 @@ python -m ipdb -c c train_wandb.py \
 --nbr_discriminative_test_distractors=7 \
 --nbr_distractors=7 \
 --nbr_eval_points=500 --nbr_train_points=500 \
---object_centric=True --object_centric_type=hard \
+--object_centric=False --object_centric_type=hard \
 --use_object_centric_curriculum=False \
---object_centric_curriculum_update_epoch_period=4 \
---object_centric_curriculum_accuracy_threshold=50 \
+--object_centric_curriculum_update_epoch_period=1 \
+--object_centric_curriculum_accuracy_threshold=0 \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \
---use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.75 \
+--use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.90 \
 --obverter_use_decision_head=False \
 --parallel_TS_worker=32 \
 --parent_folder=./PyBullet3DShapes_obverter_aita_test \
@@ -54,11 +54,13 @@ python -m ipdb -c c train_wandb.py \
 --with_gaussian_blur_augmentation=True \
 --with_classification_test=True --classification_test_nbr_class=15 \
 --classification_test_loss_lambda=1.0 --with_attached_classification_heads=False \
---use_aitao=True --use_priority=False \
+--use_aita=True --aita_update_epoch_period=2 \
+--aita_base_likelihood_factor=10.0 \
+--use_aitao=False --use_priority=False \
 --aitao_max_similarity_ratio=50.0 --aitao_target_unique_prod_ratio=10.0 \
 --aitao_language_similarity_sampling_epoch_period=1 \
 --object_centric_version=2 --descriptive_version=1 \
---distractors_sampling_scheme_version=1 \
+--distractors_sampling_scheme_version=2 \
 --distractors_sampling_scheme_with_replacement=True \
 --obverter_use_residual_connections=False
 
