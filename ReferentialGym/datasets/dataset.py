@@ -244,9 +244,13 @@ class Dataset(torchDataset):
             and if OC is not in effect then we resample the very same target stimulus, 
             by carrying forward its index:
             """
-            # Default: Hard-OC : Make sure to not sample the actual target!
-            excepts = [idx] 
-            new_idx = None
+            excepts = [] 
+            new_idx = idx
+            
+            if self.kwargs['object_centric']:
+                # Default: Hard-OC : Make sure to not sample the actual target!
+                excepts = [idx] 
+                new_idx = None
             
             if self.kwargs['object_centric'] \
             and 'ratio' in self.original_object_centric_type:
@@ -272,7 +276,11 @@ class Dataset(torchDataset):
             and self.kwargs.get('object_centric_type', 'hard')=='simple':
                 excepts = None 
                 new_idx = None
-            
+            elif self.kwargs['object_centric'] \
+            and self.kwargs.get('object_centric_type', 'hard')=='hard':
+                excepts = [idx]
+                new_idx = None 
+
             new_target_for_listener_sample_d = self.sample(
                 idx=new_idx, 
                 from_class=[exp_labels[0]],

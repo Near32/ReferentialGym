@@ -32,7 +32,7 @@ python -m ipdb -c c train_wandb.py \
 --obverter_learn_not_target_logit=True \
 --obverter_nbr_games_per_round=64 --obverter_nbr_head_outputs=2 \
 --obverter_sampling_repeat_experiences=False --obverter_sampling_round_alternation_only=True \
---use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.90 \
+--use_obverter_sampling=False --obverter_threshold_to_stop_message_generation=0.75 \
 --obverter_use_decision_head=False \
 --parallel_TS_worker=32 \
 --parent_folder=./PyBullet3DShapes_obverter_aita_test \
@@ -54,7 +54,7 @@ python -m ipdb -c c train_wandb.py \
 --with_gaussian_blur_augmentation=True \
 --with_classification_test=True --classification_test_nbr_class=15 \
 --classification_test_loss_lambda=1.0 --with_attached_classification_heads=False \
---use_aita=True --aita_update_epoch_period=2 \
+--use_aita=True --aita_update_epoch_period=1 \
 --aita_base_likelihood_factor=10.0 \
 --use_aitao=False --use_priority=False \
 --aitao_max_similarity_ratio=50.0 --aitao_target_unique_prod_ratio=10.0 \
