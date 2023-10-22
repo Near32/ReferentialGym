@@ -279,6 +279,9 @@ def main():
   parser.add_argument("--classification_test_loss_lambda", type=float, default=1.0)
   parser.add_argument("--with_attached_classification_heads", type=reg_bool, default="False")
   parser.add_argument("--with_classification_test_from_utterances", type=reg_bool, default="False")
+  parser.add_argument("--use_aita", type=reg_bool, default="False")
+  parser.add_argument("--aita_base_likelihood_factor", type=float, default=1.0)
+  parser.add_argument("--aita_update_epoch_period", type=int, default=1)
   parser.add_argument("--use_aitao", type=reg_bool, default="False")
   parser.add_argument("--aitao_language_similarity_sampling_epoch_period", type=int, default=5)
   parser.add_argument("--aitao_target_unique_prod_ratio", type=float, default=100.0)
@@ -1575,6 +1578,13 @@ def main():
       "repeat_experiences": args.obverter_sampling_repeat_experiences,
     }
   
+  if args.use_aita:
+    aita_id = "aita_0"
+    aita_config = {
+        "update_epoch_period": args.aita_update_epoch_period,
+        "base_likelihood_factor": args.aita_base_likelihood_factor,
+    }
+
   if args.use_aitao:
     aitao_id = "aitao_0"
     aitao_config = {
@@ -1616,6 +1626,12 @@ def main():
       config=obverter_sampling_config,
     )
   
+  if args.use_aita:
+    modules[aita_id] = rg_modules.AITAModule(
+      id=aita_id,
+      config=aita_config,
+    )
+ 
   if args.use_aitao:
     from aitao_module import AITAOModule
     modules[aitao_id] = AITAOModule(
@@ -2649,6 +2665,8 @@ def main():
         current_listener_id
       ]
     
+    if args.use_aita:
+      pipelines["referential_game"].append(aita_id)
     if args.use_aitao:
       pipelines["referential_game"].append(aitao_id)
  
