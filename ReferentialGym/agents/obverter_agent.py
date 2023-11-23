@@ -361,10 +361,18 @@ class ObverterAgent(DiscriminativeListener):
         else:
             # Makes sure that the EoS symbol is not part of the actual vocabulary, and can be used as a padding symbol:
             # cf discriminator_listener agent's computing on the last token before the first EoS symbol encountered...
-            self.vocab_stop_idx = self.vocab_size
+            
+            self.vocab_stop_idx = len(self.vocabulary)-1 #self.vocab_size
+            EoS = self.vocabulary[0]
+            del self.vocabulary[0]
+            self.vocabulary.append(EoS)
+            for tidx, token in enumerate(self.vocabulary):
+                self.idx2w[tidx] = token
+                self.w2idx[token] = tidx
+
             #self.vocab_size += 2
             self.symbol_encoder = nn.Embedding(
-                self.vocab_size+2, 
+                self.vocab_size+4,#+2, 
                 self.kwargs['symbol_embedding_size'], 
                 padding_idx=self.vocab_stop_idx, #self.vocab_size
             )
