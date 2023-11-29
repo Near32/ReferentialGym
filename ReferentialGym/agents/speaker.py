@@ -5,6 +5,9 @@ from ..networks import layer_init
 from ..utils import gumbel_softmax
 from .agent import Agent 
 
+import wandb 
+
+
 assume_padding_with_eos = True
 
 
@@ -213,9 +216,13 @@ def logits_mdl_principle_loss_hook(
     mdl_loss = (arange_token*kl_logits_EoS).mean(dim=-1)
     # (batch_size, )
     
-    running_accuracy = input_streams_dict['running_accuracy']
+    #running_accuracy = input_streams_dict['running_accuracy']
+    running_accuracy = input_streams_dict['running_test_accuracy']
+    #wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=True)
+    #wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=True)
     accuracy_mask = running_accuracy > config['logits_mdl_principle_accuracy_threshold']
     mdl_loss = accuracy_mask * mdl_loss
+    #wandb.log({f"MDL/RegLoss": mdl_loss.cpu().detach().mean().item()}, commit=True)
 
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/logits_mdl_loss"] = [
         config["logits_mdl_principle_factor"], 

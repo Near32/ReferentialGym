@@ -27,6 +27,8 @@ from .datasets import (
 from .utils import cardinality, query_vae_latent_space
 
 from .utils import StreamHandler
+import wandb
+
 
 VERBOSE = False 
 
@@ -40,11 +42,11 @@ class RunningMeanStd(object):
         shape=(1,),
     ):
         if mean is None:
-            self.mean = mean
+            self.mean = torch.zeros(1) #mean
         else:
             self.mean = mean*torch.ones(shape)
         if std is None:
-            self.std = std
+            self.std = torch.zeros(1) #std
         else:
             self.std = std*torch.ones(shape)
         self.count = count
@@ -135,6 +137,8 @@ class ReferentialGame(object):
         self.pipelines = pipelines
         if load_path is not None:
             self.load_pipelines(load_path)
+        
+        self.accuracy_rms = {} #RunningMeanStd()
     
     def update_datasets(self, dataset_args):
         """
@@ -383,7 +387,6 @@ class ReferentialGame(object):
         
         #print("Launching training: ...")
         
-        self.accuracy_rms = RunningMeanStd()
 
         it_datasamples = self.stream_handler['signals:it_datasamples']
         if it_datasamples is None:  it_datasamples = {mode:0 for mode in self.datasets} # counting the number of data sampled from dataloaders
@@ -411,7 +414,9 @@ class ReferentialGame(object):
         if update_count is None:
             self.stream_handler.update("signals:update_count", 0)
         
-        self.stream_handler.update("signals:running_accuracy", 0.0)
+        for mode in data_loaders.keys():
+            if mode not in self.accuracy_rms: self.accuracy_rms[mode] = RunningMeanStd()
+            self.stream_handler.update(f"signals:running_{mode}_accuracy", self.accuracy_rms[mode].mean.mean().item())
 
         init_epoch = self.stream_handler["signals:epoch"]
         if init_epoch is None: 
@@ -507,19 +512,23 @@ class ReferentialGame(object):
                             acc = logs_dict[acc_keys[-1]].mean()
 
                         for ak in acc_keys:
-                            if 'train' not in ak:   continue
-                            self.accuracy_rms.update(logs_dict[ak])
-                            rms_acc = self.accuracy_rms.mean.mean().item()
-                            rms_acc_std = self.accuracy_rms.std.mean().item()
-                            logger.add_scalar( "{}/RunningAccuracy/Mean".format(mode), rms_acc, it_step)
-                            logger.add_scalar( "{}/RunningAccuracy/Std".format(mode), rms_acc_std, it_step)
-                            self.stream_handler.update(f"signals:running_accuracy", rms_acc)
+                            if mode not in self.accuracy_rms: 
+                                assert mode in ak
+                                self.accuracy_rms[mode] = RunningMeanStd()
+                            self.accuracy_rms[mode].update(logs_dict[ak])
+                            rms_acc = self.accuracy_rms[mode].mean.mean().item()
+                            rms_acc_std = self.accuracy_rms[mode].std.mean().item()
+                            logger.add_scalar( "RunningAccuracy/{}/Mean".format(mode), rms_acc, it_step)
+                            logger.add_scalar( "RunningAccuracy/{}/Std".format(mode), rms_acc_std, it_step)
+                            #wandb.log({f"RunningAcc/{mode}/Mean": rms_acc}, commit=False)
+                            #wandb.log({f"RunningAcc/{mode}/Std": rms_acc_std}, commit=True)
+                            self.stream_handler.update(f"signals:running_{mode}_accuracy", rms_acc)
 
                         if verbose_period is not None and idx_stimulus % verbose_period == 0:
                             descr = f"GPU{os.environ.get('CUDA_VISIBLE_DEVICES', None)}-Epoch {epoch+1} :: {mode} Iteration {idx_stimulus+1}/{len(data_loader)}"
                             if isinstance(loss, torch.Tensor): loss = loss.item()
                             descr += f" (Rep:{it_rep+1}/{nbr_experience_repetition}):: Loss {it+1} = {loss:4f} //"
-                            descr += f" Running Acc.: {self.accuracy_rms.mean.mean().item():2f} % //"
+                            descr += f" Run. {mode} Acc.: {self.accuracy_rms[mode].mean.mean().item():2f} % //"
                             pbar.set_description_str(descr)
                         
                         self.stream_handler.reset("losses_dict")
