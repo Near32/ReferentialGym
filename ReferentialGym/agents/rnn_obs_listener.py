@@ -80,6 +80,8 @@ class RNNObsListener(RNNCNNListener):
         else:
             raise NotImplementedError
         
+        self.cnn_encoder = self.obs_encoder 
+
         self.use_feat_converter = self.kwargs['use_feat_converter'] if 'use_feat_converter' in self.kwargs else False 
         if self.use_feat_converter:
             self.feat_converter_input = self.obs_encoder.get_feature_shape()
@@ -117,6 +119,8 @@ class RNNObsListener(RNNCNNListener):
         self.encoder_feature_shape = self.obs_encoder.get_feature_shape()
         if self.use_feat_converter:
             self.featout_converter = []
+            if 'feat_converter_output_size' not in self.kwargs:
+                    self.kwargs['feat_converter_output_size'] = self.kwargs['symbol_processing_nbr_hidden_units']
             hidden = int((self.feat_converter_input+self.kwargs['feat_converter_output_size'])/2)
             self.featout_converter.append(nn.Linear(self.feat_converter_input, hidden))
             self.featout_converter.append(nn.BatchNorm1d(num_features=hidden))

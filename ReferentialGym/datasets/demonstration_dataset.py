@@ -81,7 +81,7 @@ class DemonstrationDataset(Dataset) :
         self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
         
-        self.latents_build_fn = latents_build_fn
+        self.latents_build_fn = latents_build_fn if latents_build_fn is not None else default_latents_build_fn
         self.latents_classes, self.latents_values, \
         self.nbr_classes_per_latent = self.latents_build_fn(
             storage=self.replay_storage,
