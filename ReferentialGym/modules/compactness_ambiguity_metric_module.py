@@ -70,6 +70,7 @@ class CompactnessAmbiguityMetricModule(Module):
             "dataset":"current_dataset:ref",
 
             "model":"modules:current_speaker:ref:ref_agent:cnn_encoder",
+            "natural_representations":"modules:current_speaker:sentences_widx",
             "representations":"modules:current_speaker:sentences_widx",
             "experiences":"current_dataloader:sample:speaker_experiences", 
             #"top_view":"current_dataloader:sample:speaker_top_view", 
@@ -98,6 +99,23 @@ class CompactnessAmbiguityMetricModule(Module):
         self.repr_dim_filtering_threshold = self.config["threshold"]
         
         self.idx2w = self.config['idx2w']
+        self.w2idx = dict(zip(self.idx2w.values(), self.idx2w.keys()))
+        self.language_spec2vocab = {
+            "shuffled-emergent": list(self.w2idx.keys()),
+            "shuffled-natural": list(self.w2idx.keys()),
+            "natural": list(self.w2idx.keys()),
+            "color":[
+                "red", "green", "blue", "purple",
+                "yellow", "grey", "verydark", "dark",
+                "light", "verylight",
+            ],
+            "shape": [
+                "room", "goal", "wall", "open", "closed",
+                "door", "ball", "box", "key", "object",
+            ],
+        }
+        self.language_spec2vocab["shuffled-color"] = self.language_spec2vocab["color"]
+        self.language_spec2vocab["shuffled-shape"] = self.language_spec2vocab["shape"]
 
         current_random_state = np.random.get_state()
         np.random.seed(self.config['random_state_seed'])
@@ -110,7 +128,9 @@ class CompactnessAmbiguityMetricModule(Module):
             self.make_visualisation = True
             self.top_views = {}
             self.agent_pos_in_top_views = {}
-            
+        
+        self.language_specs_to_compute = self.config["language_specs_to_compute"]
+        self.natural_representations = {}
         self.representations = {}
         self.latent_representations = {}
         self.indices = []
@@ -136,6 +156,9 @@ class CompactnessAmbiguityMetricModule(Module):
                 top_views = input_streams_dict["top_view"].cpu().detach().squeeze().numpy()
                 agent_pos_in_top_views = input_streams_dict["agent_pos_in_top_view"].cpu().detach().squeeze().numpy()
 
+            natural_representations = input_streams_dict["natural_representations"]
+            if isinstance(natural_representations, torch.Tensor):
+                natural_representations = natural_representations.cpu().detach().squeeze().numpy()
             representations = input_streams_dict["representations"].cpu().detach().squeeze().numpy()
             latent_representations = input_streams_dict["latent_representations"].cpu().detach().squeeze().numpy()
             indices = input_streams_dict["indices"].cpu().detach().squeeze().numpy()
@@ -145,6 +168,7 @@ class CompactnessAmbiguityMetricModule(Module):
                 if self.make_visualisation:
                     self.top_views[tidx] = top_views[idx]
                     self.agent_pos_in_top_views[tidx] = agent_pos_in_top_views[idx]
+                self.natural_representations[tidx] = natural_representations[idx]
                 self.representations[tidx] = representations[idx]
                 self.latent_representations[tidx] = latent_representations[idx]
             self.indices.append(indices)
@@ -162,6 +186,7 @@ class CompactnessAmbiguityMetricModule(Module):
         if self.make_visualisation:
             self.top_views = np.stack(list(self.top_views.values()), axis=0)
             self.agent_pos_in_top_views = np.stack(list(self.agent_pos_in_top_views.values()), axis=0)
+        self.natural_representations = np.stack(list(self.natural_representations.values()), axis=0)
         self.representations = np.stack(list(self.representations.values()), axis=0)
         
         latent_shape = self.latent_representations[0].shape
@@ -178,6 +203,7 @@ class CompactnessAmbiguityMetricModule(Module):
         if self.make_visualisation:
             self.top_views = self.top_views[sampling_indices]
             self.agent_pos_in_top_views = self.agent_pos_in_top_views[sampling_indices]
+        self.natural_representations = self.natural_representations[sampling_indices]
         self.representations = self.representations[sampling_indices]
         self.latent_representations = self.latent_representations[sampling_indices]
         
@@ -193,6 +219,52 @@ class CompactnessAmbiguityMetricModule(Module):
         # i.e. self.experiences[i] corresponds to the i-th element of the dataset.
         # Thus, assumming the i-th element of the dataset is the i-th experience tuple
         # sampled, we can be sure that the clustering is done over episode timesteps.
+        
+        self.all_representations = {}
+        for language_spec in self.config["language_specs_to_compute"]:
+            if "emergent" in language_spec : continue
+            all_ls_repr = self.w2idx['EoS']*np.ones(shape=self.natural_representations.shape).astype(int)
+            for ridx, widx_utt in enumerate(self.natural_representations):
+                utt = [self.idx2w[widx] for widx in widx_utt]
+                filtered_utt = [w for w in utt if w in self.language_spec2vocab[language_spec]]
+                for widx, fuw in enumerate(filtered_utt):
+                    all_ls_repr[ridx, widx] = self.w2idx[fuw]
+            self.all_representations[language_spec] = all_ls_repr
+        
+        # Creating SHUFFLED variants:
+        for language_spec in self.config["language_specs_to_compute"]:
+            if "shuffled" not in language_spec: continue
+            if 'emergent' in language_spec:
+                orig_representations = self.representations
+            else:
+                orig_language_spec = language_spec.split("-")[-1]
+                orig_representations = self.all_representations[orig_language_spec]
+            rng = np.random.default_rng()
+            perm = rng.permutation(len(self.experiences))
+            perm_amount = np.random.randint(len(self.experiences), size=(self.config["nbr_shuffled_entities"]),)
+            perm_amount = perm_amount.tolist()+[len(self.experiences)]
+            for amount in perm_amount:
+                language_spec_id = f"{language_spec}/{amount}"
+                if amount!=len(self.experiences):
+                    self.all_representations[language_spec_id] = np.concatenate([
+                        orig_representations[perm[:amount]],
+                        orig_representations[amount:]],
+                        axis=0,
+                    )
+                else:
+                    self.all_representations[language_spec] = orig_representations[perm]
+
+        #for language_spec in self.config["language_specs_to_compute"]:
+        for language_spec in self.all_representations:
+            if "emergent"==language_spec:    continue
+            self.compute_score(
+                language_spec=language_spec.split("/")[0], 
+                all_sentences=[ht(s) for s in self.all_representations[language_spec]],
+                mode=mode, 
+                logs_dict=logs_dict,
+            )
+         
+        language_spec = "emergent"
 
         all_sentences = [ht(s) for s in self.representations.tolist()]
         sentence_length = len(all_sentences[0]) #.shape[0]
@@ -397,26 +469,182 @@ class CompactnessAmbiguityMetricModule(Module):
         percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5, 0.75]
         thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
             for percent in percentages]
+        
+        ca_columns = ["language_spec"]
+        ca_data = [f"{language_spec}"]
         for tidx, threshold in enumerate(thresholds):
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Threshold{tidx}"] = threshold 
             nbr_max_compactness_count_greater_than_threshold = len([
                 count for count in list_compactness_counts if count >= threshold]
             )
             compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
-
+            
+            ca_columns.append(f"score@threshold{tidx}")
+            ca_data.append(compactness_score)
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Score@Threshold{tidx}"] = compactness_score 
         logs_dict[f"{mode}/{self.id}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
+        
+        if not hasattr(self, "compactness_ambiguity_table"):
+            self.compactness_ambiguity_table = wandb.Table(columns=ca_columns) 
+        self.compactness_ambiguity_table.add_data(*ca_data)
+        wandb.log({
+            f"{mode}/{self.id}/PerEpoch/CompactnessAmbiguityTable":self.compactness_ambiguity_table,
+            }, 
+            commit=True,
+        )
+        
+        # Updating table for the next logging:
+        ca_table = wandb.Table(columns=ca_columns)
+        ca_table.data = self.compactness_ambiguity_table.data
+        self.compactness_ambiguity_table = ca_table
+
 
         self.experiences = {}
         if self.make_visualisation:
             self.top_views = {}
             self.agent_pos_in_top_views = {}
+        self.natural_representations = {}
         self.representations = {}
         self.latent_representations = {}
         self.indices = []
         
         return outputs_stream_dict
+    
+    def compute_score(self, language_spec, all_sentences, mode, logs_dict):
+        sentence_length = len(all_sentences[0]) #.shape[0]
+        unique_sentences = set(all_sentences) #np.unique(all_sentences, axis=0)
+        
+        per_unique_sentence_stats = {}
+        previous_sentence = None
+        compactness_count = 0
+        for idx, sentence in enumerate(all_sentences):
+            if sentence not in per_unique_sentence_stats:
+                per_unique_sentence_stats[sentence] = {
+                    'occ_indices': [],
+                    'compactness_counts': [],
+                }
+            per_unique_sentence_stats[sentence]['occ_indices'].append(idx)
+            
+            if previous_sentence == sentence:
+                compactness_count += 1
+            else:
+                if previous_sentence is not None:
+                    per_unique_sentence_stats[previous_sentence]['compactness_counts'].append(compactness_count)
 
+                compactness_count = 1
+            previous_sentence = sentence
+        # Regularise the last sentence:
+        per_unique_sentence_stats[sentence]['compactness_counts'].append(compactness_count)
+        
+        min_sum = 0
+        max_sum = 0
+        normalizer = len(all_sentences)
+        for idx, sentence in enumerate(all_sentences):
+            for widx in sentence:
+                word = self.idx2w[widx]
+
+            stats = per_unique_sentence_stats[sentence]
+
+            nbr_compact_segment = len(stats['compactness_counts'])
+
+            min_compactness = min(stats['compactness_counts'])
+            min_sum += min_compactness
+            max_compactness = max(stats['compactness_counts'])
+            max_sum += max_compactness
+
+        ## Compute Compactness Score:
+        list_compactness_counts = []
+        for us, stat in per_unique_sentence_stats.items():
+            for cc in stat['compactness_counts']:
+                list_compactness_counts.append(cc)
+        values = np.asarray(list_compactness_counts)
+
+        mean_compactness_counts = values.mean()
+        std_compactness_counts = values.std()
+        median_value = np.nanpercentile(
+            values,
+            q=50,
+            axis=None,
+            method="nearest"
+        )
+        q1_value = np.nanpercentile(
+            values,
+            q=25,
+            axis=None,
+            method="lower"
+        )
+        q3_value = np.nanpercentile(
+            values,
+            q=75,
+            axis=None,
+            method="higher"
+        )
+        iqr = q3_value-q1_value
+        
+        mean_min_compactness = float(min_sum) / normalizer
+        mean_max_compactness =  float(max_sum) / normalizer
+
+        list_nbr_compact_segment = [len(ps['compactness_counts']) for ps in per_unique_sentence_stats.values()]
+        mean_nbr_compact_segment = sum(list_nbr_compact_segment)/len(list_nbr_compact_segment)
+        min_nbr_compact_segment = min(list_nbr_compact_segment)
+        max_nbr_compact_segment = max(list_nbr_compact_segment)
+        values = np.asarray(list_nbr_compact_segment)
+        std_nbr_compact_segment = values.std()
+        
+        median_value = np.nanpercentile(
+            values,
+            q=50,
+            axis=None,
+            method="nearest"
+        )
+        q1_value = np.nanpercentile(
+            values,
+            q=25,
+            axis=None,
+            method="lower"
+        )
+        q3_value = np.nanpercentile(
+            values,
+            q=75,
+            axis=None,
+            method="higher"
+        )
+        iqr = q3_value-q1_value
+        
+        average_max_compactness_count = len(self.representations) / len(unique_sentences)
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/NbrRepresentations"] = len(self.representations) 
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/NbrUniqueSentences"] = len(unique_sentences) 
+        logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/AverageMaxCompactnessCount"] = average_max_compactness_count 
+
+        percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5, 0.75]
+        thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
+            for percent in percentages]
+        
+        ca_columns = ["language_spec"]
+        ca_data = [f"{language_spec}"]
+        for tidx, threshold in enumerate(thresholds):
+            logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/Threshold{tidx}"] = threshold 
+            nbr_max_compactness_count_greater_than_threshold = len([
+                count for count in list_compactness_counts if count >= threshold]
+            )
+            compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
+            
+            ca_columns.append(f"score@threshold{tidx}")
+            ca_data.append(compactness_score)
+            logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/Score@Threshold{tidx}"] = compactness_score 
+        logs_dict[f"{mode}/{self.id}/{language_spec}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
+        
+        if not hasattr(self, "compactness_ambiguity_table"):
+            self.compactness_ambiguity_table = wandb.Table(columns=ca_columns) 
+        self.compactness_ambiguity_table.add_data(*ca_data)
+        """
+        wandb.log({
+            f"{mode}/{self.id}/PerEpoch/CompactnessAmbiguityTable":self.compactness_ambiguity_table,
+            }, 
+            commit=False,
+        )
+        """
+        
     def draw(
         self,
         top_views,

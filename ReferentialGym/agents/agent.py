@@ -3,6 +3,7 @@ from typing import Dict, List
 import os 
 import random 
 import copy
+from ordered_set import OrderedSet
 
 import torch
 import torch.nn as nn
@@ -231,17 +232,17 @@ class Agent(Module):
         self.obs_shape = obs_shape
         self.vocab_size = vocab_size
         
-        vocabulary = set('key ball red green blue purple \
+        vocabulary = OrderedSet('key ball red green blue purple \
             yellow grey verydark dark neutral light verylight \
             tiny small medium large giant get go fetch go get \
             a fetch a you must fetch a'.split(' ')
         )
-        self.vocabulary = set([w.lower() for w in vocabulary])
+        self.vocabulary = OrderedSet([w.lower() for w in vocabulary])
         self.vocabulary = list(self.vocabulary)
         while len(self.vocabulary) < self.vocab_size+2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
         self.vocabulary = self.vocabulary[:self.vocab_size+2]
-        self.vocabulary = list(set(self.vocabulary))
+        self.vocabulary = list(OrderedSet(self.vocabulary))
         self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
         self.w2idx = {}
         self.idx2w = {}
@@ -249,6 +250,9 @@ class Agent(Module):
             self.w2idx[w] = idx
             self.idx2w[idx] = w 
         
+        print(type(self))
+        print(self.idx2w)
+
         self.max_sentence_length = max_sentence_length
         
         self.logger = logger 
