@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -141,7 +141,7 @@ class CompactnessAmbiguityMetricModule(Module):
         """
         """
         outputs_stream_dict = {}
-
+        self.current_scores = {}
 
         logs_dict = input_streams_dict["logs_dict"]
         mode = input_streams_dict["mode"]
@@ -472,6 +472,7 @@ class CompactnessAmbiguityMetricModule(Module):
         
         ca_columns = ["language_spec"]
         ca_data = [f"{language_spec}"]
+        current_scores = []
         for tidx, threshold in enumerate(thresholds):
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Threshold{tidx}"] = threshold 
             nbr_max_compactness_count_greater_than_threshold = len([
@@ -479,11 +480,18 @@ class CompactnessAmbiguityMetricModule(Module):
             )
             compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
             
+            current_scores.append(compactness_score)
             ca_columns.append(f"score@threshold{tidx}")
             ca_data.append(compactness_score)
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Score@Threshold{tidx}"] = compactness_score 
         logs_dict[f"{mode}/{self.id}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
-        
+        self.current_scores[language_spec] = np.asarray(current_scores)
+        self.compute_distances(
+            #language_spec1=[language_spec, 'shuffled-natural', 'natural', 'color', 'shape'],
+            #language_spec2=['natural','color','shape'],
+            input_streams_dict=input_streams_dict,
+        )
+
         if not hasattr(self, "compactness_ambiguity_table"):
             self.compactness_ambiguity_table = wandb.Table(columns=ca_columns) 
         self.compactness_ambiguity_table.add_data(*ca_data)
@@ -510,6 +518,27 @@ class CompactnessAmbiguityMetricModule(Module):
         
         return outputs_stream_dict
     
+    def compute_distances(
+        self, 
+        language_spec1:List[str]=None, 
+        language_spec2:List[str]=None,
+        input_streams_dict:Dict[str,Any]={},
+    ):
+        if language_spec1 is None:  language_spec1 = list(self.current_scores.keys())
+        if language_spec2 is None:  language_spec2 = list(self.current_scores.keys())
+        logs_dict = input_streams_dict["logs_dict"]
+        mode = input_streams_dict["mode"]
+        for ls1 in language_spec1:
+            if ls1 not in self.current_scores:  continue
+            for ls2 in language_spec2:
+                if ls2 not in self.current_scores: continue
+                diff = self.current_scores[ls1]-self.current_scores[ls2]
+                distance = np.sqrt(np.einsum('i,i->', diff, diff))
+                ls2_norm = np.sqrt(np.einsum('i,i->', self.current_scores[ls2], self.current_scores[ls2]))
+                logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{ls1}/DistanceTo{ls2}"] = distance
+                logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{ls1}/NormalizedDistanceTo{ls2}"] = distance/(ls2_norm+1e-8)
+        return 
+                
     def compute_score(self, language_spec, all_sentences, mode, logs_dict):
         sentence_length = len(all_sentences[0]) #.shape[0]
         unique_sentences = set(all_sentences) #np.unique(all_sentences, axis=0)
@@ -622,18 +651,21 @@ class CompactnessAmbiguityMetricModule(Module):
         
         ca_columns = ["language_spec"]
         ca_data = [f"{language_spec}"]
+        current_scores = []
         for tidx, threshold in enumerate(thresholds):
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/Threshold{tidx}"] = threshold 
             nbr_max_compactness_count_greater_than_threshold = len([
                 count for count in list_compactness_counts if count >= threshold]
             )
             compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
-            
+            current_scores.append(compactness_score)
             ca_columns.append(f"score@threshold{tidx}")
             ca_data.append(compactness_score)
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/Score@Threshold{tidx}"] = compactness_score 
         logs_dict[f"{mode}/{self.id}/{language_spec}/Ambiguity"] = (1.0-(len(unique_sentences)/len(all_sentences)))*100.0 
         
+        self.current_scores[language_spec] = np.asarray(current_scores)
+
         if not hasattr(self, "compactness_ambiguity_table"):
             self.compactness_ambiguity_table = wandb.Table(columns=ca_columns) 
         self.compactness_ambiguity_table.add_data(*ca_data)
