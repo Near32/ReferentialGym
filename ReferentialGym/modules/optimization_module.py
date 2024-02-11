@@ -145,12 +145,14 @@ class OptimizationModule(Module):
                     l1_reg(cum_loss_dict=l1_regularization, module=m)
                 if self.config["l2_reg_lambda"] > 0.0:
                     l2_reg(cum_loss_dict=l2_regularization, module=m)
-            if self.config["l1_reg_lambda"] > 0.0:
+            if self.config["l1_reg_lambda"] > 0.0 \
+            and len(l1_regularization)!=0:
                 l1_regularization = sum(l1_regularization.values())
                 (l1_regularization*self.config["l1_reg_lambda"]).backward()
                 logs_dict[f"{mode}/L1_regularization/loss"] = l1_regularization.item()
                 logs_dict[f"{mode}/L1_regularization/lambda"] = self.config["l1_reg_lambda"]
-            if self.config["l2_reg_lambda"] > 0.0:
+            if self.config["l2_reg_lambda"] > 0.0 \
+            and len(l2_regularization)!=0:
                 l2_regularization = sum(l2_regularization.values())
                 (l2_regularization*self.config["l2_reg_lambda"]).backward()
                 logs_dict[f"{mode}/L2_regularization/loss"] = l2_regularization.item()
