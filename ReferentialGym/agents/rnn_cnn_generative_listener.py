@@ -191,9 +191,9 @@ class RNNCNNGenerativeListener(GenerativeListener):
 
         self.generate_intermediary_outputs = False 
 
-        self.reset()
+        self.reset_weights()
 
-    def reset(self):
+    def reset_weights(self):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None

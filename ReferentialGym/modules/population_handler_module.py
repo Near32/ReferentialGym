@@ -64,21 +64,23 @@ class PopulationHandlerModule(Module):
         if 'cultural_speaker_substrate_size' not in self.config:
             self.config['cultural_speaker_substrate_size'] = 1
         nbr_speaker = self.config['cultural_speaker_substrate_size']
-        self.speakers = [] #nn.ModuleList()
+        #self.speakers = [] #nn.ModuleList()
+        self.speakers = nn.ModuleList()
         self.dspeakers = dict()
         speakers = [prototype_speaker]+[ prototype_speaker.clone(clone_id=f's{i+1}') for i in range(nbr_speaker-1)]
         for speaker in speakers:
-            speaker.reset(reset_language_model=True)
+            speaker.reset_weights(reset_language_model=True)
             self.speakers.append(speaker)
             self.dspeakers[speaker.id] = speaker
         if 'cultural_listener_substrate_size' not in self.config:
             self.config['cultural_listener_substrate_size'] = 1
         nbr_listener = self.config['cultural_listener_substrate_size']
-        self.listeners = [] #nn.ModuleList()
+        #self.listeners = [] #nn.ModuleList()
+        self.listeners = nn.ModuleList()
         self.dlisteners = dict()
         listeners = [prototype_listener]+[ prototype_listener.clone(clone_id=f'l{i+1}') for i in range(nbr_listener-1)]
         for listener in listeners:
-            listener.reset(reset_language_model=True)
+            listener.reset_weights(reset_language_model=True)
             self.listeners.append(listener)
             self.dlisteners[listener.id] = listener
 
@@ -209,6 +211,16 @@ class PopulationHandlerModule(Module):
                 except Exception as e:
                     print(f"WARNING: exception caught when trying to load meta agent {meta_agent_id}: {e}")
 
+    def named_parameters(self, recurse=True):
+        params = []
+
+        for speaker in self.speakers:
+            params += speaker.named_parameters(recurse=recurse)
+        for listener in self.listeners:
+            params += listener.named_parameters(recurse=recurse)
+
+        return params
+
     def _select_agents(self):
         idx_speaker = random.randint(0,len(self.speakers)-1)
         idx_listener = random.randint(0,len(self.listeners)-1)
@@ -276,7 +288,7 @@ class PopulationHandlerModule(Module):
                         learner=self.speakers[idx_speaker2reset],
                     )
                 else:
-                    self.speakers[idx_speaker2reset].reset()
+                    self.speakers[idx_speaker2reset].reset_weights()
                 self.agents_stats[self.speakers[idx_speaker2reset].agent_id]['reset_iterations'].append(it)
                 
                 if self.verbose:
@@ -290,7 +302,7 @@ class PopulationHandlerModule(Module):
                         learner=self.listeners[idx_listener2reset],
                     )
                 else:
-                    self.listeners[idx_listener2reset].reset()
+                    self.listeners[idx_listener2reset].reset_weights()
                 self.agents_stats[self.listeners[idx_listener2reset].agent_id]['reset_iterations'].append(it)
                 if self.verbose:
                     print("Agent  Listener {} has just been resetted.".format(self.listeners[idx_listener2reset].agent_id))
@@ -308,7 +320,7 @@ class PopulationHandlerModule(Module):
                         learner=agents[idx_agent2reset],
                     )
                 else:
-                    agents[idx_agent2reset].reset()
+                    agents[idx_agent2reset].reset_weights()
                     self.agents_stats[agents[idx_agent2reset].agent_id]['reset_iterations'].append(it)
                 
                 if self.verbose:
@@ -391,6 +403,8 @@ class PopulationHandlerModule(Module):
                         self.counterRounds += 1
                         # Invert the roles:
                         self.speakers, self.listeners = (self.listeners, self.speakers)
+                        if self.verbose:
+                            print(f"AGENTS ROLE INVERSION: listener is {self.listeners[0].agent_id} and speaker is {self.speakers[0].agent_id}")
                         # Make it obvious to the stream handler:
                         outputs_stream_dict['speakers'] = self.speakers
                         outputs_stream_dict['listeners'] = self.listeners
@@ -399,7 +413,7 @@ class PopulationHandlerModule(Module):
                     and self.config['iterated_learning_scheme']\
                     and self.counterGames%self.config['iterated_learning_period']==0:
                     for lidx in range(len(self.listeners)):
-                        self.listeners[lidx].reset()
+                        self.listeners[lidx].reset_weights()
                         print("Iterated Learning Scheme: Listener {} have just been resetted.".format(self.listeners[lidx].agent_id))
         
             new_speaker, new_listener = self._select_agents()

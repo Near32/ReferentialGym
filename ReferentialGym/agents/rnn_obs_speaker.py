@@ -193,12 +193,12 @@ class RNNObsSpeaker(RNNCNNSpeaker):
         )
 
         self.feat_maps = None
-        self.reset()
+        self.reset_weights()
         
         if self.kwargs['use_cuda']:
             self = self.cuda()
 
-    def reset(self, reset_language_model=False, whole=False):
+    def reset_weights(self, reset_language_model=False, whole=False):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.symbol_decoder.apply(layer_init)

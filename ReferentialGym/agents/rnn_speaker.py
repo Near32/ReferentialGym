@@ -82,9 +82,9 @@ class RNNSpeaker(Speaker):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
         
-        self.reset()
+        self.reset_weights()
     
-    def reset(self):
+    def reset_weights(self):
         # Reset EoS and SoS maybe?
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)

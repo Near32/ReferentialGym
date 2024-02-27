@@ -56,8 +56,9 @@ class CaptionSpeaker(Speaker):
         self.idx_symbol2embed = layer_init(nn.Embedding(self.vocab_size, self.kwargs['symbol_processing_nbr_hidden_units']))
 
         self.tau_fc = layer_init(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1 , bias=False))
-    
-    def reset(self):
+        self.reset_weights()
+
+    def reset_weights(self):
         self.temporal_feature_encoder.apply(layer_init)
         self.symbol_processing.apply(layer_init)
         self.symbol_decoder.apply(layer_init)

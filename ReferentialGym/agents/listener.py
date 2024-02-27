@@ -71,7 +71,7 @@ class Listener(Agent):
         # Multi-round:
         self._reset_rnn_states()
 
-    def reset(self):
+    def reset_weights(self):
         self.apply(layer_init)
 
     def _reset_rnn_states(self):

@@ -154,9 +154,9 @@ class RNNCNNSpeaker(Speaker):
 
         self.feat_maps = None
         
-        self.reset()
+        self.reset_weights()
     
-    def reset(self, reset_language_model=False):
+    def reset_weights(self, reset_language_model=False):
         # Reset EoS and SoS maybe?
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)

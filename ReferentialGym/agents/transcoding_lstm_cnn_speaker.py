@@ -198,9 +198,9 @@ class TranscodingLSTMCNNSpeaker(Speaker):
 
         self.feat_maps = None
         
-        self.reset()
+        self.reset_weights()
     
-    def reset(self):
+    def reset_weights(self):
         self.transcoder_symbol_encoder.apply(layer_init)
         self.transcoder.apply(layer_init)
         self.transcoder_guided_visual_pre_att.apply(layer_init)

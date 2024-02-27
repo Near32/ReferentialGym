@@ -76,9 +76,9 @@ class RNNListener(DiscriminativeListener):
         
         self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
 
-        self.reset()
+        self.reset_weights()
 
-    def reset(self):
+    def reset_weights(self):
         self.symbol_processing.apply(layer_init)
         self.symbol_encoder.apply(layer_init)
         self.embedding_tf_final_outputs = None

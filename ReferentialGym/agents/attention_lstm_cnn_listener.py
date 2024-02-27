@@ -207,9 +207,9 @@ class AttentionLSTMCNNListener(DiscriminativeListener):
 
         self.projection_normalization = None #nn.BatchNorm1d(num_features=self.kwargs['max_sentence_length']*self.kwargs['symbol_processing_nbr_hidden_units'])
 
-        self.reset()
+        self.reset_weights()
 
-    def reset(self):
+    def reset_weights(self):
         self.textual_embedder.apply(layer_init)
         self.textual_encoder.apply(layer_init)
         self.attention_model.apply(layer_init)

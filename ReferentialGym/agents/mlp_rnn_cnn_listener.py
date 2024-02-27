@@ -68,11 +68,11 @@ class MLPRNNCNNListener(RNNCNNListener):
         )
         self.decision_head.apply(layer_init)
 
-    def reset(self):
+    def reset_weights(self):
         #TODO: find a way to make this possible:
         # in spite of the mother classes needing this function too...
         #self.decision_head.apply(layer_init)
-        super(MLPRNNCNNListener, self).reset()
+        super(MLPRNNCNNListener, self).reset_weights()
 
 
     def _reason(self, sentences, features):
