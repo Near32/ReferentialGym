@@ -1,4 +1,4 @@
-from typing import Dict, List 
+from typing import Dict, List, Optional 
 
 import os 
 import random 
@@ -408,6 +408,11 @@ class Agent(Module):
             tau0=input_streams_dict.get("tau0", self.kwargs['tau0']),
             sample=input_streams_dict.get("sample", None),
         )
+
+        for key in self.output_stream_ids:
+            if key in outputs_dict:
+                output_key = self.output_stream_ids[key]
+                outputs_dict[output_key] = [outputs_dict[key]]
 
         if self.exp_latents is not None:
             outputs_dict["exp_latents"] = input_streams_dict["exp_latents"]
