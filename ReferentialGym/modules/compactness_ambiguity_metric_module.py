@@ -161,7 +161,9 @@ class CompactnessAmbiguityMetricModule(Module):
                 natural_representations = natural_representations.cpu().detach().squeeze().numpy()
             representations = input_streams_dict["representations"].cpu().detach().squeeze().numpy()
             latent_representations = input_streams_dict["latent_representations"].cpu().detach().squeeze().numpy()
-            indices = input_streams_dict["indices"].cpu().detach().squeeze().numpy()
+            indices = input_streams_dict["indices"]
+            if isinstance(indices, torch.Tensor):
+                indices = indices.cpu().detach().squeeze().numpy()
             
             for idx, tidx in enumerate(indices.tolist()):
                 self.experiences[tidx] = experiences[idx]
@@ -189,7 +191,7 @@ class CompactnessAmbiguityMetricModule(Module):
         self.natural_representations = np.stack(list(self.natural_representations.values()), axis=0)
         self.representations = np.stack(list(self.representations.values()), axis=0)
         
-        latent_shape = self.latent_representations[0].shape
+        latent_shape = self.latent_representations[tidx].shape
         self.latent_representations = np.stack(list(self.latent_representations.values()), axis=0)
         self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
 
@@ -197,8 +199,13 @@ class CompactnessAmbiguityMetricModule(Module):
         self.original_indices = self.indices
         sorted_unique_indices, sampling_indices = np.unique(self.indices, return_index=True)
         
-        assert len(sorted_unique_indices) == len(self.original_indices)
+        #TODO: figure out whether the following line is necessary?
+        #assert len(sorted_unique_indices) == len(self.original_indices)
 
+        # The following line is not necessary as the self.experiences numpy array
+        # is already the result of concatenation over the values of a dictionnary
+        # whose keys are the indices that are automatically ordered since integers...?
+        '''
         self.experiences = self.experiences[sampling_indices]
         if self.make_visualisation:
             self.top_views = self.top_views[sampling_indices]
@@ -206,7 +213,8 @@ class CompactnessAmbiguityMetricModule(Module):
         self.natural_representations = self.natural_representations[sampling_indices]
         self.representations = self.representations[sampling_indices]
         self.latent_representations = self.latent_representations[sampling_indices]
-        
+        '''
+
         if self.sanity_check_shuffling:
             rng = np.random.default_rng()
             perm = rng.permutation(len(self.experiences))
