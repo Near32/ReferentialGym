@@ -90,6 +90,7 @@ class Dataset(torchDataset):
                from_class: List[int] = None, 
                excepts: List[int] = None,
                excepts_class: List[int]=None, 
+               distractor_only_excepts_class: List[int]=None, 
                target_only: bool = False) -> Dict[str,object]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
@@ -98,6 +99,7 @@ class Dataset(torchDataset):
         :param from_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
         :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes.
+        :param distractor_only_excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes that will not be considered as distractors.
         :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
 
         :returns:
@@ -132,7 +134,14 @@ class Dataset(torchDataset):
         '''
 
         from_class = None
-        if 'similarity' in self.kwargs['distractor_sampling']:
+        distractor_only_excepts_class = None
+        if 'episodic-dissimilarity' in self.kwargs['distractor_sampling']:
+            sampled_d = self.sample(idx=idx, target_only=True)
+            exp_labels = sampled_d["exp_labels"]
+            from_class = None
+            distractor_only_excepts_class = exp_labels
+
+        elif 'similarity' in self.kwargs['distractor_sampling']:
             similarity_ratio = float(self.kwargs['distractor_sampling'].split('-')[-1])/100.0
             sampled_d = self.sample(idx=idx, target_only=True)
             exp_labels = sampled_d["exp_labels"]
@@ -148,7 +157,11 @@ class Dataset(torchDataset):
             if rv < similarity_ratio:
                 from_class = exp_labels
 
-        sample_d = self.sample(idx=idx, from_class=from_class)
+        sample_d = self.sample(
+            idx=idx, 
+            from_class=from_class,
+            distractor_only_excepts_class=distractor_only_excepts_class,
+        )
         exp_labels = sample_d["exp_labels"]
         
         # Adding batch dimension:
@@ -167,26 +180,26 @@ class Dataset(torchDataset):
 
         # Creating listener's dictionnary:
         listener_sample_d = copy.deepcopy(sample_d)
-                
+        
         retain_target = True
         if DC_version == 1 \
         and self.kwargs["descriptive"]:
-            retain_target = torch.rand(size=(1,)).item() < self.kwargs['descriptive_target_ratio']
+            retain_target = torch.rand(size=(1,)).item() 
+            retain_target = retain_target < self.kwargs['descriptive_target_ratio']
             # Target experience is excluded from the experiences yielded to the listener:
             if not retain_target:
                 # Sample a new element for the listener to consider.
                 # Different from the target element in itself, but also in its class:
                 new_target_for_listener_sample_d = self.sample(
                     idx=None, 
-                    from_class=from_class, 
+                    from_class=from_class,
+                    distractor_only_excepts_class=distractor_only_excepts_class,
                     target_only=True, 
                     excepts=[idx], 
                     excepts_class=[exp_labels[0]] if self.kwargs['object_centric'] else [],
                 )
                 # Adding batch dimension:
                 for k,v in new_target_for_listener_sample_d.items():
-                    #if not(isinstance(v, torch.Tensor)):    
-                    #    v = torch.Tensor(v)
                     if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
                     else:   v = np.array(v)[np.newaxis, ...]
                     listener_sample_d[k][:,0] = v#.unsqueeze(0)
@@ -203,20 +216,19 @@ class Dataset(torchDataset):
             # Different from the target element in itself, but also in its class:
             new_target_for_listener_sample_d = self.sample(
                 idx=None, 
-                from_class=from_class, 
+                from_class=from_class,
+                distractor_only_excepts_class=distractor_only_excepts_class,
                 target_only=True, 
                 excepts=[idx], 
                 excepts_class=[exp_labels[0]] if self.kwargs['object_centric'] else [],
             )
             # Adding batch dimension:
             for k,v in new_target_for_listener_sample_d.items():
-                #if not(isinstance(v, torch.Tensor)):    
-                #    v = torch.Tensor(v)
                 if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
                 else:   v = np.array(v)[np.newaxis, ...]
                 diff_listener_sample_d[k][:,0] = v#.unsqueeze(0)
-            
-             
+        elif self.kwargs['descriptive']:
+            raise NotImplementedError
 
         # Object-Centric or Stimulus-Centric?
         global OC_version
@@ -225,6 +237,7 @@ class Dataset(torchDataset):
             new_target_for_listener_sample_d = self.sample(
                 idx=None, 
                 from_class=[exp_labels[0]],
+                distractor_only_excepts_class=distractor_only_excepts_class,
                 excepts=[idx],  # Make sure to not sample the actual target!
                 target_only=True
             )
@@ -284,6 +297,7 @@ class Dataset(torchDataset):
             new_target_for_listener_sample_d = self.sample(
                 idx=new_idx, 
                 from_class=[exp_labels[0]],
+                distractor_only_excepts_class=distractor_only_excepts_class,
                 excepts=excepts,
                 target_only=True,
             )
@@ -295,6 +309,8 @@ class Dataset(torchDataset):
                 if isinstance(v, torch.Tensor): v = v.unsqueeze(0)
                 else:   v = np.array(v)[np.newaxis, ...]
                 listener_sample_d[k][:,0] = v#.unsqueeze(0)
+        elif self.kwargs['object_centric'] and retain_target:
+            raise NotImplementedError
 
         listener_sample_d["experiences"], target_decision_idx, orders = shuffle(listener_sample_d["experiences"])
         if not retain_target:   
@@ -330,6 +346,7 @@ class Dataset(torchDataset):
             resampled_speaker_sample_d = self.sample(
                 idx=None if self.kwargs['object_centric'] else idx, 
                 from_class=[exp_labels[0]],
+                distractor_only_excepts_class=distractor_only_excepts_class,
                 excepts=[idx] if self.kwargs['object_centric'] else None,  # Make sure to not sample the actual target!
                 target_only=True
             )
@@ -338,13 +355,28 @@ class Dataset(torchDataset):
                     same_speaker_sample_d[k] = unsqueeze(v[:,0], 1)
              # Adding batch dimension:
             for k,v in resampled_speaker_sample_d.items():
-                #if not(isinstance(v, torch.Tensor)):    
-                #    v = torch.Tensor(v)
                 if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
                 else:   v = np.array(v)[np.newaxis, ...]
                 same_speaker_sample_d[k][:,0] = v#.unsqueeze(0)
+           
+            # TYpe regularisation: turning everything into torch.Tensor :
+            for k,v in same_speaker_sample_d.items():
+                if not isinstance(v, dict): v = torch.Tensor(v)
+                else:   v = np.array(v)
+                same_speaker_sample_d[k] = v
             
-            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            for k,v in speaker_sample_d.items():
+                if not isinstance(v, dict): v = torch.Tensor(v)
+                else:   v = np.array(v)
+                speaker_sample_d[k] = v
+            
+            for k,v in listener_sample_d.items():
+                if not isinstance(v, dict): v = torch.Tensor(v)
+                else:   v = np.array(v)
+                listener_sample_d[k] = v
+           
+            #TODO: figure out whether it is necessary to have a random extra ?
+            add_extra = True #torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
             if add_extra:
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = concatenate(

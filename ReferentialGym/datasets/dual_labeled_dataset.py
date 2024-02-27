@@ -101,6 +101,7 @@ class DualLabeledDataset(Dataset):
                from_class: List[int] = None, 
                excepts: List[int] = None, 
                excepts_class: List[int]=None, 
+               distractor_only_excepts_class: List[int]=None, 
                target_only: bool = False) -> Dict[str,object]:
         '''
         Sample an experience from the dataset. Along with relevant distractor experiences.
@@ -111,6 +112,7 @@ class DualLabeledDataset(Dataset):
         :param excepts: None, or List of indices (Integers) that are not considered for sampling.
         :param excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes
                             to identifies classes to not sample from.
+        :param distractor_only_excepts_class: None, or List of keys (Strings or Integers) that corresponds to entries in self.classes that will not be considered as distractors.
         :param target_only: bool (default: `False`) defining whether to sample only the target or distractors too.
 
         :returns:
@@ -192,7 +194,7 @@ class DualLabeledDataset(Dataset):
                     class_of_idx = self._get_class_from_idx(idx+idx_offset)
                     if class_of_idx in from_class:
                         from_class.remove(class_of_idx)
-    
+                
                 list_indices = []
                 for class_idx in from_class:
                     list_indices += classes[class_idx]
@@ -204,7 +206,16 @@ class DualLabeledDataset(Dataset):
                     for class_idx in excepts_class:
                         excepts_list_indices += classes[class_idx]
                     set_indices = set_indices.difference(set(excepts_list_indices))
-             
+                # Exclude the distractors classes if needs be:
+                if not target_only \
+                and distractor_only_excepts_class is not None:
+                    if not isinstance(distractor_only_excepts_class, list):
+                        distractor_only_excepts_class = [distractor_only_excepts_class]
+                    doec_list_indices = []
+                    for doec_idx in distractor_only_excepts_class:
+                        doec_list_indices += classes[doec_idx]
+                    set_indices = set_indices.difference(set(doec_list_indices))
+
                 if excepts is not None:
                     # check that the current class contains more than just one element:
                     if len(set_indices) != 1:
@@ -271,7 +282,7 @@ class DualLabeledDataset(Dataset):
             "exp_latents":[],
             "exp_latents_values":[]
         }
-
+        
         for idx_with_offset in indices:
             idx = idx_with_offset - idx_offset
             need_reg = {k:True for k in sample_d}
