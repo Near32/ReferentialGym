@@ -443,6 +443,9 @@ class DemonstrationDataset(Dataset) :
         
         return images
 
+    def size(self) -> int:
+        return len(self.indices)
+    
     def __len__(self) -> int:
         if self.dataset_length is not None:
             return self.dataset_length
@@ -525,6 +528,7 @@ class DemonstrationDataset(Dataset) :
             "exp_latents_values":latent_value,
             "exp_latents_one_hot_encoded":latent_one_hot_encoded,
             "exp_test_latents_masks":test_latents_mask,
+            "exp_indices": trueidx,
         }
         
         if self.extra_keys_dict is not None:
