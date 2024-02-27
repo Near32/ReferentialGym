@@ -1,6 +1,7 @@
 from typing import Dict, List 
 
 import os 
+import time
 
 import torch
 import torch.nn as nn
@@ -73,10 +74,10 @@ class OptimizationModule(Module):
         self.update_count = 0
         parameters = []
         for k,m in self.config["modules"].items():
-            parameters += m.parameters()
-            #for name, param in m.named_parameters():
-            #    parameters += param
-            #    #print((name, param.shape))
+            #parameters += m.parameters()
+            for name, param in m.named_parameters():
+                parameters += [param]
+                print((name, param.shape))
             print(f"Module {k} of type {type(m)} : {len(list(m.parameters()))} params.")
 
         if "sgd" in self.config["optimizer_type"].lower():
@@ -130,7 +131,13 @@ class OptimizationModule(Module):
         loss = sum([l.mean() for l in losses_dict.values()])
 
         if "train" in mode:
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
+            for k,m in self.config['modules'].items():
+                for kp, p in m.named_parameters():
+                    if p is not None \
+                    and p.min() != 0 :
+                        #print(k, p.shape)
+                        m.zero_grad(set_to_none=True)
             loss.backward()
             
             if self.config["l1_reg_lambda"] > 0.0:

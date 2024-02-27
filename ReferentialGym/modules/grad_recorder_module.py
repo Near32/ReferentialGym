@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim 
 
 import numpy as np 
+import wandb
 
 from .module import Module
 
@@ -44,7 +45,8 @@ class GradRecorderModule(Module):
         outputs_stream_dict = {}
 
         logs_dict = input_streams_dict["logs_dict"]
-        
+        wandb_dict = {}
+
         mode = input_streams_dict["mode"]
 
         if "train" in mode:
@@ -57,20 +59,25 @@ class GradRecorderModule(Module):
             maxgrad = 0.0
             for name, p in speaker.named_parameters() :
                 if hasattr(p,"grad") and p.grad is not None:
-                    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/current_speaker/grad/{name}"] = p.grad.cpu().detach()
-                    cmg = torch.abs(p.grad.cpu().detach()).max()
+                    wandb_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{speaker.agent_id}/grad/{name}"] = p.grad.cpu().detach()
+                    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{speaker.agent_id}/grad/{name}"] = p.grad.cpu().detach()
+                    cmg = torch.abs(p.grad.cpu().detach()).max().item()
                     if cmg > maxgrad:
                         maxgrad = cmg
-            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/current_speaker/max_grad"] = maxgrad
+            wandb_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{speaker.agent_id}/max_grad"] = maxgrad
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{speaker.agent_id}/max_grad"] = maxgrad
             
             maxgrad = 0.0
             for name, p in listener.named_parameters() :
                 if hasattr(p,"grad") and p.grad is not None:
-                    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/current_listener/grad/{name}"] = p.grad.cpu().detach()
-                    cmg = torch.abs(p.grad.cpu().detach()).max()
+                    wandb_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{listener.agent_id}/grad/{name}"] = p.grad.cpu().detach()
+                    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{listener.agent_id}/grad/{name}"] = p.grad.cpu().detach()
+                    cmg = torch.abs(p.grad.cpu().detach()).max().item()
                     if cmg > maxgrad:
                         maxgrad = cmg
-            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/current_listener/max_grad"] = maxgrad
+            wandb_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{listener.agent_id}/max_grad"] = maxgrad
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{listener.agent_id}/max_grad"] = maxgrad
             
+            wandb.log(wandb_dict, commit=False)
         return outputs_stream_dict
     
