@@ -332,7 +332,10 @@ def discriminative_obverter_referential_game_loss(
     eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
     token_mask = ((eos_mask.cumsum(-1)>0)<=0)
     lengths = token_mask.sum(-1)    
-    sentences_lengths = lengths.clamp(max=agent.max_sentence_length)
+    sentences_lengths = lengths.clamp(
+        min=1,
+        max=agent.max_sentence_length,
+    )
     #(batch_size, )
     
     sentences_lengths = sentences_lengths.reshape(
@@ -366,7 +369,7 @@ def discriminative_obverter_referential_game_loss(
         outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
     
     #WANDB LOG:
-    if False: # input_streams_dict['global_it_comm_round'] % 4096 == 0 : 
+    if input_streams_dict['global_it_comm_round'] % 1024 == 0 : 
         columns = [f"token{idx}" for idx in range(agent.max_sentence_length)]
         columns += [f"gt_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
         columns += ["target_stimulus"]
@@ -402,7 +405,7 @@ def discriminative_obverter_referential_game_loss(
                 label,
                 ]
             )
-        wandb.log({f"{mode}/{agent.id}/SampleTable":text_table, "logging_step": agent.logging_it}, commit=True)
+        wandb.log({f"{mode}/{agent.id}/SampleTable":text_table, "logging_step": agent.log_idx}, commit=True)
 
     # COMPUTE LOSS FN :
     if config["agent_loss_type"].lower() == "nll":
