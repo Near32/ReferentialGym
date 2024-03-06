@@ -6,7 +6,7 @@ from ..utils import gumbel_softmax
 from .agent import Agent 
 
 import wandb 
-
+import numpy as np
 
 assume_padding_with_eos = True
 
@@ -218,14 +218,33 @@ def logits_mdl_principle_loss_hook(
     
     #running_accuracy = input_streams_dict['running_accuracy']
     running_accuracy = input_streams_dict['running_test_accuracy']
-    #wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=True)
-    #wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=True)
+    wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=False)
+    wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=False)
     accuracy_mask = running_accuracy > config['logits_mdl_principle_accuracy_threshold']
     mdl_loss = accuracy_mask * mdl_loss
     #wandb.log({f"MDL/RegLoss": mdl_loss.cpu().detach().mean().item()}, commit=True)
+    
+    factor = config["logits_mdl_principle_factor"]
+    if isinstance(factor, str):
+        if '-' in factor:
+            betas = [float(beta) for beta in factor.split('-')]
+            assert len(betas) == 2
+            factor = np.power(running_accuracy/100.0, betas[0])/betas[1]
+            wandb.log({
+                f"MDL/Beta1": betas[0],
+                f"MDL/Beta2": betas[1],
+                }, 
+                commit=False,
+            )
+        else:
+            factor = float(factor)
+    else:
+        factor = float(factor)
+
+    wandb.log({f"MDL/Lambda": factor}, commit=False)
 
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/logits_mdl_loss"] = [
-        config["logits_mdl_principle_factor"], 
+        factor, 
         mdl_loss
     ]   
 
