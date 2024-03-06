@@ -376,7 +376,12 @@ class Dataset(torchDataset):
                 listener_sample_d[k] = v
            
             #TODO: figure out whether it is necessary to have a random extra ?
-            add_extra = True #torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            #add_extra = True 
+            # It is necessary when the descriptive target ratio is different from 0.5:
+            # We need to only add extra values to match the likelihood of every other logits
+            # which are uniformely distributed, therefore we need the extra with the same 
+            # amount of likelihood:
+            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
             if add_extra:
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = concatenate(
