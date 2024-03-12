@@ -332,13 +332,13 @@ def discriminative_obverter_referential_game_loss(
     eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
     token_mask = ((eos_mask.cumsum(-1)>0)<=0)
     lengths = token_mask.sum(-1)    
-    sentences_lengths = lengths.clamp(
+    sentences_lengths_clamped = lengths.clamp(
         min=1,
         max=agent.max_sentence_length,
     )
     #(batch_size, )
     
-    sentences_lengths = sentences_lengths.reshape(
+    sentences_lengths = sentences_lengths_clamped.reshape(
         -1,
         *[1 for _ in range(len(final_decision_logits.shape[2:])+1)]
     ).expand(
@@ -346,6 +346,20 @@ def discriminative_obverter_referential_game_loss(
         1,
         *final_decision_logits.shape[2:],
     )
+    
+    '''
+    first_eos_idx = agent.max_sentence_length
+    logit_extraction_idx = sentences_lengths_clamped[0].squeeze().item()-1
+    if eos_mask.any():
+        first_eos_idx = lengths[0].squeeze().item()
+    wandb_dict = {}
+    wandb_dict[f"Debug/LogitsExtraction/FirstEoSIDX"] = first_eos_idx
+    wandb_dict[f"Debug/LogitsExtraction/LogitExtractIDX"] = logit_extraction_idx
+    wandb.log(wandb_dict, commit=False) 
+    '''
+    # From the math, we seem to be taking the logit before consuming EoS.
+    # The confidence level that we care about in the speaker obverter is that of the logits
+    # before EoS, therefore it would make sense to take the logits before EoS here.
     
     final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
     # (batch_size, (nbr_distractors+1), 2)
@@ -446,12 +460,16 @@ def discriminative_obverter_referential_game_loss(
                 loss = criterion( decision_logits, target_decision_idx)
                 # (batch_size, )
                 '''
-                # WARNING: the following expects dcision_logits to be linear outputs...
-                # When target is retained:
+                # WARNING: the following expects decision_logits to be linear outputs...
+                # but the new obverter implementation outputs a logits, in order to be
+                # concistent with what other agents output...
+                # When target is retained among distractors+target collection:
                 retain_target_mask = (target_decision_idx != nbr_distractors_po).float()
                 # ... increase the positive logit of the target stimulus, compared to the other ones.
                 reg_decision_logits = torch.cat([
-                    F.log_softmax(final_decision_logits[..., 0], dim=-1),
+                    #Therefore, we need an exp() call now:
+                    #F.log_softmax(final_decision_logits[..., 0], dim=-1),
+                    F.log_softmax(final_decision_logits[..., 0].exp(), dim=-1),
                     torch.zeros((batch_size, 1)).to(retain_target_mask.device)],
                     dim=-1,
                 )
@@ -461,14 +479,16 @@ def discriminative_obverter_referential_game_loss(
                     target_decision_idx,
                 )
                 #( batch_size, )
-                # When target is not retained, increase all the negative logit:
+                
+                # When target is not retained among distractors+target collection, 
+                # we increase all the negative logit:
                 not_retain_target_loss = (1-retain_target_mask)*torch.pow(
                     (1-F.log_softmax(final_decision_logits, dim=-1)[..., 1]),
                     2.0,
                 ).mean(dim=-1, keepdim=False)
                 
                 #loss = retain_target_loss + 1.0e-3*not_retain_target_loss
-                loss = retain_target_loss #+ 1.0e-3*not_retain_target_loss
+                loss = retain_target_loss #+ not_retain_target_loss
 
                 '''
                 #PREVIOUSLY:

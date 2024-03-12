@@ -13,6 +13,7 @@ from ..networks import DummyBody
 
 from ..utils import gumbel_softmax
 
+import wandb
 
 whole_sentence = True
 #progressive_whole_sentence = False
@@ -23,7 +24,7 @@ assume_padding_with_eos = True
 
 stability_eps = 1e-8
 
-def layer_init(layer, w_scale=1.0):
+def layer_init(layer, w_scale=1e-1):
     #previously:
     #return layer 
 
@@ -35,6 +36,7 @@ def layer_init(layer, w_scale=1.0):
         else:
             try:
                 nn.init.orthogonal_(layer._parameters[name].data)
+                layer.weight.data.mul_(w_scale)
             except Exception as e:
                 print(f"Exception encountered when init. {name}, of shape {param.shape}: {e}")
             '''
@@ -92,16 +94,17 @@ def sentence_length_entropy_logging_hook(
     logs_dict,
     **kwargs,
 ):
-    if 'speaker' not in agent.role: return
-    
-    it_rep = input_streams_dict['it_rep']
-    it_comm_round = input_streams_dict['it_comm_round']
-    mode = input_streams_dict['mode']
-    config = input_streams_dict['config']
+    #if 'speaker' not in agent.role: return
+    speaker_sentences_widx = outputs_dict["sentences_widx"]
+    if speaker_sentences_widx is None:  return
+     
+    it_rep = input_streams_dict.get('it_rep', 0)
+    it_comm_round = input_streams_dict.get('it_comm_round', 0)
+    mode = input_streams_dict.get('mode', 'default')
 
     batch_size = len(input_streams_dict['experiences'])
     speaker_sentences_logits = outputs_dict["sentences_logits"]
-    speaker_sentences_widx = outputs_dict["sentences_widx"]
+
 
     # Sentence Lengths:
     """
@@ -115,7 +118,14 @@ def sentence_length_entropy_logging_hook(
     
     sentence_length = sentence_lengths.mean()
     
-    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{config['max_sentence_length']})"] = sentence_lengths/config['max_sentence_length']
+    logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{agent.max_sentence_length})"] = sentence_lengths/agent.max_sentence_length
+    
+    mean_sentence_lengths = (sentence_lengths/agent.max_sentence_length).mean()
+    wandb.log({
+        f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{agent.agent_id}/SentenceLength (/{agent.max_sentence_length})": mean_sentence_lengths,
+        },
+        commit=True,
+    )
 
     # Compute Sentence Entropies:
     # Assert that it is a probability distribution by applying softmax... 
@@ -178,7 +188,6 @@ class ObverterAgent(DiscriminativeListener):
         use_residual_connections=False,
         use_sentences_one_hot_vectors=True,
         with_BN_in_decision_head=True,
-        with_DP_in_decision_head=True,
         DP_in_decision_head=0.5,
         with_DP_in_listener_decision_head_only=True,
         with_descriptive_not_target_logit_language_conditioning=True,
@@ -202,6 +211,8 @@ class ObverterAgent(DiscriminativeListener):
             agent_id, 
             logger, 
             kwargs)
+        
+        with_DP_in_decision_head= DP_in_decision_head > 0.0
 
         self.logging_it = 0
 
@@ -299,7 +310,7 @@ class ObverterAgent(DiscriminativeListener):
             hidden_size=self.kwargs['symbol_processing_nbr_hidden_units'], 
             num_layers=self.kwargs['symbol_processing_nbr_rnn_layers'],
             batch_first=True,
-            dropout=self.kwargs['dropout_prob'],
+            #dropout=self.kwargs['dropout_prob'],
             bidirectional=False
         )
         
@@ -310,17 +321,21 @@ class ObverterAgent(DiscriminativeListener):
             decision_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
             head_arch = []
             hidden_dim = 128
+            nbr_blocks = 2 
             if self.use_residual_connections:   hidden_dim = decision_head_input_size
-
+            
             if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
                 head_arch.append(nn.Dropout(p=DP_in_decision_head))
+            for bidx in range(nbr_blocks):
+                head_arch += [
+                    ResidualLayer(decision_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(decision_head_input_size,hidden_dim),
+                ]
+                if with_BN_in_decision_head:
+                    head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
+                head_arch.append(nn.ReLU())
+                decision_head_input_size = hidden_dim #self.kwargs["symbol_processing_nbr_hidden_units"]+self.encoder_feature_shape
+
             head_arch += [
-                ResidualLayer(decision_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(decision_head_input_size,hidden_dim),
-            ]
-            if with_BN_in_decision_head:
-                head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
-            head_arch += [
-                nn.ReLU(),
                 #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
                 nn.Linear(hidden_dim, 2),
             ]
@@ -329,17 +344,21 @@ class ObverterAgent(DiscriminativeListener):
             projection_head_input_size = self.kwargs["symbol_processing_nbr_hidden_units"]
             head_arch = []
             hidden_dim = 128
+            nbr_blocks = 2
             if self.use_residual_connections:   hidden_dim = projection_head_input_size
 
-            if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
-                head_arch.append(nn.Dropout(p=DP_in_decision_head))
+            for bidx in range(nbr_blocks):
+                if with_DP_in_decision_head and not(self.with_DP_in_listener_decision_head_only):
+                    head_arch.append(nn.Dropout(p=DP_in_decision_head))
+                head_arch += [
+                    ResidualLayer(projection_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(projection_head_input_size,hidden_dim),
+                ]
+                if with_BN_in_decision_head:
+                    head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
+                head_arch += [nn.ReLU()]
+                projection_head_input_size = hidden_dim
+
             head_arch += [
-                ResidualLayer(projection_head_input_size, hidden_dim) if self.use_residual_connections else nn.Linear(projection_head_input_size,hidden_dim),
-            ]
-            if with_BN_in_decision_head:
-                head_arch.append(nn.BatchNorm1d(num_features=hidden_dim))
-            head_arch += [
-                nn.ReLU(),
                 #ResidualLayer(hidden_dim, 2) if self.use_residual_connections else nn.Linear(hidden_dim, 2),
                 nn.Linear(hidden_dim, self.cnn_encoder.get_feature_shape()),
             ]
@@ -361,10 +380,19 @@ class ObverterAgent(DiscriminativeListener):
         else:
             # Makes sure that the EoS symbol is not part of the actual vocabulary, and can be used as a padding symbol:
             # cf discriminator_listener agent's computing on the last token before the first EoS symbol encountered...
-            self.vocab_stop_idx = self.vocab_size
-            #self.vocab_size += 2
+            
+            #self.vocab_stop_idx = len(self.vocabulary)-1 #self.vocab_size
+            self.vocab_stop_idx = self.vocab_size-1
+            EoS = self.vocabulary[0]
+            del self.vocabulary[0]
+            #self.vocabulary.append(EoS)
+            self.vocabulary[self.vocab_stop_idx] = EoS
+            for tidx, token in enumerate(self.vocabulary):
+                self.idx2w[tidx] = token
+                self.w2idx[token] = tidx
+            
             self.symbol_encoder = nn.Embedding(
-                self.vocab_size+2, 
+                self.vocab_size+2, #+4, #+2, 
                 self.kwargs['symbol_embedding_size'], 
                 padding_idx=self.vocab_stop_idx, #self.vocab_size
             )
@@ -377,8 +405,9 @@ class ObverterAgent(DiscriminativeListener):
         self.tau_fc = nn.Sequential(nn.Linear(self.kwargs['symbol_processing_nbr_hidden_units'], 1,bias=False),
                                           nn.Softplus())
 
-        self.reset()
-        
+        self.reset_weights(reset_language_model=True)
+        self.symbol_processing.flatten_parameters()
+
         if self.kwargs['use_cuda']:
             self = self.cuda()
 
@@ -395,8 +424,14 @@ class ObverterAgent(DiscriminativeListener):
 
         self.logger = logger  
         return clone 
+    
+    def reset(self):
+        self.embedding_tf_final_outputs = None
+        if hasattr(self, 'tau'):
+            self.tau = None
+        self._reset_rnn_states()
 
-    def reset(self, reset_language_model=False):
+    def reset_weights(self, reset_language_model=False):
         # TODO: verify that initialization of decision head is not an issue:
         #self.decision_head.apply(layer_init)
         
@@ -405,9 +440,8 @@ class ObverterAgent(DiscriminativeListener):
             self.symbol_encoder.apply(layer_init)
             if self.use_decision_head:
                 self.decision_head.apply(layer_init)
-        
-        if not self.use_decision_head:
-            self.projection_head.apply(layer_init)
+            else:
+                self.projection_head.apply(layer_init)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -573,9 +607,9 @@ class ObverterAgent(DiscriminativeListener):
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
-        batch_size = features.size(0)
+        batch_size = sentences.shape[0] #features.size(0)
         nbr_distractors_po = features.size(1)
-        features_dim =features.size(-1)
+        features_dim = features.size(-1)
         # (batch_size, nbr_distractors+1 / ? (descriptive mode depends on the role of the agent), nbr_stimulus, feature_dim)
         # Forward pass:
         embedding_tf_final_outputs = features.reshape((batch_size, nbr_distractors_po, -1))
@@ -813,7 +847,7 @@ class ObverterAgent(DiscriminativeListener):
 
         sentences_widx = np.array([[-1 for _ in range(max_sentence_len)] for _ in relevant_procs])
         all_probs = np.array([-1. for _ in relevant_procs])
-        
+
         for l in range(max_sentence_len):
             inputs = all_inputs[relevant_procs]
             batch_size = inputs.size(0)
@@ -844,21 +878,21 @@ class ObverterAgent(DiscriminativeListener):
             # (batch_size*vocab_size, 1+l, (nbr_distractors+1), 2 )
 
             probs = kwargs['decision_probs']
+            
+            probs = probs.reshape((vocab_size, batch_size)).transpose(0, 1)
+            
+            # Remove EoS symbol:
+            probs[:, agent.vocab_stop_idx] = 0.0
 
-            probs = probs.view((vocab_size, batch_size)).transpose(0, 1)
-            
-            
             probs, sel_comm_idx = torch.max(probs, dim=1)
 
             comm = run_communications[:, np.arange(len(relevant_procs)), sel_comm_idx.data.cpu().numpy()].transpose()
             finished_p = []
             for i, (action, p, prob) in enumerate(zip(comm, relevant_procs, probs)):
-                # TODO: check this condition?
-                #if prob > prob_threshold \
-                #or prob < 0.65:
                 if prob > prob_threshold:
                     finished_p.append(p)
                     if prob.item() < 0:
+                        import ipdb; ipdb.set_trace()
                         continue
 
                 for j, symb in enumerate(action):
@@ -877,40 +911,45 @@ class ObverterAgent(DiscriminativeListener):
 
         sentences_probs = torch.from_numpy(all_probs).to(all_inputs.device)
         
-        if logger is None:
-            return sentences_widx, sentences_probs
-
         values = all_probs
         # (batch_size, )
 
         averaged_value = values.mean()
         std_value = values.std()
         
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
-
         median_value = np.nanpercentile(
             values,
             q=50,
             axis=None,
-            interpolation="nearest"
+            method="nearest"
         )
         q1_value = np.nanpercentile(
             values,
             q=25,
             axis=None,
-            interpolation="lower"
+            method="lower"
         )
         q3_value = np.nanpercentile(
             values,
             q=75,
             axis=None,
-            interpolation="higher"
+            method="higher"
         )
 
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+        if logger is not None:
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+
+        wandb_dict = {}
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Mean"] = averaged_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Std"] = std_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Median"] = median_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q1"] = q1_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q3"] = q3_value
+        wandb.log(wandb_dict, commit=True)
 
         return sentences_widx, sentences_probs
     
@@ -971,11 +1010,17 @@ class ObverterAgent(DiscriminativeListener):
             # (batch_size x vocab_size)
             
             # Adding EoS logits with lowest prob and detach:
+            #MODIF 1: Previously:
+            '''
             decision_logits = torch.cat([
                 decision_logits,
                 decision_logits.min(dim=-1, keepdim=True)[0].detach()],
                 dim=-1,
             )
+            '''
+            # NOW:
+            import ipdb; idpb.set_trace()
+            decision_logits[:, agent.vocab_stop_idx] = decision_logits.min(dim=-1, keepdim=True)[0].detach()
             # Regularisation of decision logits with respect to actual relevant_procs:
             # If the batch index is not in relevant_procs then we use the default logits
             for bidx in range(batch_size):
@@ -1029,40 +1074,45 @@ class ObverterAgent(DiscriminativeListener):
 
         sentences_probs = torch.from_numpy(all_probs).to(all_inputs.device)
         
-        if logger is None:
-            return sentences_widx, sentences_probs, sentences_logits
-
         values = all_probs
         # (batch_size, )
 
         averaged_value = values.mean()
         std_value = values.std()
         
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
-
         median_value = np.nanpercentile(
             values,
             q=50,
             axis=None,
-            interpolation="nearest"
+            method="nearest"
         )
         q1_value = np.nanpercentile(
             values,
             q=25,
             axis=None,
-            interpolation="lower"
+            method="lower"
         )
         q3_value = np.nanpercentile(
             values,
             q=75,
             axis=None,
-            interpolation="higher"
+            method="higher"
         )
 
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+        if logger is not None:
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+
+        wandb_dict = {}
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Mean"] = averaged_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Std"] = std_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Median"] = median_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q1"] = q1_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q3"] = q3_value
+        wandb.log(wandb_dict, commit=True)
 
         return sentences_widx, sentences_probs, sentences_logits
     
@@ -1341,31 +1391,40 @@ class ObverterAgent(DiscriminativeListener):
 
         averaged_value = values.mean()
         std_value = values.std()
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
-
+        
         median_value = np.nanpercentile(
             values,
             q=50,
             axis=None,
-            interpolation="nearest"
+            method="nearest"
         )
         q1_value = np.nanpercentile(
             values,
             q=25,
             axis=None,
-            interpolation="lower"
+            method="lower"
         )
         q3_value = np.nanpercentile(
             values,
             q=75,
             axis=None,
-            interpolation="higher"
+            method="higher"
         )
 
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
-        logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+        if logger is not None:
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Mean", averaged_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Std", std_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Median", median_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q1", q1_value, logging_it)
+            logger.add_scalar(f"Debug/{agent.agent_id}/MaxProb/Q3", q3_value, logging_it)
+
+        wandb_dict = {}
+        wandb_dict[f"Debug/CS/{agent.agent_id}/MaxProb/Mean"] = averaged_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Std"] = std_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Median"] = median_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q1"] = q1_value
+        wandb_dict[f"Debug/{agent.agent_id}/MaxProb/Q3"] = q3_value
+        wandb.log(wandb_dict, commit=True)
 
         return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots
 
@@ -1385,7 +1444,6 @@ def build_ObverterAgent(
         'use_residual_connections':False,
         'use_sentences_one_hot_vectors':False,
         'with_BN_in_decision_head':True,
-        'with_DP_in_decision_head':True,
         'DP_in_decision_head':0.5,
         'with_DP_in_listener_decision_head_only':False,
         'with_descriptive_not_target_logit_language_conditioning':True,
@@ -1397,12 +1455,15 @@ def build_ObverterAgent(
         'use_cuda': True,
     },
     input_stream_ids=None,
+    output_stream_ids={},
 ) -> ObverterAgent:
     reg_obs_shape = obs_shape
     while len(reg_obs_shape) < 3:
         reg_obs_shape.insert(0, 1)
 
     kwargs = {
+        'max_sentence_length': max_sentence_length,
+        'vocab_size': vocab_size,
         'use_obverter_threshold_to_stop_message_generation': config['confidence_threshold'],
         'force_eos': config['force_eos'], #TODO : test implementation with some logits mdl principle...
         'architecture': 'DummyBody',
@@ -1433,7 +1494,6 @@ def build_ObverterAgent(
         use_residual_connections=config['use_residual_connections'],
         use_sentences_one_hot_vectors=config['use_sentences_one_hot_vectors'],
         with_BN_in_decision_head=config['with_BN_in_decision_head'],
-        with_DP_in_decision_head=config['with_DP_in_decision_head'],
         DP_in_decision_head=config['DP_in_decision_head'],
         with_DP_in_listener_decision_head_only=config['with_DP_in_listener_decision_head_only'],
         with_descriptive_not_target_logit_language_conditioning=config['with_descriptive_not_target_logit_language_conditioning'],
@@ -1441,6 +1501,7 @@ def build_ObverterAgent(
     
     agent.role = 'module_role'
     agent.input_stream_ids[agent.role] = input_stream_ids
+    agent.output_stream_ids = output_stream_ids
 
     return agent
 
