@@ -226,7 +226,7 @@ def logits_mdl_principle_loss_hook(
     
     factor = config["logits_mdl_principle_factor"]
     if isinstance(factor, str):
-        if '-' in factor:
+        if '-' in factor and 'e-' not in factor:
             betas = [float(beta) for beta in factor.split('-')]
             assert len(betas) == 2
             factor = np.power(running_accuracy/100.0, betas[0])/betas[1]
