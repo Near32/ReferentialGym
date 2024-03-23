@@ -37,6 +37,7 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
             "semantic_level_ungrounding": False,
             "sentence_level_grounding": True,
             "sentence_level_ungrounding": False,
+            "aggregation_type": "max",
         },
         input_stream_ids:Dict[str,str]=None,
     ):
@@ -124,13 +125,20 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         sentences_targets_logits = torch.zeros((batch_size, nbr_text_features))
         sentences_mask = torch.zeros((batch_size, nbr_text_features))
         # Eos Filtering:
+        # the purpose is to make sure EoS is not the symbol that will receive feedback,
+        # as it would be pointless, as the only already-grounded symbol.
+        # Adding detach for good measure:
         eos_idx = agent.vocab_stop_idx
-        sentences_logits[..., eos_idx] = sentences_logits.min(dim=-1, keepdim=False)[0]
+        sentences_logits[..., eos_idx] = sentences_logits.min(dim=-1, keepdim=False)[0].detach()
         # Aggregation can be done in many different ways:
-        #sentences_mean_logits = torch.mean(sentences_logits, dim=1, keepdim=False)
-        sentences_mean_logits, _ = torch.max(sentences_logits, dim=1, keepdim=False)
+        if 'mean' in self.config['aggregation_type']:
+            sentences_mean_logits = torch.mean(sentences_logits, dim=1, keepdim=False)
+        elif 'max' in self.config['aggregation_type']:
+            sentences_mean_logits, _ = torch.max(sentences_logits, dim=1, keepdim=False)
+        else:
+            raise NotImplementedError
         # (batch_size x vocab_size)
-        sentences_mean_probs=sentences_mean_logits.softmax(dim=-1)
+        sentences_mean_probs = sentences_mean_logits.softmax(dim=-1)
         sentences_distr = Categorical(probs=sentences_mean_probs)
         sentence_level_entropy = sentences_distr.entropy()
          
