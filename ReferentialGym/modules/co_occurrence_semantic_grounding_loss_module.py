@@ -32,6 +32,8 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         config:Dict[str,object]={
             "lambda_factor":1.0,
             "sentence_level_lambda_factor":1.0,
+            "semantic_level_entropy_reg_lambda_factor":0.0, 
+            "sentence_level_entropy_reg_lambda_factor":0.0, 
             "noise_magnitude":0.0,
             "semantic_level_grounding": False,
             "semantic_level_ungrounding": False,
@@ -111,6 +113,9 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         # (batch_size x nbr_text_emb=vocab_size)
         sem_prior_distr = Categorical(probs=semantic_prior)
         entropy = sem_prior_distr.entropy()
+        vocab_size = semantic_prior.shape[-1]
+        sem_entropy_target = np.log(vocab_size)/np.log(2)/2
+        sem_entropy_reg_loss = torch.square(entropy-sem_entropy_target)
 
         grounding_signal = input_streams_dict["grounding_signal"].squeeze(-1)
         max_sentence_length = grounding_signal.shape[-1]
@@ -141,6 +146,9 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         sentences_mean_probs = sentences_mean_logits.softmax(dim=-1)
         sentences_distr = Categorical(probs=sentences_mean_probs)
         sentence_level_entropy = sentences_distr.entropy()
+        sentence_entropy_target = np.log(vocab_size)/np.log(2)/2
+        sentence_entropy_reg_loss = torch.square(sentence_level_entropy-sentence_entropy_target)
+
          
         #histogram_tfidx = []
         for tfidx in range(nbr_text_features):
@@ -209,6 +217,14 @@ class CoOccurrenceSemanticGroundingLossModule(Module):
         
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/Entropy"] = entropy
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/SentenceLevelEntropy"] = sentence_level_entropy
+        losses_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/SemanticPriorEntropyRegLoss"] = [
+            self.config.get("semantic_level_entropy_reg_lambda_factor", 1.0), 
+            sem_entropy_reg_loss,
+        ]
+        losses_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/SentenceLevelEntropyRegLoss"] = [
+            self.config.get("sentence_level_entropy_reg_lambda_factor", 1.0), 
+            sentence_entropy_reg_loss,
+        ]
         losses_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/Loss"] = [self.config.get("lambda_factor", 1.0), loss]
         losses_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/co_occurrence_semantic_grounding/{agent.agent_id}/SentenceLevelLoss"] = [self.config.get("sentence_level_lambda_factor", 1.0), sentences_loss]
 
