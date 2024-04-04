@@ -138,7 +138,8 @@ class OptimizationModule(Module):
                     and p.min() != 0 :
                         #print(k, p.shape)
                         m.zero_grad(set_to_none=True)
-            loss.backward()
+            if self.config.get("optimize", True):
+                loss.backward()
             
             if self.config["l1_reg_lambda"] > 0.0:
                 l1_regularization = {}
@@ -165,7 +166,8 @@ class OptimizationModule(Module):
                 logs_dict[f"{mode}/L2_regularization/loss"] = l2_regularization.item()
                 logs_dict[f"{mode}/L2_regularization/lambda"] = self.config["l2_reg_lambda"]
             
-            self.optimizer.step()
+            if self.config.get("optimize", True):
+                self.optimizer.step()
             self.update_count += 1
 
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
