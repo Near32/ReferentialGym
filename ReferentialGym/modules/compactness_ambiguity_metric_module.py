@@ -199,14 +199,14 @@ class CompactnessAmbiguityMetricModule(Module):
         self.original_indices = self.indices
         sorted_unique_indices, sampling_indices = np.unique(self.indices, return_index=True)
         
-        #TODO: figure out whether the following line is necessary?
-        #assert len(sorted_unique_indices) == len(self.original_indices)
-
         # The following line is not necessary as the self.experiences numpy array
         # is already the result of concatenation over the values of a dictionnary
         # whose keys are the indices that are automatically ordered since integers...?
+        if self.config.get("with_ordering", False):
+            #TODO: figure out whether the following line is necessary?
+            assert len(sorted_unique_indices) == len(self.original_indices)
+            self.experiences = self.experiences[sampling_indices]
         '''
-        self.experiences = self.experiences[sampling_indices]
         if self.make_visualisation:
             self.top_views = self.top_views[sampling_indices]
             self.agent_pos_in_top_views = self.agent_pos_in_top_views[sampling_indices]
