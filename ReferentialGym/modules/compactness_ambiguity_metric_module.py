@@ -184,13 +184,35 @@ class CompactnessAmbiguityMetricModule(Module):
         if not(end_of_epoch and 'test' in mode): 
             return outputs_stream_dict
 
+        # WARNING: despite using dictionnaries, they do not provide ordered values.
+        # We need to sort them first:
+        self.experiences = dict(sorted(self.experiences.items()))
+        self.representations = dict(sorted(self.representations.items()))
+        self.natural_representations = dict(sorted(self.natural_representations.items()))
+        self.latent_representations = dict(sorted(self.latent_representations.items()))
+
         self.experiences = np.stack(list(self.experiences.values()), axis=0)
         if self.make_visualisation:
+            # SORTING:
+            self.top_views = dict(sorted(self.top_views.items()))
+            self.agent_pos_in_top_views = dict(sorted(self.agent_pos_in_top_views.items()))
+
             self.top_views = np.stack(list(self.top_views.values()), axis=0)
             self.agent_pos_in_top_views = np.stack(list(self.agent_pos_in_top_views.values()), axis=0)
+        
+        self.natural_representations_dict = self.natural_representations
         self.natural_representations = np.stack(list(self.natural_representations.values()), axis=0)
         self.representations = np.stack(list(self.representations.values()), axis=0)
-        
+
+        # LOGGING Natural Representations:
+        if False: #epoch % 8 == 0:
+            nr = [ " ".join([self.idx2w[nu_token] for nu_token in nu]) for nu in self.natural_representations]
+            nr_table = wandb.Table(
+                columns=["stimulus_idx", "natural_utterance"],
+                data=list(zip(self.natural_representations_dict.keys(), nr)),
+            )
+            wandb.log({'CompactnessAmbiguityMetric/NaturalRepresentationsTables':nr_table}, commit=False)
+
         latent_shape = self.latent_representations[tidx].shape
         self.latent_representations = np.stack(list(self.latent_representations.values()), axis=0)
         self.indices = np.concatenate(self.indices, axis=0).reshape(-1)
@@ -202,10 +224,17 @@ class CompactnessAmbiguityMetricModule(Module):
         # The following line is not necessary as the self.experiences numpy array
         # is already the result of concatenation over the values of a dictionnary
         # whose keys are the indices that are automatically ordered since integers...?
+        # NOPE, WARNING: it turns out that values are not sorted by keys in the current dicts...
+        # BUT, we are now sorting everything up above.
+        # SO, the following is not necessary, and it is unclear whether it is working at all...?
+        '''
         if self.config.get("with_ordering", False):
             #TODO: figure out whether the following line is necessary?
             assert len(sorted_unique_indices) == len(self.original_indices)
             self.experiences = self.experiences[sampling_indices]
+        '''
+        #
+        #
         '''
         if self.make_visualisation:
             self.top_views = self.top_views[sampling_indices]
