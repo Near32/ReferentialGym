@@ -198,10 +198,10 @@ def discriminative_st_gs_referential_game_loss(agent,
         # (batch_size, (nbr_distractors+1))
         positives = positives.float().sum()
         descriptive_accuracy = descriptive_accuracy.float()*100.0
-        descriptive_precision = (descriptive_true_positives/positives).item()
+        descriptive_precision = (descriptive_true_positives/(positives+1e-8)).item()
         true_positives_p_false_negatives = (per_stimulus_decision_index==0).float().sum()
-        descriptive_recall = (descriptive_true_positives/true_positives_p_false_negatives).item()
-        descriptive_f1_score = 2*descriptive_precision*descriptive_recall/(descriptive_precision+descriptive_recall)
+        descriptive_recall = (descriptive_true_positives/(true_positives_p_false_negatives+1e-8)).item()
+        descriptive_f1_score = 2*descriptive_precision*descriptive_recall/(descriptive_precision+descriptive_recall+1e-8)
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_precision"] = descriptive_precision
         logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_descriptive_recall"] = descriptive_recall
