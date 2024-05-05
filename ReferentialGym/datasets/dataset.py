@@ -200,7 +200,9 @@ class Dataset(torchDataset):
                 )
                 # Adding batch dimension:
                 for k,v in new_target_for_listener_sample_d.items():
-                    if not isinstance(v, dict): v = torch.Tensor(v).unsqueeze(0)
+                    if not isinstance(v, dict): 
+                        if isinstance(v,list):  v = np.array(v)
+                        v = torch.Tensor(v).unsqueeze(0)
                     else:   v = np.array(v)[np.newaxis, ...]
                     listener_sample_d[k][:,0] = v#.unsqueeze(0)
         elif DC_version ==2 \
