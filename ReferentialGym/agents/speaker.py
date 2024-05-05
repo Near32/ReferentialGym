@@ -221,9 +221,10 @@ def logits_mdl_principle_loss_hook(
     wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=False)
     wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=False)
     accuracy_mask = running_accuracy > config['logits_mdl_principle_accuracy_threshold']
+    if config['logits_mdl_principle_normalization']:
+        mdl_loss /= 1e-5+mdl_loss.detach().max().item()
     mdl_loss = accuracy_mask * mdl_loss
     #wandb.log({f"MDL/RegLoss": mdl_loss.cpu().detach().mean().item()}, commit=True)
-    
     factor = config["logits_mdl_principle_factor"]
     if isinstance(factor, str):
         if '-' in factor and 'e-' not in factor:
