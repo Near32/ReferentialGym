@@ -270,7 +270,8 @@ class Agent(Module):
         if self.kwargs.get("with_weight_maxl1_loss", False):
             self.register_hook(maxl1_loss_hook)
         self.register_hook(wandb_logging_hook)
-        
+        self.pipeline_hooks = []
+	
         self.role = role        
     
     def set_vocabulary(self, vocabulary):
@@ -321,6 +322,9 @@ class Agent(Module):
 
     def register_hook(self, hook):
         self.hooks.append(hook)
+
+    def register_pipeline_hook(self, hook):
+        self.pipeline_hooks.append(hook)
 
     def embed_sentences(self, sentence):
         """
@@ -440,6 +444,92 @@ class Agent(Module):
         # //------------------------------------------------------------//
         
         for hook in self.hooks:
+            hook(
+                agent=self,
+                losses_dict=losses_dict,
+                input_streams_dict=input_streams_dict,
+                outputs_dict=outputs_dict,
+                logs_dict=logs_dict
+            )
+
+        # //------------------------------------------------------------//
+        # //------------------------------------------------------------//
+        # //------------------------------------------------------------//
+        
+        # Logging:        
+        for logname, value in self.log_dict.items():
+            self.logger.add_scalar(f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/{self.role}/{logname}", value.item(), global_it_comm_round)
+        self.log_dict = {}
+
+        self._tidyup()
+        
+        outputs_dict["losses"] = losses_dict
+
+        return outputs_dict    
+
+    def compute_pipeline_hooks(
+        self, 
+        input_streams_dict:Dict[str,object],
+        outputs_dict:Dict[str,object],
+    ) -> Dict[str,object] :
+        """
+        :param input_streams_dict: Dict that should contain, at least, the following keys and values:
+            - `'sentences_logits'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of logits over symbols.
+            - `'sentences_widx'`: Tensor of shape `(batch_size, max_sentence_length, 1)` containing the padded sequence of symbols' indices.
+            - `'sentences_one_hot'`: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
+            - `'experiences'`: Tensor of shape `(batch_size, *self.obs_shape)`. 
+            - `'exp_latents'`: Tensor of shape `(batch_size, nbr_latent_dimensions)`.
+            - `'multi_round'`: Boolean defining whether to utter a sentence back or not.
+            - `'graphtype'`: String defining the type of symbols used in the output sentence:
+                        - `'categorical'`: one-hot-encoded symbols.
+                        - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
+                        - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
+                        - `'obverter'`: obverter training scheme...
+            - `'tau0'`: Float, temperature with which to apply gumbel-softmax estimator. 
+            - `'sample'`: Dict that contains the speaker and listener experiences as well as the target index.
+            - `'config'`: Dict of hyperparameters to the referential game.
+            - `'mode'`: String that defines what mode we are in, e.g. 'train' or 'test'. Those keywords are expected.
+            - `'it'`: Integer specifying the iteration number of the current function call.
+        """
+        config = input_streams_dict.get("config", None)
+        mode = input_streams_dict.get("mode", 'train')
+        it_rep = input_streams_dict.get("it_rep", 0)
+        it_comm_round = input_streams_dict.get("it_comm_round", 0)
+        global_it_comm_round = input_streams_dict.get("global_it_comm_round", 0)
+        
+        losses_dict = input_streams_dict.get("losses_dict", {})
+        logs_dict = input_streams_dict.get("logs_dict", {})
+        
+        self.sample = input_streams_dict.get("sample", {})
+        self.experiences = input_streams_dict["experiences"]
+        if isinstance(self.experiences, list):  
+            self.experiences = self.experiences[0]
+            while len(self.experiences.shape) < 4:
+                self.experiences = self.experiences.unsqueeze(1)
+        
+        self.indices = input_streams_dict.get("indices", None)
+        self.exp_latents = input_streams_dict.get("exp_latents", None)
+        self.exp_latents_values = input_streams_dict.get("exp_latents_values", None)
+
+
+        input_sentence = input_streams_dict.get("sentences_widx", None)
+        if self.use_sentences_one_hot_vectors:
+            input_sentence = input_streams_dict.get("sentences_one_hot", None)
+        
+        if isinstance(input_sentence, list):  
+            input_sentence = input_sentence[0]
+        
+        assert self.experiences is not None or input_sentence is not none
+        if self.experiences is not None:
+            batch_size = self.experiences.shape[0]
+        else:
+            batch_size = input_sentence.shape[0]
+            
+        # //------------------------------------------------------------//
+        # //------------------------------------------------------------//
+        # //------------------------------------------------------------//
+	
+        for hook in self.pipeline_hooks:
             hook(
                 agent=self,
                 losses_dict=losses_dict,

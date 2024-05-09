@@ -29,18 +29,39 @@ class Module(nn.Module):
     def get_input_stream_ids(self) -> Dict[str,str]:
         return self.input_stream_ids
 
-    def compute(self, inputs_dict:Dict[str,object]) -> Dict[str,object] :
+    def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         Operates on inputs_dict that is made up of referents to the requested 
         data stream, as values of the `self.input_stream_ids` dict.
         Make sure that accesses to its element are non-destructive.
 
-        :param inputs_dict: Dict[str, object] where the keys are the keys of 
+        :param input_streams_dict: Dict[str, object] where the keys are the keys of 
                             `self.input_stream_ids`, and the values are the values
                             stored in the `StreamHandler`'s placeholder path defined
                             by the values of `self.input_stream_ids`.
 
         :returns:
-            - outputs_sream_dict: 
+            - output_streams_dict: 
         """
-        raise NotImplementedError
+        raise NotImplementedError    
+
+    def compute_pipeline_hooks(
+        self, 
+        input_streams_dict:Dict[str,object],
+        outputs_dict:Dict[str,object],
+    ) -> Dict[str,object] :
+        """
+        Operates on inputs_dict that is made up of referents to the requested 
+        data stream, as values of the `self.input_stream_ids` dict.
+        Make sure that accesses to its element are non-destructive.
+
+        :param input_streams_dict: Dict[str, object] where the keys are the keys of 
+                            `self.input_stream_ids`, and the values are the values
+                            stored in the `StreamHandler`'s placeholder path defined
+                            by the values of `self.input_stream_ids`.
+
+        :returns:
+            - output_streams_dict: 
+        """
+        return None 
+

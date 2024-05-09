@@ -217,13 +217,19 @@ def logits_mdl_principle_loss_hook(
     # (batch_size, )
     
     #running_accuracy = input_streams_dict['running_accuracy']
+    import ipdb; ipdb.set_trace()
+    inst_train_accuracy= logs_dict[f'train/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy']
     running_accuracy = input_streams_dict['running_test_accuracy']
     wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=False)
     wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=False)
-    accuracy_mask = running_accuracy > config['logits_mdl_principle_accuracy_threshold']
+    if agent.kwargs['logits_mdl_principle_use_inst_accuracy']:
+        accuracy_masking = inst_train_accuracy.detach()
+    else:
+        accuracy_masking = running_accuracy
+    accuracy_mask = accuracy_masking > config['logits_mdl_principle_accuracy_threshold']
     if config['logits_mdl_principle_normalization']:
         mdl_loss /= 1e-5+mdl_loss.detach().max().item()
-    mdl_loss = accuracy_mask * mdl_loss
+    masked_mdl_loss = accuracy_mask * mdl_loss
     #wandb.log({f"MDL/RegLoss": mdl_loss.cpu().detach().mean().item()}, commit=True)
     factor = config["logits_mdl_principle_factor"]
     if isinstance(factor, str):
@@ -246,7 +252,7 @@ def logits_mdl_principle_loss_hook(
 
     losses_dict[f"repetition{it_rep}/comm_round{it_comm_round}/logits_mdl_loss"] = [
         factor, 
-        mdl_loss
+        masked_mdl_loss
     ]   
 
     return
@@ -318,7 +324,7 @@ class Speaker(Agent):
             self.register_hook(mdl_principle_loss_hook)
 
         if self.kwargs.get("with_logits_mdl_principle", False):
-            self.register_hook(logits_mdl_principle_loss_hook)
+            self.register_pipeline_hook(logits_mdl_principle_loss_hook)
 
         if ("with_utterance_penalization" in self.kwargs or "with_utterance_promotion" in self.kwargs) \
          and (self.kwargs["with_utterance_penalization"] or self.kwargs["with_utterance_promotion"]):

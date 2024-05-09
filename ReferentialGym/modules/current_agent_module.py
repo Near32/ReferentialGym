@@ -87,3 +87,30 @@ class CurrentAgentModule(Module):
         outputs_dict["ref_agent"] = self.ref_agent
 
         return outputs_dict
+
+    def compute_pipeline_hooks(
+        self, 
+        input_streams_dict:Dict[str,object],
+        outputs_dict:Dict[str,object],
+    ) -> Dict[str,object] :
+        """
+        Operates on inputs_dict that is made up of referents to the requested 
+        data stream, as values of the `self.input_stream_ids` dict.
+        Make sure that accesses to its element are non-destructive.
+
+        :param input_streams_dict: Dict[str, object] where the keys are the keys of 
+                            `self.input_stream_ids`, and the values are the values
+                            stored in the `StreamHandler`'s placeholder path defined
+                            by the values of `self.input_stream_ids`.
+
+        :returns:
+            - output_streams_dict: 
+        """
+        
+        outputs_dict = self.ref_agent.compute_pipeline_hooks(
+            input_streams_dict=input_streams_dict,
+            outputs_dict=outputs_dict,
+        )
+
+        return outputs_dict
+        

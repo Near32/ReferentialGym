@@ -77,6 +77,7 @@ class StreamHandler(object):
         return
 
     def serve(self, pipeline:List[object]):
+        module_outputs_dict = {}
         for module_id in pipeline:
             module = self[f"modules:{module_id}:ref"]
             module_input_stream_dict = self._serve_module(module)    
@@ -84,13 +85,36 @@ class StreamHandler(object):
             
             if isinstance(module_output_stream_dict, types.GeneratorType):
                 module_output_stream_dict = next(module_output_stream_dict)
-
+            module_outputs_dict[module_id] = module_output_stream_dict
+            
             for stream_id, stream_data in module_output_stream_dict.items():
                 if ":" in stream_id:
                     self.update(stream_id, stream_data)
                 else:
                     self.update(f"modules:{module_id}:{stream_id}", stream_data)
 
+        ####################################
+        ####################################	
+        # Pipeline Hooks:
+        for module_id in pipeline:
+            module = self[f"modules:{module_id}:ref"]
+            if not hasattr(module, 'compute_pipeline_hooks'):   continue
+            module_input_stream_dict = self._serve_module(module)    
+            module_output_stream_dict = module.compute_pipeline_hooks(
+                input_streams_dict=module_input_stream_dict,
+                outputs_dict=module_outputs_dict[module_id],
+            )
+            
+            if module_output_stream_dict is None:   continue
+            #if isinstance(module_output_stream_dict, types.GeneratorType):
+            #    module_output_stream_dict = next(module_output_stream_dict)
+
+            for stream_id, stream_data in module_output_stream_dict.items():
+                if ":" in stream_id:
+                    self.update(stream_id, stream_data)
+                else:
+                    self.update(f"modules:{module_id}:{stream_id}", stream_data)
+	
     def _serve_module(self, module:object):
         module_input_stream_ids = module.get_input_stream_ids()
         module_input_stream_dict = {}
