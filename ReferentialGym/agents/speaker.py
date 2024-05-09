@@ -179,7 +179,7 @@ def logits_mdl_principle_loss_hook(
     it_rep = input_streams_dict["it_rep"]
     it_comm_round = input_streams_dict["it_comm_round"]
     config = input_streams_dict["config"]
-
+    mode = input_streams_dict['mode']
     batch_size = len(input_streams_dict["experiences"])
 
     arange_token = torch.arange(config["max_sentence_length"])
@@ -217,8 +217,7 @@ def logits_mdl_principle_loss_hook(
     # (batch_size, )
     
     #running_accuracy = input_streams_dict['running_accuracy']
-    import ipdb; ipdb.set_trace()
-    inst_train_accuracy= logs_dict[f'train/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy']
+    inst_train_accuracy= logs_dict[f'{mode}/repetition{it_rep}/comm_round{it_comm_round}/referential_game_accuracy']
     running_accuracy = input_streams_dict['running_test_accuracy']
     wandb.log({f"MDL/Loss": mdl_loss.cpu().detach().mean().item()}, commit=False)
     wandb.log({f"MDL/RunningAcc": running_accuracy}, commit=False)
