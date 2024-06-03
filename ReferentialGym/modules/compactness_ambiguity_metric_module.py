@@ -205,7 +205,7 @@ class CompactnessAmbiguityMetricModule(Module):
         self.representations = np.stack(list(self.representations.values()), axis=0)
 
         # LOGGING Natural Representations:
-        if False: #epoch % 8 == 0:
+        if epoch % 8 == 0:
             nr = [ " ".join([self.idx2w[nu_token] for nu_token in nu]) for nu in self.natural_representations]
             nr_table = wandb.Table(
                 columns=["stimulus_idx", "natural_utterance"],
@@ -263,6 +263,9 @@ class CompactnessAmbiguityMetricModule(Module):
             all_ls_repr = self.w2idx['EoS']*np.ones(shape=self.natural_representations.shape).astype(int)
             for ridx, widx_utt in enumerate(self.natural_representations):
                 utt = [self.idx2w[widx] for widx in widx_utt]
+                if language_spec not in self.language_spec2vocab:
+                    # token-specific language:
+                    self.language_spec2vocab[language_spec] = language_spec.split('-')
                 filtered_utt = [w for w in utt if w in self.language_spec2vocab[language_spec]]
                 for widx, fuw in enumerate(filtered_utt):
                     all_ls_repr[ridx, widx] = self.w2idx[fuw]
@@ -510,13 +513,17 @@ class CompactnessAmbiguityMetricModule(Module):
         ca_columns = ["language_spec"]
         ca_data = [f"{language_spec}"]
         current_scores = []
-        for tidx, threshold in enumerate(thresholds):
+        previous_threshold_count = 0
+        for tidx, threshold in enumerate(reversed(thresholds)):
+            tidx = len(thresholds)-1-tidx
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/Threshold{tidx}"] = threshold 
             nbr_max_compactness_count_greater_than_threshold = len([
                 count for count in list_compactness_counts if count >= threshold]
             )
-            compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
-            
+            compactness_score = float(nbr_max_compactness_count_greater_than_threshold-previous_threshold_count) / len(list_compactness_counts)*100.0
+            if not self.config['use_cumulative_scores']:
+                previous_threshold_count = nbr_max_compactness_count_greater_than_threshold
+
             current_scores.append(compactness_score)
             ca_columns.append(f"score@threshold{tidx}")
             ca_data.append(compactness_score)
@@ -689,12 +696,17 @@ class CompactnessAmbiguityMetricModule(Module):
         ca_columns = ["language_spec"]
         ca_data = [f"{language_spec}"]
         current_scores = []
-        for tidx, threshold in enumerate(thresholds):
+        previous_threshold_count = 0
+        for tidx, threshold in enumerate(reversed(thresholds)):
+            tidx = len(thresholds)-1-tidx
             logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/{language_spec}/Threshold{tidx}"] = threshold 
             nbr_max_compactness_count_greater_than_threshold = len([
                 count for count in list_compactness_counts if count >= threshold]
             )
-            compactness_score = float(nbr_max_compactness_count_greater_than_threshold) / len(list_compactness_counts)*100.0
+            compactness_score = float(nbr_max_compactness_count_greater_than_threshold-previous_threshold_count) / len(list_compactness_counts)*100.0
+            if not self.config['use_cumulative_scores']:
+                previous_threshold_count = nbr_max_compactness_count_greater_than_threshold
+
             current_scores.append(compactness_score)
             ca_columns.append(f"score@threshold{tidx}")
             ca_data.append(compactness_score)
