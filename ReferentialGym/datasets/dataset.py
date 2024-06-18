@@ -184,8 +184,11 @@ class Dataset(torchDataset):
         retain_target = True
         if DC_version == 1 \
         and self.kwargs["descriptive"]:
-            retain_target = torch.rand(size=(1,)).item() 
-            retain_target = retain_target < self.kwargs['descriptive_target_ratio']
+            retain_target = torch.rand(size=(1,)).item()
+            eff_descriptive_target_ratio = self.kwargs['descriptive_target_ratio']
+            if isinstance(eff_descriptive_target_ratio, dict):
+                eff_descriptive_target_ratio = eff_descriptive_target_ratio[self.mode]
+            retain_target = retain_target < eff_descriptive_target_ratio
             # Target experience is excluded from the experiences yielded to the listener:
             if not retain_target:
                 # Sample a new element for the listener to consider.
@@ -383,7 +386,7 @@ class Dataset(torchDataset):
             # We need to only add extra values to match the likelihood of every other logits
             # which are uniformely distributed, therefore we need the extra with the same 
             # amount of likelihood:
-            add_extra = torch.rand(size=(1,)).item() < (1.0-self.kwargs['descriptive_target_ratio'])
+            add_extra = torch.rand(size=(1,)).item() < (1.0-eff_descriptive_target_ratio)
             if add_extra:
                 for k,v in speaker_sample_d.items():
                     speaker_sample_d[k] = concatenate(
