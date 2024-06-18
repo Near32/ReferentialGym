@@ -98,7 +98,6 @@ class LanguageDynamicMetricModule(Module):
         speaker_exp_indices = input_streams_dict["speaker_exp_indices"]
         speaker_id = 'new_speaker' #input_streams_dict["speaker_id"]
         dataset = input_streams_dict["dataset"]
-        dataset_size = dataset.size()
 
         if it_step != 0:
             return outputs_dict
@@ -143,7 +142,6 @@ class LanguageDynamicMetricModule(Module):
                 ratio = 2*nbr_levs/(nbr_indices1+nbr_indices2)
                 speaker2ratios[speaker_id1][speaker_id2] = ratio
                 #speaker2ratios[speaker_id2][speaker_id1] = ratio
-                dataset_ratio = len(levs)/dataset_size
                 
                 jaccard_sim = [1 if lev==0 else 0 for lev in levs]
                 jaccard_sim = np.mean(jaccard_sim)
@@ -151,7 +149,7 @@ class LanguageDynamicMetricModule(Module):
                 logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/JaccardSimilarity"] = jaccard_sim
                 logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/MeanLevDist"] = np.mean(levs)
                 logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/OverlapRatio"] = ratio
-                logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/DatasetRatio"] = dataset_ratio
+        
         # Reset:
         self.update_storage()
         
