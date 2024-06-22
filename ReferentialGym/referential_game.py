@@ -328,7 +328,7 @@ class ReferentialGame(object):
         if 'batch_size' not in self.config:
             self.config['batch_size'] = 32
         if 'dataloader_num_worker' not in self.config:
-            self.config['dataloader_num_worker'] = 8
+            self.config['dataloader_num_worker'] = 8 
         
         effective_batch_size = self.config['batch_size']
         from .datasets.dataset import DC_version
@@ -370,7 +370,7 @@ class ReferentialGame(object):
                     batch_size=effective_batch_size, #self.config['batch_size'],
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    #num_workers=self.config['dataloader_num_worker'],
+                    num_workers=self.config['dataloader_num_worker'],
                     sampler=pbs,
                 )
             else:
@@ -380,7 +380,7 @@ class ReferentialGame(object):
                     shuffle=True,
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
-                    #num_workers=self.config['dataloader_num_worker']
+                    num_workers=self.config['dataloader_num_worker']
                 )
             
         #print("Create dataloader: OK (WARNING: num_worker arg disabled...).")
