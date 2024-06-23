@@ -151,6 +151,8 @@ class ReferentialGame(object):
             - `modes`: Dict of training/evaluation mode as keys and corresponding datasets as values.
                     `'test'` and `'train'` are mandatory.
         """
+        dataset_args['wandb_run'] = wandb.run
+        
         using_v2 = False
         mode2dataset = dataset_args.pop('modes')
         if isinstance(mode2dataset, list):

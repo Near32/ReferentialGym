@@ -60,6 +60,7 @@ class Dataset(torchDataset):
         super(Dataset,self).__init__()
 
         self.kwargs = kwargs
+        self.wandb_run = self.kwargs.get('wandb_run', None)
         if "root_folder" in kwargs:
             self.root_folder = kwargs['root_folder']
         
@@ -148,12 +149,16 @@ class Dataset(torchDataset):
             #_, _, exp_labels, _ = self.sample(idx=idx, target_only=True)
             from_class = None
             rv = torch.rand(size=(1,)).item()  
-            wandb.log({
-                "Dataset/similarity_ratio": similarity_ratio,
-                "Dataset/random": rv,
-                },
-                commit=False,
-            )
+            try:
+                if self.wandb_run:  self.wandb_run.log({
+                    "Dataset/similarity_ratio": similarity_ratio,
+                    "Dataset/random": rv,
+                    },
+                    commit=False,
+                )
+            except Exception as e:
+                print(f"Exception caught in RG dataset: {e}")
+
             if rv < similarity_ratio:
                 from_class = exp_labels
 
@@ -279,12 +284,15 @@ class Dataset(torchDataset):
                     self.kwargs['object_centric_type'] = 'hard'
                 else:
                     self.kwargs['object_centric_type'] = 'extra-simple'
-                wandb.log({
-                  "Dataset/OC_ratio": percentage/100.0,
-                  "Dataset/OC_random": OC_rv,
-                  },
-                  commit=False,
-                )
+                try:
+                  if self.wandb_run:    self.wandb_run.log({
+                    "Dataset/OC_ratio": percentage/100.0,
+                    "Dataset/OC_random": OC_rv,
+                    },
+                    commit=False,
+                  )
+                except Exception as e:
+                  print(f"Exception caught in RG dataset: {e}")
              
             if self.kwargs['object_centric'] \
             and self.kwargs.get('object_centric_type', 'hard')=='extra-simple':
