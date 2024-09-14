@@ -322,7 +322,13 @@ class ReferentialGame(object):
         if self.verbose:
             print(f"Loading signals: OK.")
 
-    def train(self, nbr_epoch: int = 10, logger: SummaryWriter = None, verbose_period=None):
+    def train(
+        self, 
+        nbr_epoch: int = 10, 
+        logger: SummaryWriter = None, 
+        verbose_period=None,
+        dataloader_shuffle=True,
+    ):
         '''
 
         '''
@@ -379,7 +385,7 @@ class ReferentialGame(object):
                 data_loaders[mode] = torch.utils.data.DataLoader(
                     dataset,
                     batch_size=effective_batch_size, #self.config['batch_size'],
-                    shuffle=True,
+                    shuffle=dataloader_shuffle, #True, 
                     collate_fn=collate_dict_wrapper,
                     pin_memory=True,
                     num_workers=self.config['dataloader_num_worker']
@@ -617,6 +623,11 @@ class ReferentialGame(object):
                 # //------------------------------------------------------------//
                 # //------------------------------------------------------------//
                 # //------------------------------------------------------------//
+            
+            # Memory creeping up issue with num_workers > 0 in DataLoaders:
+            # https://github.com/pytorch/pytorch/issues/13246#issuecomment-529185354
+            torch.cuda.empty_cache()
+
             if self.save_epoch_interval is not None\
              and epoch % self.save_epoch_interval == 0:
                 self.save(path=self.save_path)
@@ -626,6 +637,9 @@ class ReferentialGame(object):
             # //------------------------------------------------------------//
         
         self.stream_handler.update("signals:epoch", init_epoch+nbr_epoch)
+        
+        # Making sure data_loaders and their workers are garbage collected:
+        del data_loaders
 
         # //------------------------------------------------------------//
         # //------------------------------------------------------------//

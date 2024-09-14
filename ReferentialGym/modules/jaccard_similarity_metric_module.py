@@ -1,4 +1,4 @@
-from typing import Dict, List 
+from typing import Dict, List, Union
 
 import torch
 import numpy as np
@@ -15,7 +15,37 @@ def compute_levenshtein_distances_with_cache(
     idx2sentences1,
     idx2sentences2,
     cache_dict={}, 
-):
+    overall=False,
+)-> Union[List[int],Dict[int,Dict[int,int]]]:
+    '''
+    Compute levenshtein distances from s1 to s2,
+    for s1=:param idx2sentences1:[idx] 
+    and s2=:param idx2sentences2:[idx], for all idx,
+    when :param overall: is False.
+    Returns List[int].
+    If :param overall: is True, then s1 and s2 do not
+    need to share source idx and the function returns
+    a Dict[int,Dict[int,int]] of leveshtein distances 
+    from the index of s1 as key to all s2 sentences 
+    with the key being the idx, and the value being 
+    the levenshtein distance.
+    '''
+    if overall:
+        levs = {}
+        for idx1, s1 in idx2sentences1.items():
+            levs[idx1] = {}
+            for idx2, s2 in idx2sentences2.items():
+                if s1 in cache_dict \
+                and s2 in cache_dict[s1]:
+                    lev = cache_dict[s1][s2]
+                else:
+                    lev = compute_levenshtein_distance(s1,s2)
+                    if s1 not in cache_dict:    cache_dict[s1] = {}
+                    if s2 not in cache_dict:    cache_dict[s2] = {}
+                    cache_dict[s1][s2] = cache_dict[s2][s1] = lev
+                levs[idx1][idx2] = lev
+        return levs
+    # or if overall is False:
     levs = []
     for idx1, s1 in idx2sentences1.items(): 
         if idx1 not in idx2sentences2:  continue

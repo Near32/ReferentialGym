@@ -205,7 +205,7 @@ class CompactnessAmbiguityMetricModule(Module):
         self.representations = np.stack(list(self.representations.values()), axis=0)
 
         # LOGGING Natural Representations:
-        if epoch % 8 == 0:
+        if False: #epoch % 8 == 0:
             nr = [ " ".join([self.idx2w[nu_token] for nu_token in nu]) for nu in self.natural_representations]
             nr_table = wandb.Table(
                 columns=["stimulus_idx", "natural_utterance"],
@@ -507,8 +507,10 @@ class CompactnessAmbiguityMetricModule(Module):
         logs_dict[f"{mode}/{self.id}/CompactnessAmbiguity/AverageMaxCompactnessCount"] = average_max_compactness_count 
 
         percentages = [0.0306125, 0.06125, 0.125, 0.25, 0.5, 0.75]
-        thresholds = [1+max(1, math.ceil(percent*average_max_compactness_count))
-            for percent in percentages]
+        thresholds = [
+            1+max(1, math.ceil(percent*average_max_compactness_count))
+            for percent in percentages
+        ]
         
         ca_columns = ["language_spec"]
         ca_data = [f"{language_spec}"]

@@ -16,8 +16,8 @@ class LanguageDynamicMetricModule(Module):
     def __init__(
         self, 
         id:str,
-        config:Dict[str,object]
-        ):
+        config:Dict[str,object],
+    ):
         """
         :param id: str defining the ID of the module.
         :param config: Dict of parameters, expecting:
@@ -94,6 +94,9 @@ class LanguageDynamicMetricModule(Module):
         mode = input_streams_dict["mode"]
         it_step = input_streams_dict["it_step"]
         
+        if not(epoch % self.config["epoch_period"] == 0):
+            return outputs_dict
+
         speaker_sentences_widx = input_streams_dict["speaker_sentences_widx"]
         speaker_exp_indices = input_streams_dict["speaker_exp_indices"]
         speaker_id = 'new_speaker' #input_streams_dict["speaker_id"]
@@ -130,12 +133,25 @@ class LanguageDynamicMetricModule(Module):
             speaker2ratios[speaker_id1] ={}
             for speaker_id2 in self.speaker_id_set[sp1idx:]:
                 if speaker_id1 == speaker_id2:  continue
-                levs = speaker2levs[speaker_id1][speaker_id2] = compute_levenshtein_distances_with_cache(
+                dict_levs = speaker2levs[speaker_id1][speaker_id2] = compute_levenshtein_distances_with_cache(
                     idx2sentences1=self.speaker2idx2widx[speaker_id1],
                     idx2sentences2=self.speaker2idx2widx[speaker_id2],
-                    cache_dict=cache_dict, 
+                    cache_dict=cache_dict,
+                    overall=False, # Too expensive otherwise...
                 )
-                #speaker2levs[speaker_id2][speaker_id1] = levs
+                # Language Intersection:
+                '''
+                min_levs = [min(idx2levD.values()) for _, idx2levD in dict_levs.items()]
+                new_utt_mean_complexity = np.mean([minlev for minlev in min_levs if min_lev!=0])
+                logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/MeanMinLevDist-NewUtterances"] = new_utt_mean_complexity
+                lang_inter = sum([1 for minlev in min_levs if min_lev==0])
+                logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/NbrSharedUtterances"] = lang_inter
+                lang_overlap_ratio = float(lang_inter)/max(len(self.speaker2idx2widx[speaker_id1]),len(self.speaker2idx2widx[speaker_id2]))
+                logs_dict[f"{mode}/{self.id}/LanguageDynamicMetric/{speaker_id1}_{speaker_id2}/LanguageOverlapRatio"] = lang_overlap_ratio
+                levs = [idx2levD[sent_ix] for sent_idx, idx2levD in dict_levs.items() if sent_idx in idx2levD]
+                '''
+                levs = dict_levs
+                # Jaccard Similarity:
                 nbr_levs = len(levs)
                 nbr_indices1 = len(self.speaker2idx2widx[speaker_id1])
                 nbr_indices2 = len(self.speaker2idx2widx[speaker_id2])
