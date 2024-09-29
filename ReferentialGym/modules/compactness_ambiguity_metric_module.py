@@ -147,9 +147,6 @@ class CompactnessAmbiguityMetricModule(Module):
         mode = input_streams_dict["mode"]
         epoch = input_streams_dict["epoch"]
         
-        if not(epoch % self.config["epoch_period"] == 0):
-            return outputs_stream_dict
-
         if self.config.get("filtering_fn", (lambda x: True))(input_streams_dict):
             experiences = input_streams_dict["experiences"].cpu().detach().squeeze().numpy()
             if self.make_visualisation:
@@ -234,6 +231,44 @@ class CompactnessAmbiguityMetricModule(Module):
             self.experiences = self.experiences[sampling_indices]
         '''
         #
+        
+        # OK, now that everything is sorted, we need to make sure that there is continuity:
+        continuous = True
+        prev_idx = None
+        for idx in sorted_unique_indices:
+            if prev_idx is None:    
+                prev_idx = idx
+                continue
+            
+            if prev_idx-idx > 1:
+                continuous = False
+                break
+        
+        if not hasattr(self, 'last_computation_epoch'): self.last_computation_epoch = 0
+        
+        if not continuous:
+            print('-'*32)
+            print('CAM: stimuli are not temporally-correlated/continuous.')
+            print('-'*32)
+            self.bookkeeping()
+            return outputs_stream_dict
+        
+        # We might skip if the dataset is not big enough:
+        if self.config['min_size'] > len(sorted_unique_indices):
+            print('-'*32)
+            print(f"CAM: not enough stimuli : {len(sorted_unique_indices)} / {self.config['min_size']}.")
+            print('-'*32)
+            self.bookkeeping()
+            return outputs_stream_dict
+
+        # We skip based on epoch period, unless it has been to long
+        if (epoch-self.last_computation_epoch) < self.config["epoch_period"] \
+        and  not(epoch % self.config["epoch_period"] == 0):
+            self.bookkeeping()
+            return outputs_stream_dict
+
+        self.last_computation_epoch = epoch
+
         #
         '''
         if self.make_visualisation:
@@ -552,7 +587,12 @@ class CompactnessAmbiguityMetricModule(Module):
         ca_table.data = self.compactness_ambiguity_table.data
         self.compactness_ambiguity_table = ca_table
 
-
+        # Bookkeeping:
+        self.bookkeeping()
+        
+        return outputs_stream_dict
+    
+    def bookkeeping(self,):
         self.experiences = {}
         if self.make_visualisation:
             self.top_views = {}
@@ -561,8 +601,6 @@ class CompactnessAmbiguityMetricModule(Module):
         self.representations = {}
         self.latent_representations = {}
         self.indices = []
-        
-        return outputs_stream_dict
     
     def compute_distances(
         self, 

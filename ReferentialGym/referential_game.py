@@ -322,15 +322,33 @@ class ReferentialGame(object):
         if self.verbose:
             print(f"Loading signals: OK.")
 
+    def test( 
+        self, 
+        nbr_epoch: int=1, 
+        logger: SummaryWriter=None,
+        verbose_period: bool=None,
+        dataloader_shuffle: bool=True,
+    ):
+        assert 'test' in self.datasets.keys()
+        return self.train(
+            nbr_epoch=nbr_epoch,
+            logger=logger,
+            verbose_period=verbose_period,
+            dataloader_shuffle=dataloader_shuffle,
+            modes=['test'],
+        )
+
     def train(
         self, 
         nbr_epoch: int = 10, 
         logger: SummaryWriter = None, 
         verbose_period=None,
         dataloader_shuffle=True,
+        modes=None,
     ):
         '''
-
+        :param modes: Optional[List[str]] ; if None, then using modes as keys of self.datasets.
+            Otherwise, used to restrict to a specific mode, such as 'test'.
         '''
         # Dataset:
         if 'batch_size' not in self.config:
@@ -346,7 +364,13 @@ class ReferentialGame(object):
         
         data_loaders = {}
         self.pbss = {}
-        for mode, dataset in self.datasets.items():
+
+        eff_modes = modes
+        if modes is None:
+            eff_modes = self.datasets.keys()
+        #for mode, dataset in self.datasets.items():
+        for mode in eff_modes:
+            dataset = self.datasets[mode]
             if 'train' in mode and self.use_priority:
                 capacity = len(dataset)
                 
