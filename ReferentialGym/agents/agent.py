@@ -435,7 +435,7 @@ class Agent(Module):
         if hasattr(self, "VAE_losses") and vae_loss_hook not in self.hooks:
             self.register_hook(vae_loss_hook)
 
-        if hasattr(self,"tau"): 
+        if hasattr(self,"tau") and self.tau is not None: 
             tau = torch.cat([ t.view((-1)) for t in self.tau], dim=0) if isinstance(self.tau, list) else self.tau
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Tau/{self.agent_id}"] = tau
         

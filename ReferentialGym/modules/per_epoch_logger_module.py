@@ -211,6 +211,7 @@ class PerEpochLoggerModule(Module):
 
         # Log new (rectified) data:
         for key,value in logs_dict.items():
+          if value is None: continue
           if isinstance(value, torch.Tensor): 
               value = value.mean().item()
           logger.add_scalar(key, value, global_it_step)
