@@ -532,7 +532,6 @@ class DemonstrationDataset(Dataset) :
         }
         
         if self.extra_keys_dict is not None:
-            import ipdb; ipdb.set_trace() 
             for key, path in self.extra_keys_dict.items():
                 value = self.get_extra_key_value(
                     indices=trueidx, 

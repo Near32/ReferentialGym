@@ -251,7 +251,7 @@ class Agent(Module):
             self.idx2w[idx] = w 
         
         print(type(self))
-        print(self.idx2w)
+        #print(self.idx2w)
 
         self.max_sentence_length = max_sentence_length
         
