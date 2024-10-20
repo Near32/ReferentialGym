@@ -338,53 +338,55 @@ def discriminative_obverter_referential_game_loss(
     mode = input_streams_dict.get("mode", 'train')
 
     batch_size = len(input_streams_dict["experiences"])
+    nbr_distractors_po = input_streams_dict["experiences"].shape[2]
 
     sample = input_streams_dict["sample"]
             
     decision_logits = outputs_dict["decision"]
     final_decision_logits = decision_logits
-    # (batch_size, max_sentence_length, (nbr_distractors+1), 2)
-    nbr_distractors_po = decision_logits.shape[2]
+    # (batch_size, (max_sentence_length), (nbr_distractors+1), 2)
 
-    # (batch_size,) 
-    sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
-    #(batch_size, max_sentence_length)
-    eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
-    token_mask = ((eos_mask.cumsum(-1)>0)<=0)
-    lengths = token_mask.sum(-1)    
-    sentences_lengths_clamped = lengths.clamp(
-        min=1,
-        max=agent.max_sentence_length,
-    )
-    #(batch_size, )
+    if len(final_decision_logits.shape) > 3:
+        # (batch_size,) 
+        sentences_token_idx = input_streams_dict["sentences_widx"].squeeze(-1)
+        #(batch_size, max_sentence_length)
+        eos_mask = (sentences_token_idx==agent.vocab_stop_idx)
+        token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+        lengths = token_mask.sum(-1)    
+        sentences_lengths_clamped = lengths.clamp(
+            min=1,
+            max=agent.max_sentence_length,
+        )
+        #(batch_size, )
+        
+        sentences_lengths = sentences_lengths_clamped.reshape(
+            -1,
+            *[1 for _ in range(len(final_decision_logits.shape[2:])+1)]
+        ).expand(
+            final_decision_logits.shape[0],
+            1,
+            *final_decision_logits.shape[2:],
+        )
+        
+        '''
+        first_eos_idx = agent.max_sentence_length
+        logit_extraction_idx = sentences_lengths_clamped[0].squeeze().item()-1
+        if eos_mask.any():
+            first_eos_idx = lengths[0].squeeze().item()
+        wandb_dict = {}
+        wandb_dict[f"Debug/LogitsExtraction/FirstEoSIDX"] = first_eos_idx
+        wandb_dict[f"Debug/LogitsExtraction/LogitExtractIDX"] = logit_extraction_idx
+        wandb.log(wandb_dict, commit=False) 
+        '''
+        # From the math, we seem to be taking the logit before consuming EoS.
+        # The confidence level that we care about in the speaker obverter is that of the logits
+        # before EoS, therefore it would make sense to take the logits before EoS here.
+        
+        final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
+        # (batch_size, (nbr_distractors+1), 2)
     
-    sentences_lengths = sentences_lengths_clamped.reshape(
-        -1,
-        *[1 for _ in range(len(final_decision_logits.shape[2:])+1)]
-    ).expand(
-        final_decision_logits.shape[0],
-        1,
-        *final_decision_logits.shape[2:],
-    )
-    
-    '''
-    first_eos_idx = agent.max_sentence_length
-    logit_extraction_idx = sentences_lengths_clamped[0].squeeze().item()-1
-    if eos_mask.any():
-        first_eos_idx = lengths[0].squeeze().item()
-    wandb_dict = {}
-    wandb_dict[f"Debug/LogitsExtraction/FirstEoSIDX"] = first_eos_idx
-    wandb_dict[f"Debug/LogitsExtraction/LogitExtractIDX"] = logit_extraction_idx
-    wandb.log(wandb_dict, commit=False) 
-    '''
-    # From the math, we seem to be taking the logit before consuming EoS.
-    # The confidence level that we care about in the speaker obverter is that of the logits
-    # before EoS, therefore it would make sense to take the logits before EoS here.
-    
-    final_decision_logits = final_decision_logits.gather(dim=1, index=(sentences_lengths-1))
-    # (batch_size, (nbr_distractors+1), 2)
-    final_decision_logits = final_decision_logits.reshape(batch_size, nbr_distractors_po, 2)
     target_decision_idx = sample["target_decision_idx"]
+    final_decision_logits = final_decision_logits.reshape(batch_size, nbr_distractors_po, 2).to(target_decision_idx.device)
     
     # COMPUTE DESCRIPTIVE ACCURACY :
     if nbr_distractors_po != 1:
@@ -403,7 +405,7 @@ def discriminative_obverter_referential_game_loss(
         outputs_dict["descriptive_accuracy"] = descriptive_accuracy.mean(dim=-1)
     
     #WANDB LOG:
-    if input_streams_dict['global_it_comm_round'] % 1024 == 0 : 
+    if False: #input_streams_dict['global_it_comm_round'] % 1024 == 0 : 
         columns = [f"token{idx}" for idx in range(agent.max_sentence_length)]
         columns += [f"gt_latent{idx}" for idx in range(sample['speaker_exp_latents'].shape[-1])]
         columns += ["target_stimulus"]

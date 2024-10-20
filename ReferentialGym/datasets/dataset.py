@@ -187,12 +187,12 @@ class Dataset(torchDataset):
         listener_sample_d = copy.deepcopy(sample_d)
         
         retain_target = True
+        eff_descriptive_target_ratio = self.kwargs['descriptive_target_ratio']
+        if isinstance(eff_descriptive_target_ratio, dict):
+            eff_descriptive_target_ratio = eff_descriptive_target_ratio[self.mode]
         if DC_version == 1 \
         and self.kwargs["descriptive"]:
             retain_target = torch.rand(size=(1,)).item()
-            eff_descriptive_target_ratio = self.kwargs['descriptive_target_ratio']
-            if isinstance(eff_descriptive_target_ratio, dict):
-                eff_descriptive_target_ratio = eff_descriptive_target_ratio[self.mode]
             retain_target = retain_target < eff_descriptive_target_ratio
             # Target experience is excluded from the experiences yielded to the listener:
             if not retain_target:
