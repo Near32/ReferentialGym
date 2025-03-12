@@ -1,6 +1,6 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c train_wandb.py \
 --project="COMPO+DIS+SYS-DEBUG" \
---seed=21 \
+--seed=31 \
 --use_cuda=True \
 --object_centric_version=2 \
 --descriptive_version=1 \
@@ -11,7 +11,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c train_wandb.py \
 --resizeDim="-1" \
 --shared_architecture=False \
 --with_LN_in_listener_only=False \
---iterated_learning_scheme=True \
+--iterated_learning_scheme=False \
 --iterated_learning_period=64 \
 --listener_weight_decay_factor=0.0 \
 --speaker_weight_decay_factor=0.0 \
@@ -22,11 +22,11 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c train_wandb.py \
 --arch="MLP" --baseline_only=False \
 --lr=0.0005 --weight_decay=0.0 \
 --with_logits_mdl_principle=True \
---logits_mdl_principle_factor="0.0" \
+--logits_mdl_principle_factor="neg-10-1" \
 --logits_mdl_principle_use_inst_accuracy=True \
 --logits_mdl_principle_accuracy_threshold=0 \
 --logits_mdl_principle_normalization=True \
---logits_mdl_principle_entr_reg_factor="10.0" \
+--logits_mdl_principle_entr_reg_factor="0.0" \
 --logits_mdl_principle_entr_reg_masking=False \
 --nbr_experience_repetition=1 --batch_size=128 \
 --dataset=SCS --dataset_length=0 \

@@ -240,12 +240,18 @@ def logits_mdl_principle_loss_hook(
     #wandb.log({f"MDL/RegLoss": mdl_loss.cpu().detach().mean().item()}, commit=True)
     factor = config["logits_mdl_principle_factor"]
     if isinstance(factor, str):
+        negative = False
+        if 'neg-' in factor:
+            negative = True
+            factor = factor[4:]
         if '-' in factor and 'e-' not in factor:
             betas = [float(beta) for beta in factor.split('-')]
             assert len(betas) == 2
             # TODO: figure out whether using test accuracy is relevant
             #factor = np.power(running_accuracy/100.0, betas[0])/betas[1]
             factor = np.power(accuracy_masking.mean().item()/100.0, betas[0])/betas[1]
+            if negative:
+                factor = 1-factor
             wandb.log({
                 f"MDL/Beta1": betas[0],
                 f"MDL/Beta2": betas[1],
