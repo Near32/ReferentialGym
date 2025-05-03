@@ -156,19 +156,19 @@ class PerEpochLoggerModule(Module):
                 values,
                 q=50,
                 axis=None,
-                method="nearest"
+                interpolation="nearest"
               )
               q1_value = np.nanpercentile(
                 values,
                 q=25,
                 axis=None,
-                method="lower"
+                interpolation="lower"
               )
               q3_value = np.nanpercentile(
                 values,
                 q=75,
                 axis=None,
-                method="higher"
+                interpolation="higher"
               )
               iqr = q3_value-q1_value
               
