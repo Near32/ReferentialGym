@@ -78,7 +78,8 @@ class DemonstrationDataset(Dataset) :
         self.exp_key = exp_key
         self.extra_keys_dict = extra_keys_dict
 
-        self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
+        #self.action_set = set([a.item() for a in getattr(self.replay_storage, 'a')[0] if isinstance(a, torch.Tensor)])
+        self.action_set = set([a.item() if isinstance(a, torch.Tensor) else int(a) for a in getattr(self.replay_storage, 'a')[0]])
         #self.reward_set = set(getattr(self.replay_storage, 'r'))
         
         self.latents_build_fn = latents_build_fn if latents_build_fn is not None else default_latents_build_fn
