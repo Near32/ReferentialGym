@@ -303,7 +303,9 @@ class DemonstrationDataset(Dataset) :
             print(f"Split Strategy: {self.split_strategy}")
             print(self.latent_dims)
             print(f"Dataset Size: {len(self.indices)} out of {len(self.replay_storage)} : {100*len(self.indices)/len(self.replay_storage)}%.")
-            
+        else:
+            raise NotImplementedError
+
         max_values_per_latent = max(3, max(self.action_set)+1)
         self.latents_one_hot_encodings = np.eye(max_values_per_latent)[self.latents_classes.reshape(-1)]
         self.latents_one_hot_encodings = self.latents_one_hot_encodings.reshape((-1, self.latents_classes.shape[-1]*max_values_per_latent))
