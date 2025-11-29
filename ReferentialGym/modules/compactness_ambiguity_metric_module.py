@@ -244,9 +244,11 @@ class CompactnessAmbiguityMetricModule(Module):
                 prev_idx = idx
                 continue
             
-            if prev_idx-idx > 1:
+            if (idx-prev_idx) > 1:
                 continuous = False
                 break
+
+            prev_idx = idx
         
         if not hasattr(self, 'last_computation_epoch'): self.last_computation_epoch = 0
         
