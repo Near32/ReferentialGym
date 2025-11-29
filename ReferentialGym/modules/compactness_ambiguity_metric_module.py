@@ -138,6 +138,7 @@ class CompactnessAmbiguityMetricModule(Module):
         self.representations = {}
         self.latent_representations = {}
         self.indices = []
+        self._resample_attempted = False
 
         self.end_of_ = [key for key,value in input_stream_ids.items() if "end_of_" in key]
     
@@ -184,6 +185,19 @@ class CompactnessAmbiguityMetricModule(Module):
         
         if not(end_of_epoch and 'test' in mode): 
             return outputs_stream_dict
+
+        expected_total_size = self._get_expected_dataset_size(input_streams_dict.get("dataset"))
+        if self.config.get("resample", False) and expected_total_size and not self._resample_attempted:
+            existing_indices = set(self.experiences.keys())
+            missing_indices = sorted(set(range(expected_total_size)).difference(existing_indices))
+            if missing_indices:
+                resampled = self._resample_missing_indices(missing_indices, input_streams_dict)
+                self._resample_attempted = True
+                if resampled:
+                    existing_indices = set(self.experiences.keys())
+                    missing_indices = sorted(set(range(expected_total_size)).difference(existing_indices))
+            else:
+                self._resample_attempted = True
 
         # WARNING: despite using dictionnaries, they do not provide ordered values.
         # We need to sort them first:
@@ -597,7 +611,157 @@ class CompactnessAmbiguityMetricModule(Module):
         self.bookkeeping()
         
         return outputs_stream_dict
-    
+
+    def _get_expected_dataset_size(self, dataset):
+        if dataset is None:
+            return 0
+        train_len, test_len = 0, 0
+        if hasattr(dataset, "datasets"):
+            train_ds = dataset.datasets.get('train')
+            test_ds = dataset.datasets.get('test')
+            try:
+                train_len = len(train_ds) if train_ds is not None else 0
+            except TypeError:
+                train_len = 0
+            try:
+                test_len = len(test_ds) if test_ds is not None else 0
+            except TypeError:
+                test_len = 0
+        total_len = train_len + test_len
+        if total_len == 0:
+            try:
+                total_len = len(dataset)
+            except TypeError:
+                total_len = 0
+        return total_len
+
+    def _resample_missing_indices(self, missing_indices, input_streams_dict):
+        dataset = input_streams_dict.get("dataset")
+        model_callable = input_streams_dict.get("model")
+        if not missing_indices or dataset is None or model_callable is None:
+            return False
+        agent = getattr(model_callable, "__self__", None)
+        if agent is None or not hasattr(dataset, "__getitem__"):
+            return False
+
+        preprocess_fn = self.config.get("preprocess_fn", lambda x: x)
+        train_len = self._subset_length(dataset, 'train')
+        test_len = self._subset_length(dataset, 'test')
+        total_len = train_len + test_len
+        if total_len == 0:
+            return False
+
+        prev_mode = getattr(dataset, "mode", None)
+        was_training = agent.training if hasattr(agent, "training") else None
+        if hasattr(agent, "eval"):
+            agent.eval()
+
+        device = None
+        if hasattr(agent, "parameters"):
+            try:
+                device = next(agent.named_parameters())[-1].device
+            except StopIteration:
+                device = None
+
+        resampled = 0
+        try:
+            with torch.no_grad():
+                for abs_idx in missing_indices:
+                    mode_name = 'train'
+                    subset_len = train_len
+                    relative_idx = abs_idx
+                    if abs_idx >= train_len:
+                        if test_len == 0:
+                            continue
+                        mode_name = 'test'
+                        subset_len = test_len
+                        relative_idx = abs_idx - train_len
+                    if subset_len == 0:
+                        continue
+                    relative_idx = relative_idx % subset_len
+                    if hasattr(dataset, "set_mode"):
+                        dataset.set_mode(mode_name)
+                    try:
+                        sample = dataset[relative_idx]
+                    except Exception:
+                        continue
+
+                    speaker_exp = self._ensure_tensor(sample.get("speaker_experiences"))
+                    latents = self._ensure_tensor(sample.get("speaker_exp_latents"))
+                    if speaker_exp is None or latents is None:
+                        continue
+
+                    exp_tensor = speaker_exp.detach().float()
+                    if device is not None:
+                        exp_tensor = exp_tensor.to(device)
+                    exp_tensor = preprocess_fn(exp_tensor)
+
+                    try:
+                        outputs = agent.forward(
+                            experiences=exp_tensor,
+                            sentences=None,
+                            multi_round=False,
+                        )
+                    except Exception:
+                        continue
+
+                    sentences = outputs.get("sentences_widx")
+                    if sentences is None:
+                        continue
+
+                    sentence_np = sentences.detach().cpu().squeeze().numpy()
+                    exp_np = speaker_exp.detach().cpu().squeeze().numpy()
+                    latents_np = latents.detach().cpu().squeeze().numpy()
+
+                    self.experiences[abs_idx] = exp_np
+                    self.representations[abs_idx] = sentence_np
+                    self.latent_representations[abs_idx] = latents_np
+
+                    if self.make_visualisation:
+                        top_view = self._ensure_tensor(sample.get("speaker_top_view"))
+                        agent_pos = self._ensure_tensor(sample.get("speaker_agent_pos_in_top_view"))
+                        if top_view is not None:
+                            self.top_views[abs_idx] = top_view.detach().cpu().squeeze().numpy()
+                        if agent_pos is not None:
+                            self.agent_pos_in_top_views[abs_idx] = agent_pos.detach().cpu().squeeze().numpy()
+
+                    natural = self._ensure_tensor(sample.get("speaker_natural_language_sentences_widx"))
+                    if natural is not None:
+                        self.natural_representations[abs_idx] = natural.detach().cpu().squeeze().numpy()
+                    else:
+                        self.natural_representations[abs_idx] = sentence_np
+
+                    self.indices.append(torch.tensor([abs_idx]))
+                    resampled += 1
+        finally:
+            if hasattr(dataset, "set_mode") and prev_mode is not None:
+                dataset.set_mode(prev_mode)
+            if was_training is not None:
+                if was_training and hasattr(agent, "train"):
+                    agent.train()
+                elif not was_training and hasattr(agent, "eval"):
+                    agent.eval()
+
+        return resampled > 0
+
+    def _subset_length(self, dataset, subset):
+        if dataset is None or not hasattr(dataset, "datasets"):
+            return 0
+        subset_ds = dataset.datasets.get(subset)
+        if subset_ds is None:
+            return 0
+        try:
+            return len(subset_ds)
+        except TypeError:
+            return 0
+
+    def _ensure_tensor(self, value):
+        if value is None:
+            return None
+        if isinstance(value, torch.Tensor):
+            return value
+        return torch.as_tensor(value)
+
     def bookkeeping(self,):
         self.experiences = {}
         if self.make_visualisation:
@@ -607,6 +771,7 @@ class CompactnessAmbiguityMetricModule(Module):
         self.representations = {}
         self.latent_representations = {}
         self.indices = []
+        self._resample_attempted = False
     
     def compute_distances(
         self, 
