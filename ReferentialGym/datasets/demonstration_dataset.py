@@ -55,7 +55,7 @@ class DemonstrationDataset(Dataset) :
         dataset_length=None,
         exp_key:str='succ_s',
         extra_keys_dict:Dict[str,str]={
-            "grounding_signal":"info:desired_goal",
+            #"grounding_signal":"info:desired_goal",
         },
         latents_build_fn=default_latents_build_fn,
         kwargs={},
