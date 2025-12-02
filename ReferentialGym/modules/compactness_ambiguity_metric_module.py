@@ -10,6 +10,7 @@ import math
 import sklearn 
 from functools import partial 
 import cv2 as cv
+from tqdm import tqdm
 
 try:
     import matplotlib.pyplot as plt
@@ -186,16 +187,21 @@ class CompactnessAmbiguityMetricModule(Module):
         if not(end_of_epoch and 'test' in mode): 
             return outputs_stream_dict
 
-        expected_total_size = self._get_expected_dataset_size(input_streams_dict.get("dataset"))
-        if self.config.get("resample", False) and expected_total_size and not self._resample_attempted:
+        dataset_container = input_streams_dict.get("dataset")
+        expected_span = self._get_expected_index_span(dataset_container, mode)
+        expected_total_size = expected_span[1] if expected_span else 0
+        expected_start = expected_span[0] if expected_span else None
+        if self.config.get("resample", False) and expected_span and not self._resample_attempted:
             existing_indices = set(self.experiences.keys())
-            missing_indices = sorted(set(range(expected_total_size)).difference(existing_indices))
+            expected_range = range(expected_start, expected_start + expected_total_size)
+            missing_indices = [idx for idx in expected_range if idx not in existing_indices]
             if missing_indices:
                 resampled = self._resample_missing_indices(missing_indices, input_streams_dict)
                 self._resample_attempted = True
                 if resampled:
                     existing_indices = set(self.experiences.keys())
-                    missing_indices = sorted(set(range(expected_total_size)).difference(existing_indices))
+                    expected_range = range(expected_start, expected_start + expected_total_size)
+                    missing_indices = [idx for idx in expected_range if idx not in existing_indices]
             else:
                 self._resample_attempted = True
 
@@ -612,28 +618,55 @@ class CompactnessAmbiguityMetricModule(Module):
         
         return outputs_stream_dict
 
-    def _get_expected_dataset_size(self, dataset):
+    def _get_expected_index_span(self, dataset, mode=None):
         if dataset is None:
-            return 0
-        train_len, test_len = 0, 0
+            return None
+        mode_str = (mode or "").lower()
+        train_len = self._subset_length(dataset, 'train')
+        test_len = self._subset_length(dataset, 'test')
+
         if hasattr(dataset, "datasets"):
-            train_ds = dataset.datasets.get('train')
-            test_ds = dataset.datasets.get('test')
-            try:
-                train_len = len(train_ds) if train_ds is not None else 0
-            except TypeError:
-                train_len = 0
-            try:
-                test_len = len(test_ds) if test_ds is not None else 0
-            except TypeError:
-                test_len = 0
-        total_len = train_len + test_len
-        if total_len == 0:
-            try:
-                total_len = len(dataset)
-            except TypeError:
-                total_len = 0
-        return total_len
+            if 'test' in mode_str and test_len:
+                return train_len, test_len
+            if 'train' in mode_str and train_len:
+                return 0, train_len
+            if mode and mode in dataset.datasets:
+                subset = dataset.datasets[mode]
+                try:
+                    subset_len = len(subset)
+                except TypeError:
+                    subset_len = 0
+                if subset_len:
+                    start = 0
+                    for key, value in dataset.datasets.items():
+                        if key == mode:
+                            break
+                        try:
+                            start += len(value)
+                        except TypeError:
+                            continue
+                    return start, subset_len
+            total_len = 0
+            for value in dataset.datasets.values():
+                try:
+                    total_len += len(value)
+                except TypeError:
+                    continue
+            if total_len:
+                return 0, total_len
+            return None
+
+        try:
+            dataset_len = len(dataset)
+        except TypeError:
+            dataset_len = 0
+        if dataset_len:
+            return 0, dataset_len
+        return None
+
+    def _get_expected_dataset_size(self, dataset, mode=None):
+        span = self._get_expected_index_span(dataset, mode)
+        return span[1] if span else 0
 
     def _resample_missing_indices(self, missing_indices, input_streams_dict):
         dataset = input_streams_dict.get("dataset")
@@ -664,6 +697,106 @@ class CompactnessAmbiguityMetricModule(Module):
                 device = None
 
         resampled = 0
+        batch_size = max(1, int(self.config.get("resample_batch_size", 64)))
+        batch_entries = []
+
+        def _normalize_sentences_output(sentences_output, expected_len):
+            if sentences_output is None:
+                return []
+            if isinstance(sentences_output, torch.Tensor):
+                if sentences_output.dim() == 0:
+                    return [sentences_output]
+                if sentences_output.shape[0] == expected_len:
+                    return [sentences_output[idx] for idx in range(expected_len)]
+                if expected_len == 1:
+                    return [sentences_output]
+                limit = min(sentences_output.shape[0], expected_len)
+                return [sentences_output[idx] for idx in range(limit)]
+            if isinstance(sentences_output, (list, tuple)):
+                return list(sentences_output)[:expected_len]
+            tensor_output = self._ensure_tensor(sentences_output)
+            if tensor_output is None:
+                return []
+            return [tensor_output]
+
+        def _store_entries(entries, sentences_output):
+            nonlocal resampled
+            sentences_list = _normalize_sentences_output(sentences_output, len(entries))
+            if not sentences_list:
+                return
+            success_indices = []
+            for entry, sentence in zip(entries, sentences_list):
+                sentence_tensor = self._ensure_tensor(sentence)
+                if sentence_tensor is None:
+                    continue
+                sentence_np = sentence_tensor.detach().cpu().squeeze().numpy()
+                abs_idx = entry["abs_idx"]
+                self.experiences[abs_idx] = entry["speaker_exp_np"]
+                self.representations[abs_idx] = sentence_np
+                self.latent_representations[abs_idx] = entry["latents_np"]
+                if self.make_visualisation:
+                    if entry["top_view_np"] is not None:
+                        self.top_views[abs_idx] = entry["top_view_np"]
+                    if entry["agent_pos_np"] is not None:
+                        self.agent_pos_in_top_views[abs_idx] = entry["agent_pos_np"]
+                natural_np = entry["natural_np"] if entry["natural_np"] is not None else sentence_np
+                self.natural_representations[abs_idx] = natural_np
+                success_indices.append(abs_idx)
+            if success_indices:
+                self.indices.append(torch.as_tensor(success_indices, dtype=torch.long))
+                resampled += len(success_indices)
+
+        def _process_single_entry(entry):
+            try:
+                exp_batch = entry["processed_exp"].unsqueeze(0)
+            except Exception:
+                return
+            try:
+                outputs = agent.forward(
+                    experiences=exp_batch,
+                    sentences=None,
+                    multi_round=False,
+                )
+            except Exception:
+                return
+            _store_entries([entry], outputs.get("sentences_widx"))
+
+        def _flush_batch():
+            nonlocal batch_entries
+            if not batch_entries:
+                return
+            entries = batch_entries
+            batch_entries = []
+            if len(entries) == 1:
+                _process_single_entry(entries[0])
+                return
+            try:
+                exp_batch = torch.stack([entry["processed_exp"] for entry in entries], dim=0)
+            except RuntimeError:
+                for entry in entries:
+                    _process_single_entry(entry)
+                return
+            try:
+                outputs = agent.forward(
+                    experiences=exp_batch,
+                    sentences=None,
+                    multi_round=False,
+                )
+            except Exception:
+                for entry in entries:
+                    _process_single_entry(entry)
+                return
+            _store_entries(entries, outputs.get("sentences_widx"))
+
+        progress_bar = None
+        total_missing = len(missing_indices)
+        if total_missing and self.config.get("resample_progress", False):
+            progress_bar = tqdm(
+                total=total_missing,
+                desc=f"{self.id}: resampling",
+                leave=False,
+            )
+
         try:
             with torch.no_grad():
                 for abs_idx in missing_indices:
@@ -691,49 +824,54 @@ class CompactnessAmbiguityMetricModule(Module):
                     if speaker_exp is None or latents is None:
                         continue
 
+                    speaker_exp_np = speaker_exp.detach().cpu().squeeze().numpy()
+                    latents_np = latents.detach().cpu().squeeze().numpy()
+
                     exp_tensor = speaker_exp.detach().float()
                     if device is not None:
                         exp_tensor = exp_tensor.to(device)
-                    exp_tensor = preprocess_fn(exp_tensor)
-
-                    try:
-                        outputs = agent.forward(
-                            experiences=exp_tensor,
-                            sentences=None,
-                            multi_round=False,
-                        )
-                    except Exception:
+                    processed_exp = preprocess_fn(exp_tensor)
+                    if not isinstance(processed_exp, torch.Tensor):
+                        processed_exp = self._ensure_tensor(processed_exp)
+                    if processed_exp is None:
                         continue
+                    processed_exp = processed_exp.detach()
+                    if device is not None:
+                        processed_exp = processed_exp.to(device)
 
-                    sentences = outputs.get("sentences_widx")
-                    if sentences is None:
-                        continue
+                    natural = self._ensure_tensor(sample.get("speaker_natural_language_sentences_widx"))
+                    natural_np = None
+                    if natural is not None:
+                        natural_np = natural.detach().cpu().squeeze().numpy()
 
-                    sentence_np = sentences.detach().cpu().squeeze().numpy()
-                    exp_np = speaker_exp.detach().cpu().squeeze().numpy()
-                    latents_np = latents.detach().cpu().squeeze().numpy()
-
-                    self.experiences[abs_idx] = exp_np
-                    self.representations[abs_idx] = sentence_np
-                    self.latent_representations[abs_idx] = latents_np
-
+                    top_view_np = None
+                    agent_pos_np = None
                     if self.make_visualisation:
                         top_view = self._ensure_tensor(sample.get("speaker_top_view"))
                         agent_pos = self._ensure_tensor(sample.get("speaker_agent_pos_in_top_view"))
                         if top_view is not None:
-                            self.top_views[abs_idx] = top_view.detach().cpu().squeeze().numpy()
+                            top_view_np = top_view.detach().cpu().squeeze().numpy()
                         if agent_pos is not None:
-                            self.agent_pos_in_top_views[abs_idx] = agent_pos.detach().cpu().squeeze().numpy()
+                            agent_pos_np = agent_pos.detach().cpu().squeeze().numpy()
 
-                    natural = self._ensure_tensor(sample.get("speaker_natural_language_sentences_widx"))
-                    if natural is not None:
-                        self.natural_representations[abs_idx] = natural.detach().cpu().squeeze().numpy()
-                    else:
-                        self.natural_representations[abs_idx] = sentence_np
+                    batch_entries.append({
+                        "abs_idx": abs_idx,
+                        "processed_exp": processed_exp,
+                        "speaker_exp_np": speaker_exp_np,
+                        "latents_np": latents_np,
+                        "natural_np": natural_np,
+                        "top_view_np": top_view_np,
+                        "agent_pos_np": agent_pos_np,
+                    })
 
-                    self.indices.append(torch.tensor([abs_idx]))
-                    resampled += 1
+                    if len(batch_entries) >= batch_size:
+                        _flush_batch()
+                    if progress_bar is not None:
+                        progress_bar.update(1)
+                _flush_batch()
         finally:
+            if progress_bar is not None:
+                progress_bar.close()
             if hasattr(dataset, "set_mode") and prev_mode is not None:
                 dataset.set_mode(prev_mode)
             if was_training is not None:
